@@ -1,8 +1,11 @@
-import React, { useState } from 'react'
-import { FieldCard, CdbCard } from '@shared/index'
+import React, { useState, useRef, useEffect } from 'react'
+import { FieldCard, CdbCard, CardLocation, CardPosition } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useDropHintStore } from '../../stores/useDropHintStore'
 import { CardItem } from './CardItem'
+import { getDropPosOverride } from '../../utils/zoneDrop'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
+import { cn } from '../../lib/utils'
 
 export type ZoneColorVariant =
   | 'monster'
@@ -34,100 +37,115 @@ interface VariantConfig {
   border: string
   bg: string
   shadow: string
-  bracket: string
   text: string
   icon: React.ComponentType<{ className?: string }>
 }
 
+// 中性统一基调：槽位本体一律中性深浅适配，区域类型靠图标+标签区分；
+// 语义例外仅有 EMZ（虚线蓝调 + 微弱氛围光）与灵摆刻度角标（pmark 着色）
+const NEUTRAL_BASE = {
+  border: 'border-border hover:border-blue-400/70',
+  bg: 'bg-muted/40 dark:bg-white/[0.04]',
+  shadow: '',
+  text: 'text-muted-foreground/90'
+}
+
+const EMZ_BASE = {
+  border: 'border-blue-500/40 border-dashed hover:border-blue-500/80',
+  bg: 'bg-blue-500/[0.06] dark:bg-cyan-400/[0.05]',
+  // 特殊区域常驻微弱氛围光
+  shadow: 'shadow-[0_0_10px_rgba(59,130,246,0.08)]',
+  text: 'text-blue-600/90 dark:text-cyan-200/90'
+}
+
 const VARIANT_CONFIGS: Record<ZoneColorVariant, VariantConfig> = {
-  monster: {
-    border: 'border-amber-500/35 hover:border-amber-500/70',
-    bg: 'bg-gradient-to-b from-amber-950/25 via-black/40 to-amber-950/30',
-    shadow: 'shadow-[0_0_12px_rgba(245,158,11,0.06)]',
-    bracket: 'border-amber-400/50',
-    text: 'text-amber-200/80',
-    icon: Swords
-  },
-  spell: {
-    border: 'border-emerald-500/35 hover:border-emerald-500/70',
-    bg: 'bg-gradient-to-b from-emerald-950/25 via-black/40 to-emerald-950/30',
-    shadow: 'shadow-[0_0_12px_rgba(16,185,129,0.06)]',
-    bracket: 'border-emerald-400/50',
-    text: 'text-emerald-200/80',
-    icon: Sparkles
-  },
-  emz: {
-    border: 'border-cyan-400/50 hover:border-cyan-300',
-    bg: 'bg-gradient-to-b from-cyan-950/35 via-black/45 to-cyan-950/45',
-    shadow: 'shadow-[0_0_16px_rgba(6,182,212,0.18)]',
-    bracket: 'border-cyan-300/80',
-    text: 'text-cyan-200 font-semibold',
-    icon: Hexagon
-  },
-  field: {
-    border: 'border-teal-500/35 hover:border-teal-400/70',
-    bg: 'bg-gradient-to-b from-teal-950/25 via-black/40 to-teal-950/30',
-    shadow: 'shadow-[0_0_12px_rgba(20,184,166,0.08)]',
-    bracket: 'border-teal-400/50',
-    text: 'text-teal-200/80',
-    icon: Globe
-  },
-  grave: {
-    border: 'border-purple-500/35 hover:border-purple-400/70',
-    bg: 'bg-gradient-to-b from-purple-950/30 via-black/40 to-purple-950/35',
-    shadow: 'shadow-[0_0_12px_rgba(168,85,247,0.08)]',
-    bracket: 'border-purple-400/50',
-    text: 'text-purple-200/80',
-    icon: Ghost
-  },
-  deck: {
-    border: 'border-slate-500/35 hover:border-slate-400/70',
-    bg: 'bg-gradient-to-b from-slate-900/30 via-black/40 to-slate-900/40',
-    shadow: 'shadow-[0_0_10px_rgba(100,116,139,0.08)]',
-    bracket: 'border-slate-400/50',
-    text: 'text-slate-300/80',
-    icon: Layers
-  },
-  extra: {
-    border: 'border-indigo-500/35 hover:border-indigo-400/70',
-    bg: 'bg-gradient-to-b from-indigo-950/30 via-black/40 to-indigo-950/35',
-    shadow: 'shadow-[0_0_12px_rgba(99,102,241,0.08)]',
-    bracket: 'border-indigo-400/50',
-    text: 'text-indigo-200/80',
-    icon: Layers
-  },
-  removed: {
-    border: 'border-orange-500/40 hover:border-orange-400/70',
-    bg: 'bg-gradient-to-b from-orange-950/30 via-black/40 to-orange-950/35',
-    shadow: 'shadow-[0_0_12px_rgba(249,115,22,0.1)]',
-    bracket: 'border-orange-400/60',
-    text: 'text-orange-200/90',
-    icon: Ban
-  },
-  special: {
-    border: 'border-blue-500/35 hover:border-blue-400/70',
-    bg: 'bg-gradient-to-b from-blue-950/25 via-black/40 to-blue-950/30',
-    shadow: 'shadow-[0_0_10px_rgba(59,130,246,0.08)]',
-    bracket: 'border-blue-400/50',
-    text: 'text-blue-200/80',
-    icon: ShieldAlert
-  },
-  'pendulum-blue': {
-    border: 'border-cyan-500/45 hover:border-cyan-400/80',
-    bg: 'bg-gradient-to-b from-cyan-950/35 via-black/45 to-blue-950/40',
-    shadow: 'shadow-[0_0_14px_rgba(6,182,212,0.18)]',
-    bracket: 'border-cyan-400/60',
-    text: 'text-cyan-200/95 font-medium',
-    icon: ShieldAlert
-  },
-  'pendulum-red': {
-    border: 'border-rose-500/45 hover:border-rose-400/80',
-    bg: 'bg-gradient-to-b from-rose-950/35 via-black/45 to-red-950/40',
-    shadow: 'shadow-[0_0_14px_rgba(244,63,94,0.18)]',
-    bracket: 'border-rose-400/60',
-    text: 'text-rose-200/95 font-medium',
-    icon: ShieldAlert
-  }
+  monster: { ...NEUTRAL_BASE, icon: Swords },
+  spell: { ...NEUTRAL_BASE, icon: Sparkles },
+  emz: { ...EMZ_BASE, icon: Hexagon },
+  field: { ...NEUTRAL_BASE, icon: Globe },
+  grave: { ...NEUTRAL_BASE, icon: Ghost },
+  deck: { ...NEUTRAL_BASE, icon: Layers },
+  extra: { ...NEUTRAL_BASE, icon: Layers },
+  removed: { ...NEUTRAL_BASE, icon: Ban },
+  special: { ...NEUTRAL_BASE, icon: ShieldAlert },
+  'pendulum-blue': { ...NEUTRAL_BASE, icon: ShieldAlert },
+  'pendulum-red': { ...NEUTRAL_BASE, icon: ShieldAlert }
+}
+
+/* ---------- 落子后浮出的轻量表示切换条 (非阻塞，替代弹窗询问) ---------- */
+
+const POSITION_OPTIONS: Record<string, { pos: number; label: string }[]> = {
+  szone: [
+    { pos: CardPosition.FACEDOWN, label: '盖放' },
+    { pos: CardPosition.FACEUP, label: '发动' }
+  ],
+  mzone: [
+    { pos: CardPosition.FACEUP_ATTACK, label: '表攻' },
+    { pos: CardPosition.FACEUP_DEFENSE, label: '表守' },
+    { pos: CardPosition.FACEDOWN_DEFENSE, label: '盖守' }
+  ]
+}
+
+interface DropHintPopoverProps {
+  card: FieldCard
+  location: number
+  controller: 0 | 1
+}
+
+const DropHintPopover: React.FC<DropHintPopoverProps> = ({ card, location, controller }) => {
+  const closeHint = useDropHintStore((s) => s.close)
+  const updateCardPosition = useDuelStore((s) => s.updateCardPosition)
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  // 点击外部 / Esc 关闭（由持有浮条的格子自行监听，同时最多只有一份）
+  useEffect(() => {
+    const handlePointerDown = (e: MouseEvent): void => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        closeHint()
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') closeHint()
+    }
+    window.addEventListener('mousedown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [closeHint])
+
+  const options = POSITION_OPTIONS[location === CardLocation.SZONE ? 'szone' : 'mzone']
+
+  return (
+    <div
+      ref={popoverRef}
+      className={cn(
+        'absolute left-1/2 -translate-x-1/2 z-40 flex items-center gap-0.5 whitespace-nowrap bg-popover border border-border rounded-md shadow-lg p-0.5 animate-in fade-in',
+        // 对方行向下浮出、我方行向上浮出，都指向场中央
+        controller === 1 ? 'top-full mt-1' : 'bottom-full mb-1'
+      )}
+    >
+      {options.map((opt) => (
+        <button
+          key={opt.pos}
+          type="button"
+          onClick={() => {
+            updateCardPosition(card.instanceId, opt.pos)
+            closeHint()
+          }}
+          className={cn(
+            'px-1.5 py-0.5 rounded border text-[10px] transition-colors',
+            card.position === opt.pos
+              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/40 font-semibold'
+              : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60'
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export const ZoneSlot: React.FC<ZoneSlotProps> = ({
@@ -143,7 +161,16 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   className = ''
 }) => {
   const { addCardToZone, setSelectedCardId, moveCard } = useDuelStore()
+  const hintZone = useDropHintStore((s) => s.zone)
+  const showHint = useDropHintStore((s) => s.show)
   const [isOver, setIsOver] = useState(false)
+
+  // 本格是否为最近一次落子的提示目标
+  const isHintTarget =
+    hintZone !== null &&
+    hintZone.controller === controller &&
+    hintZone.location === location &&
+    hintZone.sequence === sequence
 
   // 处理拖拽进入
   const handleDragOver = (e: React.DragEvent): void => {
@@ -160,17 +187,23 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const handleDrop = (e: React.DragEvent): void => {
     e.preventDefault()
     setIsOver(false)
+    // Ctrl 拖入切换默认放置状态 (魔陷发动 / 怪兽盖守 / 手牌公开)
+    const posOverride = getDropPosOverride(location, e.ctrlKey)
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
       if (movedInstanceId) {
-        moveCard(movedInstanceId, location, sequence, controller)
-        return
+        moveCard(movedInstanceId, location, sequence, controller, posOverride)
+      } else {
+        const dataStr = e.dataTransfer.getData('application/json')
+        if (!dataStr) return
+        const droppedCard = JSON.parse(dataStr) as CdbCard
+        addCardToZone(droppedCard, controller, location, sequence, posOverride)
       }
 
-      const dataStr = e.dataTransfer.getData('application/json')
-      if (!dataStr) return
-      const droppedCard = JSON.parse(dataStr) as CdbCard
-      addCardToZone(droppedCard, controller, location, sequence)
+      // 怪兽/魔陷区落子后浮出轻量表示切换条 (可继续拖下一张，旧提示自动被顶掉)
+      if (location === CardLocation.MZONE || location === CardLocation.SZONE) {
+        showHint({ controller, location, sequence })
+      }
     } catch (err) {
       console.error('[ZoneSlot] Drop failed:', err)
     }
@@ -178,6 +211,28 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
 
   const config = VARIANT_CONFIGS[colorVariant] || VARIANT_CONFIGS.monster
   const IconComponent = config.icon
+
+  // 场上交互格 (怪兽/魔陷/灵摆) 为正方形 → 竖卡与横卡共用同一盒子尺寸，仅旋转有别；
+  // 手牌与堆叠区保持竖长条，卡面/卡背按原比例完整填充
+  const isSquareCell =
+    location === CardLocation.MZONE ||
+    location === CardLocation.SZONE ||
+    location === CardLocation.PZONE
+
+  // 灵摆刻度角标：颜色仅出现在小徽章上（蓝左/红右为原作刻度设定）
+  const pendulumMark = isPendulum
+    ? pendulumDirection === 'left'
+      ? '◀ P'
+      : pendulumDirection === 'right'
+        ? 'P ▶'
+        : 'P'
+    : null
+  const pendulumMarkClass =
+    colorVariant === 'pendulum-red'
+      ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+      : colorVariant === 'pendulum-blue'
+        ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
+        : 'bg-muted text-muted-foreground border-border'
 
   return (
     <div
@@ -187,91 +242,51 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onClick={() => {
         if (!card) setSelectedCardId(null)
       }}
-      className={`group relative w-[74px] h-[104px] rounded-lg border backdrop-blur-sm ${config.border} ${config.bg} ${config.shadow} flex flex-col items-center justify-center transition-all duration-150 select-none overflow-hidden shrink-0 ${
-        isOver
-          ? 'ring-2 ring-amber-400 bg-amber-500/25 scale-[1.03] border-transparent shadow-[0_0_16px_rgba(245,158,11,0.35)]'
-          : ''
+      className={`group relative ${
+        isSquareCell ? 'w-[104px] h-[104px]' : 'w-[74px] h-[104px]'
+      } rounded border ${config.border} ${config.bg} ${config.shadow} flex flex-col items-center justify-center transition-all duration-150 select-none shrink-0 ${
+        // 拖拽目标态：唯一强调色
+        isOver ? 'ring-2 ring-blue-400 bg-blue-500/15 scale-[1.03] border-transparent' : ''
       } ${className}`}
     >
-      {/* 科技感 4 角卡槽定位标记 */}
-      <div
-        className={`absolute top-1 left-1 w-2 h-2 border-t-[1.5px] border-l-[1.5px] ${config.bracket} pointer-events-none transition-opacity group-hover:opacity-100 opacity-60`}
-      />
-      <div
-        className={`absolute top-1 right-1 w-2 h-2 border-t-[1.5px] border-r-[1.5px] ${config.bracket} pointer-events-none transition-opacity group-hover:opacity-100 opacity-60`}
-      />
-      <div
-        className={`absolute bottom-1 left-1 w-2 h-2 border-b-[1.5px] border-l-[1.5px] ${config.bracket} pointer-events-none transition-opacity group-hover:opacity-100 opacity-60`}
-      />
-      <div
-        className={`absolute bottom-1 right-1 w-2 h-2 border-b-[1.5px] border-r-[1.5px] ${config.bracket} pointer-events-none transition-opacity group-hover:opacity-100 opacity-60`}
-      />
-
       {/* 堆叠张数徽标 (如卡组/墓地/额外卡组张数) */}
       {count !== undefined && count > 0 && (
-        <div className="absolute top-1.5 right-1.5 z-20 px-1.5 py-0.5 rounded-full bg-black/85 border border-white/20 text-[9px] font-mono font-bold text-amber-300 leading-none shadow-md pointer-events-none">
+        <div className="absolute top-1.5 right-1.5 z-20 px-1.5 py-0.5 rounded-full bg-black/80 border border-white/25 text-[9px] font-mono font-bold text-white leading-none shadow-sm pointer-events-none">
           {count}
         </div>
       )}
 
+      {/* 落子提示浮条：仅最近一次落子的怪兽/魔陷格显示 (非阻塞，点击外部/Esc 关闭) */}
+      {isHintTarget && card && (
+        <DropHintPopover card={card} location={location} controller={controller} />
+      )}
+
       {card ? (
-        <CardItem card={card} />
+        <CardItem card={card} squareCell={isSquareCell} />
       ) : (
         <div className="flex flex-col items-center justify-center p-1.5 text-center pointer-events-none relative z-10 w-full">
-          {/* 决斗槽位水印徽记 */}
-          <div className="mb-1 opacity-25 group-hover:opacity-40 transition-transform group-hover:scale-110 duration-200">
-            <IconComponent className="w-6 h-6 stroke-[1.5]" />
-          </div>
+          {/* 槽位类型水印（灵摆位不渲染，避免与刻度标记互相遮挡） */}
+          {!isPendulum && (
+            <div className="mb-1 opacity-30 group-hover:opacity-50 transition-opacity">
+              <IconComponent className="w-5 h-5 stroke-[1.5] text-foreground" />
+            </div>
+          )}
 
           <span
-            className={`text-[10px] font-mono tracking-tight font-medium ${config.text} leading-tight drop-shadow`}
+            className={`text-[10px] font-mono tracking-tight font-medium ${config.text} leading-tight`}
           >
             {label}
           </span>
 
-          {/* 灵摆刻度标识 */}
-          {isPendulum && (
-            <div className="flex items-center gap-0.5 mt-1">
-              {colorVariant === 'pendulum-blue' ? (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-700/80 text-cyan-100 font-bold border border-cyan-400/50 shadow flex items-center gap-0.5">
-                  {pendulumDirection === 'right' ? (
-                    <>
-                      P <span>▶</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>◀</span> P
-                    </>
-                  )}
-                </span>
-              ) : colorVariant === 'pendulum-red' ? (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-700/80 text-rose-100 font-bold border border-rose-400/50 shadow flex items-center gap-0.5">
-                  {pendulumDirection === 'left' ? (
-                    <>
-                      <span>◀</span> P
-                    </>
-                  ) : (
-                    <>
-                      P <span>▶</span>
-                    </>
-                  )}
-                </span>
-              ) : (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-gradient-to-r from-blue-600/70 via-indigo-600/70 to-red-600/70 text-white font-bold border border-white/20 shadow flex items-center gap-0.5">
-                  {pendulumDirection === 'left' ? (
-                    <>
-                      <span>◀</span> P
-                    </>
-                  ) : pendulumDirection === 'right' ? (
-                    <>
-                      P <span>▶</span>
-                    </>
-                  ) : (
-                    'P'
-                  )}
-                </span>
+          {pendulumMark && (
+            <span
+              className={cn(
+                'mt-1 text-[9px] px-1 py-0.5 rounded border font-bold',
+                pendulumMarkClass
               )}
-            </div>
+            >
+              {pendulumMark}
+            </span>
           )}
         </div>
       )}

@@ -12,11 +12,11 @@
 
 产品目标是服务**三类创作场景**，新增功能与设计决策应优先兼容它们：
 
-| 场景 | 说明 | 数据形态 |
-| ---- | ---- | -------- |
-| **残局布场** | 摆出残局/教程局面的双方场地、手牌、生命值 | `DuelPuzzleState`（当前已实现） |
+| 场景                 | 说明                                       | 数据形态                          |
+| -------------------- | ------------------------------------------ | --------------------------------- |
+| **残局布场**         | 摆出残局/教程局面的双方场地、手牌、生命值  | `DuelPuzzleState`（当前已实现）   |
 | **同人剧情对局编排** | 编排多段剧情：开场白、事件触发、多回合推演 | 需要序列/章节等状态扩展（规划中） |
-| **卡组 Combo 教学** | 演示卡组起手与做场路线，分步骤讲解 | 需要步骤/回放等状态扩展（规划中） |
+| **卡组 Combo 教学**  | 演示卡组起手与做场路线，分步骤讲解         | 需要步骤/回放等状态扩展（规划中） |
 
 **当前实现范围**： MR2~MR5 场地编辑、拖拽摆卡、卡片检索（读取用户游戏目录的 `cards.cdb`）、Lua 脚本导入/导出、项目文件保存/加载、撤销/重做。
 
@@ -50,15 +50,15 @@ pnpm build:win            # Windows 打包（另有 build:mac / build:linux / bu
 
 ## 3. 术语约定（写代码与注释时统一措辞）
 
-| 术语 | 约定 |
-| ---- | ---- |
-| 卡密 | 数据字段统一叫 `code`（`CdbCard.id` 是例外，它是数据库主键，等价于卡密） |
-| 场上实例 | `instanceId`（每张卡在场地上的唯一 ID），不要与卡密 `code` 混淆 |
-| 控制者 | `controller: 0` = 我方，`controller: 1` = 对方。这是 ocgcore 硬约定，**任何地方都不得颠倒** |
-| 归属者 | `owner: 0 \| 1` = 卡牌原型归属（洗回卡组时用它），通常与 controller 相同 |
-| 规则版本 | 代码中 `MasterRule` 的取值是 `2 \| 3 \| 4 \| 5`，其中 `2` 覆盖 MR1/MR2（同为经典 5+5 布局）。文案写 MR1~MR5，代码守这个联合类型 |
-| 区域/表示形式 | 一律引用 `CardLocation` / `CardPosition` 常量（详见第 7 节），禁止裸写魔法数字 |
-| Lua 常量映射 | `CardLocation.DECK → 'LOCATION_DECK'`、`CardPosition.FACEUP_DEFENSE → 'POS_FACEUP_DEFENSE'`，映射表集中在 `luaGenerator.ts` / `luaParser.ts` 内 |
+| 术语          | 约定                                                                                                                                            |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 卡密          | 数据字段统一叫 `code`（`CdbCard.id` 是例外，它是数据库主键，等价于卡密）                                                                        |
+| 场上实例      | `instanceId`（每张卡在场地上的唯一 ID），不要与卡密 `code` 混淆                                                                                 |
+| 控制者        | `controller: 0` = 我方，`controller: 1` = 对方。这是 ocgcore 硬约定，**任何地方都不得颠倒**                                                     |
+| 归属者        | `owner: 0 \| 1` = 卡牌原型归属（洗回卡组时用它），通常与 controller 相同                                                                        |
+| 规则版本      | 代码中 `MasterRule` 的取值是 `2 \| 3 \| 4 \| 5`，其中 `2` 覆盖 MR1/MR2（同为经典 5+5 布局）。文案写 MR1~MR5，代码守这个联合类型                 |
+| 区域/表示形式 | 一律引用 `CardLocation` / `CardPosition` 常量（详见第 7 节），禁止裸写魔法数字                                                                  |
+| Lua 常量映射  | `CardLocation.DECK → 'LOCATION_DECK'`、`CardPosition.FACEUP_DEFENSE → 'POS_FACEUP_DEFENSE'`，映射表集中在 `luaGenerator.ts` / `luaParser.ts` 内 |
 
 ---
 
@@ -92,12 +92,12 @@ pnpm build:win            # Windows 打包（另有 build:mac / build:linux / bu
 
 所有宿主能力新增都必须同步四处，缺一即为不完整改动：
 
-| 步骤 | 文件 | 动作 |
-| ---- | ---- | ---- |
-| ① 定义参数/返回值类型 | `src/shared/types/ipc.ts` | 新增 XxxParams/XxxResult，并加入 `IpcApi` 接口 |
-| ② 渲染端调用入口声明 | `src/preload/index.ts` | 在 `api` 对象里加 `xxx: () => ipcRenderer.invoke('<域>:<动作>')` |
-| ③ Preload 类型声明 | `src/preload/index.d.ts` | 同步 `window.api` 的类型 |
-| ④ 注册主进程 handler | `src/main/ipc/registerIpc.ts` | `ipcMain.handle('<域>:<动作>', ...)`，业务逻辑尽量交给 services 层 |
+| 步骤                  | 文件                          | 动作                                                               |
+| --------------------- | ----------------------------- | ------------------------------------------------------------------ |
+| ① 定义参数/返回值类型 | `src/shared/types/ipc.ts`     | 新增 XxxParams/XxxResult，并加入 `IpcApi` 接口                     |
+| ② 渲染端调用入口声明  | `src/preload/index.ts`        | 在 `api` 对象里加 `xxx: () => ipcRenderer.invoke('<域>:<动作>')`   |
+| ③ Preload 类型声明    | `src/preload/index.d.ts`      | 同步 `window.api` 的类型                                           |
+| ④ 注册主进程 handler  | `src/main/ipc/registerIpc.ts` | `ipcMain.handle('<域>:<动作>', ...)`，业务逻辑尽量交给 services 层 |
 
 - Channel 命名格式：`<域>:<动作>`，如 `cdb:search`、`file:export-lua`、`config:get`、`image:get-path`。域与 `services/` 目录一一对应。
 - 业务逻辑写在 `src/main/services/*`，`registerIpc.ts` 只做参数校验与转发。
@@ -145,12 +145,12 @@ src/
 
 ### 7.1 MasterRule 与场地布局
 
-| `masterRule` | 名称 | 场地特征 |
-| ------------ | ---- | -------- |
-| `2` | MR1/2 经典 | 无 EMZ、无灵摆区，5 主怪兽区 + 5 魔陷区，额外怪兽直接进主怪兽区 |
-| `3` | MR3 灵摆 | 同上 + 2 个**独立**灵摆区（`CardLocation.PZONE`，序号 0/1） |
-| `4` | MR4 新大师 | 新增 2 个 **EMZ**（MZONE 序号 5/6）；灵摆区**合并**入魔陷区 0/4 号位（`pendulumInSZone`） |
-| `5` | MR5 现行 | 同 MR4，现行规则（默认值） |
+| `masterRule` | 名称       | 场地特征                                                                                  |
+| ------------ | ---------- | ----------------------------------------------------------------------------------------- |
+| `2`          | MR1/2 经典 | 无 EMZ、无灵摆区，5 主怪兽区 + 5 魔陷区，额外怪兽直接进主怪兽区                           |
+| `3`          | MR3 灵摆   | 同上 + 2 个**独立**灵摆区（`CardLocation.PZONE`，序号 0/1）                               |
+| `4`          | MR4 新大师 | 新增 2 个 **EMZ**（MZONE 序号 5/6）；灵摆区**合并**入魔陷区 0/4 号位（`pendulumInSZone`） |
+| `5`          | MR5 现行   | 同 MR4，现行规则（默认值）                                                                |
 
 布局差异全部由 `shared/types/rules.ts` 的 `MASTER_RULES` 信息表驱动（`hasEMZ` / `hasIndependentPZones` / `pendulumInSZone` 等布尔位）。**不要在 Board 组件里写死「MR 等级 → 布局」的 if 分支，一切从信息表推导。**
 
@@ -193,14 +193,14 @@ Board/
 
 ### 8.2 命名
 
-| 类别 | 约定 | 示例 |
-| ---- | ---- | ---- |
+| 类别           | 约定                        | 示例                                       |
+| -------------- | --------------------------- | ------------------------------------------ |
 | React 组件文件 | PascalCase `.tsx`，具名导出 | `DuelBoard.tsx` → `export const DuelBoard` |
-| 工具/常量文件 | camelCase `.ts` | `cardImage.ts` |
-| Store | `use[Name]Store.ts` | `useDuelStore.ts` |
-| 常量导出 | UPPER_SNAKE_CASE | `CARD_BACK_IMAGE` |
-| 类型/接口 | PascalCase | `FieldCard` |
-| CSS 变量 | kebab-case | `--background` |
+| 工具/常量文件  | camelCase `.ts`             | `cardImage.ts`                             |
+| Store          | `use[Name]Store.ts`         | `useDuelStore.ts`                          |
+| 常量导出       | UPPER_SNAKE_CASE            | `CARD_BACK_IMAGE`                          |
+| 类型/接口      | PascalCase                  | `FieldCard`                                |
+| CSS 变量       | kebab-case                  | `--background`                             |
 
 ### 8.3 导入导出
 

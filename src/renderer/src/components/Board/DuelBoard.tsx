@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { CardLocation, MASTER_RULES, FieldCard } from '@shared/index'
 import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
@@ -9,6 +10,30 @@ import { PileListModal } from './PileListModal'
 export const DuelBoard: React.FC = () => {
   const { state } = useDuelStore()
   const ruleInfo = MASTER_RULES[state.masterRule]
+
+  // 全局快捷键：Del / Delete 键直接删除当前鼠标指向或选中的卡片
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Delete' && e.key !== 'Del') return
+
+      const target = e.target as HTMLElement | null
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      if (isInput) return
+
+      const duelStore = useDuelStore.getState()
+      const targetId = duelStore.hoveredInstanceId || duelStore.selectedCardId
+      if (targetId) {
+        e.preventDefault()
+        duelStore.removeCard(targetId)
+        useContextMenuStore.getState().closeMenu()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // 辅助查找对应格子的卡片
   const getCard = (

@@ -315,7 +315,8 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 ['导入 Lua', 'Ctrl + I'],
                 ['导出 Lua', 'Ctrl + E'],
                 ['撤销', 'Ctrl + Z'],
-                ['重做', 'Ctrl + Y / Ctrl + Shift + Z']
+                ['重做', 'Ctrl + Y / Ctrl + Shift + Z'],
+                ['删除卡片', 'Delete / Del']
               ].map(([name, key]) => (
                 <div key={name} className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">{name}</span>
@@ -324,6 +325,10 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               ))}
             </div>
             <div className="space-y-1 text-xs pt-1">
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">删除卡片</span>
+                <span>鼠标指向卡片或选中卡片时按 Delete / Del 直接删除（可撤销）</span>
+              </div>
               <div className="flex justify-between py-1">
                 <span className="text-muted-foreground">摆卡 / 移动</span>
                 <span>从搜索列表拖拽至格；场上卡拖到另一格即移动</span>

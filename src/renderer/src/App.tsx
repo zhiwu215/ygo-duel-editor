@@ -17,16 +17,16 @@ export function App(): React.JSX.Element {
       {/* 顶部工具与状态栏 */}
       <Header />
 
-      {/* 主工作区：左侧卡库搜索 + 中央主对战台 + 右侧卡片详情 */}
+      {/* 主工作区：左侧卡片详情 + 中央决斗战场 + 右侧卡片检索与高级筛选 */}
       <div className="flex-1 flex overflow-hidden">
-        {/* 左侧：卡片资料检索抽屉 */}
-        <CardSearchPanel />
+        {/* 左侧：卡片大图与详细效果 */}
+        <CardDetailPanel />
 
         {/* 中央：MR 动态决斗战场 */}
         <DuelBoard />
 
-        {/* 右侧：卡片大图与详细效果 */}
-        <CardDetailPanel />
+        {/* 右侧：卡片检索与弹性高级筛选面板 */}
+        <CardSearchPanel />
       </div>
     </div>
   )

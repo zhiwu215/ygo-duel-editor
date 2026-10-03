@@ -20,11 +20,11 @@ export const CardDetailPanel: React.FC = () => {
 
   if (!currentCard) {
     return (
-      <aside className="w-72 h-full border-l border-border bg-card/30 flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none">
+      <aside className="w-80 h-full border-r border-border bg-card/30 flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none shrink-0">
         <HelpCircle className="w-10 h-10 text-muted-foreground/30 mb-3" />
         <p className="font-medium text-foreground/80">尚未选择卡片</p>
         <p className="text-[11px] text-muted-foreground/60 mt-1 leading-relaxed">
-          将鼠标悬停在左侧搜索列表或场上卡片上，即可在此处查看超高清卡图与详细效果说明。
+          将鼠标悬停在右侧卡片列表或场上卡片上，即可在此处查阅超高清卡图与详细效果说明。
         </p>
       </aside>
     )
@@ -39,7 +39,7 @@ export const CardDetailPanel: React.FC = () => {
   const pScale = isPendulum ? CardUtils.getPendulumScales(currentCard.level) : null
 
   return (
-    <aside className="w-80 h-full border-l border-border bg-card/40 flex flex-col shrink-0 select-none overflow-hidden">
+    <aside className="w-80 h-full border-r border-border bg-card/40 flex flex-col shrink-0 select-none overflow-hidden">
       {/* 卡图展示区域 */}
       <div className="p-4 flex flex-col items-center bg-muted/20">
         <img

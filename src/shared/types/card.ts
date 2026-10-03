@@ -23,6 +23,7 @@ export interface CdbCard {
  */
 export const CardType = {
   MONSTER: 0x1,
+  /** 魔法卡 */
   SPELL: 0x2,
   TRAP: 0x4,
   NORMAL: 0x10,
@@ -67,6 +68,67 @@ export const ATTRIBUTE_NAMES: Record<number, string> = {
 }
 
 /**
+ * 种族标志位
+ */
+export const CardRace = {
+  WARRIOR: 0x1,
+  SPELLCASTER: 0x2,
+  FAIRY: 0x4,
+  FIEND: 0x8,
+  ZOMBIE: 0x10,
+  MACHINE: 0x20,
+  AQUA: 0x40,
+  PYRO: 0x80,
+  ROCK: 0x100,
+  WINGED_BEAST: 0x200,
+  PLANT: 0x400,
+  INSECT: 0x800,
+  THUNDER: 0x1000,
+  DRAGON: 0x2000,
+  BEAST: 0x4000,
+  BEAST_WARRIOR: 0x8000,
+  DINOSAUR: 0x10000,
+  FISH: 0x20000,
+  SEA_SERPENT: 0x40000,
+  REPTILE: 0x80000,
+  PSYCHIC: 0x100000,
+  DIVINE_BEAST: 0x200000,
+  CREATOR_GOD: 0x400000,
+  WYRM: 0x800000,
+  CYBERSE: 0x1000000,
+  ILLUSION: 0x2000000
+} as const
+
+export const RACE_NAMES: Record<number, string> = {
+  [CardRace.WARRIOR]: '战士',
+  [CardRace.SPELLCASTER]: '魔法师',
+  [CardRace.FAIRY]: '天使',
+  [CardRace.FIEND]: '恶魔',
+  [CardRace.ZOMBIE]: '不死',
+  [CardRace.MACHINE]: '机械',
+  [CardRace.AQUA]: '水',
+  [CardRace.PYRO]: '炎',
+  [CardRace.ROCK]: '岩石',
+  [CardRace.WINGED_BEAST]: '鸟兽',
+  [CardRace.PLANT]: '植物',
+  [CardRace.INSECT]: '昆虫',
+  [CardRace.THUNDER]: '雷',
+  [CardRace.DRAGON]: '龙',
+  [CardRace.BEAST]: '兽',
+  [CardRace.BEAST_WARRIOR]: '兽战士',
+  [CardRace.DINOSAUR]: '恐龙',
+  [CardRace.FISH]: '鱼',
+  [CardRace.SEA_SERPENT]: '海龙',
+  [CardRace.REPTILE]: '爬虫类',
+  [CardRace.PSYCHIC]: '念动力',
+  [CardRace.DIVINE_BEAST]: '幻神兽',
+  [CardRace.CREATOR_GOD]: '创造神',
+  [CardRace.WYRM]: '幻龙',
+  [CardRace.CYBERSE]: '电子界',
+  [CardRace.ILLUSION]: '幻想魔'
+}
+
+/**
  * 卡片辅助解析方法
  */
 export const CardUtils = {
@@ -94,5 +156,35 @@ export const CardUtils = {
     const lscale = (level >> 24) & 0xff
     const rscale = (level >> 16) & 0xff
     return { lscale, rscale }
+  },
+
+  // 获取卡片简明分类标签
+  getCardTypeLabel: (type: number): string => {
+    if (CardUtils.isMonster(type)) {
+      if (type & CardType.LINK) return '连接'
+      if (type & CardType.XYZ) return '超量'
+      if (type & CardType.SYNCHRO) return '同调'
+      if (type & CardType.FUSION) return '融合'
+      if (type & CardType.RITUAL) return '仪式'
+      if (type & CardType.PENDULUM) return '灵摆'
+      if (type & CardType.EFFECT) return '效果'
+      if (type & CardType.NORMAL) return '通常'
+      if (type & CardType.TOKEN) return '衍生物'
+      return '怪兽'
+    }
+    if (CardUtils.isSpell(type)) {
+      if (type & CardType.QUICKPLAY) return '速攻'
+      if (type & CardType.CONTINUOUS) return '永续'
+      if (type & CardType.EQUIP) return '装备'
+      if (type & CardType.FIELD) return '场地'
+      if (type & CardType.RITUAL) return '仪式'
+      return '通常魔法'
+    }
+    if (CardUtils.isTrap(type)) {
+      if (type & CardType.COUNTER) return '反击'
+      if (type & CardType.CONTINUOUS) return '永续'
+      return '通常陷阱'
+    }
+    return '未知'
   }
 }

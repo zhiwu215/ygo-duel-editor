@@ -3,92 +3,170 @@ import { CdbCard, CardSearchParams } from '@shared/index'
 
 const PAGE_SIZE = 40
 
-interface CardSearchStoreState {
+export interface CardSearchFilters {
   keyword: string
-  typeFilter: number
+  searchDesc: boolean
+  type: number // 0: 全部, 或 CardType.MONSTER / SPELL / TRAP
+  subType: number // 细分种类
+  attribute: number // 属性掩码
+  race: number // 种族掩码
+  level: number // 等级 / Rank / Link
+  atk: number | undefined // 攻击力
+  def: number | undefined // 守备力
+  code: number | undefined // 精确卡密
+  sortField: 'id' | 'atk' | 'def' | 'level' | 'name'
+  sortOrder: 'ASC' | 'DESC'
+}
+
+export const DEFAULT_FILTERS: CardSearchFilters = {
+  keyword: '',
+  searchDesc: true,
+  type: 0,
+  subType: 0,
+  attribute: 0,
+  race: 0,
+  level: 0,
+  atk: undefined,
+  def: undefined,
+  code: undefined,
+  sortField: 'id',
+  sortOrder: 'DESC'
+}
+
+export interface CardSearchStoreState extends CardSearchFilters {
   results: CdbCard[]
+  total: number
   isLoading: boolean
   isLoadingMore: boolean
   hasMore: boolean
   hasSearched: boolean
+  /** 高级筛选抽屉是否展开 */
+  isFilterOpen: boolean
 
+  /** 设置高级筛选抽屉的展开/收起状态 */
+  setIsFilterOpen: (open: boolean) => void
+  /** 切换高级筛选抽屉的展开/收起状态 */
+  toggleFilterOpen: () => void
+  /** 设置搜索关键词并自动触发检索 */
   setKeyword: (keyword: string) => void
-  setTypeFilter: (type: number) => void
+  /** 批量更新多维筛选条件（种类、属性、种族、星级等）并触发自动检索 */
+  setFilters: (partial: Partial<CardSearchFilters>) => void
+  /** 重置所有多维筛选条件为默认初始值 */
+  resetFilters: () => void
+  /** 执行卡片搜索（支持传入临时覆盖参数） */
   search: (customParams?: Partial<CardSearchParams>) => Promise<void>
+  /** 加载下一页卡片数据（分页加载） */
   loadMore: () => Promise<void>
+  /** 清空搜索结果与状态 */
   clear: () => void
 }
 
 export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
-  keyword: '',
-  typeFilter: 0,
+  ...DEFAULT_FILTERS,
   results: [],
+  total: 0,
   isLoading: false,
   isLoadingMore: false,
   hasMore: true,
   hasSearched: false,
+  isFilterOpen: false,
+
+  setIsFilterOpen: (isFilterOpen) => set({ isFilterOpen }),
+  toggleFilterOpen: () => set((state) => ({ isFilterOpen: !state.isFilterOpen })),
 
   setKeyword: (keyword) => set({ keyword }),
-  setTypeFilter: (typeFilter) => {
-    set({ typeFilter })
+
+  setFilters: (partial) => {
+    set((state) => ({ ...state, ...partial }))
+    get().search()
+  },
+
+  resetFilters: () => {
+    set({
+      ...DEFAULT_FILTERS,
+      keyword: get().keyword // 保留搜索框已输入的关键字
+    })
     get().search()
   },
 
   search: async (customParams = {}) => {
-    const currentKeyword = customParams.keyword !== undefined ? customParams.keyword : get().keyword
-    const currentType = customParams.type !== undefined ? customParams.type : get().typeFilter
+    const state = get()
+    const mergedParams: CardSearchParams = {
+      keyword: customParams.keyword !== undefined ? customParams.keyword : state.keyword,
+      searchDesc:
+        customParams.searchDesc !== undefined ? customParams.searchDesc : state.searchDesc,
+      type: customParams.type !== undefined ? customParams.type : state.type,
+      subType: customParams.subType !== undefined ? customParams.subType : state.subType,
+      attribute: customParams.attribute !== undefined ? customParams.attribute : state.attribute,
+      race: customParams.race !== undefined ? customParams.race : state.race,
+      level: customParams.level !== undefined ? customParams.level : state.level,
+      atk: customParams.atk !== undefined ? customParams.atk : state.atk,
+      def: customParams.def !== undefined ? customParams.def : state.def,
+      code: customParams.code !== undefined ? customParams.code : state.code,
+      sortField: customParams.sortField !== undefined ? customParams.sortField : state.sortField,
+      sortOrder: customParams.sortOrder !== undefined ? customParams.sortOrder : state.sortOrder,
+      limit: customParams.limit || PAGE_SIZE,
+      offset: 0,
+      ...customParams
+    }
+
     set({
-      keyword: currentKeyword,
-      typeFilter: currentType,
       isLoading: true,
       hasMore: true
     })
+
     try {
-      const params: CardSearchParams = {
-        keyword: currentKeyword,
-        type: currentType,
-        limit: customParams.limit || PAGE_SIZE,
-        offset: 0,
-        ...customParams
-      }
-      const cards = await window.api.searchCards(params)
+      const res = await window.api.searchCards(mergedParams)
       set({
-        results: cards,
+        results: res.cards,
+        total: res.total,
         isLoading: false,
         hasSearched: true,
-        hasMore: cards.length >= (params.limit || PAGE_SIZE)
+        hasMore: res.cards.length >= (mergedParams.limit || PAGE_SIZE)
       })
     } catch (err) {
       console.error('[useCardSearchStore] search failed:', err)
-      set({ results: [], isLoading: false, hasSearched: true, hasMore: false })
+      set({ results: [], total: 0, isLoading: false, hasSearched: true, hasMore: false })
     }
   },
 
   loadMore: async () => {
-    const { keyword, typeFilter, results, isLoading, isLoadingMore, hasMore } = get()
-    if (isLoading || isLoadingMore || !hasMore) return
+    const state = get()
+    if (state.isLoading || state.isLoadingMore || !state.hasMore) return
 
     set({ isLoadingMore: true })
     try {
       const params: CardSearchParams = {
-        keyword,
-        type: typeFilter,
+        keyword: state.keyword,
+        searchDesc: state.searchDesc,
+        type: state.type,
+        subType: state.subType,
+        attribute: state.attribute,
+        race: state.race,
+        level: state.level,
+        atk: state.atk,
+        def: state.def,
+        code: state.code,
+        sortField: state.sortField,
+        sortOrder: state.sortOrder,
         limit: PAGE_SIZE,
-        offset: results.length
+        offset: state.results.length
       }
-      const newCards = await window.api.searchCards(params)
-      if (newCards.length === 0) {
+
+      const res = await window.api.searchCards(params)
+      if (res.cards.length === 0) {
         set({ isLoadingMore: false, hasMore: false })
         return
       }
 
-      const existingIds = new Set(results.map((c) => c.id))
-      const uniqueNewCards = newCards.filter((c) => !existingIds.has(c.id))
+      const existingIds = new Set(state.results.map((c) => c.id))
+      const uniqueNewCards = res.cards.filter((c) => !existingIds.has(c.id))
 
       set({
-        results: [...results, ...uniqueNewCards],
+        results: [...state.results, ...uniqueNewCards],
+        total: res.total,
         isLoadingMore: false,
-        hasMore: newCards.length >= PAGE_SIZE
+        hasMore: res.cards.length >= PAGE_SIZE
       })
     } catch (err) {
       console.error('[useCardSearchStore] loadMore failed:', err)
@@ -96,5 +174,12 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
     }
   },
 
-  clear: () => set({ keyword: '', typeFilter: 0, results: [], hasSearched: false, hasMore: true })
+  clear: () =>
+    set({
+      ...DEFAULT_FILTERS,
+      results: [],
+      total: 0,
+      hasSearched: false,
+      hasMore: true
+    })
 }))

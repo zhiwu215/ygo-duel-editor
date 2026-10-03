@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { FieldCard, CdbCard, CardLocation, CardPosition } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDropHintStore } from '../../stores/useDropHintStore'
+import { usePileListStore } from '../../stores/usePileListStore'
 import { CardItem } from './CardItem'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
@@ -83,6 +84,10 @@ const POSITION_OPTIONS: Record<string, { pos: number; label: string }[]> = {
     { pos: CardPosition.FACEUP_ATTACK, label: '表攻' },
     { pos: CardPosition.FACEUP_DEFENSE, label: '表守' },
     { pos: CardPosition.FACEDOWN_DEFENSE, label: '盖守' }
+  ],
+  extra: [
+    { pos: CardPosition.FACEDOWN, label: '里侧' },
+    { pos: CardPosition.FACEUP, label: '表侧' }
   ]
 }
 
@@ -115,7 +120,12 @@ const DropHintPopover: React.FC<DropHintPopoverProps> = ({ card, location, contr
     }
   }, [closeHint])
 
-  const options = POSITION_OPTIONS[location === CardLocation.SZONE ? 'szone' : 'mzone']
+  const options =
+    location === CardLocation.SZONE
+      ? POSITION_OPTIONS.szone
+      : location === CardLocation.EXTRA
+        ? POSITION_OPTIONS.extra
+        : POSITION_OPTIONS.mzone
 
   return (
     <div
@@ -163,7 +173,15 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const { addCardToZone, setSelectedCardId, moveCard } = useDuelStore()
   const hintZone = useDropHintStore((s) => s.zone)
   const showHint = useDropHintStore((s) => s.show)
+  const openPile = usePileListStore((s) => s.openPile)
   const [isOver, setIsOver] = useState(false)
+
+  /** 是否为堆叠型区域（主卡组、额外卡组、墓地、除外区） */
+  const isPileZone =
+    location === CardLocation.EXTRA ||
+    location === CardLocation.DECK ||
+    location === CardLocation.GRAVE ||
+    location === CardLocation.REMOVED
 
   // 本格是否为最近一次落子的提示目标
   const isHintTarget =
@@ -200,8 +218,12 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         addCardToZone(droppedCard, controller, location, sequence, posOverride)
       }
 
-      // 怪兽/魔陷区落子后浮出轻量表示切换条 (可继续拖下一张，旧提示自动被顶掉)
-      if (location === CardLocation.MZONE || location === CardLocation.SZONE) {
+      // 怪兽/魔陷/额外卡组落子后浮出轻量表示切换条 (可继续拖下一张，旧提示自动被顶掉)
+      if (
+        location === CardLocation.MZONE ||
+        location === CardLocation.SZONE ||
+        location === CardLocation.EXTRA
+      ) {
         showHint({ controller, location, sequence })
       }
     } catch (err) {
@@ -242,18 +264,39 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onClick={() => {
         if (!card) setSelectedCardId(null)
       }}
+      onDoubleClick={() => {
+        if (isPileZone && count !== undefined && count > 0) {
+          openPile(controller, location)
+        }
+      }}
       className={`group relative ${
         isSquareCell ? 'w-[104px] h-[104px]' : 'w-[74px] h-[104px]'
       } rounded border ${config.border} ${config.bg} ${config.shadow} flex flex-col items-center justify-center transition-all duration-150 select-none shrink-0 ${
         // 拖拽目标态：唯一强调色
         isOver ? 'ring-2 ring-blue-400 bg-blue-500/15 scale-[1.03] border-transparent' : ''
       } ${className}`}
+      title={isPileZone && count !== undefined && count > 0 ? '双击直接查看列表' : undefined}
     >
-      {/* 堆叠张数徽标 (如卡组/墓地/额外卡组张数) */}
+      {/* 堆叠张数徽标 (如卡组/墓地/额外卡组张数，支持点击直接打开查看列表) */}
       {count !== undefined && count > 0 && (
-        <div className="absolute top-1.5 right-1.5 z-20 px-1.5 py-0.5 rounded-full bg-black/80 border border-white/25 text-[9px] font-mono font-bold text-white leading-none shadow-sm pointer-events-none">
+        <button
+          type="button"
+          onClick={(e) => {
+            if (isPileZone) {
+              e.stopPropagation()
+              openPile(controller, location)
+            }
+          }}
+          className={cn(
+            'absolute top-1.5 right-1.5 z-20 px-1.5 py-0.5 rounded-full bg-black/80 border border-white/25 text-[9px] font-mono font-bold text-white leading-none shadow-sm transition-all',
+            isPileZone
+              ? 'hover:bg-blue-600 hover:scale-110 cursor-pointer pointer-events-auto'
+              : 'pointer-events-none'
+          )}
+          title={isPileZone ? '点击查看列表 (或双击格子)' : undefined}
+        >
           {count}
-        </div>
+        </button>
       )}
 
       {/* 落子提示浮条：仅最近一次落子的怪兽/魔陷格显示 (非阻塞，点击外部/Esc 关闭) */}

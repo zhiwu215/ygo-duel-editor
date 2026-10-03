@@ -330,11 +330,15 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-muted-foreground">Ctrl + 拖放</span>
-                <span>切换默认放置状态：魔陷直接发动 / 怪兽盖守 / 手牌公开</span>
+                <span>切换默认放置状态：魔陷直接发动 / 怪兽盖守 / 手牌公开 / 额外表侧</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">双击堆叠格</span>
+                <span>直接查看列表（额外/卡组/墓地/除外）并支持重排与做场</span>
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-muted-foreground">卡片右键菜单</span>
-                <span>切换表里侧 / 攻守表示 / 编辑超量素材</span>
+                <span>切换表里侧 / 攻守表示 / 编辑超量素材 / 查看列表</span>
               </div>
             </div>
             <div className="flex justify-end pt-1">

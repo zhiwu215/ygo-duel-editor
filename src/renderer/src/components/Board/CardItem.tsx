@@ -1,9 +1,11 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { FieldCard, CardPosition, CardLocation } from '@shared/index'
+import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
 import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
+import { useOverlayListStore } from '../../stores/useOverlayListStore'
+import { cn } from '../../lib/utils'
 
 interface CardItemProps {
   card: FieldCard
@@ -14,12 +16,37 @@ interface CardItemProps {
 export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) => {
   const { selectedCardId, setSelectedCardId, setHoveredCard, setHoveredInstanceId } = useDuelStore()
   const { openMenu } = useContextMenuStore()
+  const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
 
   const isSelected = selectedCardId === card.instanceId
   const isDefense =
     card.position === CardPosition.FACEUP_DEFENSE || card.position === CardPosition.FACEDOWN_DEFENSE
   const isFacedown =
     card.position === CardPosition.FACEDOWN || card.position === CardPosition.FACEDOWN_DEFENSE
+
+  // 检查是否为超量怪兽与素材数量
+  const isXyzMonster = card.card ? CardUtils.isXyz(card.card.type) : false
+  const materialCount = card.overlayMaterials?.length || 0
+  const isMonsterZone = card.location === CardLocation.MZONE
+  // 超量怪兽在怪兽区哪怕素材为 0 也显示徽标；非超量怪兽若叠放了素材也显示
+  const showOverlayBadge = isMonsterZone && (isXyzMonster || materialCount > 0)
+
+  // 若卡片缺少 CDB 详情数据，自动补全缓存以准确识别超量类型
+  useEffect(() => {
+    if (!card.card && card.code) {
+      window.api
+        .getCardsByIds([card.code])
+        .then((map) => {
+          const cardData = map[card.code]
+          if (cardData) {
+            useDuelStore.getState().setCardData(card.instanceId, cardData)
+          }
+        })
+        .catch((err) => {
+          void err
+        })
+    }
+  }, [card.instanceId, card.code, card.card])
 
   const isHand = card.location === CardLocation.HAND
   const isDeckPile = card.location === CardLocation.DECK || card.location === CardLocation.EXTRA
@@ -66,6 +93,12 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
       }}
+      onDoubleClick={(e) => {
+        e.stopPropagation()
+        if (showOverlayBadge) {
+          openOverlayList(card.instanceId)
+        }
+      }}
       onMouseEnter={() => {
         setHoveredInstanceId(card.instanceId)
       }}
@@ -81,41 +114,87 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         if (card.card) setHoveredCard(card.card)
         openMenu(card, e.clientX, e.clientY)
       }}
+      title={showOverlayBadge ? `双击查看超量素材列表 (当前 ${materialCount} 张)` : undefined}
       className="w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none"
     >
-      <motion.div
-        initial={false}
-        animate={{ rotate: isDefense ? 90 : 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-        className={`relative rounded overflow-hidden shadow-md ${
+      <div
+        className={`relative ${
           // 正方形格: 卡面按卡牌比例 (59:86) 缩放为 71×104，横置时仅旋转 90° 不再缩放；
           // 竖长格 (手牌/牌堆): 卡面完整填充
           squareCell ? 'w-[68.6%] h-full' : isDefense ? 'w-[68.6%] h-[71%]' : 'w-full h-full'
-        } ${
-          isSelected
-            ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background'
-            : 'group-hover:ring-1 group-hover:ring-blue-400/50'
         }`}
       >
-        {/* 卡面图 (卡组/额外显示卡背；场上盖放清晰显示卡面；手牌正常显示) */}
-        <img
-          src={showCardBack ? getCardBack(card.controller) : getCardImageUrl(card.code, true)}
-          alt={card.card?.name || String(card.code)}
-          className="w-full h-full object-cover select-none pointer-events-none"
-          onError={(e) => {
-            const target = e.currentTarget
-            const cardBack = getCardBack(card.controller)
-            if (target.src !== cardBack) {
-              target.src = cardBack
-            }
-          }}
-        />
+        {/* 超量素材叠放层 (超量素材不具有表示形式，始终保持纵向正立，不随怪兽守备表示横置而旋转！) */}
+        {card.location === CardLocation.MZONE &&
+          card.overlayMaterials &&
+          card.overlayMaterials.length > 0 &&
+          card.overlayMaterials.map((matCode, idx) => {
+            const count = card.overlayMaterials.length
+            // 距离顶层怪兽最近的素材 (idx = count - 1) 偏移 1 个 step，更底层的依次向左多偏移 1 个 step
+            const depth = count - 1 - idx
+            // 阶梯式向左错位露出卡边与边角，每层错开 4.5px (超出 3 层时微调步长避免溢出格子)
+            const step = count > 3 ? 14 / count : 4.5
+            const xOffset = -((depth + 1) * step)
 
-        {/* 里侧盖放指示边框与轻微阴影 (彻底移除模糊，保留原生高清卡面，适度调暗并带琥珀内边框) */}
-        {isSetOnField && (
-          <div className="absolute inset-0 bg-black/25 border border-amber-400/50 rounded pointer-events-none" />
-        )}
-      </motion.div>
+            return (
+              <div
+                key={`oru_${matCode}_${idx}`}
+                className="absolute inset-0 rounded overflow-hidden shadow-sm border border-neutral-900/60 pointer-events-none select-none bg-black/40"
+                style={{
+                  transform: `translateX(${xOffset}px)`,
+                  zIndex: idx + 1
+                }}
+              >
+                <img
+                  src={getCardImageUrl(matCode, true)}
+                  alt={`ORU-${matCode}`}
+                  className="w-full h-full object-cover select-none pointer-events-none"
+                  onError={(e) => {
+                    const target = e.currentTarget
+                    const cardBack = getCardBack(card.controller)
+                    if (target.src !== cardBack) {
+                      target.src = cardBack
+                    }
+                  }}
+                />
+                {/* 底部素材微弱暗色，烘托立体叠放层次 */}
+                <div className="absolute inset-0 bg-black/10 pointer-events-none" />
+              </div>
+            )
+          })}
+
+        {/* 顶层主怪兽卡片 (仅主怪兽随守备表示旋转 90 度，底层素材保持正立) */}
+        <motion.div
+          initial={false}
+          animate={{ rotate: isDefense ? 90 : 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          className={`relative w-full h-full rounded overflow-hidden shadow-md ${
+            isSelected
+              ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background'
+              : 'group-hover:ring-1 group-hover:ring-blue-400/50'
+          }`}
+          style={{ zIndex: (card.overlayMaterials?.length || 0) + 2 }}
+        >
+          {/* 卡面图 (卡组/额外显示卡背；场上盖放清晰显示卡面；手牌正常显示) */}
+          <img
+            src={showCardBack ? getCardBack(card.controller) : getCardImageUrl(card.code, true)}
+            alt={card.card?.name || String(card.code)}
+            className="w-full h-full object-cover select-none pointer-events-none"
+            onError={(e) => {
+              const target = e.currentTarget
+              const cardBack = getCardBack(card.controller)
+              if (target.src !== cardBack) {
+                target.src = cardBack
+              }
+            }}
+          />
+
+          {/* 里侧盖放指示边框与轻微阴影 (彻底移除模糊，保留原生高清卡面，适度调暗并带琥珀内边框) */}
+          {isSetOnField && (
+            <div className="absolute inset-0 bg-black/25 border border-amber-400/50 rounded pointer-events-none" />
+          )}
+        </motion.div>
+      </div>
 
       {/* 状态徽标 (盖放/公开) - 位于外层无旋转容器，平滑跟随卡牌旋转并保持水平正立，不被裁切 */}
       {(isSetOnField || isPublicHand) && (
@@ -146,17 +225,34 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         </motion.div>
       )}
 
-      {/* 超量素材叠放标识 (外层无旋转容器，横置自适应右下角) */}
-      {card.overlayMaterials && card.overlayMaterials.length > 0 && (
+      {/* 超量素材叠放标识 (外层无旋转容器，横置自适应右下角，超量怪兽即使 0 素材也显示 0) */}
+      {showOverlayBadge && (
         <motion.div
           initial={false}
           animate={{ bottom: oruPos.bottom, right: oruPos.right }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="absolute z-20 pointer-events-none"
+          className="absolute z-20 pointer-events-auto cursor-pointer group/oru"
+          onClick={(e) => {
+            e.stopPropagation()
+            openOverlayList(card.instanceId)
+          }}
+          title={`点击查看超量素材列表 (当前 ${materialCount} 张)`}
         >
-          <div className="bg-black/90 text-amber-400 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-amber-400/50 shadow-md flex items-center gap-0.5 select-none whitespace-nowrap">
-            <span>●</span>
-            <span>{card.overlayMaterials.length}</span>
+          <div
+            className={cn(
+              'font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full border shadow-md flex items-center gap-1 select-none whitespace-nowrap transition-transform group-hover/oru:scale-110 active:scale-95',
+              materialCount > 0
+                ? 'bg-black/90 group-hover/oru:bg-black text-amber-400 border-amber-400/50 group-hover/oru:border-amber-300'
+                : 'bg-black/85 group-hover/oru:bg-black text-amber-400/80 border-amber-400/40 group-hover/oru:border-amber-300/80'
+            )}
+          >
+            <span
+              className={cn(
+                'w-1.5 h-1.5 rounded-full bg-amber-400 inline-block',
+                materialCount > 0 ? 'animate-pulse' : 'opacity-70'
+              )}
+            />
+            <span>{materialCount}</span>
           </div>
         </motion.div>
       )}

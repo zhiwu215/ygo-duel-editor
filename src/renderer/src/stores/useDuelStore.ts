@@ -73,6 +73,24 @@ interface DuelStoreState {
   updateCardPosition: (instanceId: string, position: number) => void
   addOverlayMaterial: (targetInstanceId: string, matCode: number) => void
   removeOverlayMaterial: (targetInstanceId: string, matIndex: number) => void
+  /** 将新卡作为顶层主怪兽卡，原怪兽及原有素材全部垫在下方作为素材 */
+  overlayOnTop: (
+    targetInstanceId: string,
+    newCardData: CdbCard,
+    sourceCardInstanceId?: string
+  ) => void
+  /** 将某张素材与顶层主怪兽互换位置 */
+  swapHostWithMaterial: (targetInstanceId: string, matIndex: number) => void
+  /** 拔除某张素材并送去指定区域（如墓地、手牌、除外） */
+  detachMaterialToLocation: (
+    targetInstanceId: string,
+    matIndex: number,
+    targetLocation: number
+  ) => void
+  /** 调整超量素材的层叠顺序 */
+  reorderOverlayMaterials: (targetInstanceId: string, fromIndex: number, toIndex: number) => void
+  /** 更新指定场上卡片的 CDB 详情数据缓存 */
+  setCardData: (instanceId: string, card: CdbCard) => void
   /**
    * 调整堆叠型区域（如主卡组、额外卡组、墓地、除外区）内卡片的排序位置
    *
@@ -390,6 +408,166 @@ export const useDuelStore = create<DuelStoreState>()(
                 const newMats = [...c.overlayMaterials]
                 newMats.splice(matIndex, 1)
                 return { ...c, overlayMaterials: newMats }
+              }
+              return c
+            })
+          }
+        })),
+
+      // 1. 新怪兽置顶叠放（重叠超量做场：新怪兽当大哥，原怪兽与老素材垫在下方）
+      overlayOnTop: (targetInstanceId, newCardData, sourceCardInstanceId) =>
+        set((prev) => {
+          let sourceMats: number[] = []
+          if (sourceCardInstanceId) {
+            const src = prev.state.cards.find((c) => c.instanceId === sourceCardInstanceId)
+            if (src && src.overlayMaterials) {
+              // 若来源怪兽自身带有素材，根据规则将其已有素材全数抽出垫入新怪兽底下
+              sourceMats = src.overlayMaterials
+            }
+          }
+
+          let updatedCards = prev.state.cards
+          if (sourceCardInstanceId) {
+            // 来源怪兽已被搬移至目标格，清空其原本占用的场上旧格子，防止一卡双份
+            updatedCards = updatedCards.filter((c) => c.instanceId !== sourceCardInstanceId)
+          }
+
+          return {
+            state: {
+              // 保留生命值、规则版本等其他局面信息不变
+              ...prev.state,
+              cards: updatedCards.map((c) => {
+                // 遍历场上的卡，不是目标格子的怪兽就原样返回
+                if (c.instanceId === targetInstanceId) {
+                  return {
+                    // 继承原卡片在场上的位置(格子)、控制者与攻守表示形式等不变
+                    ...c,
+                    // 把顶层怪兽卡密换成新卡
+                    code: newCardData.id,
+                    // 把卡片详情换成新卡的数据
+                    card: newCardData,
+                    // 重新排布素材的千层饼结构
+                    overlayMaterials: [
+                      // 最底下：原本肚子里的老素材
+                      ...c.overlayMaterials,
+                      // 中间层：原怪兽自己退居二线，变成素材
+                      c.code,
+                      // 如果搬过来的新怪兽本身也有素材，也一并垫进去
+                      ...sourceMats
+                    ]
+                  }
+                }
+                return c
+              })
+            },
+            // 叠放完成后，界面上的选中高亮蓝框会自动平滑转移到新的目标怪兽上
+            selectedCardId:
+              prev.selectedCardId === sourceCardInstanceId ? targetInstanceId : prev.selectedCardId
+          }
+        }),
+
+      // 更新指定场上卡片的 CDB 详情数据缓存
+      setCardData: (instanceId, card) =>
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: prev.state.cards.map((c) => (c.instanceId === instanceId ? { ...c, card } : c))
+          }
+        })),
+
+      // 2. 顶层主怪兽与指定素材互换位置（设为主怪兽）
+      swapHostWithMaterial: (targetInstanceId, matIndex) =>
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: prev.state.cards.map((c) => {
+              if (c.instanceId === targetInstanceId) {
+                // 边界检查：若素材索引越界则不作修改
+                if (matIndex < 0 || matIndex >= c.overlayMaterials.length) return c
+                const oldHostCode = c.code
+                const newHostCode = c.overlayMaterials[matIndex]
+                const newMats = [...c.overlayMaterials]
+                // 将被提升的素材位置替换为原主怪兽卡密
+                newMats[matIndex] = oldHostCode
+                return {
+                  ...c,
+                  code: newHostCode,
+                  // 清空 card 详情以触发自动重新拉取新主怪兽的 CDB 详情
+                  card: undefined,
+                  overlayMaterials: newMats
+                }
+              }
+              return c
+            })
+          }
+        })),
+
+      // 3. 拔除素材送至指定目标区域（如墓地、手牌、除外）并在目标区域生成新卡片实例
+      detachMaterialToLocation: (targetInstanceId, matIndex, targetLocation) =>
+        set((prev) => {
+          const host = prev.state.cards.find((c) => c.instanceId === targetInstanceId)
+          if (!host || matIndex < 0 || matIndex >= host.overlayMaterials.length) return prev
+          const matCode = host.overlayMaterials[matIndex]
+          const newMats = [...host.overlayMaterials]
+          // 从超量怪兽肚子里移除该素材
+          newMats.splice(matIndex, 1)
+
+          // 计算目标堆叠区域当前张数，以此作为新卡落位的 sequence 序号
+          const existingPile = prev.state.cards
+            .filter((c) => c.controller === host.controller && c.location === targetLocation)
+            .sort((a, b) => a.sequence - b.sequence)
+          const targetSeq = existingPile.length
+
+          // 生成离开素材堆后的全新独立卡片实例
+          const newCard: FieldCard = {
+            instanceId: `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            code: matCode,
+            controller: host.controller,
+            owner: host.controller,
+            location: targetLocation,
+            sequence: targetSeq,
+            position:
+              targetLocation === CardLocation.HAND ? CardPosition.FACEDOWN : CardPosition.FACEUP,
+            overlayMaterials: []
+          }
+
+          return {
+            state: {
+              ...prev.state,
+              cards: [
+                // 更新宿主怪兽的素材列表
+                ...prev.state.cards.map((c) =>
+                  c.instanceId === targetInstanceId ? { ...c, overlayMaterials: newMats } : c
+                ),
+                // 将拔除出的卡片加入到目标区域
+                newCard
+              ]
+            }
+          }
+        }),
+
+      // 4. 重排超量素材层叠顺序（做场时调整谁在上谁在下）
+      reorderOverlayMaterials: (targetInstanceId, fromIndex, toIndex) =>
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: prev.state.cards.map((c) => {
+              if (c.instanceId === targetInstanceId) {
+                const mats = [...c.overlayMaterials]
+                // 索引有效性校验
+                if (
+                  fromIndex < 0 ||
+                  fromIndex >= mats.length ||
+                  toIndex < 0 ||
+                  toIndex >= mats.length ||
+                  fromIndex === toIndex
+                ) {
+                  return c
+                }
+                // 从原位置移出并插入至目标位置
+                const [moved] = mats.splice(fromIndex, 1)
+                mats.splice(toIndex, 0, moved)
+                return { ...c, overlayMaterials: mats }
               }
               return c
             })

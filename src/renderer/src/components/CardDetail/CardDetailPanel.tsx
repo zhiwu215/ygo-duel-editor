@@ -17,12 +17,29 @@ export const CardDetailPanel: React.FC = () => {
 
   // 如果没有悬停的卡，优先使用当前选中的场上卡片
   let currentCard = hoveredCard
-  if (!currentCard && selectedCardId) {
-    const selectedFieldCard = state.cards.find((c) => c.instanceId === selectedCardId)
-    if (selectedFieldCard?.card) {
-      currentCard = selectedFieldCard.card
-    }
+  const selectedFieldCard = selectedCardId
+    ? state.cards.find((c) => c.instanceId === selectedCardId)
+    : undefined
+  if (!currentCard && selectedFieldCard?.card) {
+    currentCard = selectedFieldCard.card
   }
+
+  // 如果选中卡片暂缺 CDB 详情，异步拉取并自动回填
+  useEffect(() => {
+    if (!currentCard && selectedFieldCard && !selectedFieldCard.card) {
+      window.api
+        .getCardsByIds([selectedFieldCard.code])
+        .then((cardMap) => {
+          const cardData = cardMap[selectedFieldCard.code]
+          if (cardData) {
+            useDuelStore.getState().setCardData(selectedFieldCard.instanceId, cardData)
+          }
+        })
+        .catch((err) => {
+          void err
+        })
+    }
+  }, [currentCard, selectedFieldCard])
 
   // 监听 Esc 键关闭大图弹窗 (捕获阶段拦截，阻止冒泡到列表弹窗等底层组件)
   useEffect(() => {

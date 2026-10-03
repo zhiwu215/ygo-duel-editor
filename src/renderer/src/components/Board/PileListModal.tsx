@@ -100,13 +100,6 @@ export const PileListModal: React.FC = () => {
     })
   }, [pileCards, searchQuery])
 
-  // 打开弹窗时，默认在左侧详情面板展示当前堆叠的第一张卡
-  useEffect(() => {
-    if (target && pileCards.length > 0 && pileCards[0].card) {
-      setHoveredCard(pileCards[0].card)
-    }
-  }, [target, pileCards, setHoveredCard])
-
   if (!target) return null
 
   const meta = LOCATION_META[target.location] || {
@@ -394,7 +387,6 @@ export const PileListModal: React.FC = () => {
                       )}
                       onMouseEnter={() => {
                         setHoveredInstanceId(card.instanceId)
-                        if (card.card) setHoveredCard(card.card)
                       }}
                       onMouseLeave={() => {
                         if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {

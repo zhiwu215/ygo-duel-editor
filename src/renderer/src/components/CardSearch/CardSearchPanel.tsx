@@ -11,8 +11,9 @@ import {
 } from 'lucide-react'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { CardUtils, CdbCard, ATTRIBUTE_NAMES, RACE_NAMES } from '@shared/index'
+import { CdbCard } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
@@ -208,14 +209,8 @@ export const CardSearchPanel: React.FC = () => {
           ) : (
             <div className="space-y-1.5">
               {results.map((card) => {
-                const isMonster = CardUtils.isMonster(card.type)
-                const isSpell = CardUtils.isSpell(card.type)
-                const isLink = CardUtils.isLink(card.type)
-
-                const attr = ATTRIBUTE_NAMES[card.attribute] || ''
-                const race = RACE_NAMES[card.race] || ''
-                const star = CardUtils.getStarLevel(card.level, card.type)
-                const typeLabel = CardUtils.getCardTypeLabel(card.type)
+                const line2 = formatSearchItemLine2(card)
+                const line3 = formatSearchItemLine3(card)
 
                 return (
                   <div
@@ -224,14 +219,14 @@ export const CardSearchPanel: React.FC = () => {
                     onDragStart={(e) => handleDragStart(e, card)}
                     onMouseEnter={() => setHoveredCard(card)}
                     onClick={() => setHoveredCard(card)}
-                    className="flex items-center gap-2 p-1.5 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-amber-400/40 cursor-grab active:cursor-grabbing transition-all group shadow-2xs"
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-amber-400/40 cursor-grab active:cursor-grabbing transition-all group shadow-2xs h-[64px]"
                   >
-                    {/* 卡图缩略图 */}
+                    {/* 卡图缩略图 (标准 59:86 比例) */}
                     <img
                       src={getCardImageUrl(card.id, true)}
                       alt={card.name}
                       loading="lazy"
-                      className="w-10 h-14 object-cover rounded shrink-0 border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
+                      className="w-[36px] h-[52px] object-cover rounded shrink-0 border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
                       onError={(e) => {
                         const target = e.currentTarget
                         if (target.src !== CARD_BACK_IMAGE) {
@@ -241,53 +236,23 @@ export const CardSearchPanel: React.FC = () => {
                     />
 
                     {/* 卡片核心情报 (精准对标 YGOPro 经典列表排版) */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 select-none py-0.5">
                       {/* 第 1 行：卡名 */}
-                      <span className="text-xs font-semibold truncate text-foreground group-hover:text-primary transition-colors">
+                      <span className="text-xs font-semibold truncate text-foreground group-hover:text-primary transition-colors leading-tight">
                         {card.name}
                       </span>
 
-                      {/* 第 2 行：类型 / 属性 / 种族 / 等级 */}
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
-                        {isMonster ? (
-                          <>
-                            <span className="text-amber-300 font-medium">
-                              {attr}/{race}
-                            </span>
-                            <span className="text-amber-400 font-bold">
-                              {isLink ? `LINK-${star}` : `☆${star}`}
-                            </span>
-                          </>
-                        ) : isSpell ? (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1 py-0 h-4 text-emerald-400 bg-emerald-400/10 border-emerald-400/20"
-                          >
-                            [魔法] {typeLabel}
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1 py-0 h-4 text-rose-400 bg-rose-400/10 border-rose-400/20"
-                          >
-                            [陷阱] {typeLabel}
-                          </Badge>
-                        )}
+                      {/* 第 2 行：类型 / 属性 / 种族 / 等级 (怪兽) 或 魔法/陷阱类别 */}
+                      <div className="text-[11px] text-foreground/80 leading-tight truncate">
+                        {line2}
                       </div>
 
-                      {/* 第 3 行：攻防数值 / 卡密 */}
-                      <div className="text-[11px] font-mono text-muted-foreground/90 mt-0.5">
-                        {isMonster ? (
-                          <span>
-                            {card.atk >= 0 ? card.atk : '?'}/
-                            {isLink ? '-' : card.def >= 0 ? card.def : '?'}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/60">
-                            卡密: {card.id}
-                          </span>
-                        )}
-                      </div>
+                      {/* 第 3 行：攻防数值 / 刻度 (仅怪兽) */}
+                      {line3 && (
+                        <div className="text-[11px] font-mono text-foreground/75 leading-tight truncate">
+                          {line3}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )

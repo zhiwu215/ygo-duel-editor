@@ -95,3 +95,66 @@ export function formatCardSeriesLine(card: CdbCard): string | null {
   }
   return null
 }
+
+/**
+ * 格式化 YGOPro 搜索结果列表第二行 (类型/属性/种族/星阶连接)
+ * 对标游戏王客户端搜索列表:
+ * - 怪兽: "暗/恶魔 ★12"、"暗/恶魔 LINK-3"
+ * - 魔法: "魔法|永续"、"魔法|场地"、"魔法|速攻"、"魔法|装备"、"魔法|仪式"、"魔法"
+ * - 陷阱: "陷阱"、"陷阱|永续"、"陷阱|反击"
+ */
+export function formatSearchItemLine2(card: CdbCard): string {
+  if (CardUtils.isMonster(card.type)) {
+    const attr = ATTRIBUTE_NAMES[card.attribute] || '无'
+    const race = RACE_NAMES[card.race] || '未知'
+    const star = CardUtils.getStarLevel(card.level, card.type)
+    const isLink = CardUtils.isLink(card.type)
+    const starStr = isLink ? `LINK-${star}` : `★${star}`
+    return `${attr}/${race} ${starStr}`
+  }
+
+  if (CardUtils.isSpell(card.type)) {
+    if (card.type & CardType.QUICKPLAY) return '魔法|速攻'
+    if (card.type & CardType.CONTINUOUS) return '魔法|永续'
+    if (card.type & CardType.EQUIP) return '魔法|装备'
+    if (card.type & CardType.FIELD) return '魔法|场地'
+    if (card.type & CardType.RITUAL) return '魔法|仪式'
+    return '魔法'
+  }
+
+  if (CardUtils.isTrap(card.type)) {
+    if (card.type & CardType.COUNTER) return '陷阱|反击'
+    if (card.type & CardType.CONTINUOUS) return '陷阱|永续'
+    return '陷阱'
+  }
+
+  return '未知'
+}
+
+/**
+ * 格式化 YGOPro 搜索结果列表第三行 (攻防数值与灵摆刻度，仅怪兽)
+ * 对标游戏王客户端搜索列表:
+ * - 普通怪兽: "1900/1000"
+ * - 连接怪兽: "2200/-"
+ * - 问号攻防: "?/0"
+ * - 灵摆怪兽: "3000/3000 10/10"
+ * - 魔法 / 陷阱: null (无第三行)
+ */
+export function formatSearchItemLine3(card: CdbCard): string | null {
+  if (!CardUtils.isMonster(card.type)) {
+    return null
+  }
+
+  const isLink = CardUtils.isLink(card.type)
+  const atkStr = card.atk === -2 || card.atk < 0 ? '?' : String(card.atk)
+  const defStr = isLink ? '-' : card.def === -2 || card.def < 0 ? '?' : String(card.def)
+
+  let line = `${atkStr}/${defStr}`
+
+  if (CardUtils.isPendulum(card.type)) {
+    const scale = CardUtils.getPendulumScales(card.level)
+    line += ` ${scale.lscale}/${scale.rscale}`
+  }
+
+  return line
+}

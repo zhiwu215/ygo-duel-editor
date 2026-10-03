@@ -16,6 +16,7 @@ export interface CdbCard {
   name: string // 卡名
   desc: string // 效果说明文本
   strings?: string[] // str1 ~ str16 效果提示字符串
+  setnames?: string[] // 系列字段名称列表 (如 ['朱罗纪'], ['禁忌的'])
 }
 
 /**

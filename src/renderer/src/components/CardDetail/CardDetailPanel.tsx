@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { CardUtils, ATTRIBUTE_NAMES } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
-import { Shield, Swords, Layers, HelpCircle, ZoomIn, X, Copy, Check } from 'lucide-react'
-import { Badge } from '../ui/badge'
-import { Separator } from '../ui/separator'
+import {
+  formatCardTypeLine,
+  formatCardStatsLine,
+  formatCardSeriesLine
+} from '../../utils/cardFormat'
+import { HelpCircle, ZoomIn, X, Copy, Check } from 'lucide-react'
 
 export const CardDetailPanel: React.FC = () => {
   const { hoveredCard, selectedCardId, state } = useDuelStore()
   /** 是否打开卡图高清放大查看弹窗 (Modal) */
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
-  /** 卡片效果描述文本是否刚刚完成复制（用于展示 1.5 秒「已复制」反馈） */
-  const [copiedDesc, setCopiedDesc] = useState<boolean>(false)
-  /** 卡片密码（ID）是否刚刚完成复制（用于展示 1.5 秒「已复制」反馈） */
-  const [copiedId, setCopiedId] = useState<boolean>(false)
+  /** 卡片名称是否刚刚完成复制（用于展示 1.5 秒「已复制」反馈） */
+  const [copiedName, setCopiedName] = useState<boolean>(false)
 
   // 如果没有悬停的卡，优先使用当前选中的场上卡片
   let currentCard = hoveredCard
@@ -39,27 +39,15 @@ export const CardDetailPanel: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
   }, [showImageModal])
 
-  const handleCopyDesc = async (e: React.MouseEvent): Promise<void> => {
+  const handleCopyName = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation()
-    if (!currentCard?.desc) return
+    if (!currentCard?.name) return
     try {
-      await navigator.clipboard.writeText(currentCard.desc)
-      setCopiedDesc(true)
-      setTimeout(() => setCopiedDesc(false), 1500)
+      await navigator.clipboard.writeText(currentCard.name)
+      setCopiedName(true)
+      setTimeout(() => setCopiedName(false), 1500)
     } catch (err) {
-      console.error('[CardDetailPanel] Failed to copy description:', err)
-    }
-  }
-
-  const handleCopyId = async (e: React.MouseEvent): Promise<void> => {
-    e.stopPropagation()
-    if (!currentCard?.id) return
-    try {
-      await navigator.clipboard.writeText(String(currentCard.id))
-      setCopiedId(true)
-      setTimeout(() => setCopiedId(false), 1500)
-    } catch (err) {
-      console.error('[CardDetailPanel] Failed to copy password:', err)
+      console.error('[CardDetailPanel] Failed to copy card name:', err)
     }
   }
 
@@ -69,34 +57,29 @@ export const CardDetailPanel: React.FC = () => {
         <HelpCircle className="w-10 h-10 text-muted-foreground/30 mb-3" />
         <p className="font-medium text-foreground/80">尚未选择卡片</p>
         <p className="text-[11px] text-muted-foreground/60 mt-1 leading-relaxed">
-          将鼠标悬停在右侧卡片列表或场上卡片上，即可在此处查阅超高清卡图与详细效果说明。
+          点击或悬停在卡片搜索列表、或者场上的卡片上，即可在此处查阅超高清卡图与详细效果说明。
         </p>
       </aside>
     )
   }
 
-  const isMonster = CardUtils.isMonster(currentCard.type)
-  const isXyz = CardUtils.isXyz(currentCard.type)
-  const isLink = CardUtils.isLink(currentCard.type)
-  const isPendulum = CardUtils.isPendulum(currentCard.type)
-  const star = CardUtils.getStarLevel(currentCard.level, currentCard.type)
-  const attrName = ATTRIBUTE_NAMES[currentCard.attribute] || '无'
-  const pScale = isPendulum ? CardUtils.getPendulumScales(currentCard.level) : null
+  const statsLine = formatCardStatsLine(currentCard)
+  const seriesLine = formatCardSeriesLine(currentCard)
 
   return (
     <>
       <aside className="w-80 h-full border-r border-border bg-card/40 flex flex-col shrink-0 overflow-hidden">
-        {/* 卡图展示区域 */}
-        <div className="p-4 flex flex-col items-center bg-muted/20 select-none">
+        {/* 卡图展示区域 (原生 59:86 卡牌黄金比例，居中高质感渲染) */}
+        <div className="pt-3 pb-2.5 px-4 flex flex-col items-center select-none shrink-0">
           <div
-            className="group relative cursor-zoom-in rounded-md overflow-hidden shadow-lg border border-border/80 bg-black/40"
+            className="group relative cursor-zoom-in rounded-md overflow-hidden shadow-md border border-border/80 bg-black/40"
             onClick={() => setShowImageModal(true)}
             title="点击放大查看卡图"
           >
             <img
               src={getCardImageUrl(currentCard.id)}
               alt={currentCard.name}
-              className="w-48 h-70 object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+              className="w-[200px] h-[291px] object-cover transition-transform duration-200 group-hover:scale-[1.02]"
               onError={(e) => {
                 const target = e.currentTarget
                 if (target.src !== CARD_BACK_IMAGE) {
@@ -104,114 +87,52 @@ export const CardDetailPanel: React.FC = () => {
                 }
               }}
             />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none">
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none">
               <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 text-white text-[11px] font-medium backdrop-blur-sm shadow-md">
                 <ZoomIn className="w-3.5 h-3.5" />
                 <span>点击放大</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 mt-2.5">
-            <button
-              type="button"
-              onClick={handleCopyId}
-              className="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-border bg-background/50 hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="点击复制卡密"
-            >
-              <span className="font-mono text-[11px]">密码: {currentCard.id}</span>
-              {copiedId ? (
-                <Check className="w-3 h-3 text-emerald-500" />
-              ) : (
-                <Copy className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
-              )}
-            </button>
-          </div>
         </div>
 
-        <Separator />
+        <div className="border-t border-border" />
 
-        {/* 卡片详情数据 - 严格限制 flex-1 min-h-0 并启用流畅暗色定制滚动条 */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 select-text">
-          <div className="space-y-3">
-            {/* 卡名 */}
-            <div>
-              <h3 className="font-bold text-base text-foreground leading-snug cursor-text selection:bg-primary/25">
-                {currentCard.name}
-              </h3>
-              {/* 属性与种族标签 */}
-              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap select-none">
-                <Badge
-                  variant="outline"
-                  className="bg-primary/10 text-primary border-primary/20 text-[11px]"
-                >
-                  {attrName}属性
-                </Badge>
-                {isMonster && (
-                  <Badge variant="secondary" className="text-[11px]">
-                    {isXyz ? `Rank ${star}` : isLink ? `Link ${star}` : `★ ${star}`}
-                  </Badge>
-                )}
-                {isPendulum && pScale && (
-                  <Badge
-                    variant="outline"
-                    className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 text-[11px]"
-                  >
-                    刻度 {pScale.lscale}
-                  </Badge>
-                )}
-              </div>
-            </div>
+        {/* 卡片详情数据区 (游戏王经典结构化排版) */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2 select-text">
+          {/* 标题横幅: 卡名[卡密] (点击快速复制卡名) */}
+          <div
+            onClick={handleCopyName}
+            className="group relative flex items-center justify-center px-2 py-1 rounded border border-border/70 bg-muted/60 dark:bg-muted/30 shadow-inner text-center cursor-pointer hover:bg-muted/80 transition-colors select-none"
+            title="点击快速复制卡名"
+          >
+            <span className="font-bold text-xs text-foreground truncate">
+              {currentCard.name}[{currentCard.id}]
+            </span>
+            <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">
+              {copiedName ? (
+                <Check className="w-3 h-3 text-emerald-500" />
+              ) : (
+                <Copy className="w-3 h-3" />
+              )}
+            </span>
+          </div>
 
-            {/* 攻防数值面板 (仅怪兽) */}
-            {isMonster && (
-              <div className="grid grid-cols-2 gap-2 p-2 rounded-lg bg-muted/40 border border-border/50 text-xs select-none">
-                <div className="flex items-center gap-1.5 font-mono">
-                  <Swords className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="text-muted-foreground">ATK:</span>
-                  <span className="font-bold text-foreground">
-                    {currentCard.atk >= 0 ? currentCard.atk : '?'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 font-mono">
-                  <Shield className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="text-muted-foreground">DEF:</span>
-                  <span className="font-bold text-foreground">
-                    {isLink ? '-' : currentCard.def >= 0 ? currentCard.def : '?'}
-                  </span>
-                </div>
-              </div>
-            )}
+          {/* 经典蓝色元信息行 */}
+          <div className="flex flex-col gap-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 select-text leading-snug">
+            {/* 类别与种族/属性行 */}
+            <div>{formatCardTypeLine(currentCard)}</div>
 
-            {/* 效果描述文本 */}
-            <div>
-              <div className="text-[11px] font-semibold text-muted-foreground mb-1 flex items-center justify-between select-none">
-                <div className="flex items-center gap-1">
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>【卡片效果 / 描述】</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyDesc}
-                  className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded border border-border/50 hover:bg-muted/70 transition-colors"
-                  title="一键复制卡片效果描述"
-                >
-                  {copiedDesc ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-500" />
-                      <span className="text-emerald-500 font-medium">已复制</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" />
-                      <span>复制</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <div className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed p-2.5 rounded-lg bg-muted/30 border border-border/40 font-sans cursor-text selection:bg-primary/25 selection:text-foreground">
-                {currentCard.desc}
-              </div>
-            </div>
+            {/* 星级/阶级与攻防行 (仅怪兽) */}
+            {statsLine && <div>{statsLine}</div>}
+
+            {/* 系列字段行 (若有) */}
+            {seriesLine && <div>{seriesLine}</div>}
+          </div>
+
+          {/* 效果描述文本 (支持原生鼠标划选复制，无浮动按钮遮挡) */}
+          <div className="pt-1 text-xs text-foreground/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
+            {currentCard.desc}
           </div>
         </div>
       </aside>

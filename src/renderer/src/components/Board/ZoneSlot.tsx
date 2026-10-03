@@ -305,7 +305,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       )}
 
       {card ? (
-        <CardItem card={card} squareCell={isSquareCell} />
+        <CardItem key={card.instanceId} card={card} squareCell={isSquareCell} />
       ) : (
         <div className="flex flex-col items-center justify-center p-1.5 text-center pointer-events-none relative z-10 w-full">
           {/* 槽位类型水印（灵摆位不渲染，避免与刻度标记互相遮挡） */}

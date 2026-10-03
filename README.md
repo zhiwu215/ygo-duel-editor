@@ -1,7 +1,5 @@
 # YGO Duel Editor
 
-游戏王 (Yu-Gi-Oh!) 决斗创作工作台：可视化布设双方场面，导入导出符合 [ocgcore](https://github.com/Fluorohydride/ygocore) 标准的 Lua 残局脚本。
-
 面向三类创作场景：
 
 | 场景                 | 说明                                                                                      |
@@ -48,7 +46,7 @@ $ pnpm build:linux  # Linux
 
 Electron 39 + electron-vite 5 · React 19 + TypeScript · TailwindCSS v4 · Zustand 5 + zundo（撤销/重做）· better-sqlite3（cards.cdb 只读）
 
-## 支持作者 ☕
+## 支持作者
 
 如果这个项目对你的创作有帮助，欢迎请作者喝杯咖啡：
 

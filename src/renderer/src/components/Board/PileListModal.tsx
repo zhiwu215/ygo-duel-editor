@@ -49,6 +49,7 @@ export const PileListModal: React.FC = () => {
   const {
     state,
     setHoveredCard,
+    setHoveredInstanceId,
     setSelectedCardId,
     removeCard,
     reorderPileCards,
@@ -65,7 +66,7 @@ export const PileListModal: React.FC = () => {
   } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // 监听 Esc 键关闭弹窗
+  // 监听 Esc 键关闭弹窗并在关闭时清理卡片悬停状态
   useEffect(() => {
     if (!target) return
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -74,8 +75,11 @@ export const PileListModal: React.FC = () => {
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [target, closePile])
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      setHoveredInstanceId(null)
+    }
+  }, [target, closePile, setHoveredInstanceId])
 
   // 当前区域的卡片列表（按 sequence 升序排序）
   const pileCards = useMemo(() => {
@@ -389,7 +393,13 @@ export const PileListModal: React.FC = () => {
                             : 'border-border/80 hover:border-blue-500/70 hover:shadow-md'
                       )}
                       onMouseEnter={() => {
+                        setHoveredInstanceId(card.instanceId)
                         if (card.card) setHoveredCard(card.card)
+                      }}
+                      onMouseLeave={() => {
+                        if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {
+                          setHoveredInstanceId(null)
+                        }
                       }}
                       onClick={() => {
                         setSelectedCardId(card.instanceId)

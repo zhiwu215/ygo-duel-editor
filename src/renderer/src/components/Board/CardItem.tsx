@@ -12,7 +12,7 @@ interface CardItemProps {
 }
 
 export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) => {
-  const { selectedCardId, setSelectedCardId, setHoveredCard } = useDuelStore()
+  const { selectedCardId, setSelectedCardId, setHoveredCard, setHoveredInstanceId } = useDuelStore()
   const { openMenu } = useContextMenuStore()
 
   const isSelected = selectedCardId === card.instanceId
@@ -45,7 +45,13 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         if (card.card) setHoveredCard(card.card)
       }}
       onMouseEnter={() => {
+        setHoveredInstanceId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
+      }}
+      onMouseLeave={() => {
+        if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {
+          setHoveredInstanceId(null)
+        }
       }}
       onContextMenu={(e) => {
         e.preventDefault()

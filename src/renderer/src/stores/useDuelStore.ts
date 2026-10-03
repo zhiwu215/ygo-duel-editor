@@ -18,6 +18,7 @@ interface DuelStoreState {
   // 选中与悬停交互
   selectedCardId: string | null
   hoveredCard: CdbCard | null
+  hoveredInstanceId: string | null
 
   // 动作
   setMasterRule: (rule: MasterRule) => void
@@ -95,6 +96,7 @@ interface DuelStoreState {
   // UI 交互
   setSelectedCardId: (id: string | null) => void
   setHoveredCard: (card: CdbCard | null) => void
+  setHoveredInstanceId: (id: string | null) => void
 }
 
 export const useDuelStore = create<DuelStoreState>()(
@@ -103,6 +105,7 @@ export const useDuelStore = create<DuelStoreState>()(
       state: createInitialDuelState(5),
       selectedCardId: null,
       hoveredCard: null,
+      hoveredInstanceId: null,
 
       setMasterRule: (rule) =>
         set((prev) => {
@@ -348,7 +351,8 @@ export const useDuelStore = create<DuelStoreState>()(
             ...prev.state,
             cards: prev.state.cards.filter((c) => c.instanceId !== instanceId)
           },
-          selectedCardId: prev.selectedCardId === instanceId ? null : prev.selectedCardId
+          selectedCardId: prev.selectedCardId === instanceId ? null : prev.selectedCardId,
+          hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredInstanceId
         })),
 
       updateCardPosition: (instanceId, position) =>
@@ -458,7 +462,8 @@ export const useDuelStore = create<DuelStoreState>()(
         })),
 
       setSelectedCardId: (id) => set({ selectedCardId: id }),
-      setHoveredCard: (card) => set({ hoveredCard: card })
+      setHoveredCard: (card) => set({ hoveredCard: card }),
+      setHoveredInstanceId: (id) => set({ hoveredInstanceId: id })
     }),
     {
       // zundo 撤销历史配置：只追踪 state 的变化

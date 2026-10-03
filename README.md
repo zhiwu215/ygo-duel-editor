@@ -1,34 +1,59 @@
-# ygo-duel-editor
+# YGO Duel Editor
 
-An Electron application with React and TypeScript
+游戏王 (Yu-Gi-Oh!) 决斗创作工作台：可视化布设双方场面，导入导出符合 [ocgcore](https://github.com/Fluorohydride/ygocore) 标准的 Lua 残局脚本。
 
-## Recommended IDE Setup
+面向三类创作场景：
 
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+| 场景                 | 说明                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| **残局布场**         | 摆出残局/教程局面的双方场地、手牌与生命值，一键导出可直接在 YGOPro 系客户端运行的对局脚本 |
+| **同人剧情对局编排** | 编排多段剧情：开场白、事件触发、多回合推演（开发中）                                      |
+| **卡组 Combo 教学**  | 演示卡组起手与做场路线，分步骤讲解（规划中）                                              |
 
-## Project Setup
+## 功能特性
 
-### Install
+- **MR2~MR5 场地布局** — 大师规则 1/2（经典）、3（灵摆）、4（新大师）、5（现行 2020），布局差异由规则信息表驱动，切换即时生效
+- **拖拽摆卡** — 从卡库检索列表拖入任意区域；Ctrl+拖入直接发动；落子后浮出表示切换条（发动/盖放/攻守）
+- **编排者全知视角** — 双方手牌、盖放卡一律显示卡面（半透明+角标提示状态），方便作者编排与校对
+- **卡片检索** — 读取本地游戏客户端的 `cards.cdb`（只读），卡图直接取自本地游戏目录，零网络依赖
+- **Lua 导入/导出** — 与 ocgcore 标准 `Debug.AddCard` 残局脚本双向闭环
+- **工程文件** — 保存/加载 `.ygoduel` 项目文件
+- **撤销/重做** — 全操作可撤销 (Ctrl+Z / Ctrl+Y)
+
+> 本项目不内置任何卡表/卡图数据，卡片数据与图片均来自用户本地游戏客户端目录。
+
+## 开发
 
 ```bash
+# 安装依赖
 $ pnpm install
-```
 
-### Development
-
-```bash
+# 开发模式（Electron + HMR）
 $ pnpm dev
+
+# 类型检查（Node 侧 + Web 侧）
+$ pnpm typecheck
+
+# 代码检查与格式化
+$ pnpm lint
+$ pnpm format
+
+# 打包
+$ pnpm build:win    # Windows
+$ pnpm build:mac    # macOS
+$ pnpm build:linux  # Linux
 ```
 
-### Build
+## 技术栈
 
-```bash
-# For windows
-$ pnpm build:win
+Electron 39 + electron-vite 5 · React 19 + TypeScript · TailwindCSS v4 · Zustand 5 + zundo（撤销/重做）· better-sqlite3（cards.cdb 只读）
 
-# For macOS
-$ pnpm build:mac
+## 支持作者 ☕
 
-# For Linux
-$ pnpm build:linux
-```
+如果这个项目对你的创作有帮助，欢迎请作者喝杯咖啡：
+
+<p align="center">
+  <img src="src/renderer/src/assets/sponsor/wechat.jpg" width="200" alt="微信收款码">
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="src/renderer/src/assets/sponsor/alipay.jpg" width="200" alt="支付宝收款码">
+</p>

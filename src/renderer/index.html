@@ -1,17 +1,19 @@
 <!doctype html>
-<html>
+<html lang="zh-CN" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <title>Electron</title>
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <title>YGO Duel Editor - 游戏王决斗与残局编辑器</title>
+    <!-- CSP 支持本地图片与 ygopic 协议 (完全离线本地化，零 CDN 依赖) -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: ygopic: file:;"
     />
   </head>
 
-  <body>
-    <div id="root"></div>
+  <body
+    class="bg-background text-foreground antialiased selection:bg-primary/20 select-none overflow-hidden"
+  >
+    <div id="root" class="h-screen w-screen overflow-hidden"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -24,16 +24,19 @@ export const CardDetailPanel: React.FC = () => {
     }
   }
 
-  // 监听 Esc 键关闭大图弹窗
+  // 监听 Esc 键关闭大图弹窗 (捕获阶段拦截，阻止冒泡到列表弹窗等底层组件)
   useEffect(() => {
     if (!showImageModal) return
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        e.stopImmediatePropagation()
         setShowImageModal(false)
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
   }, [showImageModal])
 
   const handleCopyDesc = async (e: React.MouseEvent): Promise<void> => {
@@ -216,7 +219,7 @@ export const CardDetailPanel: React.FC = () => {
       {/* 卡图放大查看 Lightbox 弹窗 */}
       {showImageModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 select-none animate-in fade-in"
+          className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 select-none animate-in fade-in"
           onClick={() => setShowImageModal(false)}
         >
           {/* 顶部工具栏 */}

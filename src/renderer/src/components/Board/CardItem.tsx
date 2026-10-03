@@ -1,7 +1,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { FieldCard, CardPosition, CardLocation } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 
@@ -71,15 +71,16 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       >
         {/* 卡面图 (卡组/额外显示卡背；场上盖放半透明显示卡面；手牌正常显示) */}
         <img
-          src={showCardBack ? CARD_BACK_IMAGE : getCardImageUrl(card.code, true)}
+          src={showCardBack ? getCardBack(card.controller) : getCardImageUrl(card.code, true)}
           alt={card.card?.name || String(card.code)}
           className={`w-full h-full object-cover select-none pointer-events-none transition-all ${
             isSetOnField ? 'opacity-60' : ''
           }`}
           onError={(e) => {
             const target = e.currentTarget
-            if (target.src !== CARD_BACK_IMAGE) {
-              target.src = CARD_BACK_IMAGE
+            const cardBack = getCardBack(card.controller)
+            if (target.src !== cardBack) {
+              target.src = cardBack
             }
           }}
         />

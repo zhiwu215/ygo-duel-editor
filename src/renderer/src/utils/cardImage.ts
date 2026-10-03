@@ -1,13 +1,25 @@
-import localCardBack from '../assets/textures/cover.jpg'
+import localCover from '../assets/textures/cover.jpg'
+import localCover2 from '../assets/textures/cover2.jpg'
 
 /**
- * 卡背图 (里侧表示 / 未检索到卡图时占位，本地 textures 极速离线呈现)
+ * 默认卡背图（己方卡背）
  */
-export const CARD_BACK_IMAGE = localCardBack
+export const CARD_BACK_IMAGE = localCover
+
+/**
+ * 对方卡背图
+ */
+export const CARD_BACK_OPPONENT_IMAGE = localCover2
+
+/**
+ * 获取对应控制者的卡背图片 (0: 己方, 1: 对方)
+ */
+export function getCardBack(controller: 0 | 1 = 0): string {
+  return controller === 1 ? CARD_BACK_OPPONENT_IMAGE : CARD_BACK_IMAGE
+}
 
 /**
  * 获取卡片卡图 URL
- * 完全基于本地游戏客户端目录 (通过自定义 ygopic:// 协议直接从本地 pics 读取，零网络、零 CDN)
  * @param code 8位卡片密码
  * @param small 是否为缩略图 (优先读取 pics/thumbnail/，若无则自动回退至 pics/)
  */

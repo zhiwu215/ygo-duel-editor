@@ -4,7 +4,6 @@ import { CardLocation, MASTER_RULES, FieldCard } from '@shared/index'
 import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
 import { CardContextMenu } from './CardContextMenu'
-import duelBg from '../../assets/textures/bg.jpg'
 
 export const DuelBoard: React.FC = () => {
   const { state } = useDuelStore()
@@ -37,27 +36,37 @@ export const DuelBoard: React.FC = () => {
   }
 
   return (
-    <div
-      className="flex-1 h-full overflow-hidden p-2.5 flex flex-col justify-between items-center bg-cover bg-center bg-no-repeat relative select-none"
-      style={{
-        backgroundImage: `linear-gradient(rgba(10, 11, 15, 0.84), rgba(10, 11, 15, 0.90)), url(${duelBg})`
-      }}
-    >
+    <div className="flex-1 h-full overflow-hidden p-2.5 flex flex-col justify-between items-center relative select-none">
+      {/* CSS 六边形网格背景（替代位图纹理，深浅双主题自适应） */}
+      <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(180deg,#eef1f7_0%,#e2e7f0_100%)] dark:bg-[linear-gradient(180deg,#0a1128_0%,#060b1a_100%)]" />
+      <div
+        className="absolute inset-0 pointer-events-none opacity-60 dark:hidden"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cpath fill='%233a5a8c' fill-opacity='0.05' d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v11.2l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/svg%3E")`
+        }}
+      />
+      <div
+        className="absolute inset-0 pointer-events-none opacity-50 hidden dark:block"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cpath fill='%235b7bd0' fill-opacity='0.06' d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v11.2l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/svg%3E")`
+        }}
+      />
+
       {/* 顶部：对方手牌托盘 */}
       <HandTray controller={1} ruleName={ruleInfo.name} />
 
       {/* 核心对战台网格 (标准 YGOPro 5 行对称矩阵布局) */}
-      <div className="relative w-full max-w-5xl my-auto py-2.5 px-3 rounded-xl bg-card/40 border border-white/10 shadow-2xl backdrop-blur-md flex flex-col items-center justify-center gap-1.5 shrink-0">
+      <div className="relative z-10 w-full max-w-5xl my-auto py-2.5 px-3 rounded-lg bg-card border border-border shadow-sm flex flex-col items-center justify-center gap-1.5 shrink-0">
         {/* ============================================================== */}
         {/* 对方对战区域 (Opponent Sector) */}
         {/* 包含 MR3 左右独立灵摆区（垂直居中）、左翼卡组/墓地、中央对战区 5x2、右翼额外/场地 */}
         {/* ============================================================== */}
         <div className="flex items-center">
-          {/* MR3 对方外侧独立灵摆区 (红刻度 / 面对场地的左侧 -> 对方面向的右侧 sequence 1) */}
+          {/* MR3 对方外侧独立灵摆区 (对方面向的右侧 sequence 1，对方右刻度=红) */}
           {ruleInfo.hasIndependentPZones && (
             <div className="mr-3 flex items-center justify-center shrink-0">
               <ZoneSlot
-                label="对方灵摆(红)"
+                label="灵摆区"
                 controller={1}
                 location={CardLocation.PZONE}
                 sequence={1}
@@ -86,8 +95,8 @@ export const DuelBoard: React.FC = () => {
                 />
               </div>
 
-              {/* 对方魔陷区 5 ~ 1 (顶部带红调对战台边框) */}
-              <div className="flex items-center gap-2 px-2.5 pt-2 pb-1 rounded-t-xl bg-gradient-to-b from-red-950/25 via-black/40 to-black/30 border-t border-x border-red-500/25 shadow-sm">
+              {/* 对方魔陷区 5 ~ 1 (红描边语义框：对方侧) */}
+              <div className="flex items-center gap-2 px-2.5 pt-2 pb-1 rounded-t-lg border-t border-x border-red-500/30 dark:border-red-400/20 bg-background/40 dark:bg-black/25">
                 {[4, 3, 2, 1, 0].map((seq) => (
                   <ZoneSlot
                     key={`opp_szone_${seq}`}
@@ -98,7 +107,14 @@ export const DuelBoard: React.FC = () => {
                     card={getCard(1, CardLocation.SZONE, seq)}
                     isPendulum={ruleInfo.pendulumInSZone && (seq === 0 || seq === 4)}
                     pendulumDirection={seq === 4 ? 'left' : seq === 0 ? 'right' : undefined}
-                    colorVariant="spell"
+                    // 对方场地位镜像：屏幕左 seq4 = 对方右侧刻度(红)，屏幕右 seq0 = 左侧刻度(蓝)
+                    colorVariant={
+                      ruleInfo.pendulumInSZone && seq === 4
+                        ? 'pendulum-red'
+                        : ruleInfo.pendulumInSZone && seq === 0
+                          ? 'pendulum-blue'
+                          : 'spell'
+                    }
                   />
                 ))}
               </div>
@@ -132,8 +148,8 @@ export const DuelBoard: React.FC = () => {
                 />
               </div>
 
-              {/* 对方怪兽区 5 ~ 1 (底部带红调对战台边框，与魔陷区无缝合璧) */}
-              <div className="flex items-center gap-2 px-2.5 pb-2 pt-1 rounded-b-xl bg-gradient-to-t from-red-950/25 via-black/40 to-black/30 border-b border-x border-red-500/25 shadow-sm">
+              {/* 对方怪兽区 5 ~ 1 (红描边语义框，与魔陷区无缝合璧) */}
+              <div className="flex items-center gap-2 px-2.5 pb-2 pt-1 rounded-b-lg border-b border-x border-red-500/30 dark:border-red-400/20 bg-background/40 dark:bg-black/25">
                 {[4, 3, 2, 1, 0].map((seq) => (
                   <ZoneSlot
                     key={`opp_mzone_${seq}`}
@@ -161,11 +177,11 @@ export const DuelBoard: React.FC = () => {
             </div>
           </div>
 
-          {/* MR3 对方外侧独立灵摆区 (蓝刻度 / 面对场地的右侧 -> 对方面向的左侧 sequence 0) */}
+          {/* MR3 对方外侧独立灵摆区 (对方面向的左侧 sequence 0，对方左刻度=蓝) */}
           {ruleInfo.hasIndependentPZones && (
             <div className="ml-3 flex items-center justify-center shrink-0">
               <ZoneSlot
-                label="对方灵摆(蓝)"
+                label="灵摆区"
                 controller={1}
                 location={CardLocation.PZONE}
                 sequence={0}
@@ -183,7 +199,7 @@ export const DuelBoard: React.FC = () => {
         {/* ============================================================== */}
         <div className="flex items-center gap-0 my-0.5">
           {/* MR3 占位对齐（保持与外侧灵摆区等宽） */}
-          {ruleInfo.hasIndependentPZones && <div className="w-[74px] h-[104px] mr-3 shrink-0" />}
+          {ruleInfo.hasIndependentPZones && <div className="w-[104px] h-[104px] mr-3 shrink-0" />}
 
           {/* 对方除外区 (对齐对方墓地正下方，紧挨中线) */}
           <div className="mr-3 shrink-0">
@@ -200,14 +216,11 @@ export const DuelBoard: React.FC = () => {
 
           {/* 中央对战台交界：MR4/5 规范桥接两个 EMZ；MR1/2/3 留出纯净极简中线 */}
           {ruleInfo.hasEMZ ? (
-            <div className="relative w-[422px] h-[104px] flex items-center justify-center shrink-0">
-              {/* 贯穿 EMZ 的高科技轨道底线 */}
-              <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-0.5 bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent pointer-events-none" />
-
+            <div className="relative w-[492px] h-[104px] flex items-center justify-center shrink-0">
               {/* 两个 EMZ 槽位分别对应下方怪兽区 2 号位与 4 号位 */}
-              <div className="w-full flex items-center justify-between px-[90px] relative z-10">
+              <div className="w-full flex items-center justify-between px-[130px] relative z-10">
                 <ZoneSlot
-                  label="额外怪兽区 1"
+                  label="EX 怪兽 1"
                   controller={0}
                   location={CardLocation.MZONE}
                   sequence={5}
@@ -215,7 +228,7 @@ export const DuelBoard: React.FC = () => {
                   colorVariant="emz"
                 />
                 <ZoneSlot
-                  label="额外怪兽区 2"
+                  label="EX 怪兽 2"
                   controller={0}
                   location={CardLocation.MZONE}
                   sequence={6}
@@ -226,7 +239,7 @@ export const DuelBoard: React.FC = () => {
             </div>
           ) : (
             <div className="relative w-[422px] h-[104px] flex items-center justify-center shrink-0">
-              <div className="w-full h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+              <div className="w-full h-px bg-border dark:bg-white/15" />
             </div>
           )}
 
@@ -244,7 +257,7 @@ export const DuelBoard: React.FC = () => {
           </div>
 
           {/* MR3 占位对齐（保持与外侧灵摆区等宽） */}
-          {ruleInfo.hasIndependentPZones && <div className="w-[74px] h-[104px] ml-3 shrink-0" />}
+          {ruleInfo.hasIndependentPZones && <div className="w-[104px] h-[104px] ml-3 shrink-0" />}
         </div>
 
         {/* ============================================================== */}
@@ -252,11 +265,11 @@ export const DuelBoard: React.FC = () => {
         {/* 包含 MR3 左右独立灵摆区（垂直居中）、左翼场地/额外、中央对战区 5x2、右翼墓地/卡组 */}
         {/* ============================================================== */}
         <div className="flex items-center">
-          {/* MR3 我方外侧独立灵摆区 (蓝刻度 / 面对场地的左侧 sequence 0) */}
+          {/* MR3 我方外侧独立灵摆区 (我方面向的左侧 sequence 0，我方左刻度=蓝) */}
           {ruleInfo.hasIndependentPZones && (
             <div className="mr-3 flex items-center justify-center shrink-0">
               <ZoneSlot
-                label="我方灵摆(蓝)"
+                label="灵摆区"
                 controller={0}
                 location={CardLocation.PZONE}
                 sequence={0}
@@ -284,8 +297,8 @@ export const DuelBoard: React.FC = () => {
                 />
               </div>
 
-              {/* 我方怪兽区 1 ~ 5 (顶部带蓝调对战台边框，与下方魔陷区无缝合璧) */}
-              <div className="flex items-center gap-2 px-2.5 pt-2 pb-1 rounded-t-xl bg-gradient-to-b from-blue-950/25 via-black/40 to-black/30 border-t border-x border-blue-500/25 shadow-sm">
+              {/* 我方怪兽区 1 ~ 5 (蓝描边语义框，与下方魔陷区无缝合璧) */}
+              <div className="flex items-center gap-2 px-2.5 pt-2 pb-1 rounded-t-lg border-t border-x border-blue-500/30 dark:border-blue-400/20 bg-background/40 dark:bg-black/25">
                 {[0, 1, 2, 3, 4].map((seq) => (
                   <ZoneSlot
                     key={`my_mzone_${seq}`}
@@ -328,8 +341,8 @@ export const DuelBoard: React.FC = () => {
                 />
               </div>
 
-              {/* 我方魔陷区 1 ~ 5 (底部带蓝调对战台边框) */}
-              <div className="flex items-center gap-2 px-2.5 pb-2 pt-1 rounded-b-xl bg-gradient-to-t from-blue-950/25 via-black/40 to-black/30 border-b border-x border-blue-500/25 shadow-sm">
+              {/* 我方魔陷区 1 ~ 5 (蓝描边语义框) */}
+              <div className="flex items-center gap-2 px-2.5 pb-2 pt-1 rounded-b-lg border-b border-x border-blue-500/30 dark:border-blue-400/20 bg-background/40 dark:bg-black/25">
                 {[0, 1, 2, 3, 4].map((seq) => (
                   <ZoneSlot
                     key={`my_szone_${seq}`}
@@ -340,7 +353,14 @@ export const DuelBoard: React.FC = () => {
                     card={getCard(0, CardLocation.SZONE, seq)}
                     isPendulum={ruleInfo.pendulumInSZone && (seq === 0 || seq === 4)}
                     pendulumDirection={seq === 0 ? 'left' : seq === 4 ? 'right' : undefined}
-                    colorVariant="spell"
+                    // 我方场地位：屏幕左 seq0 = 我方左侧刻度(蓝)，屏幕右 seq4 = 右侧刻度(红)
+                    colorVariant={
+                      ruleInfo.pendulumInSZone && seq === 0
+                        ? 'pendulum-blue'
+                        : ruleInfo.pendulumInSZone && seq === 4
+                          ? 'pendulum-red'
+                          : 'spell'
+                    }
                   />
                 ))}
               </div>
@@ -360,11 +380,11 @@ export const DuelBoard: React.FC = () => {
             </div>
           </div>
 
-          {/* MR3 我方外侧独立灵摆区 (红刻度 / 面对场地的右侧 sequence 1) */}
+          {/* MR3 我方外侧独立灵摆区 (我方面向的右侧 sequence 1，我方右刻度=红) */}
           {ruleInfo.hasIndependentPZones && (
             <div className="ml-3 flex items-center justify-center shrink-0">
               <ZoneSlot
-                label="我方灵摆(红)"
+                label="灵摆区"
                 controller={0}
                 location={CardLocation.PZONE}
                 sequence={1}

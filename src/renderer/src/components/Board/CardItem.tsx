@@ -7,9 +7,11 @@ import { useContextMenuStore } from '../../stores/useContextMenuStore'
 
 interface CardItemProps {
   card: FieldCard
+  /** 宿主格子是否为正方形 (场上交互格)。正方形格中竖卡与横卡共用同一盒子尺寸 */
+  squareCell?: boolean
 }
 
-export const CardItem: React.FC<CardItemProps> = ({ card }) => {
+export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) => {
   const { selectedCardId, setSelectedCardId, setHoveredCard } = useDuelStore()
   const { openMenu } = useContextMenuStore()
 
@@ -20,10 +22,12 @@ export const CardItem: React.FC<CardItemProps> = ({ card }) => {
     card.position === CardPosition.FACEDOWN || card.position === CardPosition.FACEDOWN_DEFENSE
 
   const isHand = card.location === CardLocation.HAND
-  // 手牌即使为里侧未公开，在编辑器中也半透展示卡面+里侧角标，方便作者构筑剧情
-  const isHandFacedown = isHand && isFacedown
-  // 仅场上覆盖才渲染纯卡背
-  const showCardBack = isFacedown && !isHandFacedown
+  const isDeckPile = card.location === CardLocation.DECK || card.location === CardLocation.EXTRA
+  // 编排者全知视角：场上盖放渲染半透明卡面+盖放角标 (而非卡背)；仅卡组/额外保留卡背
+  const showCardBack = isFacedown && isDeckPile
+  const isSetOnField = isFacedown && !isDeckPile && !isHand
+  // 手牌一律正常显示卡面；position FACEUP 表示公开手牌，用角标提示
+  const isPublicHand = isHand && !isFacedown
 
   return (
     <div
@@ -56,19 +60,21 @@ export const CardItem: React.FC<CardItemProps> = ({ card }) => {
         animate={{ rotate: isDefense ? 90 : 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
         className={`relative rounded overflow-hidden shadow-md transition-all ${
-          isDefense ? 'w-[75%] h-[95%]' : 'w-full h-full'
+          // 正方形格: 卡面按卡牌比例 (59:86) 缩放为 71×104，横置时仅旋转 90° 不再缩放；
+          // 竖长格 (手牌/牌堆): 卡面完整填充
+          squareCell ? 'w-[68.6%] h-full' : isDefense ? 'w-[68.6%] h-[71%]' : 'w-full h-full'
         } ${
           isSelected
-            ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background'
-            : 'group-hover:ring-1 group-hover:ring-primary/60'
+            ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background'
+            : 'group-hover:ring-1 group-hover:ring-blue-400/50'
         }`}
       >
-        {/* 卡面图 (场上里侧显示卡背；手牌里侧半透显示卡面) */}
+        {/* 卡面图 (卡组/额外显示卡背；场上盖放半透明显示卡面；手牌正常显示) */}
         <img
           src={showCardBack ? CARD_BACK_IMAGE : getCardImageUrl(card.code, true)}
           alt={card.card?.name || String(card.code)}
           className={`w-full h-full object-cover select-none pointer-events-none transition-all ${
-            isHandFacedown ? 'brightness-75 saturate-75 contrast-110' : ''
+            isSetOnField ? 'opacity-60' : ''
           }`}
           onError={(e) => {
             const target = e.currentTarget
@@ -77,28 +83,28 @@ export const CardItem: React.FC<CardItemProps> = ({ card }) => {
             }
           }}
         />
-
-        {/* 里侧 / 盖放角标标识 */}
-        {isFacedown && (
-          <div className="absolute top-1 left-1 bg-black/85 text-amber-300 font-sans text-[8px] font-bold px-1 py-0.5 rounded border border-amber-400/40 shadow backdrop-blur-xs">
-            {isHand ? '里侧' : '盖'}
-          </div>
-        )}
-
-        {/* 超量素材叠放标识 */}
-        {card.overlayMaterials && card.overlayMaterials.length > 0 && (
-          <div className="absolute bottom-1 right-1 bg-neutral-900/90 text-amber-300 font-mono text-[10px] font-bold px-1.5 py-0.2 rounded-full border border-amber-400/40 shadow">
-            ORU × {card.overlayMaterials.length}
-          </div>
-        )}
-
-        {/* 指示物标识 */}
-        {card.counters && Object.values(card.counters).some((v) => v > 0) && (
-          <div className="absolute top-1 right-1 bg-red-950/90 text-red-300 font-mono text-[9px] font-bold px-1 py-0.2 rounded border border-red-500/40">
-            ●
-          </div>
-        )}
       </motion.div>
+
+      {/* 角标锚定在格子上，不随卡片旋转，始终正立可读 */}
+      {(isSetOnField || isPublicHand) && (
+        <div className="absolute top-1 left-1 bg-black/85 text-amber-300 font-sans text-[8px] font-bold px-1 py-0.5 rounded border border-amber-400/40 shadow backdrop-blur-xs">
+          {isSetOnField ? '盖放' : '公开'}
+        </div>
+      )}
+
+      {/* 超量素材叠放标识 */}
+      {card.overlayMaterials && card.overlayMaterials.length > 0 && (
+        <div className="absolute bottom-1 right-1 bg-black/85 text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-white/25 shadow">
+          ORU × {card.overlayMaterials.length}
+        </div>
+      )}
+
+      {/* 指示物标识 */}
+      {card.counters && Object.values(card.counters).some((v) => v > 0) && (
+        <div className="absolute top-1 right-1 bg-red-950/90 text-red-300 font-mono text-[9px] font-bold px-1 py-0.5 rounded border border-red-500/40">
+          ●
+        </div>
+      )}
     </div>
   )
 }

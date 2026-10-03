@@ -5,6 +5,7 @@ import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
+import { usePileListStore } from '../../stores/usePileListStore'
 import { CardHudOverlay } from './components/CardHudOverlay'
 import { cn } from '../../lib/utils'
 
@@ -28,6 +29,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const tacticalView = useDuelStore((s) => s.tacticalView)
   const { openMenu } = useContextMenuStore()
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
+  const openPile = usePileListStore((s) => s.openPile)
 
   const isSelected = selectedCardId === card.instanceId
   const isDefense =
@@ -80,6 +82,11 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   }, [card.instanceId, card.code, card.card])
 
   const isHand = card.location === CardLocation.HAND
+  const isPileZone =
+    card.location === CardLocation.DECK ||
+    card.location === CardLocation.EXTRA ||
+    card.location === CardLocation.GRAVE ||
+    card.location === CardLocation.REMOVED
   const isDeckPile = card.location === CardLocation.DECK || card.location === CardLocation.EXTRA
   // 编排者全知视角：场上盖放渲染清晰卡面+轻微光影+盖放角标 (而非卡背)；仅卡组/额外保留卡背
   const showCardBack = isFacedown && isDeckPile
@@ -134,6 +141,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         e.stopPropagation()
         if (showOverlayBadge) {
           openOverlayList(card.instanceId)
+        } else if (isPileZone) {
+          openPile(card.controller, card.location)
         }
       }}
       onMouseEnter={() => {
@@ -151,7 +160,13 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         if (card.card) setHoveredCard(card.card)
         openMenu(card, e.clientX, e.clientY)
       }}
-      title={showOverlayBadge ? `双击查看超量素材列表 (当前 ${materialCount} 张)` : undefined}
+      title={
+        showOverlayBadge
+          ? `双击查看超量素材列表 (当前 ${materialCount} 张)`
+          : isPileZone
+            ? '双击查看卡片列表'
+            : undefined
+      }
       className="w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none"
     >
       <div

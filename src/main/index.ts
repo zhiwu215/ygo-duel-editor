@@ -32,8 +32,8 @@ function createWindow(): void {
     minHeight: 720,
     show: false,
     autoHideMenuBar: true,
-    title: 'YGO Duel Editor - 游戏王决斗与残局编辑器',
-    ...(process.platform === 'linux' ? { icon } : {}),
+    title: 'YGO Duel Editor - 游戏王决斗编辑器',
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false

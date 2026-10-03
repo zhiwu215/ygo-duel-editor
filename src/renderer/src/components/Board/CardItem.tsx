@@ -92,6 +92,13 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         </div>
       )}
 
+      {/* 额外卡组表侧表示角标 */}
+      {card.location === CardLocation.EXTRA && !isFacedown && (
+        <div className="absolute top-1 left-1 bg-cyan-600/90 text-white font-sans text-[8px] font-bold px-1 py-0.5 rounded border border-cyan-400/50 shadow backdrop-blur-xs">
+          表侧
+        </div>
+      )}
+
       {/* 超量素材叠放标识 */}
       {card.overlayMaterials && card.overlayMaterials.length > 0 && (
         <div className="absolute bottom-1 right-1 bg-black/85 text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-white/25 shadow">

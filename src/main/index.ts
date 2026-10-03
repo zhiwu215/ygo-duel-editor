@@ -1,15 +1,38 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, protocol, net } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { registerAllIpcHandlers } from './ipc/registerIpc'
+import { configService } from './services/configService'
+import { cdbService } from './db/cdbService'
+import { imageService } from './services/imageService'
+
+// 注册自定义协议 ygopic:// 用于本地卡图秒级加载 (零网络依赖、零 CDN)
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'ygopic',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+      bypassCSP: true
+    }
+  }
+])
 
 function createWindow(): void {
-  // Create the browser window.
+  // 创建现代化大尺寸工作台窗口
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1440,
+    height: 920,
+    minWidth: 1100,
+    minHeight: 720,
     show: false,
     autoHideMenuBar: true,
+    title: 'YGO Duel Editor - 游戏王决斗与残局编辑器',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -27,7 +50,6 @@ function createWindow(): void {
   })
 
   // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -35,40 +57,62 @@ function createWindow(): void {
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.ygoduel.editor')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  // 1. 注册所有业务 IPC 处理器
+  registerAllIpcHandlers()
 
+  // 2. 注册 ygopic 协议处理器：从本地游戏目录秒级加载卡图 (pics / expansions/pics)
+  protocol.handle('ygopic', async (request) => {
+    try {
+      const url = new URL(request.url)
+      const isSmall =
+        url.searchParams.get('small') === '1' || url.searchParams.get('small') === 'true'
+      const codeStr = url.pathname.replace(/^\//, '').replace(/\.(jpg|png)$/i, '')
+      const code = parseInt(codeStr, 10)
+      if (isNaN(code) || code <= 0) {
+        return new Response('Invalid card code', { status: 400 })
+      }
+
+      const filePath = imageService.findCardImagePath(code, isSmall)
+      if (filePath) {
+        return await net.fetch(pathToFileURL(filePath).toString())
+      }
+      return new Response('Image not found', { status: 404 })
+    } catch (err) {
+      console.error('[ygopic] protocol handle error:', err)
+      return new Response('Internal error', { status: 500 })
+    }
+  })
+
+  // 3. 尝试自动恢复上次使用的 cards.cdb 与游戏目录
+  const cfg = configService.get()
+  if (cfg.cdbPath) {
+    const ok = cdbService.open(cfg.cdbPath)
+    if (ok && !cfg.gameDirectory) {
+      const detected = imageService.detectGameDirectory(cfg.cdbPath)
+      if (detected) {
+        configService.save({ gameDirectory: detected })
+      }
+    }
+  }
+
+  // 4. 打开窗口
   createWindow()
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    cdbService.close()
     app.quit()
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

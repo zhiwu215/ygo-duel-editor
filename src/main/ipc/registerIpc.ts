@@ -1,0 +1,85 @@
+import { ipcMain } from 'electron'
+import { CardSearchParams, DuelPuzzleState, AppConfig } from '@shared/index'
+import { cdbService } from '../db/cdbService'
+import { fileService } from '../services/fileService'
+import { configService } from '../services/configService'
+import { imageService } from '../services/imageService'
+
+export function registerAllIpcHandlers(): void {
+  // CDB 数据库操作
+  ipcMain.handle('cdb:select-file', async () => {
+    const selected = await fileService.selectCdbFile()
+    if (selected) {
+      const ok = cdbService.open(selected)
+      if (ok) {
+        const detectedGameDir = imageService.detectGameDirectory(selected)
+        configService.save({
+          cdbPath: selected,
+          ...(detectedGameDir ? { gameDirectory: detectedGameDir } : {})
+        })
+      }
+      return selected
+    }
+    return null
+  })
+
+  ipcMain.handle('cdb:load', async (_, path: string) => {
+    const ok = cdbService.open(path)
+    if (ok) {
+      const detectedGameDir = imageService.detectGameDirectory(path)
+      configService.save({
+        cdbPath: path,
+        ...(detectedGameDir ? { gameDirectory: detectedGameDir } : {})
+      })
+    }
+    return ok
+  })
+
+  ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
+    return cdbService.search(params)
+  })
+
+  ipcMain.handle('cdb:get-by-ids', async (_, ids: number[]) => {
+    return cdbService.getCardsByIds(ids)
+  })
+
+  // Lua 脚本导入导出
+  ipcMain.handle('file:export-lua', async (_, state: DuelPuzzleState, targetPath?: string) => {
+    return fileService.exportLuaFile(state, targetPath)
+  })
+
+  ipcMain.handle('file:import-lua', async () => {
+    return fileService.importLuaFile()
+  })
+
+  // 项目工程保存打开
+  ipcMain.handle('file:save-project', async (_, state: DuelPuzzleState) => {
+    return fileService.saveProjectFile(state)
+  })
+
+  ipcMain.handle('file:load-project', async () => {
+    return fileService.loadProjectFile()
+  })
+
+  // 用户配置
+  ipcMain.handle('config:get', async () => {
+    return configService.get()
+  })
+
+  ipcMain.handle('config:save', async (_, partial: Partial<AppConfig>) => {
+    return configService.save(partial)
+  })
+
+  ipcMain.handle('config:select-game-dir', async () => {
+    const dir = await fileService.selectGameDirectory()
+    if (dir) {
+      configService.save({ gameDirectory: dir })
+    }
+    return dir
+  })
+
+  // 本地卡图路径查询
+  ipcMain.handle('image:get-path', async (_, code: number, small?: boolean) => {
+    return imageService.findCardImagePath(code, !!small)
+  })
+}

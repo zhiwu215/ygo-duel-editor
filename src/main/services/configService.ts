@@ -6,7 +6,7 @@ import { AppConfig } from '@shared/index'
 export class ConfigService {
   private configPath: string
   private config: AppConfig = {
-    theme: 'dark'
+    theme: 'light'
   }
 
   constructor() {

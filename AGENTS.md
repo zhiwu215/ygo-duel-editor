@@ -167,7 +167,7 @@ src/
 ### 7.4 关键数据结构
 
 - `FieldCard` — 场上一张卡的运行时状态：`instanceId`（场上唯一）、`code`（卡密）、`card?`（检索到的 CdbCard 缓存，可缺省）、`controller` / `owner`、`location` + `sequence`（区域 + 格子序号）、`position`、`overlayMaterials`（超量素材存**卡密数组**）、counters / customAtk / customDef。
-- `DuelPuzzleState` — 整个残局快照：`version`（数据迁移用，必须随结构变更递增）、`title` / `hint`、`masterRule`、`players`（`lp/maxHand/startHand`）、`turnPlayer`、`firstTurnAttack`、`simpleAI`、`cards[]`。空局面用工厂函数 `createInitialDuelState(masterRule = 5)` 创建，不要手写对象字面量。
+- `DuelPuzzleState` — 整个决斗局面快照：`version`（数据迁移用，必须随结构变更递增）、`title` / `hint`、`masterRule`、`players`（`lp/maxHand/startHand`）、`turnPlayer`、`firstTurnAttack`、`cards[]`。空局面用工厂函数 `createInitialDuelState(masterRule = 5)` 创建，不要手写对象字面量。
 
 ---
 

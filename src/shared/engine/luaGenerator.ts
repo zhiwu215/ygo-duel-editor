@@ -56,7 +56,7 @@ export function generateLuaScript(state: DuelPuzzleState): string {
 
   // 1. 头部注释
   lines.push('-- ==============================================================')
-  lines.push(`-- 残局标题: ${state.title || '未命名残局'}`)
+  lines.push(`-- 决斗标题: ${state.title || '未命名对局'}`)
   lines.push(`-- 规则版本: 大师规则 (MR${state.masterRule})`)
   lines.push(`-- 导出工具: YGO Duel Editor`)
   lines.push('-- ==============================================================')
@@ -65,7 +65,6 @@ export function generateLuaScript(state: DuelPuzzleState): string {
   // 2. 初始化环境
   const flags: string[] = []
   if (state.firstTurnAttack) flags.push('DUEL_ATTACK_FIRST_TURN')
-  if (state.simpleAI) flags.push('DUEL_SIMPLE_AI')
   const flagStr = flags.length > 0 ? flags.join(' + ') : '0'
 
   lines.push(`-- 1. 初始化规则环境`)

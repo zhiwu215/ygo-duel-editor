@@ -29,17 +29,17 @@ export interface PlayerState {
 }
 
 /**
- * 整个残局 / 决斗局面的完整状态机
+ * 整个决斗局面的完整状态机
  */
 export interface DuelPuzzleState {
   version: string // 项目数据结构版本
-  title: string // 残局标题
-  hint: string // 残局过关提示 / 描述
+  title: string // 对局标题
+  hint: string // 对局说明 / 提示描述
+  /** 游戏规则版本 */
   masterRule: MasterRule // 规则版本: 2 (MR1/2), 3 (MR3), 4 (MR4), 5 (MR5)
   players: [PlayerState, PlayerState] // [我方, 对方]
   turnPlayer: 0 | 1 // 回合玩家 (0: 我方, 1: 对方)
   firstTurnAttack: boolean // 是否允许先攻攻宣
-  simpleAI: boolean // 是否开启简单自动 AI (DUEL_SIMPLE_AI)
   cards: FieldCard[] // 场上/手牌/墓地所有卡片集合
 }
 
@@ -49,8 +49,8 @@ export interface DuelPuzzleState {
 export function createInitialDuelState(masterRule: MasterRule = 5): DuelPuzzleState {
   return {
     version: '1.0.0',
-    title: '未命名残局',
-    hint: '请在一个回合内击败对方！',
+    title: '未命名对局',
+    hint: '',
     masterRule,
     players: [
       { lp: 8000, maxHand: 0, startHand: 0 },
@@ -58,7 +58,6 @@ export function createInitialDuelState(masterRule: MasterRule = 5): DuelPuzzleSt
     ],
     turnPlayer: 0,
     firstTurnAttack: true,
-    simpleAI: true,
     cards: []
   }
 }

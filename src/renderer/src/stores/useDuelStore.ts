@@ -28,6 +28,16 @@ interface DuelStoreState {
   setFirstTurnAttack: (allow: boolean) => void
 
   // 卡片操作
+  /**
+   * 向指定区域和格子槽位中新增放置一张卡片
+   *
+   * **参数说明：**
+   * - `card`：卡片数据库原型对象 (CdbCard)
+   * - `controller`：放置的控制者方 (0: 我方, 1: 对方)
+   * - `location`：目标区域 (CardLocation，如 MZONE、SZONE、HAND、GRAVE 等)
+   * - `sequence`：目标格子序号 (0~4；牌堆区域会自动追加到末尾)
+   * - `position`：可选，卡片表示形式 (CardPosition；缺省时按目标区域惯例赋予默认表示)
+   */
   addCardToZone: (
     card: CdbCard,
     controller: 0 | 1,
@@ -35,11 +45,28 @@ interface DuelStoreState {
     sequence: number,
     position?: number
   ) => void
+  /**
+   * 移动场上或手牌中的卡片至目标区域与槽位
+   *
+   * **参数说明：**
+   * - `instanceId`：要移动卡片的唯一实例 ID（UUID，非卡密 code）
+   * - `toLocation`：目标区域（CardLocation，如 MZONE、SZONE、HAND、GRAVE 等）
+   * - `toSequence`：目标格子序号（如怪兽/魔陷区 0~4；牌堆区域会自动追加到末尾）
+   * - `toController`：可选，目标控制者（0: 我方, 1: 对方；缺省时保持原控制者）
+   * - `customPos`：可选，自定义卡片表示形式（CardPosition；如按住 Ctrl 拖拽切换默认放置状态）
+   *
+   * @param instanceId 要移动卡片的唯一实例 ID
+   * @param toLocation 目标区域
+   * @param toSequence 目标格子序号
+   * @param toController 可选，目标控制者 (0: 我方, 1: 对方)
+   * @param customPos 可选，自定义卡片表示形式
+   */
   moveCard: (
     instanceId: string,
     toLocation: number,
     toSequence: number,
-    toController?: 0 | 1
+    toController?: 0 | 1,
+    customPos?: number
   ) => void
   removeCard: (instanceId: string) => void
   updateCardPosition: (instanceId: string, position: number) => void
@@ -49,6 +76,7 @@ interface DuelStoreState {
   // 整体替换 / 重置
   loadState: (newState: DuelPuzzleState) => void
   resetDuel: () => void
+  swapSides: () => void
 
   // UI 交互
   setSelectedCardId: (id: string | null) => void
@@ -117,12 +145,14 @@ export const useDuelStore = create<DuelStoreState>()(
             location === CardLocation.EXTRA ||
             location === CardLocation.REMOVED
 
-          // 默认表示形式: 墓地/除外表侧, 魔陷/卡组/额外盖放, 怪兽表攻
+          // 默认表示形式: 魔陷/卡组/额外/手牌盖放 (手牌盖放=未公开, 编排者仍可见卡面),
+          // 墓地/除外/灵摆表侧, 怪兽表攻
           let defaultPos: number = CardPosition.FACEUP_ATTACK
           if (
             location === CardLocation.SZONE ||
             location === CardLocation.DECK ||
-            location === CardLocation.EXTRA
+            location === CardLocation.EXTRA ||
+            location === CardLocation.HAND
           ) {
             defaultPos = CardPosition.FACEDOWN
           } else if (
@@ -173,7 +203,15 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         }),
 
-      moveCard: (instanceId, toLocation, toSequence, toController) =>
+      /**
+       * 移动场上或手牌中的卡片至新位置
+       * @param instanceId 要移动卡片的唯一实例 ID
+       * @param toLocation 目标区域 (CardLocation，如 MZONE/SZONE/HAND/GRAVE 等)
+       * @param toSequence 目标格子序号 (如 0~4；牌堆区域会自动追加到末尾)
+       * @param toController 可选，目标控制者 (0: 我方, 1: 对方；缺省时保持原控制者)
+       * @param customPos 可选，自定义卡片表示形式 (CardPosition；如按住 Ctrl 拖拽切换默认放置状态)
+       */
+      moveCard: (instanceId, toLocation, toSequence, toController, customPos) =>
         set((prev) => {
           const targetCard = prev.state.cards.find((c) => c.instanceId === instanceId)
           if (!targetCard) return prev
@@ -196,15 +234,28 @@ export const useDuelStore = create<DuelStoreState>()(
             seq = targetPiles.length
           }
 
+          // 表示形式：区域内重排保持原状；跨区域移动按目标区域惯例给默认表示，
+          // customPos (如 Ctrl 拖入切换放置状态) 优先级最高
+          const sameZone = targetCard.location === toLocation
           let newPos = targetCard.position
-          if (toLocation === CardLocation.DECK || toLocation === CardLocation.EXTRA) {
-            newPos = CardPosition.FACEDOWN
-          } else if (
-            toLocation === CardLocation.GRAVE ||
-            toLocation === CardLocation.REMOVED ||
-            toLocation === CardLocation.PZONE
-          ) {
-            newPos = CardPosition.FACEUP
+          if (!sameZone) {
+            if (customPos !== undefined) {
+              newPos = customPos
+            } else if (toLocation === CardLocation.SZONE) {
+              newPos = CardPosition.FACEDOWN // 魔陷默认盖放 (与搜索拖入一致)
+            } else if (toLocation === CardLocation.MZONE) {
+              newPos = CardPosition.FACEUP_ATTACK // 怪兽默认表攻
+            } else if (toLocation === CardLocation.HAND) {
+              newPos = CardPosition.FACEDOWN // 手牌默认未公开 (编排者仍可见卡面)
+            } else if (toLocation === CardLocation.DECK || toLocation === CardLocation.EXTRA) {
+              newPos = CardPosition.FACEDOWN
+            } else if (
+              toLocation === CardLocation.GRAVE ||
+              toLocation === CardLocation.REMOVED ||
+              toLocation === CardLocation.PZONE
+            ) {
+              newPos = CardPosition.FACEUP
+            }
           }
 
           const updatedCards = prev.state.cards.map((c) => {
@@ -289,6 +340,20 @@ export const useDuelStore = create<DuelStoreState>()(
           state: createInitialDuelState(prev.state.masterRule),
           selectedCardId: null,
           hoveredCard: null
+        })),
+
+      swapSides: () =>
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: prev.state.cards.map((c) => ({
+              ...c,
+              controller: (c.controller === 0 ? 1 : 0) as 0 | 1
+            })),
+            players: [prev.state.players[1], prev.state.players[0]],
+            turnPlayer: (prev.state.turnPlayer === 0 ? 1 : 0) as 0 | 1
+          },
+          selectedCardId: null
         })),
 
       setSelectedCardId: (id) => set({ selectedCardId: id }),

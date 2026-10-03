@@ -1,5 +1,12 @@
 import React from 'react'
-import { FieldCard, CardUtils, getCounterName, RACE_NAMES, ATTRIBUTE_NAMES } from '@shared/index'
+import {
+  FieldCard,
+  CardUtils,
+  getCounterName,
+  RACE_NAMES,
+  ATTRIBUTE_NAMES,
+  isInfiniteVal
+} from '@shared/index'
 
 interface CardHudOverlayProps {
   card: FieldCard
@@ -7,7 +14,7 @@ interface CardHudOverlayProps {
 
 /**
  * YGOPro 风格的半透明战场全息 HUD 浮层
- * 展示卡名、攻守数值（支持变动差值高亮）、星阶/种族/属性以及全称指示物列表
+ * 展示卡名、攻守数值（支持变动差值高亮与无限 ∞ 展示）、星阶/种族/属性以及全称指示物列表
  */
 export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
   const cdb = card.card
@@ -17,10 +24,14 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
   // 攻守与变动
   const origAtk = cdb?.atk ?? 0
   const origDef = cdb?.def ?? 0
+  const isAtkInf = isInfiniteVal(card.customAtk)
+  const isDefInf = isInfiniteVal(card.customDef)
   const effectiveAtk = card.customAtk !== undefined ? card.customAtk : origAtk
   const effectiveDef = card.customDef !== undefined ? card.customDef : origDef
-  const atkDiff = card.customAtk !== undefined ? card.customAtk - origAtk : 0
-  const defDiff = card.customDef !== undefined ? card.customDef - origDef : 0
+  const atkDiff =
+    card.customAtk !== undefined ? (isAtkInf ? Infinity : card.customAtk - origAtk) : 0
+  const defDiff =
+    card.customDef !== undefined ? (isDefInf ? Infinity : card.customDef - origDef) : 0
 
   // 星级/种族/属性
   const star = cdb ? CardUtils.getStarLevel(cdb.level, cdb.type) : 0
@@ -45,22 +56,24 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
         {cardName}
       </div>
 
-      {/* 攻守数值行 (仅怪兽) */}
+      {/* 攻守数值行 (仅怪兽，支持无限 ∞ 与变动高亮) */}
       {isMonster && (
         <div className="font-mono text-center font-bold flex items-center justify-center gap-1">
           <span
             className={
-              atkDiff > 0
-                ? 'text-emerald-400 font-extrabold'
-                : atkDiff < 0
-                  ? 'text-rose-400 font-extrabold'
-                  : 'text-white'
+              isAtkInf
+                ? 'text-amber-300 font-extrabold'
+                : atkDiff > 0
+                  ? 'text-emerald-400 font-extrabold'
+                  : atkDiff < 0
+                    ? 'text-rose-400 font-extrabold'
+                    : 'text-white'
             }
           >
-            {origAtk === -2 ? '?' : effectiveAtk}
-            {atkDiff !== 0 && (
+            {isAtkInf ? '∞' : origAtk === -2 ? '?' : effectiveAtk}
+            {card.customAtk !== undefined && atkDiff !== 0 && (
               <span className="text-[8px] ml-0.5 opacity-90">
-                ({atkDiff > 0 ? `+${atkDiff}` : atkDiff})
+                ({isAtkInf ? '+∞' : atkDiff > 0 ? `+${atkDiff}` : atkDiff})
               </span>
             )}
           </span>
@@ -69,17 +82,19 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
             className={
               isLink
                 ? 'text-white/50'
-                : defDiff > 0
-                  ? 'text-emerald-400 font-extrabold'
-                  : defDiff < 0
-                    ? 'text-rose-400 font-extrabold'
-                    : 'text-white'
+                : isDefInf
+                  ? 'text-amber-300 font-extrabold'
+                  : defDiff > 0
+                    ? 'text-emerald-400 font-extrabold'
+                    : defDiff < 0
+                      ? 'text-rose-400 font-extrabold'
+                      : 'text-white'
             }
           >
-            {isLink ? '-' : origDef === -2 ? '?' : effectiveDef}
-            {!isLink && defDiff !== 0 && (
+            {isLink ? '-' : isDefInf ? '∞' : origDef === -2 ? '?' : effectiveDef}
+            {!isLink && card.customDef !== undefined && defDiff !== 0 && (
               <span className="text-[8px] ml-0.5 opacity-90">
-                ({defDiff > 0 ? `+${defDiff}` : defDiff})
+                ({isDefInf ? '+∞' : defDiff > 0 ? `+${defDiff}` : defDiff})
               </span>
             )}
           </span>

@@ -4,6 +4,7 @@ import { CardLocation, MASTER_RULES, FieldCard } from '@shared/index'
 import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
 import { CardContextMenu } from './CardContextMenu'
+import { PileListModal } from './PileListModal'
 
 export const DuelBoard: React.FC = () => {
   const { state } = useDuelStore()
@@ -400,6 +401,9 @@ export const DuelBoard: React.FC = () => {
 
       {/* 底部：我方手牌托盘 */}
       <HandTray controller={0} />
+
+      {/* 堆叠型区域 (额外/卡组/墓地/除外) 卡片列表查看与编排弹窗 */}
+      <PileListModal />
 
       {/* 全局单例右键上下文菜单 */}
       <CardContextMenu />

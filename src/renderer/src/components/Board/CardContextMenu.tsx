@@ -16,7 +16,8 @@ import {
   Ban,
   RotateCw,
   ArrowLeftRight,
-  ListOrdered
+  ListOrdered,
+  Sliders
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
@@ -324,6 +325,29 @@ export const CardContextMenu: React.FC = () => {
       {spellTrapItems.length > 0 && (
         <>
           {renderGroup(spellTrapItems)}
+          <Separator className="my-1" />
+        </>
+      )}
+
+      {/* 场上卡片快捷微调面板 */}
+      {(isMonsterZone || isSpellTrapZone) && (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={act(() => {
+              const { statPopoverPosition, openStatPopover } = useDuelStore.getState()
+              const initialPos = statPopoverPosition || {
+                x: Math.max(16, Math.min(x + 20, window.innerWidth - 260)),
+                y: Math.max(16, Math.min(y - 20, window.innerHeight - 380))
+              }
+              openStatPopover(card.instanceId, initialPos)
+            })}
+            className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+          >
+            <Sliders className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span>攻守与指示物 (Shift+点击)</span>
+          </Button>
           <Separator className="my-1" />
         </>
       )}

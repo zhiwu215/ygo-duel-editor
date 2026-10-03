@@ -317,7 +317,9 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 ['撤销', 'Ctrl + Z'],
                 ['重做', 'Ctrl + Y / Ctrl + Shift + Z'],
                 ['删除卡片', 'Delete / Del'],
-                ['超量叠放', 'Alt + 拖放']
+                ['超量叠放', 'Alt + 拖放'],
+                ['战术透视', 'Tab'],
+                ['攻守与指示物', 'Shift + 点击']
               ].map(([name, key]) => (
                 <div key={name} className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">{name}</span>
@@ -326,6 +328,14 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               ))}
             </div>
             <div className="space-y-1 text-xs pt-1">
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">攻守与指示物</span>
+                <span>Shift + 鼠标左键点击场上卡片唤出微调面板（支持自由拖拽与四则运算）</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">战术透视 (Tab)</span>
+                <span>按 Tab 键全局切换战术全息透视 HUD，直观查看全场变动与指示物</span>
+              </div>
               <div className="flex justify-between py-1">
                 <span className="text-muted-foreground">删除卡片</span>
                 <span>鼠标指向卡片或选中卡片时按 Delete / Del 直接删除（可撤销）</span>

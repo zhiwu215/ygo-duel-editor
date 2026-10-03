@@ -12,7 +12,9 @@ import {
   Moon,
   Save,
   ArrowLeftRight,
-  Layers
+  Layers,
+  Eye,
+  EyeOff
 } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
@@ -34,7 +36,9 @@ export const Header: React.FC = () => {
     setTurnPlayer,
     loadState,
     resetDuel,
-    swapSides
+    swapSides,
+    tacticalView,
+    toggleTacticalView
   } = useDuelStore()
 
   // temporal 经 useStore 包装成响应式订阅，按钮可用状态随历史变化实时更新
@@ -91,6 +95,14 @@ export const Header: React.FC = () => {
         e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
       const mod = e.ctrlKey || e.metaKey
 
+      // Tab 键切换全场战术透视 (非输入框聚焦时有效)
+      if (e.key === 'Tab') {
+        if (!isInput) {
+          e.preventDefault()
+          toggleTacticalView()
+        }
+      }
+
       if (mod && e.key.toLowerCase() === 'n') {
         e.preventDefault()
         handleNew()
@@ -128,7 +140,8 @@ export const Header: React.FC = () => {
     handleSaveProject,
     handleOpenProject,
     handleExportLua,
-    handleImportLua
+    handleImportLua,
+    toggleTacticalView
   ])
 
   return (
@@ -291,6 +304,27 @@ export const Header: React.FC = () => {
             className="text-muted-foreground hover:text-foreground"
           >
             <ArrowLeftRight className="w-3.5 h-3.5" />
+          </Button>
+
+          {/* 战术透视开关 */}
+          <Button
+            variant={tacticalView ? 'secondary' : 'ghost'}
+            size="xs"
+            onClick={toggleTacticalView}
+            title="战术透视 (Tab)：全局显示/隐藏所有卡片的指示物与攻守状态浮层"
+            className={cn(
+              'h-6 px-2 gap-1 text-[11px] font-medium transition-colors',
+              tacticalView
+                ? 'bg-primary/15 text-primary border border-primary/30'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {tacticalView ? (
+              <Eye className="w-3.5 h-3.5 text-primary" />
+            ) : (
+              <EyeOff className="w-3.5 h-3.5" />
+            )}
+            <span>透视</span>
           </Button>
 
           <Button

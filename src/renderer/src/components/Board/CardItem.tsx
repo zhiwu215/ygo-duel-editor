@@ -5,6 +5,7 @@ import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
+import { CardHudOverlay } from './components/CardHudOverlay'
 import { cn } from '../../lib/utils'
 
 interface CardItemProps {
@@ -14,7 +15,17 @@ interface CardItemProps {
 }
 
 export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) => {
-  const { selectedCardId, setSelectedCardId, setHoveredCard, setHoveredInstanceId } = useDuelStore()
+  const {
+    selectedCardId,
+    activeStatPopoverCardId,
+    statPopoverPosition,
+    setSelectedCardId,
+    openStatPopover,
+    closeStatPopover,
+    setHoveredCard,
+    setHoveredInstanceId
+  } = useDuelStore()
+  const tacticalView = useDuelStore((s) => s.tacticalView)
   const { openMenu } = useContextMenuStore()
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
 
@@ -30,6 +41,26 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const isMonsterZone = card.location === CardLocation.MZONE
   // 超量怪兽在怪兽区哪怕素材为 0 也显示徽标；非超量怪兽若叠放了素材也显示
   const showOverlayBadge = isMonsterZone && (isXyzMonster || materialCount > 0)
+
+  // 是否为怪兽卡
+  const isMonster = card.card
+    ? CardUtils.isMonster(card.card.type)
+    : card.location === CardLocation.MZONE
+
+  // 是否挂载了指示物
+  const hasCounters = !!(card.counters && Object.values(card.counters).some((v) => v > 0))
+
+  // 场上交互区域判定 (怪兽区、魔陷区、场地、灵摆区)
+  const isFieldZone =
+    card.location === CardLocation.MZONE ||
+    card.location === CardLocation.SZONE ||
+    card.location === CardLocation.FZONE ||
+    card.location === CardLocation.PZONE
+
+  // 战术全息透视浮层 (Tab 键激活)：
+  // 1. 场上所有怪兽卡默认全部展示实战数据 (卡名、攻守、星阶/种族/属性、指示物)
+  // 2. 魔法陷阱卡平时不展示，仅当真正挂载了指示物时才亮起展示指示物数据
+  const showHud = tacticalView && isFieldZone && (isMonster || hasCounters)
 
   // 若卡片缺少 CDB 详情数据，自动补全缓存以准确识别超量类型
   useEffect(() => {
@@ -72,12 +103,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       : { bottom: 3, right: 18 }
     : { bottom: 3, right: 3 }
 
-  const counterPos = squareCell
-    ? isDefense
-      ? { top: 18, right: 3 }
-      : { top: 3, right: 18 }
-    : { top: 3, right: 3 }
-
   return (
     <div
       draggable
@@ -92,6 +117,18 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         e.stopPropagation()
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
+        if (e.shiftKey) {
+          // Shift + 鼠标左键点击：切换打开/关闭独立操作面板
+          if (activeStatPopoverCardId === card.instanceId) {
+            closeStatPopover()
+          } else {
+            const rect = e.currentTarget.getBoundingClientRect()
+            const isRight = rect.right > window.innerWidth - 270
+            const defaultX = isRight ? Math.max(16, rect.left - 248 - 12) : rect.right + 12
+            const defaultY = Math.max(16, Math.min(rect.top - 20, window.innerHeight - 380))
+            openStatPopover(card.instanceId, statPopoverPosition || { x: defaultX, y: defaultY })
+          }
+        }
       }}
       onDoubleClick={(e) => {
         e.stopPropagation()
@@ -257,19 +294,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         </motion.div>
       )}
 
-      {/* 指示物标识 (外层无旋转容器，横置自适应右上角) */}
-      {card.counters && Object.values(card.counters).some((v) => v > 0) && (
-        <motion.div
-          initial={false}
-          animate={{ top: counterPos.top, right: counterPos.right }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="absolute z-20 pointer-events-none"
-        >
-          <div className="bg-red-950/90 text-red-300 font-mono text-[9px] font-bold px-1 py-0.5 rounded border border-red-500/40 select-none whitespace-nowrap shadow-md">
-            ●
-          </div>
-        </motion.div>
-      )}
+      {/* 战术全息状态 HUD (Tab 战术透视或鼠标悬停有状态卡片时显示) */}
+      {showHud && <CardHudOverlay card={card} />}
     </div>
   )
 }

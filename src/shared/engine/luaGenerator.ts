@@ -2,6 +2,8 @@ import { DuelPuzzleState } from '../types/duel'
 import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 
+import { getCounterName } from '../constants/counters'
+
 // 辅助：获取位置常量名
 function getLocationConstName(loc: number): string {
   switch (loc) {
@@ -117,9 +119,26 @@ export function generateLuaScript(state: DuelPuzzleState): string {
         const posName = getPositionConstName(card.position)
         const cardNameComment = card.card?.name ? ` -- ${card.card.name}` : ''
 
-        lines.push(
-          `Debug.AddCard(${card.code}, ${card.owner}, ${card.controller}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
-        )
+        const hasCounters = card.counters && Object.values(card.counters).some((v) => v > 0)
+
+        if (hasCounters) {
+          lines.push(
+            `local c = Debug.AddCard(${card.code}, ${card.owner}, ${card.controller}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
+          )
+          for (const [typeIdStr, count] of Object.entries(card.counters!)) {
+            const countNum = Number(count)
+            const typeNum = Number(typeIdStr)
+            if (countNum > 0) {
+              const hexStr = `0x${typeNum.toString(16)}`
+              const counterName = getCounterName(typeNum)
+              lines.push(`c:add_counter(${hexStr}, ${countNum}) -- 放置${countNum}个${counterName}`)
+            }
+          }
+        } else {
+          lines.push(
+            `Debug.AddCard(${card.code}, ${card.owner}, ${card.controller}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
+          )
+        }
 
         // 超量素材 (XYZ Materials)
         if (card.overlayMaterials && card.overlayMaterials.length > 0) {

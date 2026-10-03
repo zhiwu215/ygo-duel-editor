@@ -7,6 +7,7 @@ import { HandTray } from './components/HandTray'
 import { CardContextMenu } from './CardContextMenu'
 import { PileListModal } from './PileListModal'
 import { OverlayListModal } from './OverlayListModal'
+import { CardStatPopover } from './components/CardStatPopover'
 
 export const DuelBoard: React.FC = () => {
   const { state } = useDuelStore()
@@ -436,6 +437,9 @@ export const DuelBoard: React.FC = () => {
 
       {/* 全局单例右键上下文菜单 */}
       <CardContextMenu />
+
+      {/* 全局独立实战属性与指示物自由拖拽操作面板 (Shift+左键点击唤出，移动卡片时面板独立不跟随) */}
+      <CardStatPopover />
     </div>
   )
 }

@@ -17,10 +17,17 @@ interface DuelStoreState {
 
   // 选中与悬停交互
   selectedCardId: string | null
+  activeStatPopoverCardId: string | null
+  statPopoverPosition: { x: number; y: number } | null
   hoveredCard: CdbCard | null
   hoveredInstanceId: string | null
+  tacticalView: boolean
 
   // 动作
+  setActiveStatPopoverCardId: (id: string | null) => void
+  setStatPopoverPosition: (pos: { x: number; y: number } | null) => void
+  openStatPopover: (id: string, initialPos?: { x: number; y: number }) => void
+  closeStatPopover: () => void
   setMasterRule: (rule: MasterRule) => void
   setTitle: (title: string) => void
   setHint: (hint: string) => void
@@ -106,6 +113,15 @@ interface DuelStoreState {
     toIndex: number
   ) => void
 
+  // 实战属性与指示物操作
+  setCardCounter: (instanceId: string, counterType: number, count: number) => void
+  removeCardCounter: (instanceId: string, counterType: number) => void
+  clearCardCounters: (instanceId: string) => void
+  setCardCustomStats: (instanceId: string, customAtk?: number, customDef?: number) => void
+
+  toggleTacticalView: () => void
+  setTacticalView: (enabled: boolean) => void
+
   // 整体替换 / 重置
   loadState: (newState: DuelPuzzleState) => void
   resetDuel: () => void
@@ -122,8 +138,11 @@ export const useDuelStore = create<DuelStoreState>()(
     (set) => ({
       state: createInitialDuelState(5),
       selectedCardId: null,
+      activeStatPopoverCardId: null,
+      statPopoverPosition: null,
       hoveredCard: null,
       hoveredInstanceId: null,
+      tacticalView: false,
 
       setMasterRule: (rule) =>
         set((prev) => {
@@ -622,6 +641,8 @@ export const useDuelStore = create<DuelStoreState>()(
         set((prev) => ({
           state: createInitialDuelState(prev.state.masterRule),
           selectedCardId: null,
+          activeStatPopoverCardId: null,
+          statPopoverPosition: null,
           hoveredCard: null
         })),
 
@@ -639,7 +660,79 @@ export const useDuelStore = create<DuelStoreState>()(
           selectedCardId: null
         })),
 
+      // 实战属性与指示物操作
+      setCardCounter: (instanceId, counterType, count) =>
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: prev.state.cards.map((c) => {
+              if (c.instanceId === instanceId) {
+                const newCounters = { ...(c.counters || {}) }
+                if (count <= 0) {
+                  delete newCounters[counterType]
+                } else {
+                  newCounters[counterType] = count
+                }
+                return { ...c, counters: newCounters }
+              }
+              return c
+            })
+          }
+        })),
+
+      removeCardCounter: (instanceId, counterType) =>
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: prev.state.cards.map((c) => {
+              if (c.instanceId === instanceId && c.counters) {
+                const newCounters = { ...c.counters }
+                delete newCounters[counterType]
+                return { ...c, counters: newCounters }
+              }
+              return c
+            })
+          }
+        })),
+
+      clearCardCounters: (instanceId) =>
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: prev.state.cards.map((c) => {
+              if (c.instanceId === instanceId) {
+                return { ...c, counters: {} }
+              }
+              return c
+            })
+          }
+        })),
+
+      setCardCustomStats: (instanceId, customAtk, customDef) =>
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: prev.state.cards.map((c) => {
+              if (c.instanceId === instanceId) {
+                return { ...c, customAtk, customDef }
+              }
+              return c
+            })
+          }
+        })),
+
+      toggleTacticalView: () => set((prev) => ({ tacticalView: !prev.tacticalView })),
+      setTacticalView: (enabled) => set({ tacticalView: enabled }),
+
       setSelectedCardId: (id) => set({ selectedCardId: id }),
+      setActiveStatPopoverCardId: (id) => set({ activeStatPopoverCardId: id }),
+      setStatPopoverPosition: (pos) => set({ statPopoverPosition: pos }),
+      openStatPopover: (id, initialPos) =>
+        set((prev) => ({
+          activeStatPopoverCardId: id,
+          statPopoverPosition: initialPos !== undefined ? initialPos : prev.statPopoverPosition
+        })),
+      closeStatPopover: () => set({ activeStatPopoverCardId: null }),
       setHoveredCard: (card) => set({ hoveredCard: card }),
       setHoveredInstanceId: (id) => set({ hoveredInstanceId: id })
     }),

@@ -1,0 +1,589 @@
+import React, { useState, useEffect, useRef } from 'react'
+import { FieldCard, CardUtils, CardLocation, getCounterName } from '@shared/index'
+import { useDuelStore } from '../../../stores/useDuelStore'
+import { deduceSuggestedCounters } from '../../../utils/counterDeduce'
+import {
+  parseLpExpression,
+  detectCurrentOp,
+  switchOperator,
+  LpOperator
+} from '../../../utils/lpMath'
+import { Button } from '../../ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue
+} from '../../ui/select'
+import {
+  Plus,
+  Minus,
+  RotateCcw,
+  Trash2,
+  X,
+  CircleDot,
+  Swords,
+  Shield,
+  GripHorizontal
+} from 'lucide-react'
+import { cn } from '../../../lib/utils'
+
+/** 四则运算与直接修改按钮配置 (与生命值输入面板完全一致) */
+const OP_BUTTONS: {
+  op: LpOperator
+  label: string
+  activeClass: string
+}[] = [
+  { op: '-', label: '- 减', activeClass: 'bg-rose-600 text-white border-rose-600 shadow-sm' },
+  { op: '+', label: '+ 加', activeClass: 'bg-emerald-600 text-white border-emerald-600 shadow-sm' },
+  { op: '/', label: '÷ 除', activeClass: 'bg-blue-600 text-white border-blue-600 shadow-sm' },
+  { op: '*', label: '× 乘', activeClass: 'bg-purple-600 text-white border-purple-600 shadow-sm' },
+  {
+    op: '=',
+    label: '= 改',
+    activeClass:
+      'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900 border-transparent shadow-sm'
+  }
+]
+
+/**
+ * 单项攻守数值输入组件 (与生命值输入器完全一致)：
+ * - 纯净数字输入框，聚焦时浮出与生命值相同的加减乘除四则运算面板
+ * - 包含运算符选择条 [- 减] [+ 加] [÷ 除] [× 乘] [= 改]
+ * - 包含实时算式解析状态与计算预览 (如 直接设为 1500 → 1500 ATK)
+ * - 独立单项复原原本数值按钮 (纯刷新小图标，无冗余文字，不重叠)
+ * - 无任何多余固定数值按钮
+ */
+interface StatCalculatorRowProps {
+  label: 'ATK' | 'DEF'
+  icon: React.ReactNode
+  origVal: number
+  currentVal: number
+  isModified: boolean
+  onCommit: (val: number | undefined) => void
+}
+
+const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
+  label,
+  icon,
+  origVal,
+  currentVal,
+  isModified,
+  onCommit
+}) => {
+  const [isFocused, setIsFocused] = useState(false)
+  const [text, setText] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const diff = isModified ? currentVal - origVal : 0
+  const displayValue = isFocused ? text : String(currentVal)
+  const parseResult = parseLpExpression(displayValue, currentVal)
+  const activeOp = detectCurrentOp(displayValue)
+
+  const handleCommit = (): void => {
+    if (parseResult.valid) {
+      const nextVal = Math.max(0, parseResult.result)
+      onCommit(nextVal === origVal ? undefined : nextVal)
+    }
+    setIsFocused(false)
+    inputRef.current?.blur()
+  }
+
+  const handleCancel = (): void => {
+    setIsFocused(false)
+    inputRef.current?.blur()
+  }
+
+  return (
+    <div className="relative flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/30 border border-border/50">
+      {/* 左侧：标签、图标与变动差值 (独立区域，避免与右侧按钮挤压) */}
+      <div className="flex items-center gap-1.5 min-w-0 mr-2">
+        {icon}
+        <span className="font-bold text-xs tracking-wider">{label}</span>
+        {diff !== 0 && (
+          <span
+            className={cn(
+              'text-[10px] font-mono font-bold px-1 rounded truncate',
+              diff > 0 ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-500 bg-rose-500/10'
+            )}
+          >
+            {diff > 0 ? `+${diff}` : diff}
+          </span>
+        )}
+      </div>
+
+      {/* 右侧：单项独立一键复原按钮 (纯刷新图标，不带文字) + 纯净四则运算输入框 */}
+      <div className="flex items-center gap-1.5 relative shrink-0">
+        {/* 单独一键复原该属性原本数值 (仅恢复当前这一项) */}
+        {isModified && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => onCommit(undefined)}
+            title={`恢复原本${label} (${origVal})`}
+            className="h-6 w-6 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </Button>
+        )}
+
+        {/* 纯净数字输入框 */}
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="text"
+          value={displayValue}
+          onFocus={(e) => {
+            setIsFocused(true)
+            setText(String(currentVal))
+            e.currentTarget.select()
+          }}
+          onBlur={() => {
+            handleCommit()
+          }}
+          onChange={(e) => {
+            setText(e.target.value)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              handleCommit()
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              handleCancel()
+            }
+          }}
+          className={cn(
+            'w-16 h-6 rounded border border-border/70 bg-background text-right font-mono font-bold text-xs px-1.5 select-all',
+            'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 transition-colors',
+            isFocused &&
+              parseResult.valid &&
+              parseResult.result !== currentVal &&
+              'border-blue-400/80 bg-blue-500/5'
+          )}
+          title={`点击修改${label}：直接输入数值或四则运算 (如 +500, /2, *2, -300)`}
+        />
+
+        {/* 聚焦时浮出的四则运算选择面板与实时算式预览 (与生命值输入完全一致) */}
+        {isFocused && (
+          <div
+            onMouseDown={(e) => e.preventDefault()} // 阻止失焦，允许连贯点击运算符
+            className="absolute top-full right-0 mt-1 z-50 bg-popover/95 text-popover-foreground border border-border/80 shadow-2xl rounded-lg p-2.5 flex flex-col gap-2 backdrop-blur-md min-w-[220px] select-none animate-in fade-in-0 zoom-in-95 duration-100"
+          >
+            {/* 四则运算选择条 (减 / 加 / 除 / 乘 / 直接改) */}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-0.5">
+                <span>选择运算模式</span>
+                <span>输入任意数值</span>
+              </div>
+              <div className="grid grid-cols-5 gap-1">
+                {OP_BUTTONS.map((btn) => (
+                  <button
+                    key={btn.op}
+                    type="button"
+                    onClick={() => {
+                      const nextText = switchOperator(displayValue, btn.op, currentVal)
+                      setText(nextText)
+                      inputRef.current?.focus()
+                      setTimeout(() => {
+                        if (inputRef.current) {
+                          const len = inputRef.current.value.length
+                          inputRef.current.setSelectionRange(len, len)
+                        }
+                      }, 0)
+                    }}
+                    className={cn(
+                      'py-1 text-xs font-mono font-semibold rounded border transition-colors flex items-center justify-center',
+                      activeOp === btn.op
+                        ? btn.activeClass
+                        : 'border-border/60 bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground'
+                    )}
+                    title={`切换为 ${btn.label} 模式`}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 实时算式解析状态 */}
+            <div className="flex items-center justify-between text-xs font-mono px-2 py-1.5 rounded bg-muted/60 border border-border/40">
+              <span
+                className="text-muted-foreground truncate max-w-[110px]"
+                title={parseResult.formula}
+              >
+                {parseResult.formula}
+              </span>
+              <span
+                className={cn(
+                  'font-bold shrink-0 ml-1.5',
+                  parseResult.valid
+                    ? 'text-blue-500 dark:text-blue-400'
+                    : 'text-muted-foreground text-[11px]'
+                )}
+              >
+                {parseResult.valid ? `→ ${parseResult.result} ${label}` : '等待输入'}
+              </span>
+            </div>
+
+            {/* 交互提示 */}
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground/75 px-0.5 pt-0.5 border-t border-border/40">
+              <span>点击运算符或直接键入</span>
+              <span>
+                <kbd className="font-sans px-1 rounded bg-muted border border-border/40">Enter</kbd>{' '}
+                确认
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 棋盘全局独立实战属性与指示物自由拖拽操作面板
+ * - 独立单例：挂载于顶层，无论卡片在棋盘上如何拖动移动，面板均保持独立稳定，绝不随卡牌乱跳！
+ * - 极致流畅手感：采用 GPU translate3d + requestAnimationFrame 调度，零顿挫感
+ * - 指示物选择器：全智能推荐，场上不存在的指示物不显示
+ * - 攻守数值：与生命值面板完全相同的加减乘除四则运算，无固定数值干扰，支持单项独立刷新图标复原
+ */
+export const CardStatPopover: React.FC = () => {
+  const {
+    state,
+    activeStatPopoverCardId,
+    statPopoverPosition,
+    setStatPopoverPosition,
+    closeStatPopover,
+    setCardCustomStats,
+    setCardCounter,
+    removeCardCounter
+  } = useDuelStore()
+
+  // 依据当前激活的卡片 ID 动态查找卡片信息 (卡片移动时数据依然实时同步)
+  const card: FieldCard | undefined = state.cards.find(
+    (c) => c.instanceId === activeStatPopoverCardId
+  )
+
+  const panelRef = useRef<HTMLDivElement>(null)
+  const isDraggingRef = useRef(false)
+  const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({
+    startX: 0,
+    startY: 0,
+    initX: 0,
+    initY: 0
+  })
+  const currentDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
+  const rafIdRef = useRef<number | null>(null)
+  const [userSelectedCounterId, setUserSelectedCounterId] = useState<number | null>(null)
+
+  // 默认视口居中偏右位置
+  const pos = statPopoverPosition || {
+    x: Math.max(16, window.innerWidth / 2 + 100),
+    y: Math.max(16, window.innerHeight / 2 - 150)
+  }
+
+  // 硬件加速拖拽处理 (requestAnimationFrame 调度，零 React re-render 损耗)
+  const handleHeaderMouseDown = (e: React.MouseEvent): void => {
+    if ((e.target as HTMLElement).closest('button, input, select')) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    isDraggingRef.current = true
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: pos.x,
+      initY: pos.y
+    }
+    currentDeltaRef.current = { dx: 0, dy: 0 }
+
+    const handleMouseMove = (moveEvent: MouseEvent): void => {
+      if (!isDraggingRef.current) return
+      moveEvent.preventDefault()
+      const dx = moveEvent.clientX - dragStartRef.current.startX
+      const dy = moveEvent.clientY - dragStartRef.current.startY
+      currentDeltaRef.current = { dx, dy }
+
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (panelRef.current) {
+          panelRef.current.style.transform = `translate3d(${dx}px, ${dy}px, 0)`
+        }
+      })
+    }
+
+    const handleMouseUp = (): void => {
+      if (!isDraggingRef.current) return
+      isDraggingRef.current = false
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current)
+
+      const finalX = Math.max(
+        12,
+        Math.min(dragStartRef.current.initX + currentDeltaRef.current.dx, window.innerWidth - 260)
+      )
+      const finalY = Math.max(
+        12,
+        Math.min(dragStartRef.current.initY + currentDeltaRef.current.dy, window.innerHeight - 380)
+      )
+
+      if (panelRef.current) {
+        panelRef.current.style.transform = ''
+      }
+      setStatPopoverPosition({ x: finalX, y: finalY })
+
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }
+
+  // 按 Esc 键关闭面板
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        closeStatPopover()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [closeStatPopover])
+
+  // 若无激活卡片，或卡片不在场上有效区域，则不渲染
+  if (!activeStatPopoverCardId || !card) return null
+  const isValidZone =
+    card.location === CardLocation.MZONE ||
+    card.location === CardLocation.SZONE ||
+    card.location === CardLocation.FZONE ||
+    card.location === CardLocation.PZONE
+  if (!isValidZone) return null
+
+  const cdb = card.card
+  const isMonster = cdb ? CardUtils.isMonster(cdb.type) : card.location === CardLocation.MZONE
+  const isLink = cdb ? CardUtils.isLink(cdb.type) : false
+  const cardName = cdb?.name || (card.code ? String(card.code) : '未知卡片')
+
+  // 攻守数值定义
+  const origAtk = cdb?.atk === -2 || !cdb ? 0 : cdb.atk
+  const origDef = cdb?.def === -2 || !cdb ? 0 : cdb.def
+  const effectiveAtk = card.customAtk !== undefined ? card.customAtk : origAtk
+  const effectiveDef = card.customDef !== undefined ? card.customDef : origDef
+
+  // 本场相关指示物智能提取 (严格仅展示全场涉及的指示物，场上不存在的不在下拉框中显示)
+  const suggestedCounters = deduceSuggestedCounters(state)
+  const hasSuggestedCounters = suggestedCounters.length > 0
+
+  const defaultCounterId = hasSuggestedCounters ? suggestedCounters[0].id : null
+  const selectedCounterId =
+    userSelectedCounterId && suggestedCounters.some((c) => c.id === userSelectedCounterId)
+      ? userSelectedCounterId
+      : defaultCounterId
+
+  const currentSelectedDef = suggestedCounters.find((c) => c.id === selectedCounterId)
+  const currentSelectedName =
+    currentSelectedDef?.name ||
+    (selectedCounterId !== null ? getCounterName(selectedCounterId) : '请选择指示物')
+
+  // 指示物操作
+  const activeCounters = Object.entries(card.counters || {})
+    .filter(([, count]) => count > 0)
+    .map(([id, count]) => ({
+      id: Number(id),
+      name: getCounterName(Number(id)),
+      count
+    }))
+
+  const handleAddCounterById = (id: number | null): void => {
+    if (id === null) return
+    const current = (card.counters && card.counters[id]) || 0
+    setCardCounter(card.instanceId, id, current + 1)
+  }
+
+  return (
+    <div
+      ref={panelRef}
+      draggable={false}
+      onDragStart={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        left: `${pos.x}px`,
+        top: `${pos.y}px`
+      }}
+      className={cn(
+        'fixed z-[55] w-[244px] bg-card/95 text-card-foreground border border-border/90 rounded-xl shadow-2xl backdrop-blur-md p-3 flex flex-col gap-2.5 text-xs select-none animate-in fade-in zoom-in-95 duration-75 will-change-transform'
+      )}
+    >
+      {/* 1. 顶栏：可拖拽标题栏、卡名与关闭按钮 */}
+      <div
+        onMouseDown={handleHeaderMouseDown}
+        className="flex items-center justify-between border-b border-border/60 pb-1.5 cursor-grab active:cursor-grabbing group/header"
+        title="按住鼠标左键可随意拖动此面板位置"
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          <GripHorizontal className="w-3.5 h-3.5 text-muted-foreground/60 group-hover/header:text-primary transition-colors shrink-0" />
+          <Swords className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          <span className="font-bold text-xs truncate" title={cardName}>
+            {cardName}
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={() => closeStatPopover()}
+          title="关闭 (Esc)"
+          className="h-5 w-5 text-muted-foreground hover:text-foreground shrink-0"
+        >
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+
+      {/* 2. 攻守数值四则运算调节 (仅怪兽，与生命值调整完全一致，带单独一键复原，无固定数值) */}
+      {isMonster && (
+        <div className="flex flex-col gap-1.5">
+          {/* ATK 调节 */}
+          <StatCalculatorRow
+            label="ATK"
+            icon={<Swords className="w-3 h-3 text-rose-500 shrink-0" />}
+            origVal={origAtk}
+            currentVal={effectiveAtk}
+            isModified={card.customAtk !== undefined}
+            onCommit={(val) => setCardCustomStats(card.instanceId, val, card.customDef)}
+          />
+
+          {/* DEF 调节 (非连接怪兽) */}
+          {!isLink && (
+            <StatCalculatorRow
+              label="DEF"
+              icon={<Shield className="w-3 h-3 text-blue-500 shrink-0" />}
+              origVal={origDef}
+              currentVal={effectiveDef}
+              isModified={card.customDef !== undefined}
+              onCommit={(val) => setCardCustomStats(card.instanceId, card.customAtk, val)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* 3. 当前已挂载指示物列表 */}
+      <div className="flex flex-col gap-1.5 pt-1.5 border-t border-border/60">
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-[11px] text-foreground/90 flex items-center gap-1">
+            <CircleDot className="w-3 h-3 text-primary" />
+            <span>当前指示物</span>
+          </span>
+          {activeCounters.length > 0 && (
+            <span className="text-[10px] text-muted-foreground">共 {activeCounters.length} 类</span>
+          )}
+        </div>
+
+        {activeCounters.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            {activeCounters.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between p-1 rounded bg-muted/40 border border-border/50"
+              >
+                <span
+                  className="font-semibold text-xs text-foreground truncate max-w-[110px]"
+                  title={item.name}
+                >
+                  {item.name}
+                </span>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
+                    onClick={() => setCardCounter(card.instanceId, item.id, item.count - 1)}
+                    title="-1 指示物"
+                    className="h-5 w-5"
+                  >
+                    <Minus className="w-2.5 h-2.5" />
+                  </Button>
+
+                  <span className="font-mono font-bold text-xs min-w-[20px] text-center text-amber-500 dark:text-amber-400">
+                    {item.count}
+                  </span>
+
+                  <Button
+                    variant="outline"
+                    size="icon-xs"
+                    onClick={() => setCardCounter(card.instanceId, item.id, item.count + 1)}
+                    title="+1 指示物"
+                    className="h-5 w-5"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => removeCardCounter(card.instanceId, item.id)}
+                    title="移除该指示物"
+                    className="h-5 w-5 text-muted-foreground hover:text-destructive ml-0.5"
+                  >
+                    <Trash2 className="w-2.5 h-2.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[10px] text-muted-foreground/70 py-0.5 italic">暂无放置指示物</div>
+        )}
+
+        {/* 4. 添加指示物候选栏目 (纯智能推荐，场上不存在的指示物不显示) */}
+        <div className="flex items-center gap-1.5 mt-1">
+          {hasSuggestedCounters ? (
+            <Select
+              value={String(selectedCounterId)}
+              onValueChange={(val) => val && setUserSelectedCounterId(Number(val))}
+            >
+              <SelectTrigger size="sm" className="h-6 text-xs flex-1 bg-background">
+                <SelectValue>{currentSelectedName}</SelectValue>
+              </SelectTrigger>
+              <SelectContent className="max-h-[200px]">
+                <SelectGroup>
+                  <SelectLabel className="text-[10px] text-muted-foreground font-bold">
+                    智能推荐指示物
+                  </SelectLabel>
+                  {suggestedCounters.map((c) => (
+                    <SelectItem key={`counter_${c.id}`} value={String(c.id)} className="text-xs">
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="h-6 flex-1 px-2 flex items-center rounded border border-border/50 bg-muted/40 text-[11px] text-muted-foreground italic select-none">
+              场上无相关指示物
+            </div>
+          )}
+
+          <Button
+            variant="secondary"
+            size="xs"
+            disabled={!hasSuggestedCounters || selectedCounterId === null}
+            onClick={() => handleAddCounterById(selectedCounterId)}
+            className="h-6 px-2 text-[11px] font-semibold gap-1 shrink-0"
+            title={hasSuggestedCounters ? '添加该指示物' : '当前场上未涉及任何指示物'}
+          >
+            <Plus className="w-3 h-3" />
+            <span>添加</span>
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}

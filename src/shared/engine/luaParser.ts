@@ -59,6 +59,11 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
   // 4. 匹配 Debug.ShowHint
   const hintRegex = /Debug\.ShowHint\s*\(\s*["'](.*)["']\s*\)/i
 
+  // 5. 匹配 c:add_counter(0x1, 3)
+  const addCounterRegex = /(?:\w+):add_counter\s*\(\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*(\d+)\s*\)/i
+
+  let lastAddedCard: FieldCard | null = null
+
   for (const line of lines) {
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('--')) continue
@@ -122,10 +127,29 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
           location,
           sequence,
           position,
-          overlayMaterials: []
+          overlayMaterials: [],
+          counters: {}
         }
         state.cards.push(fieldCard)
+        lastAddedCard = fieldCard
       }
+      continue
+    }
+
+    // 匹配 c:add_counter
+    const counterMatch = trimmed.match(addCounterRegex)
+    if (counterMatch && lastAddedCard) {
+      const typeStr = counterMatch[1].trim()
+      const typeNum =
+        typeStr.startsWith('0x') || typeStr.startsWith('0X')
+          ? parseInt(typeStr, 16)
+          : parseInt(typeStr, 10)
+      const count = parseInt(counterMatch[2], 10)
+      if (!lastAddedCard.counters) {
+        lastAddedCard.counters = {}
+      }
+      lastAddedCard.counters[typeNum] = (lastAddedCard.counters[typeNum] || 0) + count
+      continue
     }
   }
 

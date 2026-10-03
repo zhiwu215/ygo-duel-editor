@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { FieldCard, CdbCard, CardLocation, CardPosition } from '@shared/index'
+import { FieldCard, CdbCard, CardLocation, CardPosition, CardUtils } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDropHintStore } from '../../stores/useDropHintStore'
 import { usePileListStore } from '../../stores/usePileListStore'
+import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { CardItem } from './CardItem'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
@@ -170,10 +171,18 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   colorVariant = 'monster',
   className = ''
 }) => {
-  const { addCardToZone, setSelectedCardId, moveCard } = useDuelStore()
+  const {
+    addCardToZone,
+    setSelectedCardId,
+    moveCard,
+    addOverlayMaterial,
+    overlayOnTop,
+    removeCard
+  } = useDuelStore()
   const hintZone = useDropHintStore((s) => s.zone)
   const showHint = useDropHintStore((s) => s.show)
   const openPile = usePileListStore((s) => s.openPile)
+  const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const [isOver, setIsOver] = useState(false)
 
   /** 是否为堆叠型区域（主卡组、额外卡组、墓地、除外区） */
@@ -208,7 +217,61 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     // Ctrl 拖入切换默认放置状态 (魔陷发动 / 怪兽盖守 / 手牌公开)
     const posOverride = getDropPosOverride(location, e.ctrlKey)
     try {
+      /** 鼠标拖动的卡片 */
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
+
+      // Alt 键拖入已有怪兽格：进行超量叠放（超量怪兽置顶，素材垫在下方）
+      if (card && location === CardLocation.MZONE && e.altKey) {
+        // 防止自己叠放自己
+        if (movedInstanceId && movedInstanceId === card.instanceId) {
+          return
+        }
+
+        /** 即将叠放进来的卡片 */
+        let incomingCard: CdbCard | null = null
+        let incomingSourceId: string | null = null
+
+        if (movedInstanceId) {
+          // 拿到场上的卡片
+          const movedCard = useDuelStore
+            .getState()
+            .state.cards.find((c) => c.instanceId === movedInstanceId)
+          if (movedCard) {
+            incomingSourceId = movedInstanceId
+            incomingCard = movedCard.card ?? null
+          }
+        }
+
+        // 从搜索面板拖入的卡片，把整张卡的详情转成 JSON 字符串
+        if (!incomingCard) {
+          const dataStr = e.dataTransfer.getData('application/json')
+          // 解析成卡片数据对象
+          if (dataStr) {
+            incomingCard = JSON.parse(dataStr) as CdbCard
+          }
+        }
+
+        if (incomingCard) {
+          const isIncomingXyz = CardUtils.isXyz(incomingCard.type)
+          const isExistingXyz =
+            (card.card ? CardUtils.isXyz(card.card.type) : false) ||
+            (card.overlayMaterials && card.overlayMaterials.length > 0)
+
+          // 核心层级逻辑：
+          // 1. 如果拖入的是超量怪兽 (如阿宙斯/电光皇/从额外拖出超量)，超量怪兽必须置于最顶层 (Host)，原怪兽及其素材垫于下方
+          // 2. 如果场上原本不是超量怪兽，但按 Alt 拖入卡片叠放，新卡置于顶层，原怪兽退为素材
+          // 3. 仅当场上已是超量怪兽且拖入的是非超量素材卡时，才保持场上超量怪兽置顶，将新卡垫入下方素材堆
+          if (isIncomingXyz || !isExistingXyz) {
+            overlayOnTop(card.instanceId, incomingCard, incomingSourceId || undefined)
+          } else {
+            if (incomingSourceId) {
+              removeCard(incomingSourceId)
+            }
+            addOverlayMaterial(card.instanceId, incomingCard.id)
+          }
+          return
+        }
+      }
       if (movedInstanceId) {
         moveCard(movedInstanceId, location, sequence, controller, posOverride)
       } else {
@@ -265,7 +328,11 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         if (!card) setSelectedCardId(null)
       }}
       onDoubleClick={() => {
-        if (isPileZone && count !== undefined && count > 0) {
+        const isXyz = card?.card ? CardUtils.isXyz(card.card.type) : false
+        const hasMats = card?.overlayMaterials && card.overlayMaterials.length > 0
+        if (card && (isXyz || hasMats)) {
+          openOverlayList(card.instanceId)
+        } else if (isPileZone && count !== undefined && count > 0) {
           openPile(controller, location)
         }
       }}
@@ -275,7 +342,15 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         // 拖拽目标态：唯一强调色
         isOver ? 'ring-2 ring-blue-400 bg-blue-500/15 scale-[1.03] border-transparent' : ''
       } ${className}`}
-      title={isPileZone && count !== undefined && count > 0 ? '双击直接查看列表' : undefined}
+      title={
+        card &&
+        ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
+          (card.overlayMaterials && card.overlayMaterials.length > 0))
+          ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
+          : isPileZone && count !== undefined && count > 0
+            ? '双击直接查看列表'
+            : undefined
+      }
     >
       {/* 堆叠张数徽标 (如卡组/墓地/额外卡组张数，支持点击直接打开查看列表) */}
       {count !== undefined && count > 0 && (

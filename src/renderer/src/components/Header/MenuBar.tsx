@@ -316,7 +316,8 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 ['导出 Lua', 'Ctrl + E'],
                 ['撤销', 'Ctrl + Z'],
                 ['重做', 'Ctrl + Y / Ctrl + Shift + Z'],
-                ['删除卡片', 'Delete / Del']
+                ['删除卡片', 'Delete / Del'],
+                ['超量叠放', 'Alt + 拖放']
               ].map(([name, key]) => (
                 <div key={name} className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">{name}</span>
@@ -332,6 +333,14 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               <div className="flex justify-between py-1">
                 <span className="text-muted-foreground">摆卡 / 移动</span>
                 <span>从搜索列表拖拽至格；场上卡拖到另一格即移动</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Alt + 拖放</span>
+                <span>拖拽至怪兽格进行超量素材叠放（超量怪兽置顶，素材垫在下方）</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">超量素材管理</span>
+                <span>双击怪兽卡直接查看素材列表；亦可点击右下角 ● 徽标或右键菜单管理</span>
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-muted-foreground">Ctrl + 拖放</span>

@@ -6,6 +6,7 @@ import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
 import { CardContextMenu } from './CardContextMenu'
 import { PileListModal } from './PileListModal'
+import { OverlayListModal } from './OverlayListModal'
 
 export const DuelBoard: React.FC = () => {
   const { state } = useDuelStore()
@@ -429,6 +430,9 @@ export const DuelBoard: React.FC = () => {
 
       {/* 堆叠型区域 (额外/卡组/墓地/除外) 卡片列表查看与编排弹窗 */}
       <PileListModal />
+
+      {/* 超量素材列表查看与编排弹窗 */}
+      <OverlayListModal />
 
       {/* 全局单例右键上下文菜单 */}
       <CardContextMenu />

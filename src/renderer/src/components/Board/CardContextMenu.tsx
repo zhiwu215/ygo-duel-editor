@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
+import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { CardPosition, CardLocation, CardType } from '@shared/index'
 import {
   Swords,
@@ -10,6 +11,7 @@ import {
   EyeOff,
   Trash2,
   Layers,
+  Ghost,
   ArrowDownToLine,
   Ban,
   RotateCw,
@@ -37,6 +39,7 @@ export const CardContextMenu: React.FC = () => {
   const { updateCardPosition, moveCard, removeCard, state } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
+  const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -121,7 +124,7 @@ export const CardContextMenu: React.FC = () => {
       ]
     : []
 
-  // 怪兽区操作项
+  // 怪兽区表示形式操作项
   const monsterItems: MenuItemConfig[] = isMonsterZone
     ? [
         {
@@ -141,6 +144,9 @@ export const CardContextMenu: React.FC = () => {
         }
       ]
     : []
+
+  const hasOverlayMaterials =
+    isMonsterZone && !!(card.overlayMaterials && card.overlayMaterials.length > 0)
 
   // 魔陷区操作项
   const spellTrapItems: MenuItemConfig[] = isSpellTrapZone
@@ -291,6 +297,26 @@ export const CardContextMenu: React.FC = () => {
       {monsterItems.length > 0 && (
         <>
           {renderGroup(monsterItems)}
+          <Separator className="my-1" />
+        </>
+      )}
+
+      {hasOverlayMaterials && (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={act(() => openOverlayList(card.instanceId))}
+            className="w-full justify-between h-7 px-2 text-xs font-normal text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <Ghost className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>拔除素材</span>
+            </div>
+            <span className="font-mono text-[10px] text-muted-foreground/80">
+              {card.overlayMaterials!.length}张
+            </span>
+          </Button>
           <Separator className="my-1" />
         </>
       )}

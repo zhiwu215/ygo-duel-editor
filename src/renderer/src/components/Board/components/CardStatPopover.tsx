@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FieldCard, CardUtils, CardLocation, getCounterName } from '@shared/index'
+import { FieldCard, CardUtils, CardLocation, getCounterName, isInfiniteVal } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { deduceSuggestedCounters } from '../../../utils/counterDeduce'
 import {
@@ -46,14 +46,20 @@ const OP_BUTTONS: {
     label: '= 改',
     activeClass:
       'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900 border-transparent shadow-sm'
+  },
+  {
+    op: 'inf',
+    label: '∞ 无限',
+    activeClass:
+      'bg-amber-600 text-white border-amber-600 shadow-sm dark:bg-amber-500 dark:border-amber-500'
   }
 ]
 
 /**
  * 单项攻守数值输入组件 (与生命值输入器完全一致)：
- * - 纯净数字输入框，聚焦时浮出与生命值相同的加减乘除四则运算面板
- * - 包含运算符选择条 [- 减] [+ 加] [÷ 除] [× 乘] [= 改]
- * - 包含实时算式解析状态与计算预览 (如 直接设为 1500 → 1500 ATK)
+ * - 纯净数字输入框，聚焦时浮出与生命值相同的加减乘除四则运算面板，支持设为无限 (∞)
+ * - 包含运算符选择条 [- 减] [+ 加] [÷ 除] [× 乘] [= 改] [∞ 无限]
+ * - 包含实时算式解析状态与计算预览 (如 直接设为 1500 → 1500 ATK，或 → ∞ ATK)
  * - 独立单项复原原本数值按钮 (纯刷新小图标，无冗余文字，不重叠)
  * - 无任何多余固定数值按钮
  */
@@ -78,8 +84,9 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const diff = isModified ? currentVal - origVal : 0
-  const displayValue = isFocused ? text : String(currentVal)
+  const isInf = isInfiniteVal(currentVal)
+  const diff = isModified ? (isInf ? Infinity : currentVal - origVal) : 0
+  const displayValue = isFocused ? text : isInf ? '∞' : String(currentVal)
   const parseResult = parseLpExpression(displayValue, currentVal)
   const activeOp = detectCurrentOp(displayValue)
 
@@ -103,14 +110,18 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
       <div className="flex items-center gap-1.5 min-w-0 mr-2">
         {icon}
         <span className="font-bold text-xs tracking-wider">{label}</span>
-        {diff !== 0 && (
+        {isModified && (
           <span
             className={cn(
               'text-[10px] font-mono font-bold px-1 rounded truncate',
-              diff > 0 ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-500 bg-rose-500/10'
+              isInf
+                ? 'text-amber-500 bg-amber-500/10'
+                : diff > 0
+                  ? 'text-emerald-500 bg-emerald-500/10'
+                  : 'text-rose-500 bg-rose-500/10'
             )}
           >
-            {diff > 0 ? `+${diff}` : diff}
+            {isInf ? '+∞' : diff > 0 ? `+${diff}` : diff}
           </span>
         )}
       </div>
@@ -123,7 +134,7 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
             variant="ghost"
             size="icon-xs"
             onClick={() => onCommit(undefined)}
-            title={`恢复原本${label} (${origVal})`}
+            title={`恢复原本${label} (${origVal === -2 ? '?' : origVal})`}
             className="h-6 w-6 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -138,7 +149,7 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
           value={displayValue}
           onFocus={(e) => {
             setIsFocused(true)
-            setText(String(currentVal))
+            setText(isInf ? '∞' : String(currentVal))
             e.currentTarget.select()
           }}
           onBlur={() => {
@@ -159,34 +170,39 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
           className={cn(
             'w-16 h-6 rounded border border-border/70 bg-background text-right font-mono font-bold text-xs px-1.5 select-all',
             'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 transition-colors',
+            isInf && !isFocused && 'text-amber-500 dark:text-amber-400 font-extrabold text-sm',
             isFocused &&
               parseResult.valid &&
               parseResult.result !== currentVal &&
               'border-blue-400/80 bg-blue-500/5'
           )}
-          title={`点击修改${label}：直接输入数值或四则运算 (如 +500, /2, *2, -300)`}
+          title={`点击修改${label}：当前为 ${isInf ? '无限 (∞)' : currentVal}。直接输入数值或四则运算 (如 +500, /2, *2, inf, ∞)`}
         />
 
         {/* 聚焦时浮出的四则运算选择面板与实时算式预览 (与生命值输入完全一致) */}
         {isFocused && (
           <div
             onMouseDown={(e) => e.preventDefault()} // 阻止失焦，允许连贯点击运算符
-            className="absolute top-full right-0 mt-1 z-50 bg-popover/95 text-popover-foreground border border-border/80 shadow-2xl rounded-lg p-2.5 flex flex-col gap-2 backdrop-blur-md min-w-[220px] select-none animate-in fade-in-0 zoom-in-95 duration-100"
+            className="absolute top-full right-0 mt-1 z-50 bg-popover/95 text-popover-foreground border border-border/80 shadow-2xl rounded-lg p-2.5 flex flex-col gap-2 backdrop-blur-md min-w-[264px] select-none animate-in fade-in-0 zoom-in-95 duration-100"
           >
-            {/* 四则运算选择条 (减 / 加 / 除 / 乘 / 直接改) */}
+            {/* 四则运算选择条 (减 / 加 / 除 / 乘 / 直接改 / 无限) */}
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-0.5">
                 <span>选择运算模式</span>
-                <span>输入任意数值</span>
+                <span>输入数值或键入 inf</span>
               </div>
-              <div className="grid grid-cols-5 gap-1">
+              <div className="grid grid-cols-6 gap-1">
                 {OP_BUTTONS.map((btn) => (
                   <button
                     key={btn.op}
                     type="button"
                     onClick={() => {
-                      const nextText = switchOperator(displayValue, btn.op, currentVal)
-                      setText(nextText)
+                      if (btn.op === 'inf') {
+                        setText('∞')
+                      } else {
+                        const nextText = switchOperator(displayValue, btn.op, currentVal)
+                        setText(nextText)
+                      }
                       inputRef.current?.focus()
                       setTimeout(() => {
                         if (inputRef.current) {
@@ -196,7 +212,7 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
                       }, 0)
                     }}
                     className={cn(
-                      'py-1 text-xs font-mono font-semibold rounded border transition-colors flex items-center justify-center',
+                      'py-1 text-[11px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap',
                       activeOp === btn.op
                         ? btn.activeClass
                         : 'border-border/60 bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground'
@@ -212,7 +228,7 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
             {/* 实时算式解析状态 */}
             <div className="flex items-center justify-between text-xs font-mono px-2 py-1.5 rounded bg-muted/60 border border-border/40">
               <span
-                className="text-muted-foreground truncate max-w-[110px]"
+                className="text-muted-foreground truncate max-w-[125px]"
                 title={parseResult.formula}
               >
                 {parseResult.formula}
@@ -220,18 +236,22 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
               <span
                 className={cn(
                   'font-bold shrink-0 ml-1.5',
-                  parseResult.valid
-                    ? 'text-blue-500 dark:text-blue-400'
-                    : 'text-muted-foreground text-[11px]'
+                  isInfiniteVal(parseResult.result)
+                    ? 'text-amber-500 dark:text-amber-400 font-extrabold'
+                    : parseResult.valid
+                      ? 'text-blue-500 dark:text-blue-400'
+                      : 'text-muted-foreground text-[11px]'
                 )}
               >
-                {parseResult.valid ? `→ ${parseResult.result} ${label}` : '等待输入'}
+                {parseResult.valid
+                  ? `→ ${isInfiniteVal(parseResult.result) ? '∞' : parseResult.result} ${label}`
+                  : '等待输入'}
               </span>
             </div>
 
             {/* 交互提示 */}
             <div className="flex items-center justify-between text-[10px] text-muted-foreground/75 px-0.5 pt-0.5 border-t border-border/40">
-              <span>点击运算符或直接键入</span>
+              <span>点击运算符/无限或直接键入</span>
               <span>
                 <kbd className="font-sans px-1 rounded bg-muted border border-border/40">Enter</kbd>{' '}
                 确认

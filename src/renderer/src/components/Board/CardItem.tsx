@@ -46,7 +46,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       }}
       onMouseEnter={() => {
         setHoveredInstanceId(card.instanceId)
-        if (card.card) setHoveredCard(card.card)
       }}
       onMouseLeave={() => {
         if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {

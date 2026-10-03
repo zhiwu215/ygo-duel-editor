@@ -223,6 +223,7 @@ export const CardSearchPanel: React.FC = () => {
                     draggable
                     onDragStart={(e) => handleDragStart(e, card)}
                     onMouseEnter={() => setHoveredCard(card)}
+                    onClick={() => setHoveredCard(card)}
                     className="flex items-center gap-2 p-1.5 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-amber-400/40 cursor-grab active:cursor-grabbing transition-all group shadow-2xs"
                   >
                     {/* 卡图缩略图 */}

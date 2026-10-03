@@ -72,6 +72,20 @@ interface DuelStoreState {
   updateCardPosition: (instanceId: string, position: number) => void
   addOverlayMaterial: (targetInstanceId: string, matCode: number) => void
   removeOverlayMaterial: (targetInstanceId: string, matIndex: number) => void
+  /**
+   * 调整堆叠型区域（如主卡组、额外卡组、墓地、除外区）内卡片的排序位置
+   *
+   * @param controller 控制者 (0: 我方, 1: 对方)
+   * @param location 区域 (CardLocation)
+   * @param fromIndex 当前索引位置
+   * @param toIndex 目标索引位置
+   */
+  reorderPileCards: (
+    controller: 0 | 1,
+    location: number,
+    fromIndex: number,
+    toIndex: number
+  ) => void
 
   // 整体替换 / 重置
   loadState: (newState: DuelPuzzleState) => void
@@ -165,14 +179,39 @@ export const useDuelStore = create<DuelStoreState>()(
           const pos = customPos !== undefined ? customPos : defaultPos
 
           // 堆叠型区域按已有数量计算新序号；离散格子则替换/覆盖同位置旧卡
-          const existingPile = prev.state.cards.filter(
-            (c) => c.controller === controller && c.location === location
-          )
-          const targetSeq = isPileZone ? existingPile.length : sequence
+          const existingPile = prev.state.cards
+            .filter((c) => c.controller === controller && c.location === location)
+            .sort((a, b) => a.sequence - b.sequence)
+
+          let targetSeq = isPileZone ? existingPile.length : sequence
+          let updatedCards = prev.state.cards
+
+          if (isPileZone) {
+            const insertIdx =
+              sequence !== undefined && sequence >= 0 && sequence <= existingPile.length
+                ? sequence
+                : existingPile.length
+            targetSeq = insertIdx
+
+            if (insertIdx < existingPile.length) {
+              const seqShiftMap = new Map<string, number>()
+              existingPile.forEach((c, idx) => {
+                if (idx >= insertIdx) {
+                  seqShiftMap.set(c.instanceId, idx + 1)
+                }
+              })
+              updatedCards = prev.state.cards.map((c) => {
+                if (seqShiftMap.has(c.instanceId)) {
+                  return { ...c, sequence: seqShiftMap.get(c.instanceId)! }
+                }
+                return c
+              })
+            }
+          }
 
           const filteredCards = isPileZone
-            ? prev.state.cards
-            : prev.state.cards.filter(
+            ? updatedCards
+            : updatedCards.filter(
                 (c) =>
                   !(
                     c.controller === controller &&
@@ -226,22 +265,46 @@ export const useDuelStore = create<DuelStoreState>()(
             toLocation === CardLocation.REMOVED
 
           let seq = toSequence
+          let updatedCards = prev.state.cards
+
           if (isPileZone) {
-            const targetPiles = prev.state.cards.filter(
-              (c) =>
-                c.controller === ctrl && c.location === toLocation && c.instanceId !== instanceId
-            )
-            seq = targetPiles.length
+            const targetPiles = prev.state.cards
+              .filter(
+                (c) =>
+                  c.controller === ctrl && c.location === toLocation && c.instanceId !== instanceId
+              )
+              .sort((a, b) => a.sequence - b.sequence)
+
+            const insertIdx =
+              toSequence !== undefined && toSequence >= 0 && toSequence <= targetPiles.length
+                ? toSequence
+                : targetPiles.length
+            seq = insertIdx
+
+            if (insertIdx < targetPiles.length) {
+              const seqShiftMap = new Map<string, number>()
+              targetPiles.forEach((c, idx) => {
+                if (idx >= insertIdx) {
+                  seqShiftMap.set(c.instanceId, idx + 1)
+                }
+              })
+              updatedCards = prev.state.cards.map((c) => {
+                if (seqShiftMap.has(c.instanceId)) {
+                  return { ...c, sequence: seqShiftMap.get(c.instanceId)! }
+                }
+                return c
+              })
+            }
           }
 
-          // 表示形式：区域内重排保持原状；跨区域移动按目标区域惯例给默认表示，
-          // customPos (如 Ctrl 拖入切换放置状态) 优先级最高
+          // 表示形式：customPos (如 Ctrl 拖入切换放置状态) 优先级最高；
+          // 否则跨区域移动按目标区域惯例给默认表示，同区域内移动保持原表示
           const sameZone = targetCard.location === toLocation
           let newPos = targetCard.position
-          if (!sameZone) {
-            if (customPos !== undefined) {
-              newPos = customPos
-            } else if (toLocation === CardLocation.SZONE) {
+          if (customPos !== undefined) {
+            newPos = customPos
+          } else if (!sameZone) {
+            if (toLocation === CardLocation.SZONE) {
               newPos = CardPosition.FACEDOWN // 魔陷默认盖放 (与搜索拖入一致)
             } else if (toLocation === CardLocation.MZONE) {
               newPos = CardPosition.FACEUP_ATTACK // 怪兽默认表攻
@@ -258,7 +321,7 @@ export const useDuelStore = create<DuelStoreState>()(
             }
           }
 
-          const updatedCards = prev.state.cards.map((c) => {
+          const finalCards = updatedCards.map((c) => {
             if (c.instanceId === instanceId) {
               return {
                 ...c,
@@ -274,7 +337,7 @@ export const useDuelStore = create<DuelStoreState>()(
           return {
             state: {
               ...prev.state,
-              cards: updatedCards
+              cards: finalCards
             }
           }
         }),
@@ -328,6 +391,44 @@ export const useDuelStore = create<DuelStoreState>()(
             })
           }
         })),
+
+      reorderPileCards: (controller, location, fromIndex, toIndex) =>
+        set((prev) => {
+          const pile = prev.state.cards
+            .filter((c) => c.controller === controller && c.location === location)
+            .sort((a, b) => a.sequence - b.sequence)
+
+          if (
+            fromIndex < 0 ||
+            fromIndex >= pile.length ||
+            toIndex < 0 ||
+            toIndex >= pile.length ||
+            fromIndex === toIndex
+          ) {
+            return prev
+          }
+
+          const reordered = [...pile]
+          const [movedCard] = reordered.splice(fromIndex, 1)
+          reordered.splice(toIndex, 0, movedCard)
+
+          const seqMap = new Map<string, number>()
+          reordered.forEach((c, idx) => {
+            seqMap.set(c.instanceId, idx)
+          })
+
+          return {
+            state: {
+              ...prev.state,
+              cards: prev.state.cards.map((c) => {
+                if (seqMap.has(c.instanceId)) {
+                  return { ...c, sequence: seqMap.get(c.instanceId)! }
+                }
+                return c
+              })
+            }
+          }
+        }),
 
       loadState: (newState) =>
         set(() => ({

@@ -8,22 +8,38 @@ interface ConfigStoreState {
   loadConfig: () => Promise<void>
   selectCdbFile: () => Promise<string | null>
   selectGameDir: () => Promise<string | null>
+  setTheme: (theme: 'dark' | 'light') => Promise<void>
+  toggleTheme: () => Promise<void>
 }
 
 export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   config: {
-    theme: 'dark'
+    theme: 'light'
   },
   isLoaded: false,
 
   loadConfig: async () => {
     try {
       const cfg = await window.api.getConfig()
-      set({ config: cfg, isLoaded: true })
+      const theme = cfg.theme || 'light'
+      document.documentElement.classList.toggle('dark', theme === 'dark')
+      set({ config: { ...cfg, theme }, isLoaded: true })
     } catch (err) {
       console.error('[useConfigStore] loadConfig error:', err)
       set({ isLoaded: true })
     }
+  },
+
+  setTheme: async (theme: 'dark' | 'light') => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    set((state) => ({ config: { ...state.config, theme } }))
+    await window.api.saveConfig({ theme })
+  },
+
+  toggleTheme: async () => {
+    const currentTheme = get().config.theme || 'light'
+    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark'
+    await get().setTheme(nextTheme)
   },
 
   selectCdbFile: async () => {

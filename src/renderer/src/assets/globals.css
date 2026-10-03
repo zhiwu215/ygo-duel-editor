@@ -123,7 +123,7 @@
     @apply bg-background text-foreground;
   }
 
-  /* 极简暗黑半透明滚动条 (消除原生刺眼白色滚动条) */
+  /* 极简半透明滚动条 (自适应深浅两色背景) */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -132,10 +132,10 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(140, 140, 140, 0.25);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.35);
+    background: rgba(140, 140, 140, 0.5);
   }
 }

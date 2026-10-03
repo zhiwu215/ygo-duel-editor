@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+﻿import React, { useEffect, useRef } from 'react'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { CardPosition, CardLocation } from '@shared/index'
@@ -17,17 +17,19 @@ import {
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
 
-/* ---------- 菜单项配置类型 ---------- */
-
+/** 菜单项配置类型 */
 interface MenuItemConfig {
+  /** 菜单项图标 */
   icon: React.ReactNode
+  /** 菜单项标签 */
   label: string
+  /** 菜单项点击事件 */
   action: () => void
+  /** 菜单项变体 */
   variant?: 'default' | 'destructive'
 }
 
-/* ---------- 右键上下文菜单 ---------- */
-
+/** 右键上下文菜单 */
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
   const { updateCardPosition, moveCard, removeCard } = useDuelStore()
@@ -62,6 +64,7 @@ export const CardContextMenu: React.FC = () => {
   if (!menu) return null
 
   const { card, x, y } = menu
+  /** 是否为手牌 */
   const isHand = card.location === CardLocation.HAND
   const isMonsterZone = card.location === CardLocation.MZONE
   const isSpellTrapZone =
@@ -83,17 +86,17 @@ export const CardContextMenu: React.FC = () => {
   const handItems: MenuItemConfig[] = isHand
     ? [
         {
-          icon: <Eye className="w-3.5 h-3.5 text-blue-400" />,
+          icon: <Eye className="w-3.5 h-3.5 text-muted-foreground" />,
           label: '表侧表示 (公开手牌)',
           action: setPos(CardPosition.FACEUP)
         },
         {
-          icon: <EyeOff className="w-3.5 h-3.5 text-amber-400" />,
+          icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
           label: '里侧表示 (未公开手牌)',
           action: setPos(CardPosition.FACEDOWN)
         },
         {
-          icon: <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-400" />,
+          icon: <ArrowLeftRight className="w-3.5 h-3.5 text-muted-foreground" />,
           label: `转移至${card.controller === 0 ? '对方手牌' : '我方手牌'}`,
           action: moveTo(CardLocation.HAND, card.controller === 0 ? 1 : 0)
         }
@@ -104,17 +107,17 @@ export const CardContextMenu: React.FC = () => {
   const monsterItems: MenuItemConfig[] = isMonsterZone
     ? [
         {
-          icon: <Swords className="w-3.5 h-3.5 text-amber-400" />,
+          icon: <Swords className="w-3.5 h-3.5 text-muted-foreground" />,
           label: '表侧攻击表示',
           action: setPos(CardPosition.FACEUP_ATTACK)
         },
         {
-          icon: <Shield className="w-3.5 h-3.5 text-blue-400" />,
+          icon: <Shield className="w-3.5 h-3.5 text-muted-foreground" />,
           label: '表侧守备表示',
           action: setPos(CardPosition.FACEUP_DEFENSE)
         },
         {
-          icon: <EyeOff className="w-3.5 h-3.5 text-neutral-400" />,
+          icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
           label: '里侧守备表示',
           action: setPos(CardPosition.FACEDOWN_DEFENSE)
         }
@@ -125,12 +128,12 @@ export const CardContextMenu: React.FC = () => {
   const spellTrapItems: MenuItemConfig[] = isSpellTrapZone
     ? [
         {
-          icon: <Swords className="w-3.5 h-3.5 text-amber-400" />,
+          icon: <Swords className="w-3.5 h-3.5 text-muted-foreground" />,
           label: '表侧表示',
           action: setPos(CardPosition.FACEUP_ATTACK)
         },
         {
-          icon: <RotateCw className="w-3.5 h-3.5 text-purple-400" />,
+          icon: <RotateCw className="w-3.5 h-3.5 text-muted-foreground" />,
           label: '里侧盖放',
           action: setPos(CardPosition.FACEDOWN)
         }
@@ -142,7 +145,7 @@ export const CardContextMenu: React.FC = () => {
     ...(card.location !== CardLocation.GRAVE
       ? [
           {
-            icon: <ArrowDownToLine className="w-3.5 h-3.5 text-stone-400" />,
+            icon: <ArrowDownToLine className="w-3.5 h-3.5 text-muted-foreground" />,
             label: '送去墓地',
             action: moveTo(CardLocation.GRAVE)
           }
@@ -151,7 +154,7 @@ export const CardContextMenu: React.FC = () => {
     ...(card.location !== CardLocation.REMOVED
       ? [
           {
-            icon: <Ban className="w-3.5 h-3.5 text-orange-400" />,
+            icon: <Ban className="w-3.5 h-3.5 text-muted-foreground" />,
             label: '除外',
             action: moveTo(CardLocation.REMOVED)
           }
@@ -160,7 +163,7 @@ export const CardContextMenu: React.FC = () => {
     ...(card.location !== CardLocation.HAND
       ? [
           {
-            icon: <Layers className="w-3.5 h-3.5 text-cyan-400" />,
+            icon: <Layers className="w-3.5 h-3.5 text-muted-foreground" />,
             label: '移回手牌',
             action: moveTo(CardLocation.HAND)
           }

@@ -48,8 +48,11 @@ export interface CardSearchResult {
  * 用户配置
  */
 export interface AppConfig {
-  gameDirectory?: string // EDOPro / MDPro3 安装根目录
-  cdbPath?: string // 当前使用的 cards.cdb 完整路径
+  /** ygopro等的安装根目录 */
+  gameDirectory?: string
+  /** 当前使用的 cards.cdb 完整路径 */
+  cdbPath?: string
+  /** 主题 */
   theme: 'dark' | 'light'
 }
 

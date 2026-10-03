@@ -1,8 +1,9 @@
 import React from 'react'
 import { Plus } from 'lucide-react'
-import { CardLocation, CardPosition, CdbCard } from '@shared/index'
+import { CardLocation, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { ZoneSlot } from '../ZoneSlot'
+import { getDropPosOverride } from '../../../utils/zoneDrop'
 import { Badge } from '../../ui/badge'
 
 interface HandTrayProps {
@@ -28,48 +29,51 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
       if (movedInstanceId) {
-        moveCard(movedInstanceId, CardLocation.HAND, handCards.length, controller)
+        // Ctrl 拖入 = 公开手牌；默认未公开 (store 侧默认)
+        moveCard(
+          movedInstanceId,
+          CardLocation.HAND,
+          handCards.length,
+          controller,
+          getDropPosOverride(CardLocation.HAND, e.ctrlKey)
+        )
         return
       }
 
       const dataStr = e.dataTransfer.getData('application/json')
       if (!dataStr) return
       const droppedCard = JSON.parse(dataStr) as CdbCard
-      const defaultPos = isOpponent ? CardPosition.FACEDOWN : CardPosition.FACEUP
-      addCardToZone(droppedCard, controller, CardLocation.HAND, handCards.length, defaultPos)
+      addCardToZone(
+        droppedCard,
+        controller,
+        CardLocation.HAND,
+        handCards.length,
+        getDropPosOverride(CardLocation.HAND, e.ctrlKey)
+      )
     } catch (err) {
       console.error('[HandTray] Drop failed:', err)
     }
   }
 
   return (
-    <div
-      className={`w-full max-w-5xl shrink-0 p-2 rounded-xl bg-card/60 backdrop-blur-md border shadow-lg flex flex-col gap-1.5 ${
-        isOpponent ? 'border-red-500/25' : 'border-blue-500/25'
-      }`}
-    >
+    <div className="relative z-10 w-full max-w-5xl shrink-0 p-2 rounded-lg bg-card border border-border shadow-sm flex flex-col gap-1.5">
       <div className="flex items-center justify-between text-xs px-1">
         <div className="flex items-center gap-2">
           <span
-            className={`font-bold tracking-wide text-xs ${isOpponent ? 'text-red-400' : 'text-blue-400'}`}
+            className={`font-bold tracking-wide text-xs ${
+              isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+            }`}
           >
             {isOpponent ? '对方手牌' : '我方手牌'} ({handCards.length} 张)
           </span>
-          <Badge
-            variant="outline"
-            className={`text-[10px] px-1.5 py-0 h-4 font-medium ${
-              isOpponent
-                ? 'bg-red-950/60 text-red-300 border-red-500/30'
-                : 'bg-blue-950/60 text-blue-300 border-blue-500/30'
-            }`}
-          >
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-medium">
             {isOpponent ? '剧情 / 应对' : '我方'}
           </Badge>
         </div>
         <span className="text-[11px] text-muted-foreground/80 hidden sm:inline">
           {isOpponent
-            ? '可直接拖拽卡片至此（默认里侧，右键可公开或转移）'
-            : '可从左侧搜索列表直接拖拽卡片至此处放入手牌'}
+            ? '可直接拖拽卡片至此（默认未公开，右键可设为公开或转移）'
+            : '可从左侧搜索列表直接拖拽卡片至此放入手牌（Ctrl 拖入 = 公开）'}
         </span>
         {ruleName && (
           <Badge variant="secondary" className="text-[10px] h-4 font-mono opacity-80">
@@ -82,11 +86,7 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
       <div
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        className={`h-[114px] w-full px-2 py-1 rounded-lg bg-black/40 border border-dashed flex items-center gap-2 overflow-x-auto shadow-inner transition-colors ${
-          isOpponent
-            ? 'border-red-500/25 hover:border-red-500/50'
-            : 'border-blue-500/25 hover:border-blue-500/50'
-        }`}
+        className="h-[114px] w-full px-2 py-1 rounded border border-dashed border-border hover:border-blue-400/60 bg-muted/30 dark:bg-black/25 flex items-center gap-2 overflow-x-auto transition-colors"
       >
         {handCards.map((c, idx) => (
           <div key={c.instanceId} className="shrink-0">
@@ -103,11 +103,13 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
         {handCards.length === 0 && (
           <div
             className={`w-full h-full flex items-center justify-center text-xs gap-1.5 pointer-events-none ${
-              isOpponent ? 'text-red-300/50' : 'text-blue-300/50'
+              isOpponent
+                ? 'text-red-600/60 dark:text-red-300/50'
+                : 'text-blue-600/60 dark:text-blue-300/50'
             }`}
           >
             <Plus
-              className={`w-3.5 h-3.5 ${isOpponent ? 'text-red-400/50' : 'text-blue-400/50'}`}
+              className={`w-3.5 h-3.5 ${isOpponent ? 'text-red-600/70 dark:text-red-400/50' : 'text-blue-600/70 dark:text-blue-400/50'}`}
             />
             <span>
               {isOpponent

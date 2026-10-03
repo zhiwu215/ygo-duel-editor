@@ -1,5 +1,19 @@
-import React from 'react'
-import { Undo2, Redo2, Download, Upload, Database, RotateCcw, Swords, Heart } from 'lucide-react'
+import React, { useEffect } from 'react'
+import { useStore } from 'zustand'
+import {
+  Undo2,
+  Redo2,
+  Download,
+  Upload,
+  Database,
+  RotateCcw,
+  Swords,
+  Sun,
+  Moon,
+  Save,
+  ArrowLeftRight,
+  Layers
+} from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { MASTER_RULES, MasterRule } from '@shared/index'
@@ -7,227 +21,355 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { MenuBar } from './MenuBar'
+import { cn } from '../../lib/utils'
 
-interface PlayerLpInputProps {
+/** 生命值输入框组件属性 */
+interface LpInputProps {
+  /** 玩家标签（如 '我方' / '对方'） */
   label: string
+  /** 玩家编号 (0: 我方, 1: 对方) */
   player: 0 | 1
+  /** 当前生命值数值 */
   lp: number
-  colorClass: string
+  /** 前置指示圆点的颜色类名 (如 'bg-blue-500' / 'bg-red-500') */
+  dotClass: string
+  /** 生命值变更回调 */
   onLpChange: (player: 0 | 1, lp: number) => void
 }
 
-const PlayerLpInput: React.FC<PlayerLpInputProps> = ({
-  label,
-  player,
-  lp,
-  colorClass,
-  onLpChange
-}) => (
-  <div className="flex items-center gap-1.5">
-    <span className="text-muted-foreground font-semibold">{label}:</span>
-    <div className="flex items-center gap-1 bg-background px-1.5 py-0.5 rounded border border-border">
-      <Heart className={`w-3.5 h-3.5 ${colorClass}`} />
-      <Input
-        type="number"
-        value={lp}
-        onChange={(e) => onLpChange(player, parseInt(e.target.value, 10) || 0)}
-        className="w-16 h-6 border-0 bg-transparent text-right font-mono font-bold p-0 focus-visible:ring-0"
-        step={500}
-      />
-    </div>
+/** 生命值输入：色点 + 标签 + 等宽数字，克制无底色 */
+const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, onLpChange }) => (
+  <div className="flex items-center gap-1.5" title={`${label}生命值 (步进 500)`}>
+    <span className={cn('w-2 h-2 rounded-full shrink-0', dotClass)} />
+    <span className="text-[11px] text-muted-foreground">{label}</span>
+    <Input
+      type="number"
+      value={lp}
+      onChange={(e) => onLpChange(player, parseInt(e.target.value, 10) || 0)}
+      className="w-14 h-6 border-border/60 bg-background/60 text-right font-mono font-semibold text-xs p-0 px-1 focus-visible:ring-1"
+      step={500}
+    />
   </div>
 )
 
 export const Header: React.FC = () => {
-  const { state, setMasterRule, setTitle, setPlayerLp, setTurnPlayer, loadState, resetDuel } =
-    useDuelStore()
+  const {
+    state,
+    setMasterRule,
+    setTitle,
+    setPlayerLp,
+    setTurnPlayer,
+    loadState,
+    resetDuel,
+    swapSides
+  } = useDuelStore()
 
-  // zundo temporal 历史撤销与重做
-  const { undo, redo, pastStates, futureStates } = useDuelStore.temporal.getState()
+  // temporal 经 useStore 包装成响应式订阅，按钮可用状态随历史变化实时更新
+  const { undo, redo, pastStates, futureStates } = useStore(useDuelStore.temporal)
   const canUndo = pastStates.length > 0
   const canRedo = futureStates.length > 0
 
-  const { config, selectCdbFile } = useConfigStore()
+  const { config, selectCdbFile, toggleTheme } = useConfigStore()
+  const isDark = config.theme !== 'light'
 
-  // 快捷键监听 (Ctrl+Z, Ctrl+Y)
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        if (e.shiftKey) {
-          redo()
-        } else {
-          undo()
-        }
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        redo()
-      }
+  // ---------- 文件命令 (MenuBar 与工具栏共用，单处实现) ----------
+  const handleNew = React.useCallback((): void => {
+    if (confirm('确认清空当前局面并新建对局？')) {
+      resetDuel()
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo])
+  }, [resetDuel])
 
-  // 导出 Lua
-  const handleExportLua = async (): Promise<void> => {
+  const handleSaveProject = React.useCallback(async (): Promise<void> => {
+    const res = await window.api.saveProjectFile(state)
+    if (res.success && res.filePath) {
+      alert(`工程已成功保存：\n${res.filePath}`)
+    }
+  }, [state])
+
+  const handleOpenProject = React.useCallback(async (): Promise<void> => {
+    const res = await window.api.loadProjectFile()
+    if (res.success && res.state) {
+      loadState(res.state)
+    }
+  }, [loadState])
+
+  const handleExportLua = React.useCallback(async (): Promise<void> => {
     const res = await window.api.exportLuaFile(state)
-    if (res.success) {
-      alert(`残局 Lua 脚本导出成功！\n路径: ${res.filePath}`)
+    if (res.success && res.filePath) {
+      alert(`Lua 决斗脚本导出成功！\n路径: ${res.filePath}`)
     } else if (res.error) {
       alert(`导出失败: ${res.error}`)
     }
-  }
+  }, [state])
 
-  // 导入 Lua
-  const handleImportLua = async (): Promise<void> => {
+  const handleImportLua = React.useCallback(async (): Promise<void> => {
     const res = await window.api.importLuaFile()
     if (res.success && res.state) {
       loadState(res.state)
     } else if (res.error) {
       alert(`导入失败: ${res.error}`)
     }
-  }
+  }, [loadState])
+
+  // ---------- 全局快捷键 (与菜单提示保持一致：N/O/S/I/E + Z/Y) ----------
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      const isInput =
+        e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
+      const mod = e.ctrlKey || e.metaKey
+
+      if (mod && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        handleNew()
+      } else if (mod && e.key.toLowerCase() === 'z') {
+        if (!isInput) {
+          e.preventDefault()
+          if (e.shiftKey) redo()
+          else undo()
+        }
+      } else if (mod && e.key.toLowerCase() === 'y') {
+        if (!isInput) {
+          e.preventDefault()
+          redo()
+        }
+      } else if (mod && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        handleSaveProject()
+      } else if (mod && e.key.toLowerCase() === 'o') {
+        e.preventDefault()
+        handleOpenProject()
+      } else if (mod && e.key.toLowerCase() === 'e') {
+        e.preventDefault()
+        handleExportLua()
+      } else if (mod && e.key.toLowerCase() === 'i') {
+        e.preventDefault()
+        handleImportLua()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    undo,
+    redo,
+    handleNew,
+    handleSaveProject,
+    handleOpenProject,
+    handleExportLua,
+    handleImportLua
+  ])
 
   return (
-    <header className="h-14 border-b border-border bg-card/60 backdrop-blur px-4 flex items-center justify-between shrink-0 select-none">
-      {/* 左侧：Logo 与残局标题 */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 font-bold text-base tracking-wide bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 bg-clip-text text-transparent">
-          <Swords className="w-5 h-5 text-amber-400" />
-          <span>YGO Duel Editor</span>
+    <header className="border-b border-border bg-card select-none flex flex-col shrink-0">
+      {/* ============ 第一行：菜单栏 ============ */}
+      <div className="h-8 px-3 flex items-center justify-between border-b border-border/60">
+        <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 mr-2">
+            <Swords className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+            <span className="text-[13px] font-semibold tracking-wide">YGO Duel Editor</span>
+          </div>
+
+          <MenuBar
+            onNew={handleNew}
+            onOpenProject={handleOpenProject}
+            onSaveProject={handleSaveProject}
+            onImportLua={handleImportLua}
+            onExportLua={handleExportLua}
+          />
+
+          <Separator orientation="vertical" className="h-3.5 mx-2" />
+
+          <Input
+            type="text"
+            value={state.title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="未命名对局"
+            className="h-6 w-56 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
+            title="对局标题"
+          />
         </div>
 
-        <Separator orientation="vertical" className="h-4" />
+        {/* 右侧：卡库连接状态 + 主题切换 */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={selectCdbFile}
+            title={
+              config.cdbPath
+                ? `已连接卡库: ${config.cdbPath} (点击更换)`
+                : '未检测到 cards.cdb，点击加载卡片数据库'
+            }
+            className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          >
+            <span
+              className={cn(
+                'w-1.5 h-1.5 rounded-full shrink-0',
+                config.cdbPath ? 'bg-emerald-500' : 'bg-amber-500'
+              )}
+            />
+            <Database className="w-3 h-3" />
+            <span>{config.cdbPath ? '卡库已连接' : '未加载卡库'}</span>
+          </button>
 
-        <Input
-          type="text"
-          value={state.title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="未命名残局"
-          className="h-8 w-44 bg-transparent hover:bg-muted/40 focus:bg-muted/60 text-sm font-medium border-transparent focus:border-border transition-all"
-        />
+          <Separator orientation="vertical" className="h-3.5" />
 
-        {/* 规则版本切换器 */}
-        <Select
-          value={state.masterRule}
-          onValueChange={(val) => {
-            if (val !== null) setMasterRule(val as MasterRule)
-          }}
-        >
-          <SelectTrigger size="sm" className="w-28 text-xs font-medium">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.values(MASTER_RULES).map((info) => (
-              <SelectItem key={info.rule} value={info.rule}>
-                {info.shortName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={toggleTheme}
+            title={isDark ? '切换至浅色模式' : '切换至深色模式'}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </Button>
+        </div>
       </div>
 
-      {/* 中间：双方生命值与先攻设置 */}
-      <div className="flex items-center gap-4 bg-muted/40 px-3 py-1 rounded-lg border border-border/50 text-xs">
-        <PlayerLpInput
-          label="对方"
-          player={1}
-          lp={state.players[1].lp}
-          colorClass="text-red-500 fill-red-500/20"
-          onLpChange={setPlayerLp}
-        />
+      {/* ============ 第二行：决斗工作台工具栏 ============ */}
+      <div className="h-10 px-3 bg-muted/30 flex items-center justify-between gap-3 text-xs">
+        {/* 左侧：规则与对局参数 */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+            <Select
+              value={state.masterRule}
+              onValueChange={(val) => {
+                if (val !== null) setMasterRule(val as MasterRule)
+              }}
+            >
+              <SelectTrigger size="sm" className="w-28 h-6 text-xs bg-background/60">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.values(MASTER_RULES).map((info) => (
+                  <SelectItem key={info.rule} value={info.rule}>
+                    {info.shortName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <Separator orientation="vertical" className="h-3" />
+          <LpInput
+            label="对方"
+            player={1}
+            lp={state.players[1].lp}
+            dotClass="bg-red-500"
+            onLpChange={setPlayerLp}
+          />
 
-        <PlayerLpInput
-          label="我方"
-          player={0}
-          lp={state.players[0].lp}
-          colorClass="text-blue-500 fill-blue-500/20"
-          onLpChange={setPlayerLp}
-        />
+          <LpInput
+            label="我方"
+            player={0}
+            lp={state.players[0].lp}
+            dotClass="bg-blue-500"
+            onLpChange={setPlayerLp}
+          />
 
-        <Separator orientation="vertical" className="h-3" />
+          <Separator orientation="vertical" className="h-4" />
 
-        {/* 先攻玩家 */}
-        <div className="flex items-center gap-1">
-          <span className="text-muted-foreground">先攻:</span>
+          {/* 先攻方 (语义色仅用于文字) */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground">先攻</span>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => setTurnPlayer(state.turnPlayer === 0 ? 1 : 0)}
+              title="点击切换先攻方"
+              className={cn(
+                'h-6 px-2 text-[11px] font-semibold bg-background/60',
+                state.turnPlayer === 0
+                  ? 'text-blue-600 dark:text-blue-400 border-blue-500/40'
+                  : 'text-red-600 dark:text-red-400 border-red-500/40'
+              )}
+            >
+              {state.turnPlayer === 0 ? '我方' : '对方'}
+            </Button>
+          </div>
+        </div>
+
+        {/* 右侧：历史 / 场面操作 / 文件 */}
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center bg-background/60 border border-border rounded-md p-0.5">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => undo()}
+              disabled={!canUndo}
+              title="撤销 (Ctrl+Z)"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => redo()}
+              disabled={!canRedo}
+              title="重做 (Ctrl+Y)"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={swapSides}
+            title="翻转对阵：交换双方全部场上卡片、手牌及生命值"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => {
+              if (confirm('确认清空当前对局场面？')) {
+                resetDuel()
+              }
+            }}
+            title="清空重置局面"
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </Button>
+
+          <Separator orientation="vertical" className="h-4 mx-0.5" />
+
           <Button
             variant="outline"
             size="xs"
-            onClick={() => setTurnPlayer(state.turnPlayer === 0 ? 1 : 0)}
-            className={`font-semibold transition-colors ${
-              state.turnPlayer === 0
-                ? 'bg-blue-600/20 text-blue-400 border-blue-500/40 hover:bg-blue-600/30 hover:text-blue-300'
-                : 'bg-red-600/20 text-red-400 border-red-500/40 hover:bg-red-600/30 hover:text-red-300'
-            }`}
+            onClick={handleSaveProject}
+            title="保存工程文件 (Ctrl+S)"
+            className="h-6 bg-background/60"
           >
-            {state.turnPlayer === 0 ? '我方' : '对方'}
+            <Save className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>保存</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={handleImportLua}
+            title="导入 ocgcore Lua 脚本 (Ctrl+I)"
+            className="h-6 bg-background/60"
+          >
+            <Upload className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>导入</span>
+          </Button>
+
+          {/* 唯一实心强调色按钮：核心动作导出 */}
+          <Button
+            size="xs"
+            onClick={handleExportLua}
+            title="导出符合 ocgcore 标准的 Lua 决斗脚本 (Ctrl+E)"
+            className="h-6 px-2.5 bg-blue-600 hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400 text-white font-semibold"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>导出 Lua</span>
           </Button>
         </div>
-      </div>
-
-      {/* 右侧：撤销/重做与文件操作 */}
-      <div className="flex items-center gap-2">
-        {/* 撤销 / 重做 */}
-        <div className="flex items-center gap-0.5 bg-muted/40 p-0.5 rounded-md border border-border/50">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => undo()}
-            disabled={!canUndo}
-            title="撤销 (Ctrl+Z)"
-          >
-            <Undo2 className="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => redo()}
-            disabled={!canRedo}
-            title="重做 (Ctrl+Y)"
-          >
-            <Redo2 className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={resetDuel}
-          title="清空重置棋盘"
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </Button>
-
-        <Separator orientation="vertical" className="h-4 mx-0.5" />
-
-        {/* 选择 CDB 库 */}
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={selectCdbFile}
-          title={config.cdbPath ? `当前卡库: ${config.cdbPath}` : '选择游戏王 cards.cdb 卡片数据库'}
-        >
-          <Database className="w-3.5 h-3.5 text-amber-400" />
-          <span>{config.cdbPath ? '更换卡库' : '加载卡库'}</span>
-        </Button>
-
-        {/* 导入 Lua */}
-        <Button variant="secondary" size="sm" onClick={handleImportLua} title="导入已有 Lua 残局">
-          <Upload className="w-3.5 h-3.5 text-sky-400" />
-          <span>导入</span>
-        </Button>
-
-        {/* 导出 Lua */}
-        <Button
-          size="sm"
-          onClick={handleExportLua}
-          title="导出符合 ocgcore 标准的 Lua 残局文件"
-          className="bg-amber-500 hover:bg-amber-400 text-neutral-950 font-semibold shadow-sm"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>导出 Lua</span>
-        </Button>
       </div>
     </header>
   )

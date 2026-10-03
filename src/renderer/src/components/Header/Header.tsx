@@ -22,36 +22,8 @@ import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { MenuBar } from './MenuBar'
+import { LpInput } from './components/LpInput'
 import { cn } from '../../lib/utils'
-
-/** 生命值输入框组件属性 */
-interface LpInputProps {
-  /** 玩家标签（如 '我方' / '对方'） */
-  label: string
-  /** 玩家编号 (0: 我方, 1: 对方) */
-  player: 0 | 1
-  /** 当前生命值数值 */
-  lp: number
-  /** 前置指示圆点的颜色类名 (如 'bg-blue-500' / 'bg-red-500') */
-  dotClass: string
-  /** 生命值变更回调 */
-  onLpChange: (player: 0 | 1, lp: number) => void
-}
-
-/** 生命值输入：色点 + 标签 + 等宽数字，克制无底色 */
-const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, onLpChange }) => (
-  <div className="flex items-center gap-1.5" title={`${label}生命值 (步进 500)`}>
-    <span className={cn('w-2 h-2 rounded-full shrink-0', dotClass)} />
-    <span className="text-[11px] text-muted-foreground">{label}</span>
-    <Input
-      type="number"
-      value={lp}
-      onChange={(e) => onLpChange(player, parseInt(e.target.value, 10) || 0)}
-      className="w-14 h-6 border-border/60 bg-background/60 text-right font-mono font-semibold text-xs p-0 px-1 focus-visible:ring-1"
-      step={500}
-    />
-  </div>
-)
 
 export const Header: React.FC = () => {
   const {

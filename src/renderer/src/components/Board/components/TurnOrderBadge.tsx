@@ -54,7 +54,7 @@ export const TurnOrderBadge: React.FC<TurnOrderBadgeProps> = ({
       >
         {Array.from({ length: Math.max(2, totalCount) }, (_, i) => i + 1).map((order) => (
           <option key={order} value={order} className="bg-popover text-popover-foreground">
-            {order === 1 ? '1 先攻 (首回合行动)' : totalCount === 2 ? '2 后攻' : `${order} 顺位`}
+            {order === 1 ? '1 先攻' : totalCount === 2 ? '2 后攻' : `${order} 顺位`}
           </option>
         ))}
       </select>

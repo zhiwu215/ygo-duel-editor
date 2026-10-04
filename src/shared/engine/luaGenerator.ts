@@ -80,6 +80,11 @@ export function generateLuaScript(state: DuelPuzzleState): string {
   // 1. 头部注释
   lines.push('-- ==============================================================')
   lines.push(`-- 决斗标题: ${state.title || '未命名对局'}`)
+  if (state.duelType) {
+    const typeLabel =
+      state.duelType === 'combo' ? 'Combo' : state.duelType === 'puzzle' ? '残局' : '整局'
+    lines.push(`-- 工程类型: ${typeLabel}`)
+  }
   lines.push(`-- 规则版本: 大师规则 (MR${state.masterRule})`)
   lines.push(`-- 决斗模式: ${isTag ? '2v2 双打 (Tag Duel)' : '1v1 标准决斗'}`)
   if (isTag && duelistsTeam0.length >= 2 && duelistsTeam1.length >= 2) {

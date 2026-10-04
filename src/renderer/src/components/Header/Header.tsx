@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
 import { ExportStatusBadge } from './components/ExportStatusBadge'
+import { SaveProjectModal } from './components/SaveProjectModal'
 import { cn } from '../../lib/utils'
 
 export const Header: React.FC = () => {
@@ -56,6 +57,9 @@ export const Header: React.FC = () => {
   const { config, selectCdbFile, toggleTheme } = useConfigStore()
   const isDark = config.theme !== 'light'
 
+  // 保存工程对话框控制
+  const [isSaveModalOpen, setIsSaveModalOpen] = React.useState(false)
+
   // ---------- 文件命令 (MenuBar 与工具栏共用，单处实现) ----------
   const handleNew = React.useCallback((): void => {
     if (confirm('确认清空当前局面并新建对局？')) {
@@ -63,12 +67,9 @@ export const Header: React.FC = () => {
     }
   }, [resetDuel])
 
-  const handleSaveProject = React.useCallback(async (): Promise<void> => {
-    const res = await window.api.saveProjectFile(state)
-    if (res.success && res.filePath) {
-      alert(`工程已成功保存：\n${res.filePath}`)
-    }
-  }, [state])
+  const handleSaveProject = React.useCallback((): void => {
+    setIsSaveModalOpen(true)
+  }, [])
 
   const handleOpenProject = React.useCallback(async (): Promise<void> => {
     const res = await window.api.loadProjectFile()
@@ -194,14 +195,29 @@ export const Header: React.FC = () => {
 
           <Separator orientation="vertical" className="h-3.5 mx-2" />
 
-          <Input
-            type="text"
-            value={state.title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="未命名对局"
-            className="h-6 w-56 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
-            title="对局标题"
-          />
+          {/* 工程分类与标题 */}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsSaveModalOpen(true)}
+              title="点击配置工程分类与备忘注释"
+              className={cn(
+                'px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider transition-colors select-none',
+                'bg-muted/80 text-muted-foreground hover:text-foreground hover:bg-muted border border-border/80'
+              )}
+            >
+              {state.duelType === 'combo' ? 'COMBO' : state.duelType === 'puzzle' ? '残局' : '整局'}
+            </button>
+
+            <Input
+              type="text"
+              value={state.title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="未命名对局"
+              className="h-6 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
+              title="对局标题 (点击编辑，保存时可添加详细备忘)"
+            />
+          </div>
         </div>
 
         {/* 右侧：导出状态徽标 + 卡库连接状态 + 主题切换 */}
@@ -443,6 +459,11 @@ export const Header: React.FC = () => {
           })()}
         </div>
       </div>
+
+      {/* 保存工程模态弹窗 */}
+      {isSaveModalOpen && (
+        <SaveProjectModal open={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} />
+      )}
     </header>
   )
 }

@@ -53,6 +53,14 @@ export interface Duelist {
 }
 
 /**
+ * 决斗工程类型：
+ * - 'full': 整局
+ * - 'puzzle': 残局
+ * - 'combo': Combo
+ */
+export type DuelType = 'full' | 'puzzle' | 'combo'
+
+/**
  * 对阵模式枚举
  */
 export type MatchMode = '1v1' | 'tag' | 'custom'
@@ -92,16 +100,26 @@ export interface PlayerState {
  * 整个决斗局面的完整状态机
  */
 export interface DuelPuzzleState {
-  version: string // 项目数据结构版本 (如 '1.1.0')
-  title: string // 对局标题
-  hint: string // 对局说明 / 提示描述
+  /** .ygoduel 工程文件格式版本 */
+  version: string
+  /** 对局标题 */
+  title: string
+  /** 对局说明 */
+  hint: string
+  /** 对局工程类型: 'full' (整局) | 'puzzle' (残局) | 'combo' (Combo) */
+  duelType?: DuelType
   /** 游戏规则版本 */
   masterRule: MasterRule // 规则版本: 2 (MR1/2), 3 (MR3), 4 (MR4), 5 (MR5)
-  players: [PlayerState, PlayerState] // [我方, 对方]
-  turnPlayer: 0 | 1 // 回合玩家 (0: 我方, 1: 对方)
-  firstTurnAttack: boolean // 是否允许先攻攻宣
-  cards: FieldCard[] // 场上/手牌/墓地所有卡片集合
-  steps?: DuelStep[] // 步骤与剧情动作序列 (可选，用于剧情编排与分步回放)
+  /** [我方, 对方]*/
+  players: [PlayerState, PlayerState]
+  /** 回合玩家 */
+  turnPlayer: 0 | 1
+  /** 是否允许先攻攻宣 */
+  firstTurnAttack: boolean
+  /** 场上/手牌/墓地所有卡片集合 */
+  cards: FieldCard[]
+  /** 步骤与剧情动作序列 (可选，用于剧情编排与分步回放) */
+  steps?: DuelStep[]
   initialBoardSnapshot?: LightweightCardSnapshot[] // 编排开局初始战场盘面快照 (用于分步回放复位)
   /** 多人决斗者列表 (每条手牌带对应一个决斗者) */
   duelists?: Duelist[]
@@ -181,7 +199,10 @@ export function createDefaultDuelists(team0Count: number, team1Count: number): D
 /**
  * 创建空白初始局面
  */
-export function createInitialDuelState(masterRule: MasterRule = 5): DuelPuzzleState {
+export function createInitialDuelState(
+  masterRule: MasterRule = 5,
+  duelType: DuelType = 'full'
+): DuelPuzzleState {
   const matchConfig: MatchConfig = {
     mode: '1v1',
     team0Count: 1,
@@ -195,6 +216,7 @@ export function createInitialDuelState(masterRule: MasterRule = 5): DuelPuzzleSt
     version: '1.1.0',
     title: '未命名对局',
     hint: '',
+    duelType,
     masterRule,
     players: [
       { lp: 8000, maxHand: 0, startHand: 0 },
@@ -270,6 +292,9 @@ export function normalizeDuelState(state: DuelPuzzleState): DuelPuzzleState {
   return {
     ...state,
     version: state.version || '1.1.0',
+    duelType: state.duelType || 'full',
+    title: state.title || '未命名对局',
+    hint: state.hint || '',
     matchConfig,
     duelists,
     scenarios: state.scenarios || {},

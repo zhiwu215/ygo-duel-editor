@@ -19,7 +19,8 @@ import {
   Check,
   Coffee,
   BookOpen,
-  FileText
+  FileText,
+  FolderKanban
 } from 'lucide-react'
 import wechatQr from '../../assets/sponsor/wechat.jpg'
 import alipayQr from '../../assets/sponsor/alipay.jpg'
@@ -71,13 +72,13 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   const [showSupportDialog, setShowSupportDialog] = useState(false)
   const menuBarRef = useRef<HTMLDivElement>(null)
 
-  const { resetDuel, swapSides, openScreenplayWithStep } = useDuelStore()
+  const { resetDuel, swapSides, openScreenplayWithStep, setActiveLeftTab } = useDuelStore()
   // temporal 经 useStore 包装成响应式订阅，撤销/重做可用状态随历史变化实时更新
   const { undo, redo, pastStates, futureStates } = useStore(useDuelStore.temporal)
   const canUndo = pastStates.length > 0
   const canRedo = futureStates.length > 0
 
-  const { config, selectCdbFile, selectGameDir, setTheme } = useConfigStore()
+  const { config, selectCdbFile, selectGameDir, selectProjectsDir, setTheme } = useConfigStore()
   const isDark = config.theme !== 'light'
 
   // 点击外部 / Esc 关闭菜单
@@ -116,6 +117,11 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           icon: FolderOpen,
           shortcut: 'Ctrl+O',
           action: onOpenProject
+        },
+        {
+          label: '决斗档案库 (整局/残局/Combo)',
+          icon: FolderKanban,
+          action: () => setActiveLeftTab('archives')
         },
         {
           label: '保存工程 (.ygoduel)',
@@ -216,6 +222,13 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           label: '设置 YGOPro 游戏目录 (本地卡图)...',
           icon: Folder,
           action: () => selectGameDir()
+        },
+        {
+          label: config.projectsDirectory
+            ? `更换工程保存目录 (当前: ${config.projectsDirectory.length > 25 ? '...' + config.projectsDirectory.slice(-25) : config.projectsDirectory})`
+            : '设置工程保存目录 (决斗档案)...',
+          icon: FolderKanban,
+          action: () => selectProjectsDir()
         }
       ]
     },

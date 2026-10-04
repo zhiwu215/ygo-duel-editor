@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, JSX } from 'react'
 import {
-  Sparkles,
   Settings2,
   Send,
   Square,
@@ -69,7 +68,6 @@ export function BehindSpiritPanel(): JSX.Element {
   const { state: currentBoardState, setActiveLeftTab, setLeftOpen } = useDuelStore()
 
   const [inputPrompt, setInputPrompt] = useState('')
-  const [includeBoard, setIncludeBoard] = useState(true)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [appliedMessageId, setAppliedMessageId] = useState<string | null>(null)
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
@@ -86,7 +84,7 @@ export function BehindSpiritPanel(): JSX.Element {
 
   const handleSend = (): void => {
     if (!inputPrompt.trim() || isGenerating) return
-    sendMessage(inputPrompt, includeBoard ? currentBoardState : undefined)
+    sendMessage(inputPrompt, currentBoardState)
     setInputPrompt('')
   }
 
@@ -118,10 +116,6 @@ export function BehindSpiritPanel(): JSX.Element {
     }))
   }
 
-  const handleQuickPrompt = (text: string): void => {
-    setInputPrompt(text)
-  }
-
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-card/40">
       {/* 顶栏 Header */}
@@ -141,6 +135,16 @@ export function BehindSpiritPanel(): JSX.Element {
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
+          {activeTab === 'chat' && messages.length > 0 && (
+            <button
+              type="button"
+              onClick={clearMessages}
+              title="清空对话"
+              className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
           <Button
             variant={activeTab === 'chat' ? 'secondary' : 'ghost'}
             size="xs"
@@ -180,82 +184,14 @@ export function BehindSpiritPanel(): JSX.Element {
       {/* 主体内容 */}
       {activeTab === 'chat' ? (
         <div className="flex-1 flex flex-col min-h-0 bg-background/50">
-          {/* 常用提词胶囊与战场感知开关 */}
-          <div className="p-2 border-b border-border/40 bg-muted/20 flex flex-col gap-1.5 shrink-0">
-            <div className="flex items-center justify-between text-[11px]">
-              <label className="flex items-center gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground">
-                <input
-                  type="checkbox"
-                  checked={includeBoard}
-                  onChange={(e) => setIncludeBoard(e.target.checked)}
-                  className="rounded border-border text-amber-500 focus:ring-amber-500 w-3 h-3"
-                />
-                <span>感知当前决斗盘面快照</span>
-              </label>
-
-              {messages.length > 0 && (
-                <button
-                  type="button"
-                  onClick={clearMessages}
-                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-destructive transition-colors"
-                  title="清空推演历史"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>清空对话</span>
-                </button>
-              )}
-            </div>
-
-            {/* 快速提示词芯片 */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickPrompt(
-                    '分析当前盘面，为我方设计一套绝境逆转斩杀路线并给出中二决斗台词！'
-                  )
-                }
-                className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 whitespace-nowrap border border-amber-500/20 transition-colors"
-              >
-                逆转路线
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickPrompt(
-                    '请为本回合双方怪兽登场和交锋创作热血的交战对白与内心心理博弈。'
-                  )
-                }
-                className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 whitespace-nowrap border border-blue-500/20 transition-colors"
-              >
-                热血对白
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickPrompt(
-                    '使用规则引擎排查当前场上卡片效果的时点与连锁合法性，避免出现村规口胡。'
-                  )
-                }
-                className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 whitespace-nowrap border border-purple-500/20 transition-colors"
-              >
-                时点排雷
-              </button>
-            </div>
-          </div>
-
           {/* 消息历史滚动区 */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3 select-text">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground select-none">
-                <div className="p-3 rounded-full bg-amber-500/10 text-amber-500 mb-3 animate-pulse">
-                  <Sparkles className="w-6 h-6" />
+                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-500 mb-3 border border-amber-500/20 shadow-xs">
+                  <Bot className="w-7 h-7" />
                 </div>
-                <h3 className="text-xs font-bold text-foreground mb-1">我是您的决斗创作者背后灵</h3>
-                <p className="text-[11px] leading-relaxed max-w-xs text-muted-foreground">
-                  已与左侧决斗盘面与步骤编排深度联动。无论是逆转
-                  Combo、台词编写还是规则引擎校验，随时向我提问。
-                </p>
+                <h3 className="text-xs font-bold text-foreground">我是您的决斗创作者背后灵</h3>
               </div>
             ) : (
               messages.map((msg) => (
@@ -386,14 +322,12 @@ export function BehindSpiritPanel(): JSX.Element {
               value={inputPrompt}
               onChange={(e) => setInputPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="向背后灵提出战术构想、剧情对白或规则排雷... (Enter 发送, Shift+Enter 换行)"
+              placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
               rows={2}
               className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-500 leading-relaxed"
             />
 
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground">Pi Agent 真实推演</span>
-
+            <div className="flex items-center justify-end">
               <div className="flex items-center gap-1.5">
                 {isGenerating ? (
                   <Button
@@ -413,7 +347,7 @@ export function BehindSpiritPanel(): JSX.Element {
                     className="h-7 px-3 text-xs gap-1 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold shadow-xs"
                   >
                     <Send className="w-3 h-3" />
-                    <span>推演</span>
+                    <span>发送</span>
                   </Button>
                 )}
               </div>

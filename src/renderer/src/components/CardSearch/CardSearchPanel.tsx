@@ -17,7 +17,6 @@ import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFo
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
-import { FilterDrawer } from './FilterDrawer'
 
 export const CardSearchPanel: React.FC = () => {
   const {
@@ -98,179 +97,173 @@ export const CardSearchPanel: React.FC = () => {
   }
 
   return (
-    <aside className="h-full border-l border-border bg-card/40 flex shrink-0 select-none overflow-hidden transition-all duration-200">
-      {/* 搜索列表主区域 */}
-      <div className="w-80 h-full flex flex-col shrink-0">
-        {/* 顶部搜索输入与控制栏 */}
-        <form onSubmit={handleSearchSubmit} className="p-2.5 border-b border-border/60 bg-muted/10">
-          <div className="flex items-center gap-1.5">
-            <div className="relative flex-1 flex items-center">
-              <Search className="w-4 h-4 text-muted-foreground absolute left-2.5 pointer-events-none" />
-              <Input
-                type="text"
-                value={localKw}
-                onChange={(e) => setLocalKw(e.target.value)}
-                placeholder="搜索卡名、密码或效果..."
-                className="pl-8 pr-7 bg-secondary/80 focus:bg-background h-8 text-xs font-medium"
-              />
-              {localKw && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLocalKw('')
-                    setKeyword('')
-                    search({ keyword: '' })
-                  }}
-                  className="absolute right-2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            <Button
-              type="submit"
-              size="sm"
-              className="h-8 px-2.5 text-xs font-semibold shrink-0"
-              disabled={isLoading}
-            >
-              {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '搜索'}
-            </Button>
-
-            {/* 高级筛选折叠/展开按钮 */}
-            <Button
-              type="button"
-              variant={isFilterOpen || activeFilterCount > 0 ? 'default' : 'secondary'}
-              size="sm"
-              onClick={toggleFilterOpen}
-              className={`h-8 px-2 shrink-0 relative transition-all ${
-                isFilterOpen
-                  ? 'bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold'
-                  : activeFilterCount > 0
-                    ? 'border-amber-400/50 text-amber-400'
-                    : ''
-              }`}
-              title={isFilterOpen ? '收起高级筛选' : '展开多维度高级筛选'}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              {isFilterOpen ? (
-                <ChevronRight className="w-3.5 h-3.5 -ml-0.5" />
-              ) : (
-                <ChevronLeft className="w-3.5 h-3.5 -ml-0.5" />
-              )}
-
-              {/* 激活筛选数量徽标 */}
-              {activeFilterCount > 0 && !isFilterOpen && (
-                <span className="absolute -top-1 -right-1 bg-amber-500 text-neutral-950 font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center shadow">
-                  {activeFilterCount}
-                </span>
-              )}
-            </Button>
-          </div>
-        </form>
-
-        {/* 结果统计与快捷筛选提示栏 */}
-        <div className="px-3 py-1.5 border-b border-border/40 bg-muted/20 flex items-center justify-between text-[11px] shrink-0">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <span>
-              搜索结果: <strong className="text-foreground font-semibold">{total}</strong> 张
-            </span>
-            {activeFilterCount > 0 && (
-              <Badge
-                variant="outline"
-                className="text-[10px] px-1 py-0 h-4 text-amber-400 border-amber-400/40"
+    <div className="w-full h-full flex flex-col shrink-0 select-none overflow-hidden">
+      {/* 顶部搜索输入与控制栏 */}
+      <form onSubmit={handleSearchSubmit} className="p-2.5 border-b border-border/60 bg-muted/10">
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1 flex items-center">
+            <Search className="w-4 h-4 text-muted-foreground absolute left-2.5 pointer-events-none" />
+            <Input
+              type="text"
+              value={localKw}
+              onChange={(e) => setLocalKw(e.target.value)}
+              placeholder="搜索卡名、密码或效果..."
+              className="pl-8 pr-7 bg-secondary/80 focus:bg-background h-8 text-xs font-medium"
+            />
+            {localKw && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLocalKw('')
+                  setKeyword('')
+                  search({ keyword: '' })
+                }}
+                className="absolute right-2 text-muted-foreground hover:text-foreground"
               >
-                筛选已生效 ({activeFilterCount})
-              </Badge>
+                <X className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
 
+          <Button
+            type="submit"
+            size="sm"
+            className="h-8 px-2.5 text-xs font-semibold shrink-0"
+            disabled={isLoading}
+          >
+            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '搜索'}
+          </Button>
+
+          {/* 高级筛选折叠/展开按钮 */}
+          <Button
+            type="button"
+            variant={isFilterOpen || activeFilterCount > 0 ? 'default' : 'secondary'}
+            size="sm"
+            onClick={toggleFilterOpen}
+            className={`h-8 px-2 shrink-0 relative transition-all ${
+              isFilterOpen
+                ? 'bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold'
+                : activeFilterCount > 0
+                  ? 'border-amber-400/50 text-amber-400'
+                  : ''
+            }`}
+            title={isFilterOpen ? '收起高级筛选' : '展开多维度高级筛选'}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            {isFilterOpen ? (
+              <ChevronRight className="w-3.5 h-3.5 -ml-0.5" />
+            ) : (
+              <ChevronLeft className="w-3.5 h-3.5 -ml-0.5" />
+            )}
+
+            {/* 激活筛选数量徽标 */}
+            {activeFilterCount > 0 && !isFilterOpen && (
+              <span className="absolute -top-1 -right-1 bg-amber-500 text-neutral-950 font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center shadow">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
+        </div>
+      </form>
+
+      {/* 结果统计与快捷筛选提示栏 */}
+      <div className="px-3 py-1.5 border-b border-border/40 bg-muted/20 flex items-center justify-between text-[11px] shrink-0">
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <span>
+            搜索结果: <strong className="text-foreground font-semibold">{total}</strong> 张
+          </span>
           {activeFilterCount > 0 && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={resetFilters}
-              className="h-5 text-[10px] text-muted-foreground hover:text-amber-400 px-1 gap-1"
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1 py-0 h-4 text-amber-400 border-amber-400/40"
             >
-              <RotateCcw className="w-2.5 h-2.5" />
-              <span>清空筛选</span>
-            </Button>
+              筛选已生效 ({activeFilterCount})
+            </Badge>
           )}
         </div>
 
-        {/* 结果列表 (带平滑暗色滚动与无限滚动) */}
-        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto p-2">
-          {results.length === 0 && !isLoading && hasSearched ? (
-            <div className="h-48 flex flex-col items-center justify-center text-muted-foreground text-xs p-4 text-center">
-              <Sparkles className="w-8 h-8 opacity-20 mb-2" />
-              <p>未找到符合条件的卡片</p>
-              <p className="text-[11px] opacity-60 mt-1">请尝试放宽检索关键词或重置筛选条件</p>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              {results.map((card) => {
-                const line2 = formatSearchItemLine2(card)
-                const line3 = formatSearchItemLine3(card)
-
-                return (
-                  <div
-                    key={card.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, card)}
-                    onMouseEnter={() => setHoveredCard(card)}
-                    onClick={() => setHoveredCard(card)}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-amber-400/40 cursor-grab active:cursor-grabbing transition-all group shadow-2xs h-[64px]"
-                  >
-                    {/* 卡图缩略图 (标准 59:86 比例) */}
-                    <img
-                      src={getCardImageUrl(card.id, true)}
-                      alt={card.name}
-                      loading="lazy"
-                      className="w-[36px] h-[52px] object-cover rounded shrink-0 border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
-                      onError={(e) => {
-                        const target = e.currentTarget
-                        if (target.src !== CARD_BACK_IMAGE) {
-                          target.src = CARD_BACK_IMAGE
-                        }
-                      }}
-                    />
-
-                    {/* 卡片核心情报 (精准对标 YGOPro 经典列表排版) */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 select-none py-0.5">
-                      {/* 第 1 行：卡名 */}
-                      <span className="text-xs font-semibold truncate text-foreground group-hover:text-primary transition-colors leading-tight">
-                        {card.name}
-                      </span>
-
-                      {/* 第 2 行：类型 / 属性 / 种族 / 等级 (怪兽) 或 魔法/陷阱类别 */}
-                      <div className="text-[11px] text-foreground/80 leading-tight truncate">
-                        {line2}
-                      </div>
-
-                      {/* 第 3 行：攻防数值 / 刻度 (仅怪兽) */}
-                      {line3 && (
-                        <div className="text-[11px] font-mono text-foreground/75 leading-tight truncate">
-                          {line3}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-
-              {isLoadingMore && (
-                <div className="py-2 text-center text-xs text-muted-foreground flex items-center justify-center gap-1">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>加载更多卡片...</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        {activeFilterCount > 0 && (
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={resetFilters}
+            className="h-5 text-[10px] text-muted-foreground hover:text-amber-400 px-1 gap-1"
+          >
+            <RotateCcw className="w-2.5 h-2.5" />
+            <span>清空筛选</span>
+          </Button>
+        )}
       </div>
 
-      {/* 右侧高级筛选展开面板 (方案 A：弹性并列栏) */}
-      {isFilterOpen && <FilterDrawer />}
-    </aside>
+      {/* 结果列表 (带平滑暗色滚动与无限滚动) */}
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto p-2">
+        {results.length === 0 && !isLoading && hasSearched ? (
+          <div className="h-48 flex flex-col items-center justify-center text-muted-foreground text-xs p-4 text-center">
+            <Sparkles className="w-8 h-8 opacity-20 mb-2" />
+            <p>未找到符合条件的卡片</p>
+            <p className="text-[11px] opacity-60 mt-1">请尝试放宽检索关键词或重置筛选条件</p>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {results.map((card) => {
+              const line2 = formatSearchItemLine2(card)
+              const line3 = formatSearchItemLine3(card)
+
+              return (
+                <div
+                  key={card.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, card)}
+                  onMouseEnter={() => setHoveredCard(card)}
+                  onClick={() => setHoveredCard(card)}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-amber-400/40 cursor-grab active:cursor-grabbing transition-all group shadow-2xs h-[64px]"
+                >
+                  {/* 卡图缩略图 (标准 59:86 比例) */}
+                  <img
+                    src={getCardImageUrl(card.id, true)}
+                    alt={card.name}
+                    loading="lazy"
+                    className="w-[36px] h-[52px] object-cover rounded shrink-0 border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
+                    onError={(e) => {
+                      const target = e.currentTarget
+                      if (target.src !== CARD_BACK_IMAGE) {
+                        target.src = CARD_BACK_IMAGE
+                      }
+                    }}
+                  />
+
+                  {/* 卡片核心情报 (精准对标 YGOPro 经典列表排版) */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 select-none py-0.5">
+                    {/* 第 1 行：卡名 */}
+                    <span className="text-xs font-semibold truncate text-foreground group-hover:text-primary transition-colors leading-tight">
+                      {card.name}
+                    </span>
+
+                    {/* 第 2 行：类型 / 属性 / 种族 / 等级 (怪兽) 或 魔法/陷阱类别 */}
+                    <div className="text-[11px] text-foreground/80 leading-tight truncate">
+                      {line2}
+                    </div>
+
+                    {/* 第 3 行：攻防数值 / 刻度 (仅怪兽) */}
+                    {line3 && (
+                      <div className="text-[11px] font-mono text-foreground/75 leading-tight truncate">
+                        {line3}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {isLoadingMore && (
+              <div className="py-2 text-center text-xs text-muted-foreground flex items-center justify-center gap-1">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>加载更多卡片...</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

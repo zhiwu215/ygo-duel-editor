@@ -1,5 +1,6 @@
 import { MasterRule } from './rules'
 import { CdbCard } from './card'
+import { DuelStep } from './story'
 
 /**
  * 战场上单张卡片的完整实例化状态
@@ -41,6 +42,7 @@ export interface DuelPuzzleState {
   turnPlayer: 0 | 1 // 回合玩家 (0: 我方, 1: 对方)
   firstTurnAttack: boolean // 是否允许先攻攻宣
   cards: FieldCard[] // 场上/手牌/墓地所有卡片集合
+  steps?: DuelStep[] // 步骤与剧情动作序列 (可选，用于剧情编排与分步回放)
 }
 
 /**
@@ -58,6 +60,7 @@ export function createInitialDuelState(masterRule: MasterRule = 5): DuelPuzzleSt
     ],
     turnPlayer: 0,
     firstTurnAttack: true,
-    cards: []
+    cards: [],
+    steps: []
   }
 }

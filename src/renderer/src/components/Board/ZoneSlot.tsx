@@ -1,5 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { FieldCard, CdbCard, CardLocation, CardPosition, CardUtils } from '@shared/index'
+import {
+  FieldCard,
+  CdbCard,
+  CardLocation,
+  CardPosition,
+  CardUtils,
+  DuelActionType
+} from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDropHintStore } from '../../stores/useDropHintStore'
 import { usePileListStore } from '../../stores/usePileListStore'
@@ -273,11 +280,65 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         }
       }
       if (movedInstanceId) {
+        const { state, isAutoRecording, recordAction } = useDuelStore.getState()
+        const srcCard = state.cards.find((c) => c.instanceId === movedInstanceId)
+        if (isAutoRecording && srcCard) {
+          let actType: DuelActionType | null = null
+          const isFacedown = Boolean(posOverride && posOverride & CardPosition.FACEDOWN)
+
+          if (srcCard.location === CardLocation.HAND && location === CardLocation.MZONE) {
+            actType = isFacedown ? 'SET_MONSTER' : 'NORMAL_SUMMON'
+          } else if (srcCard.location === CardLocation.HAND && location === CardLocation.SZONE) {
+            actType = isFacedown ? 'SET_SPELL_TRAP' : 'ACTIVATE'
+          } else if (location === CardLocation.GRAVE && srcCard.location !== CardLocation.GRAVE) {
+            actType = 'TO_GRAVE'
+          } else if (
+            location === CardLocation.REMOVED &&
+            srcCard.location !== CardLocation.REMOVED
+          ) {
+            actType = 'BANISH'
+          } else if (srcCard.location === CardLocation.EXTRA && location === CardLocation.MZONE) {
+            actType = 'SPECIAL_SUMMON'
+          } else if (srcCard.location === CardLocation.DECK && location === CardLocation.HAND) {
+            actType = 'DRAW'
+          }
+
+          if (actType) {
+            recordAction({
+              actionType: actType,
+              actionPlayer: controller,
+              card: { code: srcCard.code, name: srcCard.card?.name },
+              fromLocation: srcCard.location,
+              fromSequence: srcCard.sequence,
+              toLocation: location,
+              toSequence: sequence
+            })
+          }
+        }
         moveCard(movedInstanceId, location, sequence, controller, posOverride)
       } else {
         const dataStr = e.dataTransfer.getData('application/json')
         if (!dataStr) return
         const droppedCard = JSON.parse(dataStr) as CdbCard
+        const { isAutoRecording, recordAction } = useDuelStore.getState()
+        if (isAutoRecording) {
+          let actType: DuelActionType | null = null
+          const isFacedown = Boolean(posOverride && posOverride & CardPosition.FACEDOWN)
+          if (location === CardLocation.MZONE) {
+            actType = isFacedown ? 'SET_MONSTER' : 'NORMAL_SUMMON'
+          } else if (location === CardLocation.SZONE) {
+            actType = isFacedown ? 'SET_SPELL_TRAP' : 'ACTIVATE'
+          }
+          if (actType) {
+            recordAction({
+              actionType: actType,
+              actionPlayer: controller,
+              card: { code: droppedCard.id, name: droppedCard.name },
+              toLocation: location,
+              toSequence: sequence
+            })
+          }
+        }
         addCardToZone(droppedCard, controller, location, sequence, posOverride)
       }
 

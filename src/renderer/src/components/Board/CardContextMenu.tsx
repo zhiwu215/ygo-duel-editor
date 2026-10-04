@@ -17,7 +17,9 @@ import {
   RotateCw,
   ArrowLeftRight,
   ListOrdered,
-  Sliders
+  Sliders,
+  Zap,
+  Sparkles
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
@@ -37,7 +39,22 @@ interface MenuItemConfig {
 /** 右键上下文菜单 */
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
-  const { updateCardPosition, moveCard, removeCard, state } = useDuelStore()
+  const {
+    updateCardPosition,
+    moveCard,
+    removeCard,
+    state,
+    currentChain,
+    executeActivateCard,
+    executeChainCard,
+    executeAttackCard,
+    executeNormalSummon,
+    executeSpecialSummon,
+    executeSetCard,
+    executeDrawCard,
+    executeSendToGrave,
+    executeBanishCard
+  } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
@@ -103,6 +120,87 @@ export const CardContextMenu: React.FC = () => {
   const setPos = (pos: number): (() => void) => act(() => updateCardPosition(card.instanceId, pos))
   const moveTo = (loc: number, ctrl?: 0 | 1): (() => void) =>
     act(() => moveCard(card.instanceId, loc, 0, ctrl))
+
+  // 决斗盘实战动作指令 (自动记谱与连锁推演)
+  const isMonster = card.card ? (card.card.type & CardType.MONSTER) !== 0 : isMonsterZone
+  const duelActionItems: MenuItemConfig[] = []
+
+  // 1. 发动效果 / 卡片 (手牌、怪兽区、魔陷区、墓地)
+  if (isHand || isMonsterZone || isSpellTrapZone || card.location === CardLocation.GRAVE) {
+    duelActionItems.push({
+      icon: <Zap className="w-3.5 h-3.5 text-amber-500" />,
+      label:
+        currentChain > 0
+          ? `⚡ 发动 (进入 Chain ${currentChain + 1})`
+          : '⚡ 发动卡片/效果 (Chain 1)',
+      action: act(() => executeActivateCard(card.instanceId))
+    })
+  }
+
+  // 2. 连锁响应 (手牌、怪兽区、魔陷区)
+  if (isHand || isMonsterZone || isSpellTrapZone) {
+    duelActionItems.push({
+      icon: <Layers className="w-3.5 h-3.5 text-teal-400" />,
+      label: `⛓ 连锁响应 (Chain ${Math.max(2, currentChain + 1)})`,
+      action: act(() => executeChainCard(card.instanceId))
+    })
+  }
+
+  // 3. 声明攻击 (前场攻击表示怪兽)
+  if (
+    isMonsterZone &&
+    !(card.position & CardPosition.FACEUP_DEFENSE) &&
+    !(card.position & CardPosition.FACEDOWN_DEFENSE)
+  ) {
+    duelActionItems.push({
+      icon: <Swords className="w-3.5 h-3.5 text-rose-500" />,
+      label: '⚔ 声明攻击 (Attack)',
+      action: act(() => executeAttackCard(card.instanceId))
+    })
+  }
+
+  // 4. 召唤 / 覆盖
+  if (isHand) {
+    if (isMonster) {
+      duelActionItems.push(
+        {
+          icon: <Sparkles className="w-3.5 h-3.5 text-blue-400" />,
+          label: '✨ 通常召唤到前场',
+          action: act(() => executeNormalSummon(card.instanceId))
+        },
+        {
+          icon: <Sparkles className="w-3.5 h-3.5 text-purple-400" />,
+          label: '🌟 特殊召唤到前场',
+          action: act(() => executeSpecialSummon(card.instanceId))
+        },
+        {
+          icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
+          label: '⬇ 里侧守备覆盖',
+          action: act(() => executeSetCard(card.instanceId))
+        }
+      )
+    } else {
+      duelActionItems.push({
+        icon: <RotateCw className="w-3.5 h-3.5 text-emerald-400" />,
+        label: '⬇ 覆盖到魔陷区',
+        action: act(() => executeSetCard(card.instanceId))
+      })
+    }
+  } else if (card.location === CardLocation.GRAVE || card.location === CardLocation.EXTRA) {
+    if (isMonster) {
+      duelActionItems.push({
+        icon: <Sparkles className="w-3.5 h-3.5 text-purple-400" />,
+        label: '🌟 特殊召唤到前场',
+        action: act(() => executeSpecialSummon(card.instanceId))
+      })
+    }
+  } else if (card.location === CardLocation.DECK) {
+    duelActionItems.push({
+      icon: <Layers className="w-3.5 h-3.5 text-amber-500" />,
+      label: '🎴 抽卡到手牌 (Draw)',
+      action: act(() => executeDrawCard(card.controller))
+    })
+  }
 
   // 手牌操作项
   const handItems: MenuItemConfig[] = isHand
@@ -204,7 +302,7 @@ export const CardContextMenu: React.FC = () => {
           {
             icon: <ArrowDownToLine className="w-3.5 h-3.5 text-muted-foreground" />,
             label: '送去墓地',
-            action: moveTo(CardLocation.GRAVE)
+            action: act(() => executeSendToGrave(card.instanceId))
           }
         ]
       : []),
@@ -213,7 +311,7 @@ export const CardContextMenu: React.FC = () => {
           {
             icon: <Ban className="w-3.5 h-3.5 text-muted-foreground" />,
             label: '除外',
-            action: moveTo(CardLocation.REMOVED)
+            action: act(() => executeBanishCard(card.instanceId))
           }
         ]
       : []),
@@ -238,8 +336,8 @@ export const CardContextMenu: React.FC = () => {
   ]
 
   // 防止菜单超出屏幕右侧或下侧
-  const menuWidth = 190
-  const menuHeight = 280
+  const menuWidth = 205
+  const menuHeight = 360
   const adjustedX = Math.min(x, window.innerWidth - menuWidth - 12)
   const adjustedY = Math.min(y, window.innerHeight - menuHeight - 12)
 
@@ -266,12 +364,23 @@ export const CardContextMenu: React.FC = () => {
     <div
       ref={menuRef}
       style={{ left: adjustedX, top: adjustedY }}
-      className="fixed z-[60] min-w-44 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
+      className="fixed z-[60] min-w-48 max-w-56 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-48">
+      <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-52">
         {card.card?.name || `卡片: ${card.code}`}
       </div>
+
+      {duelActionItems.length > 0 && (
+        <>
+          <div className="px-2 py-0.5 text-[9px] font-bold text-amber-500/90 tracking-wide uppercase flex items-center gap-1 select-none">
+            <Zap className="w-2.5 h-2.5 text-amber-500" />
+            <span>实战决斗指令 (自动记谱)</span>
+          </div>
+          {renderGroup(duelActionItems)}
+          <Separator className="my-1" />
+        </>
+      )}
 
       {isPileZone && !isModalOpenForThisZone && (
         <>

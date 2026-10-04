@@ -291,5 +291,3 @@ export function deduceSuggestedCounters(state: DuelPuzzleState): CounterDefiniti
      - 再次按下 `Tab` 键即刻隐藏全部浮层，还原清爽棋盘。
   6. **菜单栏帮助系统同步收录**：
      - 在顶部菜单栏「帮助 ➔ 快捷键参考」（**src/renderer/src/components/Header/MenuBar.tsx**）弹窗中，正式收录 `Shift + 点击`（唤出攻守与指示物微调面板）以及 `Tab`（全局战术透视）的操作说明，使用户随时可查阅。
-
-

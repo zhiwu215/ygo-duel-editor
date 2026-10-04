@@ -63,6 +63,23 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     return () => el.removeEventListener('wheel', onWheel)
   }, [isCollapsed])
 
+  // 全局拖拽结束重置状态：避免卡片释放于子槽位或拖拽取消时导致 isDragOver 常驻
+  useEffect(() => {
+    const handleGlobalDragEnd = (): void => {
+      setIsDragOver(false)
+      if (hoverExpandTimerRef.current) {
+        clearTimeout(hoverExpandTimerRef.current)
+        hoverExpandTimerRef.current = null
+      }
+    }
+    window.addEventListener('dragend', handleGlobalDragEnd)
+    window.addEventListener('drop', handleGlobalDragEnd)
+    return () => {
+      window.removeEventListener('dragend', handleGlobalDragEnd)
+      window.removeEventListener('drop', handleGlobalDragEnd)
+    }
+  }, [])
+
   // 拖拽悬停至收缩窄条时，自动展开
   const handleDragEnter = (): void => {
     setIsDragOver(true)
@@ -153,7 +170,9 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         className={cn(
           'w-9 shrink-0 h-[136px] rounded border transition-all cursor-pointer select-none flex flex-col items-center justify-between py-1 px-0.5',
           isDragOver
-            ? 'border-primary ring-2 ring-primary/40 bg-primary/10'
+            ? isOpponent
+              ? 'border-red-500 ring-2 ring-red-500/30 bg-red-500/10'
+              : 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10'
             : isOpponent
               ? 'border-red-500/30 bg-red-500/5 hover:bg-red-500/15 hover:border-red-500/50'
               : 'border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/50'
@@ -216,7 +235,10 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
           : isOpponent
             ? 'border-red-500/20 bg-card/60 hover:border-red-500/40'
             : 'border-blue-500/20 bg-card/60 hover:border-blue-500/40',
-        isDragOver && 'border-primary ring-2 ring-primary/40 bg-primary/5'
+        isDragOver &&
+          (isOpponent
+            ? 'border-red-500 ring-2 ring-red-500/30 bg-red-500/10'
+            : 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10')
       )}
     >
       {/* 头部信息条：名字、LP、顺位选择、展开/收起 */}
@@ -319,7 +341,9 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         className={cn(
           'flex-1 w-full px-1 py-1 rounded border border-dashed flex items-center gap-1 overflow-x-auto overflow-y-hidden transition-colors',
           isDragOver
-            ? 'border-primary bg-primary/10'
+            ? isOpponent
+              ? 'border-red-500 ring-2 ring-red-500/20 bg-red-500/10'
+              : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
             : isOpponent
               ? 'border-red-500/20 hover:border-red-500/40 bg-muted/20 dark:bg-black/20'
               : 'border-blue-500/20 hover:border-blue-500/40 bg-muted/20 dark:bg-black/20'

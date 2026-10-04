@@ -36,6 +36,7 @@ const SingleHandTray: React.FC<{
 
   // 拖拽高亮与横向滚轮
   const [isDragOver, setIsDragOver] = useState(false)
+  const dragCounterRef = useRef(0)
   const trayRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -55,19 +56,45 @@ const SingleHandTray: React.FC<{
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
+  // 全局拖拽结束重置状态：避免卡片释放于子槽位 (stopPropagation) 或拖拽取消时导致托盘的 isDragOver 状态常驻为 true
+  useEffect(() => {
+    const handleGlobalDragEnd = (): void => {
+      dragCounterRef.current = 0
+      setIsDragOver(false)
+    }
+    window.addEventListener('dragend', handleGlobalDragEnd)
+    window.addEventListener('drop', handleGlobalDragEnd)
+    return () => {
+      window.removeEventListener('dragend', handleGlobalDragEnd)
+      window.removeEventListener('drop', handleGlobalDragEnd)
+    }
+  }, [])
+
+  const handleDragEnter = (e: React.DragEvent): void => {
+    e.preventDefault()
+    dragCounterRef.current++
+    if (!isDragOver) setIsDragOver(true)
+  }
+
   const handleDragOver = (e: React.DragEvent): void => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
     if (!isDragOver) setIsDragOver(true)
   }
 
-  const handleDragLeave = (): void => {
-    setIsDragOver(false)
+  const handleDragLeave = (e: React.DragEvent): void => {
+    e.preventDefault()
+    dragCounterRef.current--
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0
+      setIsDragOver(false)
+    }
   }
 
   const handleDrop = (e: React.DragEvent): void => {
     e.preventDefault()
     e.stopPropagation()
+    dragCounterRef.current = 0
     setIsDragOver(false)
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
@@ -112,7 +139,6 @@ const SingleHandTray: React.FC<{
   return (
     <div
       ref={trayRef}
-      onDragEnter={() => setIsDragOver(true)}
       className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-lg bg-card border border-border shadow-sm flex flex-col gap-1"
     >
       {/* 顶部单行信息与操作栏 */}
@@ -203,13 +229,16 @@ const SingleHandTray: React.FC<{
       {/* 手牌横向排布流 (固定紧凑高度，保证无纵向溢出) */}
       <div
         ref={scrollContainerRef}
+        onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
           'h-[100px] w-full px-2 py-0.5 rounded border border-dashed flex items-center gap-1.5 overflow-x-auto overflow-y-hidden transition-colors',
           isDragOver
-            ? 'border-primary bg-primary/10'
+            ? isOpponent
+              ? 'border-red-500 ring-2 ring-red-500/20 bg-red-500/10'
+              : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
             : isOpponent
               ? 'border-red-500/25 hover:border-red-500/50 bg-muted/20 dark:bg-black/20'
               : 'border-blue-500/25 hover:border-blue-500/50 bg-muted/20 dark:bg-black/20'

@@ -113,13 +113,13 @@ src/
 │   ├── index.ts                #   应用入口：窗口创建、生命周期
 │   ├── db/cdbService.ts        #   cards.cdb 只读访问（模块级单实例，export const cdbService）
 │   ├── ipc/registerIpc.ts      #   所有 ipcMain.handle 集中注册地
-│   └── services/               #   业务服务（configStore/fileService/imageService/agentService）
+│   └── services/               #   业务服务（configService/fileService/imageService/agentService/deckService/settingsWindowService）
 ├── preload/                    # 安全桥接层
 │   ├── index.ts                #   contextBridge 实现 IpcApi
 │   └── index.d.ts              #   window.api 类型声明
 ├── renderer/src/               # 渲染进程 (React SPA)
 │   ├── main.tsx / App.tsx      #   入口与顶层布局（Header + 左侧活动栏 + 战场 + 右侧栏）
-│   ├── components/             #   按功能域分目录（BehindSpirit/Board/CardDetail/CardSearch/Header/LeftSidebar/RightSidebar/StorySequencer/ui）
+│   ├── components/             #   按功能域分目录（BehindSpirit/Board/CardDetail/CardSearch/Header/LeftSidebar/RightSidebar/Settings/StorySequencer/ui）
 │   ├── stores/                 #   Zustand store，每个文件一个业务关注点
 │   ├── lib/utils.ts            #   cn() 工具
 │   └── utils/cardImage.ts      #   卡图 URL / 卡背

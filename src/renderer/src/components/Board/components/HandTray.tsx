@@ -72,19 +72,6 @@ const SingleHandTray: React.FC<{
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
       if (movedInstanceId) {
-        const { state, isAutoRecording, recordAction } = useDuelStore.getState()
-        const srcCard = state.cards.find((c) => c.instanceId === movedInstanceId)
-        if (isAutoRecording && srcCard && srcCard.location === CardLocation.DECK) {
-          recordAction({
-            actionType: 'DRAW',
-            actionPlayer: controller,
-            card: { code: srcCard.code, name: srcCard.card?.name },
-            fromLocation: CardLocation.DECK,
-            toLocation: CardLocation.HAND,
-            description: `${duelist.name}抽卡【${srcCard.card?.name || srcCard.code}】`
-          })
-        }
-
         moveCard(
           movedInstanceId,
           CardLocation.HAND,

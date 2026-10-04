@@ -1,6 +1,25 @@
 import { MasterRule } from './rules'
 import { CdbCard } from './card'
-import { DuelStep } from './story'
+import { DuelStep, LightweightCardSnapshot } from './story'
+
+/**
+ * 提取场上卡片的轻量数据快照 (不包含巨大重复的 CDB 数据，用于步骤回放与初始局面还原)
+ */
+export function createLightweightSnapshot(cards: FieldCard[]): LightweightCardSnapshot[] {
+  return cards.map((c) => ({
+    instanceId: c.instanceId,
+    code: c.code,
+    controller: c.controller,
+    owner: c.owner,
+    location: c.location,
+    sequence: c.sequence,
+    position: c.position,
+    overlayMaterials: [...(c.overlayMaterials || [])],
+    duelistId: c.duelistId,
+    customAtk: c.customAtk,
+    customDef: c.customDef
+  }))
+}
 
 /**
  * 战场上单张卡片的完整实例化状态
@@ -83,6 +102,7 @@ export interface DuelPuzzleState {
   firstTurnAttack: boolean // 是否允许先攻攻宣
   cards: FieldCard[] // 场上/手牌/墓地所有卡片集合
   steps?: DuelStep[] // 步骤与剧情动作序列 (可选，用于剧情编排与分步回放)
+  initialBoardSnapshot?: LightweightCardSnapshot[] // 编排开局初始战场盘面快照 (用于分步回放复位)
   /** 多人决斗者列表 (每条手牌带对应一个决斗者) */
   duelists?: Duelist[]
   /** 当前对阵人数配置 */

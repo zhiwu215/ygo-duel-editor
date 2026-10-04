@@ -56,13 +56,13 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
         {cardName}
       </div>
 
-      {/* 攻守数值行 (仅怪兽，支持无限 ∞ 与变动高亮) */}
+      {/* 攻守数值行 (仅怪兽，支持无限与变动高亮) */}
       {isMonster && (
         <div className="font-mono text-center font-bold flex items-center justify-center gap-1">
           <span
             className={
               isAtkInf
-                ? 'text-amber-300 font-extrabold'
+                ? 'text-white font-extrabold'
                 : atkDiff > 0
                   ? 'text-emerald-400 font-extrabold'
                   : atkDiff < 0
@@ -70,10 +70,10 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
                     : 'text-white'
             }
           >
-            {isAtkInf ? '∞' : origAtk === -2 ? '?' : effectiveAtk}
+            {isAtkInf ? '无限' : origAtk === -2 ? '?' : effectiveAtk}
             {card.customAtk !== undefined && atkDiff !== 0 && (
               <span className="text-[8px] ml-0.5 opacity-90">
-                ({isAtkInf ? '+∞' : atkDiff > 0 ? `+${atkDiff}` : atkDiff})
+                ({isAtkInf ? '+无限' : atkDiff > 0 ? `+${atkDiff}` : atkDiff})
               </span>
             )}
           </span>
@@ -83,7 +83,7 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
               isLink
                 ? 'text-white/50'
                 : isDefInf
-                  ? 'text-amber-300 font-extrabold'
+                  ? 'text-white font-extrabold'
                   : defDiff > 0
                     ? 'text-emerald-400 font-extrabold'
                     : defDiff < 0
@@ -91,10 +91,10 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
                       : 'text-white'
             }
           >
-            {isLink ? '-' : isDefInf ? '∞' : origDef === -2 ? '?' : effectiveDef}
+            {isLink ? '-' : isDefInf ? '无限' : origDef === -2 ? '?' : effectiveDef}
             {!isLink && card.customDef !== undefined && defDiff !== 0 && (
               <span className="text-[8px] ml-0.5 opacity-90">
-                ({isDefInf ? '+∞' : defDiff > 0 ? `+${defDiff}` : defDiff})
+                ({isDefInf ? '+无限' : defDiff > 0 ? `+${defDiff}` : defDiff})
               </span>
             )}
           </span>

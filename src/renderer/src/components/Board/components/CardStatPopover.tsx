@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FieldCard, CardUtils, CardLocation, getCounterName, isInfiniteVal } from '@shared/index'
+import {
+  FieldCard,
+  CardUtils,
+  CardLocation,
+  getCounterName,
+  isInfiniteVal,
+  INFINITY_VALUE
+} from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { deduceSuggestedCounters } from '../../../utils/counterDeduce'
 import {
@@ -49,17 +56,17 @@ const OP_BUTTONS: {
   },
   {
     op: 'inf',
-    label: '∞ 无限',
+    label: '无限',
     activeClass:
-      'bg-amber-600 text-white border-amber-600 shadow-sm dark:bg-amber-500 dark:border-amber-500'
+      'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900 border-transparent shadow-sm'
   }
 ]
 
 /**
  * 单项攻守数值输入组件 (与生命值输入器完全一致)：
- * - 纯净数字输入框，聚焦时浮出与生命值相同的加减乘除四则运算面板，支持设为无限 (∞)
- * - 包含运算符选择条 [- 减] [+ 加] [÷ 除] [× 乘] [= 改] [∞ 无限]
- * - 包含实时算式解析状态与计算预览 (如 直接设为 1500 → 1500 ATK，或 → ∞ ATK)
+ * - 纯净数字输入框，聚焦时浮出与生命值相同的加减乘除四则运算面板，支持设为无限
+ * - 包含运算符选择条 [- 减] [+ 加] [÷ 除] [× 乘] [= 改] [无限]
+ * - 包含实时算式解析状态与计算预览 (如 直接设为 1500 → 1500 ATK，或 → 无限 ATK)
  * - 独立单项复原原本数值按钮 (纯刷新小图标，无冗余文字，不重叠)
  * - 无任何多余固定数值按钮
  */
@@ -83,20 +90,43 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
   const [isFocused, setIsFocused] = useState(false)
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const isCommittingRef = useRef(false)
 
   const isInf = isInfiniteVal(currentVal)
   const diff = isModified ? (isInf ? Infinity : currentVal - origVal) : 0
-  const displayValue = isFocused ? text : isInf ? '∞' : String(currentVal)
+  const displayValue = isFocused ? text : isInf ? '无限' : String(currentVal)
   const parseResult = parseLpExpression(displayValue, currentVal)
   const activeOp = detectCurrentOp(displayValue)
 
-  const handleCommit = (): void => {
-    if (parseResult.valid) {
-      const nextVal = Math.max(0, parseResult.result)
-      onCommit(nextVal === origVal ? undefined : nextVal)
-    }
+  // 保证 textRef 始终同步最新的 displayValue，防止闭包陈旧
+  const textRef = useRef(displayValue)
+  useEffect(() => {
+    textRef.current = displayValue
+  }, [displayValue])
+
+  const commitValue = (targetVal: number | undefined): void => {
+    if (isCommittingRef.current) return
+    isCommittingRef.current = true
+
+    onCommit(targetVal)
     setIsFocused(false)
     inputRef.current?.blur()
+
+    setTimeout(() => {
+      isCommittingRef.current = false
+    }, 120)
+  }
+
+  const handleCommit = (): void => {
+    if (isCommittingRef.current) return
+    const parsed = parseLpExpression(textRef.current, currentVal)
+    if (parsed.valid) {
+      const nextVal = Math.max(0, parsed.result)
+      commitValue(nextVal === origVal ? undefined : nextVal)
+    } else {
+      setIsFocused(false)
+      inputRef.current?.blur()
+    }
   }
 
   const handleCancel = (): void => {
@@ -114,14 +144,12 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
           <span
             className={cn(
               'text-[10px] font-mono font-bold px-1 rounded truncate',
-              isInf
-                ? 'text-amber-500 bg-amber-500/10'
-                : diff > 0
-                  ? 'text-emerald-500 bg-emerald-500/10'
-                  : 'text-rose-500 bg-rose-500/10'
+              isInf || diff > 0
+                ? 'text-emerald-500 bg-emerald-500/10'
+                : 'text-rose-500 bg-rose-500/10'
             )}
           >
-            {isInf ? '+∞' : diff > 0 ? `+${diff}` : diff}
+            {isInf ? '+无限' : diff > 0 ? `+${diff}` : diff}
           </span>
         )}
       </div>
@@ -133,9 +161,9 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
           <Button
             variant="ghost"
             size="icon-xs"
-            onClick={() => onCommit(undefined)}
+            onClick={() => commitValue(undefined)}
             title={`恢复原本${label} (${origVal === -2 ? '?' : origVal})`}
-            className="h-6 w-6 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 shrink-0"
+            className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </Button>
@@ -149,7 +177,9 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
           value={displayValue}
           onFocus={(e) => {
             setIsFocused(true)
-            setText(isInf ? '∞' : String(currentVal))
+            const initialText = isInf ? '无限' : String(currentVal)
+            setText(initialText)
+            textRef.current = initialText
             e.currentTarget.select()
           }}
           onBlur={() => {
@@ -157,6 +187,7 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
           }}
           onChange={(e) => {
             setText(e.target.value)
+            textRef.current = e.target.value
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -168,15 +199,15 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
             }
           }}
           className={cn(
-            'w-16 h-6 rounded border border-border/70 bg-background text-right font-mono font-bold text-xs px-1.5 select-all',
+            'w-16 h-6 rounded border border-border/70 bg-background text-right font-mono font-bold text-xs px-1.5 select-all text-foreground',
             'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 transition-colors',
-            isInf && !isFocused && 'text-amber-500 dark:text-amber-400 font-extrabold text-sm',
+            isInf && !isFocused && 'font-bold text-xs',
             isFocused &&
               parseResult.valid &&
               parseResult.result !== currentVal &&
               'border-blue-400/80 bg-blue-500/5'
           )}
-          title={`点击修改${label}：当前为 ${isInf ? '无限 (∞)' : currentVal}。直接输入数值或四则运算 (如 +500, /2, *2, inf, ∞)`}
+          title={`点击修改${label}：当前为 ${isInf ? '无限' : currentVal}。直接输入数值或四则运算 (如 +500, /2, *2, inf, 无限)`}
         />
 
         {/* 聚焦时浮出的四则运算选择面板与实时算式预览 (与生命值输入完全一致) */}
@@ -198,10 +229,14 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
                     type="button"
                     onClick={() => {
                       if (btn.op === 'inf') {
-                        setText('∞')
+                        setText('无限')
+                        textRef.current = '无限'
+                        commitValue(INFINITY_VALUE)
+                        return
                       } else {
                         const nextText = switchOperator(displayValue, btn.op, currentVal)
                         setText(nextText)
+                        textRef.current = nextText
                       }
                       inputRef.current?.focus()
                       setTimeout(() => {
@@ -236,26 +271,42 @@ const StatCalculatorRow: React.FC<StatCalculatorRowProps> = ({
               <span
                 className={cn(
                   'font-bold shrink-0 ml-1.5',
-                  isInfiniteVal(parseResult.result)
-                    ? 'text-amber-500 dark:text-amber-400 font-extrabold'
-                    : parseResult.valid
-                      ? 'text-blue-500 dark:text-blue-400'
-                      : 'text-muted-foreground text-[11px]'
+                  parseResult.valid ? 'text-foreground' : 'text-muted-foreground text-[11px]'
                 )}
               >
                 {parseResult.valid
-                  ? `→ ${isInfiniteVal(parseResult.result) ? '∞' : parseResult.result} ${label}`
+                  ? `→ ${isInfiniteVal(parseResult.result) ? '无限' : parseResult.result} ${label}`
                   : '等待输入'}
               </span>
             </div>
 
-            {/* 交互提示 */}
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground/75 px-0.5 pt-0.5 border-t border-border/40">
-              <span>点击运算符/无限或直接键入</span>
-              <span>
-                <kbd className="font-sans px-1 rounded bg-muted border border-border/40">Enter</kbd>{' '}
-                确认
+            {/* 交互提示与快捷操作按钮 */}
+            <div className="flex items-center justify-between pt-1 border-t border-border/40 gap-2">
+              <span className="text-[10px] text-muted-foreground/75 truncate">
+                输入后按 Enter 或点击确定
               </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-2 py-0.5 text-[10px] rounded border border-border/60 hover:bg-muted text-muted-foreground transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCommit}
+                  disabled={!parseResult.valid}
+                  className={cn(
+                    'px-2 py-0.5 text-[10px] font-bold rounded shadow-xs transition-colors',
+                    parseResult.valid
+                      ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                      : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
+                  )}
+                >
+                  确定
+                </button>
+              </div>
             </div>
           </div>
         )}

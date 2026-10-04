@@ -125,24 +125,35 @@ export const CardContextMenu: React.FC = () => {
   const isMonster = card.card ? (card.card.type & CardType.MONSTER) !== 0 : isMonsterZone
   const duelActionItems: MenuItemConfig[] = []
 
-  // 1. 发动效果 / 卡片 (手牌、怪兽区、魔陷区、墓地)
+  // 1. 发动效果 / 卡片 / 翻开发动
   if (isHand || isMonsterZone || isSpellTrapZone || card.location === CardLocation.GRAVE) {
+    const isFacedownST = isSpellTrapZone && Boolean(card.position & CardPosition.FACEDOWN)
     duelActionItems.push({
       icon: <Zap className="w-3.5 h-3.5 text-amber-500" />,
-      label:
-        currentChain > 0
+      label: isFacedownST
+        ? `⚡ 翻开发动 (Chain ${currentChain + 1})`
+        : currentChain > 0
           ? `⚡ 发动 (进入 Chain ${currentChain + 1})`
           : '⚡ 发动卡片/效果 (Chain 1)',
       action: act(() => executeActivateCard(card.instanceId))
     })
   }
 
-  // 2. 连锁响应 (手牌、怪兽区、魔陷区)
-  if (isHand || isMonsterZone || isSpellTrapZone) {
+  // 2. 连锁响应 (仅当已有连锁时显示，强化时序认知)
+  if ((isHand || isMonsterZone || isSpellTrapZone) && currentChain > 0) {
     duelActionItems.push({
       icon: <Layers className="w-3.5 h-3.5 text-teal-400" />,
-      label: `⛓ 连锁响应 (Chain ${Math.max(2, currentChain + 1)})`,
+      label: `⛓ 连锁响应 (Chain ${currentChain + 1})`,
       action: act(() => executeChainCard(card.instanceId))
+    })
+  }
+
+  // 2.5 里侧怪兽：反转召唤
+  if (isMonsterZone && card.position === CardPosition.FACEDOWN_DEFENSE) {
+    duelActionItems.push({
+      icon: <Sparkles className="w-3.5 h-3.5 text-yellow-400" />,
+      label: '☀️ 反转召唤 (表攻)',
+      action: act(() => updateCardPosition(card.instanceId, CardPosition.FACEUP_ATTACK))
     })
   }
 

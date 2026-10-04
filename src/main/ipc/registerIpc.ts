@@ -5,6 +5,7 @@ import { fileService } from '../services/fileService'
 import { configService } from '../services/configService'
 import { imageService } from '../services/imageService'
 import { deckService } from '../services/deckService'
+import { ocgcoreService } from '../services/ocgcoreService'
 
 export function registerAllIpcHandlers(): void {
   // CDB 数据库操作
@@ -51,6 +52,29 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('file:import-lua', async () => {
     return fileService.importLuaFile()
+  })
+
+  ipcMain.handle('file:export-screenplay-md', async (_, state: DuelPuzzleState) => {
+    return fileService.exportScreenplayFile(state)
+  })
+
+  // 规则引擎校验与探针
+  ipcMain.handle('ocgcore:test-run', async () => {
+    try {
+      const core = await ocgcoreService.getCore()
+      const [maj, min] = core.getVersion()
+      return {
+        success: true,
+        version: `${maj}.${min}`,
+        message: 'ocgcore-wasm 核心加载成功，随时可执行模拟与校验'
+      }
+    } catch (err: unknown) {
+      console.error('[registerIpc] ocgcore:test-run failed:', err)
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'ocgcore-wasm 加载失败'
+      }
+    }
   })
 
   // 项目工程保存打开

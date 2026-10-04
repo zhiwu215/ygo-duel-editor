@@ -24,6 +24,7 @@ import {
   Copy,
   Check,
   FileText,
+  Download,
   Layers,
   BrainCircuit,
   Lightbulb
@@ -182,6 +183,16 @@ export const DuelScreenplayModal: React.FC = () => {
     }
   }
 
+  const handleExportMarkdown = async (): Promise<void> => {
+    if (!window.api?.exportScreenplayFile) return
+    const res = await window.api.exportScreenplayFile(state)
+    if (res.success && res.filePath) {
+      alert(`决斗剧本台本已成功导出：\n${res.filePath}`)
+    } else if (res.error) {
+      alert(`导出失败: ${res.error}`)
+    }
+  }
+
   return (
     <div
       onMouseDown={(e) => e.stopPropagation()}
@@ -262,6 +273,18 @@ export const DuelScreenplayModal: React.FC = () => {
                   <span>复制台本</span>
                 </>
               )}
+            </Button>
+
+            {/* 导出 Markdown 剧本文档 */}
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => void handleExportMarkdown()}
+              className="h-7 text-xs font-bold gap-1.5 shadow-xs bg-amber-500 hover:bg-amber-600 text-neutral-950"
+              title="导出为标准同人决斗剧本 Markdown 文档 (.md)"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>导出 .md</span>
             </Button>
 
             <Button

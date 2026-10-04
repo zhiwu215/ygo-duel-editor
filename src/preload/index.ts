@@ -12,6 +12,9 @@ const api: IpcApi = {
   exportLuaFile: (state: DuelPuzzleState, targetPath?: string) =>
     ipcRenderer.invoke('file:export-lua', state, targetPath),
   importLuaFile: () => ipcRenderer.invoke('file:import-lua'),
+  exportScreenplayFile: (state: DuelPuzzleState) =>
+    ipcRenderer.invoke('file:export-screenplay-md', state),
+  testRunOcgcore: () => ipcRenderer.invoke('ocgcore:test-run'),
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   loadProjectFile: () => ipcRenderer.invoke('file:load-project'),

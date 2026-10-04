@@ -75,6 +75,17 @@ export interface IpcApi {
     targetPath?: string
   ) => Promise<{ success: boolean; filePath?: string; error?: string }>
   importLuaFile: () => Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }>
+  exportScreenplayFile: (
+    state: DuelPuzzleState
+  ) => Promise<{ success: boolean; filePath?: string; error?: string }>
+
+  // 规则引擎校验与模拟
+  testRunOcgcore: () => Promise<{
+    success: boolean
+    version?: string
+    message?: string
+    error?: string
+  }>
 
   // 工程保存与打开
   saveProjectFile: (state: DuelPuzzleState) => Promise<{ success: boolean; filePath?: string }>

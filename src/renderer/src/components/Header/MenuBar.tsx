@@ -18,7 +18,8 @@ import {
   Info,
   Check,
   Coffee,
-  BookOpen
+  BookOpen,
+  FileText
 } from 'lucide-react'
 import wechatQr from '../../REMOVED'
 import alipayQr from '../../REMOVED'
@@ -33,6 +34,7 @@ interface MenuBarProps {
   onSaveProject: () => void
   onImportLua: () => void
   onExportLua: () => void
+  onExportScreenplay?: () => void
 }
 
 interface MenuItemDef {
@@ -60,7 +62,8 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   onOpenProject,
   onSaveProject,
   onImportLua,
-  onExportLua
+  onExportLua,
+  onExportScreenplay
 }) => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
@@ -132,6 +135,11 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           icon: Download,
           shortcut: 'Ctrl+E',
           action: onExportLua
+        },
+        {
+          label: '导出同人剧本台本 (.md)',
+          icon: FileText,
+          action: onExportScreenplay
         }
       ]
     },

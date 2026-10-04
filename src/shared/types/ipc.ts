@@ -1,6 +1,7 @@
 import { CdbCard } from './card'
 import { DuelPuzzleState } from './duel'
 import { DeckData } from './deck'
+import { DuelPhase, DuelActionType } from './story'
 
 /**
  * 卡片检索查询参数
@@ -46,7 +47,106 @@ export interface CardSearchResult {
 }
 
 /**
- * 用户配置
+ * AI 决斗顾问大模型配置
+ */
+export interface AgentModelConfig {
+  provider?: string
+  baseUrl: string
+  apiKey: string
+  /** 模型名称 */
+  model: string
+  /** 自定义系统提示词 */
+  systemPrompt?: string
+  /** 是否启用深度思考/推理模式 */
+  enableReasoning?: boolean
+}
+
+/**
+ * AI 结构化步骤提案 (与 DuelStep 对齐，可一键导入对局)
+ */
+export interface AgentStepProposal {
+  /** 回合数 (从 1 开始计数) */
+  turn: number
+  /** 决斗阶段 (DP / SP / M1 / BP / M2 / EP) */
+  phase: DuelPhase
+  /** 行动者控制者：0 = 我方，1 = 对方 */
+  actionPlayer: 0 | 1
+  /** 决斗动作类型 */
+  actionType: DuelActionType
+  /** 涉及卡片的卡密 */
+  cardCode?: number
+  /** 涉及卡片的中文名称 */
+  cardName?: string
+  /** 说话者角色名称 */
+  speaker?: string
+  /** 角色台词或招式宣言 */
+  dialogue?: string
+  /** 角色内心独白与战术考量 */
+  innerThoughts?: string
+  /** 战术动作具体描述与效果逻辑说明 */
+  description?: string
+  /** 连锁层级序号 (如 C1 / C2) */
+  chainIndex?: number
+  /** 动作导致的生命值数值变动 */
+  lpChange?: {
+    /** 发生生命值变动的玩家：0 = 我方，1 = 对方 */
+    player: 0 | 1
+    /** 变更前生命值 */
+    oldLp: number
+    /** 变更后生命值 */
+    newLp: number
+  }
+}
+
+/**
+ * AI 流式推送事件
+ */
+export type AgentStreamEvent =
+  /** 深度思考推理链增量字符（如 DeepSeek-R1 的思考过程） */
+  | { type: 'thinking_delta'; delta: string }
+  /** 回答正文的打字机增量字符 */
+  | { type: 'text_delta'; delta: string }
+  /** 工具调用开始（如检索卡库、读取盘面、规则引擎校验） */
+  | { type: 'tool_call_start'; id: string; toolName: string; params: Record<string, unknown> }
+  /** 工具调用结束并返回执行结果摘要 */
+  | { type: 'tool_call_end'; id: string; toolName: string; resultSummary: string }
+  /** AI 构思好的决斗推演步骤与角色台词提案已就绪 */
+  | { type: 'proposals_ready'; proposals: AgentStepProposal[] }
+  /** 生成过程中发生异常或被用户手动中断 */
+  | { type: 'error'; message: string }
+  /** 全流程生成结束，返回完整文本与最终步骤提案 */
+  | { type: 'done'; fullText: string; proposals: AgentStepProposal[] }
+
+/**
+ * 发送给 AI 的消息参数
+ */
+export interface AgentSendMessageParams {
+  /** 提示词 */
+  prompt: string
+  /** 当前决斗场面的完整快照，传入后 AI 可感知双方场上卡片、手牌与生命值 */
+  boardState?: DuelPuzzleState
+  /** 临时覆盖的大模型调用配置 */
+  configOverride?: Partial<AgentModelConfig>
+}
+
+/**
+ * AI 顾问消息响应结果
+ */
+export interface AgentSendMessageResult {
+  /** 调用是否成功 */
+  success: boolean
+  /** AI 生成的最终正文回复内容 */
+  content?: string
+  /** AI 模型的深度思考与推理过程（若启用） */
+  thought?: string
+  /** AI 生成的结构化决斗推演步骤列表，可一键导入对局 */
+  proposals?: AgentStepProposal[]
+  /** 失败时的错误信息说明 */
+  error?: string
+}
+
+/**
+ * 软件全局配置
  */
 export interface AppConfig {
   /** ygopro等的安装根目录 */
@@ -57,6 +157,8 @@ export interface AppConfig {
   theme: 'dark' | 'light'
   /** 收藏的卡密列表 */
   favorites?: number[]
+  /** AI 决斗编排顾问模型配置 */
+  agentConfig?: AgentModelConfig
 }
 
 /**
@@ -125,4 +227,9 @@ export interface IpcApi {
   getFavorites: () => Promise<number[]>
   toggleFavorite: (code: number) => Promise<{ isFavorite: boolean; favorites: number[] }>
   onFavoritesChanged: (callback: (favorites: number[]) => void) => () => void
+
+  // AI 决斗编排与剧本顾问
+  agentSendMessage: (params: AgentSendMessageParams) => Promise<AgentSendMessageResult>
+  agentAbort: () => Promise<boolean>
+  onAgentEvent: (callback: (event: AgentStreamEvent) => void) => () => void
 }

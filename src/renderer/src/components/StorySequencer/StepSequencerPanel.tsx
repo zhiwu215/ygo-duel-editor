@@ -63,8 +63,19 @@ const COMMONLY_USED_LOCATIONS: { loc: number; name: string }[] = [
   { loc: CardLocation.DECK, name: '主卡组' },
   { loc: CardLocation.EXTRA, name: '额外卡组' },
   { loc: CardLocation.REMOVED, name: '除外区' },
-  { loc: CardLocation.FZONE, name: '场地魔法区' }
+  { loc: CardLocation.FZONE, name: '场地魔法区' },
+  { loc: CardLocation.PZONE, name: '灵摆区' }
 ]
+
+function getLocationDisplayName(loc?: number, seq?: number): string {
+  if (loc === undefined) return ''
+  if (loc === CardLocation.MZONE && (seq === 5 || seq === 6)) {
+    return `EX怪兽区${seq === 5 ? '1' : '2'}`
+  }
+  const match = COMMONLY_USED_LOCATIONS.find((l) => l.loc === loc)
+  if (match) return match.name
+  return '未知区域'
+}
 
 export const StepSequencerPanel: React.FC = () => {
   const {
@@ -73,13 +84,16 @@ export const StepSequencerPanel: React.FC = () => {
     currentTurn,
     currentPhase,
     currentChain,
+    activeTurnPlayer,
     isAutoRecording,
     setCurrentPhase,
     resetChain,
     nextPhase,
     nextTurn,
+    setActiveTurnPlayer,
     setIsAutoRecording,
-    setCurrentStepIndex,
+    previewStepBoard,
+    setHoveredInstanceId,
     addStep,
     updateStep,
     deleteStep,
@@ -197,25 +211,25 @@ export const StepSequencerPanel: React.FC = () => {
     setShowAddModal(false)
   }
 
-  // 模拟播放控制 (上一步 / 下一步)
+  // 真实播放推演控制 (上一步 / 下一步 / 复位)
   const handlePrevStep = (): void => {
     if (currentStepIndex === null) {
-      setCurrentStepIndex(steps.length - 1)
+      previewStepBoard(steps.length - 1)
     } else if (currentStepIndex > 0) {
-      setCurrentStepIndex(currentStepIndex - 1)
+      previewStepBoard(currentStepIndex - 1)
     }
   }
 
   const handleNextStep = (): void => {
     if (currentStepIndex === null) {
-      setCurrentStepIndex(0)
+      previewStepBoard(0)
     } else if (currentStepIndex < steps.length - 1) {
-      setCurrentStepIndex(currentStepIndex + 1)
+      previewStepBoard(currentStepIndex + 1)
     }
   }
 
   const handleResetPlayback = (): void => {
-    setCurrentStepIndex(null)
+    previewStepBoard(null)
   }
 
   return (
@@ -280,16 +294,16 @@ export const StepSequencerPanel: React.FC = () => {
             <span className="font-extrabold text-xs text-foreground">第 {currentTurn} 回合</span>
             <Badge
               variant="outline"
-              onClick={() => useDuelStore.getState().setTurnPlayer(state.turnPlayer === 0 ? 1 : 0)}
-              title="点击切换当前回合方 (我方 / 对方)"
+              onClick={() => setActiveTurnPlayer(activeTurnPlayer === 0 ? 1 : 0)}
+              title="点击切换当前行动方 (我方 / 对方)"
               className={cn(
                 'text-[10px] px-1.5 py-0 cursor-pointer font-bold transition-colors',
-                state.turnPlayer === 0
+                activeTurnPlayer === 0
                   ? 'border-blue-500/50 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20'
                   : 'border-rose-500/50 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20'
               )}
             >
-              {state.turnPlayer === 0 ? '我方回合' : '对方回合'}
+              {activeTurnPlayer === 0 ? '我方行动' : '对方行动'}
             </Badge>
           </div>
 
@@ -430,14 +444,8 @@ export const StepSequencerPanel: React.FC = () => {
             const isCurrentPlaying = currentStepIndex === index
 
             // 移动路线描述
-            const fromName =
-              step.fromLocation !== undefined
-                ? COMMONLY_USED_LOCATIONS.find((l) => l.loc === step.fromLocation)?.name || '原处'
-                : ''
-            const toName =
-              step.toLocation !== undefined
-                ? COMMONLY_USED_LOCATIONS.find((l) => l.loc === step.toLocation)?.name || '目标'
-                : ''
+            const fromName = getLocationDisplayName(step.fromLocation, step.fromSequence)
+            const toName = getLocationDisplayName(step.toLocation, step.toSequence)
 
             return (
               <div key={step.id} className="flex flex-col gap-1.5">
@@ -473,7 +481,11 @@ export const StepSequencerPanel: React.FC = () => {
 
                 {/* 2.3 动作卡片本体 (Action Block) */}
                 <div
-                  onClick={() => setCurrentStepIndex(index)}
+                  onClick={() => previewStepBoard(index)}
+                  onMouseEnter={() => {
+                    if (step.instanceId) setHoveredInstanceId(step.instanceId)
+                  }}
+                  onMouseLeave={() => setHoveredInstanceId(null)}
                   className={cn(
                     'group relative flex flex-col gap-1.5 p-2 rounded-lg border transition-all cursor-pointer select-none',
                     isCurrentPlaying
@@ -696,7 +708,7 @@ export const StepSequencerPanel: React.FC = () => {
             size="icon-xs"
             variant="ghost"
             disabled={steps.length === 0 || currentStepIndex === steps.length - 1}
-            onClick={() => setCurrentStepIndex(steps.length - 1)}
+            onClick={() => previewStepBoard(steps.length - 1)}
             title="跳至最后一步"
             className="h-7 w-7 text-muted-foreground"
           >

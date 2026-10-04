@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react'
-import { isInfiniteVal } from '@shared/index'
+import React, { useState, useRef, useEffect } from 'react'
+import { isInfiniteVal, INFINITY_VALUE } from '@shared/index'
 import {
   parseLpExpression,
   detectCurrentOp,
@@ -47,18 +47,18 @@ const OP_BUTTONS: {
   },
   {
     op: 'inf',
-    label: '∞ 无限',
+    label: '无限',
     activeClass:
-      'bg-amber-600 text-white border-amber-600 shadow-sm dark:bg-amber-500 dark:border-amber-500'
+      'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900 border-transparent shadow-sm'
   }
 ]
 
 /**
  * 决斗生命值计算器输入组件：
- * - 纯净文本框，无原生微调箭头，支持显示无限生命值 (∞)
+ * - 纯净文本框，无原生微调箭头，支持显示无限生命值 (无限)
  * - 点击聚焦浮出加减乘除四则运算与无限设置面板
  * - 支持点击选择 [减/加/除/乘/改/无限] 后直接输入自选数值或一键设为无限
- * - 支持直接从键盘键入任意数值、算式或 inf/∞ (如 -1100, /2, 4000, inf)
+ * - 支持直接从键盘键入任意数值、算式或 无限/inf (如 -1100, /2, 4000, inf, 无限)
  * - 实时显示公式计算结果，按 Enter 提交
  */
 export const LpInput: React.FC<LpInputProps> = ({
@@ -75,18 +75,43 @@ export const LpInput: React.FC<LpInputProps> = ({
   const [isFocused, setIsFocused] = useState(false)
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const isCommittingRef = useRef(false)
 
-  // 未聚焦时直接展示外部传入的最新 lp (若为无限则展示 ∞)；聚焦时使用编辑草稿 text
-  const displayValue = isFocused ? text : isInfiniteVal(lp) ? '∞' : String(lp)
+  // 未聚焦时直接展示外部传入的最新 lp (若为无限则展示 '无限')；聚焦时使用编辑草稿 text
+  const displayValue = isFocused ? text : isInfiniteVal(lp) ? '无限' : String(lp)
   const parseResult = parseLpExpression(displayValue, lp)
   const activeOp = detectCurrentOp(displayValue)
 
-  const handleCommit = (): void => {
-    if (parseResult.valid && parseResult.result !== lp) {
-      onLpChange(parseResult.result)
+  // 保证 textRef 始终同步最新的 displayValue，防止闭包陈旧
+  const textRef = useRef(displayValue)
+  useEffect(() => {
+    textRef.current = displayValue
+  }, [displayValue])
+
+  const commitValue = (targetVal: number): void => {
+    if (isCommittingRef.current) return
+    isCommittingRef.current = true
+
+    if (targetVal !== lp) {
+      onLpChange(targetVal)
     }
     setIsFocused(false)
     inputRef.current?.blur()
+
+    setTimeout(() => {
+      isCommittingRef.current = false
+    }, 120)
+  }
+
+  const handleCommit = (): void => {
+    if (isCommittingRef.current) return
+    const parsed = parseLpExpression(textRef.current, lp)
+    if (parsed.valid) {
+      commitValue(parsed.result)
+    } else {
+      setIsFocused(false)
+      inputRef.current?.blur()
+    }
   }
 
   const handleCancel = (): void => {
@@ -119,7 +144,9 @@ export const LpInput: React.FC<LpInputProps> = ({
         value={displayValue}
         onFocus={(e) => {
           setIsFocused(true)
-          setText(isInfiniteVal(lp) ? '∞' : String(lp))
+          const initialText = isInfiniteVal(lp) ? '无限' : String(lp)
+          setText(initialText)
+          textRef.current = initialText
           e.currentTarget.select()
         }}
         onBlur={() => {
@@ -127,6 +154,7 @@ export const LpInput: React.FC<LpInputProps> = ({
         }}
         onChange={(e) => {
           setText(e.target.value)
+          textRef.current = e.target.value
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
@@ -139,9 +167,9 @@ export const LpInput: React.FC<LpInputProps> = ({
         }}
         className={cn(
           size === 'sm' ? 'w-14 h-4.5 text-[10px] px-1' : 'w-16 h-6 text-xs px-1.5',
-          'rounded border border-border/60 bg-background/60 text-right font-mono font-medium select-all',
+          'rounded border border-border/60 bg-background/60 text-right font-mono font-medium select-all text-foreground',
           'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 transition-colors',
-          isInfiniteVal(lp) && !isFocused && 'text-amber-500 dark:text-amber-400 font-extrabold',
+          isInfiniteVal(lp) && !isFocused && 'font-bold',
           isFocused &&
             parseResult.valid &&
             parseResult.result !== lp &&
@@ -149,8 +177,8 @@ export const LpInput: React.FC<LpInputProps> = ({
         )}
         title={
           label
-            ? `${label}：${isInfiniteVal(lp) ? '无限 (∞)' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`
-            : `生命值：${isInfiniteVal(lp) ? '无限 (∞)' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`
+            ? `${label}：${isInfiniteVal(lp) ? '无限' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`
+            : `生命值：${isInfiniteVal(lp) ? '无限' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`
         }
       />
 
@@ -177,11 +205,14 @@ export const LpInput: React.FC<LpInputProps> = ({
                   type="button"
                   onClick={() => {
                     if (btn.op === 'inf') {
-                      setText('∞')
-                    } else {
-                      const nextText = switchOperator(displayValue, btn.op, lp)
-                      setText(nextText)
+                      setText('无限')
+                      textRef.current = '无限'
+                      commitValue(INFINITY_VALUE)
+                      return
                     }
+                    const nextText = switchOperator(displayValue, btn.op, lp)
+                    setText(nextText)
+                    textRef.current = nextText
                     inputRef.current?.focus()
                     setTimeout(() => {
                       if (inputRef.current) {
@@ -215,28 +246,42 @@ export const LpInput: React.FC<LpInputProps> = ({
             <span
               className={cn(
                 'font-bold shrink-0 ml-1.5',
-                isInfiniteVal(parseResult.result)
-                  ? 'text-amber-500 dark:text-amber-400 font-extrabold'
-                  : parseResult.valid
-                    ? 'text-blue-500 dark:text-blue-400'
-                    : 'text-muted-foreground text-[10px]'
+                parseResult.valid ? 'text-foreground' : 'text-muted-foreground text-[10px]'
               )}
             >
               {parseResult.valid
-                ? `→ ${isInfiniteVal(parseResult.result) ? '∞' : parseResult.result} LP`
+                ? `→ ${isInfiniteVal(parseResult.result) ? '无限' : parseResult.result} LP`
                 : '等待输入'}
             </span>
           </div>
 
-          {/* 交互提示 */}
-          <div className="flex items-center justify-between text-[9px] text-muted-foreground/75 px-0.5 pt-0.5 border-t border-border/40">
-            <span>点击运算符/无限或直接键入</span>
-            <span>
-              <kbd className="font-sans px-1 rounded bg-muted border border-border/40 text-[9px]">
-                Enter
-              </kbd>{' '}
-              确认
+          {/* 交互提示与快捷操作按钮 */}
+          <div className="flex items-center justify-between pt-1 border-t border-border/40 gap-2">
+            <span className="text-[9px] text-muted-foreground/75 truncate">
+              输入后按 Enter 或点击确定
             </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-2 py-0.5 text-[10px] rounded border border-border/60 hover:bg-muted text-muted-foreground transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleCommit}
+                disabled={!parseResult.valid}
+                className={cn(
+                  'px-2 py-0.5 text-[10px] font-bold rounded shadow-xs transition-colors',
+                  parseResult.valid
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                    : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
+                )}
+              >
+                确定
+              </button>
+            </div>
           </div>
         </div>
       )}

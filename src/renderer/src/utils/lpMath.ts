@@ -86,7 +86,12 @@ export function safeEvalMath(expr: string): number | null {
  */
 export function parseLpExpression(rawInput: string, currentLp: number): LpParseResult {
   // 规范化输入：将全角或常见符号统一为标准运算符与无限符号
-  const input = rawInput.trim().replace(/÷/g, '/').replace(/[×xX]/g, '*')
+  let input = rawInput.trim().replace(/÷/g, '/').replace(/[×xX]/g, '*')
+
+  // 兼容用户直接输入带等号的改写格式 (如 "=4000" 或 "= 8000")
+  if (input.startsWith('=')) {
+    input = input.slice(1).trim()
+  }
 
   if (!input) {
     return { valid: false, result: currentLp, formula: '请输入数值或算式', mode: 'invalid' }
@@ -103,7 +108,7 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
     return {
       valid: true,
       result: INFINITY_VALUE,
-      formula: '设为 无限 (∞)',
+      formula: '设为 无限',
       mode: 'direct'
     }
   }
@@ -116,7 +121,7 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
 
     if (!rest) {
       const opName = op === '-' ? '扣除' : op === '+' ? '增加' : op === '/' ? '除以' : '乘'
-      const baseDesc = isInfiniteVal(currentLp) ? '∞' : String(currentLp)
+      const baseDesc = isInfiniteVal(currentLp) ? '无限' : String(currentLp)
       return {
         valid: false,
         result: currentLp,
@@ -125,7 +130,7 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
       }
     }
 
-    // 相对算式中指定无限 (如 +∞, +inf)
+    // 相对算式中指定无限 (如 +无限, +inf)
     const isRestInfinity =
       rest === '∞' ||
       rest.toLowerCase() === 'inf' ||
@@ -144,7 +149,7 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
       return {
         valid: true,
         result: INFINITY_VALUE,
-        formula: '增加至 无限 (∞)',
+        formula: '增加至 无限',
         mode: 'relative'
       }
     }
@@ -154,7 +159,7 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
       return {
         valid: true,
         result: INFINITY_VALUE,
-        formula: `∞ ${opSymbol} ${rest} (仍为无限)`,
+        formula: `无限 ${opSymbol} ${rest} (仍为无限)`,
         mode: 'relative'
       }
     }
@@ -180,7 +185,7 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
       return {
         valid: true,
         result: INFINITY_VALUE,
-        formula: '设为 无限 (∞)',
+        formula: '设为 无限',
         mode: 'direct'
       }
     }
@@ -229,11 +234,11 @@ export function detectCurrentOp(rawInput: string): LpOperator {
  */
 export function switchOperator(currentText: string, newOp: LpOperator, currentLp: number): string {
   if (newOp === 'inf') {
-    return '∞'
+    return '无限'
   }
 
   const trimmed = currentText.trim()
-  const isCurrentInf = trimmed === '∞' || isInfiniteVal(currentLp)
+  const isCurrentInf = trimmed === '∞' || trimmed === '无限' || isInfiniteVal(currentLp)
 
   // 如果当前是无限，或者初始完整数值/空
   if (isCurrentInf || trimmed === String(currentLp) || !trimmed) {

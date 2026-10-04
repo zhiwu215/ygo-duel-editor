@@ -26,34 +26,60 @@ export const PHASE_SHORT_NAMES: Record<DuelPhase, string> = {
  */
 export type DuelActionType =
   | 'DRAW' // 抽卡
+  | 'SEARCH' // 检索 (从卡组加入手牌)
+  | 'SALVAGE' // 回收 (从墓地/除外加入手牌)
   | 'NORMAL_SUMMON' // 通常召唤
   | 'SPECIAL_SUMMON' // 特殊召唤
+  | 'FLIP_SUMMON' // 反转召唤
+  | 'XYZ_SUMMON' // 超量召唤 (叠放)
+  | 'DETACH_MATERIAL' // 取除超量素材
   | 'SET_MONSTER' // 盖放怪兽
   | 'SET_SPELL_TRAP' // 盖放魔陷
   | 'ACTIVATE' // 发动效果 / 发动卡片
+  | 'ACTIVATE_FIELD' // 发动场地魔法
+  | 'SET_PENDULUM' // 设置灵摆刻度
   | 'ATTACK' // 攻击宣言
   | 'TO_GRAVE' // 送去墓地 / 破坏
+  | 'SEND_TO_GRAVE' // 从卡组送入墓地 (堆墓)
   | 'BANISH' // 除外
   | 'TO_HAND' // 加入手牌 / 弹回
+  | 'TO_DECK' // 返回卡组 / 额外卡组
   | 'CHANGE_POS' // 变更表示形式
-  | 'DAMAGE' // 生命值变动 / 伤害
+  | 'DAMAGE' // 生命值削减 / 伤害
+  | 'RECOVER' // 生命值回复
   | 'CHAIN' // 连锁响应
+  | 'RESOLVE_CHAIN' // 连锁结算
+  | 'PHASE_CHANGE' // 阶段切换
+  | 'TURN_CHANGE' // 回合切换
   | 'DIALOGUE' // 纯剧情对白 / 演出解说
 
 export const ACTION_TYPE_NAMES: Record<DuelActionType, string> = {
   DRAW: '抽卡',
+  SEARCH: '检索',
+  SALVAGE: '回收',
   NORMAL_SUMMON: '通常召唤',
   SPECIAL_SUMMON: '特殊召唤',
+  FLIP_SUMMON: '反转召唤',
+  XYZ_SUMMON: '超量召唤',
+  DETACH_MATERIAL: '取除素材',
   SET_MONSTER: '盖放怪兽',
   SET_SPELL_TRAP: '盖放魔陷',
   ACTIVATE: '发动',
+  ACTIVATE_FIELD: '发动场地',
+  SET_PENDULUM: '设置灵摆',
   ATTACK: '攻击宣言',
   TO_GRAVE: '送去墓地',
+  SEND_TO_GRAVE: '卡组堆墓',
   BANISH: '除外',
   TO_HAND: '加入手牌',
+  TO_DECK: '返回卡组',
   CHANGE_POS: '变更表示形式',
-  DAMAGE: '生命值变化',
+  DAMAGE: '受到伤害',
+  RECOVER: '生命回复',
   CHAIN: '连锁',
+  RESOLVE_CHAIN: '连锁结算',
+  PHASE_CHANGE: '阶段更替',
+  TURN_CHANGE: '回合更替',
   DIALOGUE: '剧情对白'
 }
 
@@ -65,23 +91,61 @@ export const ACTION_TYPE_COLORS: Record<
   { bg: string; text: string; border: string }
 > = {
   DRAW: { bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30' },
+  SEARCH: { bg: 'bg-indigo-500/15', text: 'text-indigo-400', border: 'border-indigo-500/30' },
+  SALVAGE: { bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30' },
   NORMAL_SUMMON: { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
   SPECIAL_SUMMON: {
     bg: 'bg-emerald-500/15',
     text: 'text-emerald-400',
     border: 'border-emerald-500/30'
   },
+  FLIP_SUMMON: { bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30' },
+  XYZ_SUMMON: { bg: 'bg-slate-500/20', text: 'text-slate-300', border: 'border-slate-400/40' },
+  DETACH_MATERIAL: { bg: 'bg-zinc-500/20', text: 'text-zinc-300', border: 'border-zinc-400/40' },
   SET_MONSTER: { bg: 'bg-stone-500/15', text: 'text-stone-300', border: 'border-stone-500/30' },
   SET_SPELL_TRAP: { bg: 'bg-stone-500/15', text: 'text-stone-300', border: 'border-stone-500/30' },
   ACTIVATE: { bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30' },
+  ACTIVATE_FIELD: { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/30' },
+  SET_PENDULUM: { bg: 'bg-violet-500/15', text: 'text-violet-400', border: 'border-violet-500/30' },
   ATTACK: { bg: 'bg-rose-500/15', text: 'text-rose-400', border: 'border-rose-500/30' },
   TO_GRAVE: { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30' },
+  SEND_TO_GRAVE: {
+    bg: 'bg-purple-500/15',
+    text: 'text-purple-400',
+    border: 'border-purple-500/30'
+  },
   BANISH: { bg: 'bg-pink-500/15', text: 'text-pink-400', border: 'border-pink-500/30' },
   TO_HAND: { bg: 'bg-sky-500/15', text: 'text-sky-400', border: 'border-sky-500/30' },
+  TO_DECK: { bg: 'bg-blue-600/15', text: 'text-blue-300', border: 'border-blue-600/30' },
   CHANGE_POS: { bg: 'bg-indigo-500/15', text: 'text-indigo-400', border: 'border-indigo-500/30' },
-  DAMAGE: { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/30' },
+  DAMAGE: { bg: 'bg-rose-600/15', text: 'text-rose-400', border: 'border-rose-600/30' },
+  RECOVER: { bg: 'bg-emerald-600/15', text: 'text-emerald-300', border: 'border-emerald-600/30' },
   CHAIN: { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/30' },
+  RESOLVE_CHAIN: {
+    bg: 'bg-emerald-500/15',
+    text: 'text-emerald-400',
+    border: 'border-emerald-500/30'
+  },
+  PHASE_CHANGE: { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border' },
+  TURN_CHANGE: { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border' },
   DIALOGUE: { bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30' }
+}
+
+/**
+ * 盘面卡片轻量快照 (用于每步推演回放与盘面还原，避免序列化庞大的 CDB 详情)
+ */
+export interface LightweightCardSnapshot {
+  instanceId: string
+  code: number
+  controller: 0 | 1
+  owner?: 0 | 1
+  location: number
+  sequence: number
+  position: number
+  overlayMaterials: number[]
+  duelistId?: string
+  customAtk?: number
+  customDef?: number
 }
 
 /**
@@ -94,6 +158,7 @@ export interface DuelStep {
   phase: DuelPhase // 阶段 (DP/SP/M1/BP/M2/EP)
   actionPlayer: 0 | 1 // 执行此动作的玩家 (0: 我方, 1: 对方)
   actionType: DuelActionType // 动作类型
+  instanceId?: string // 涉及卡片场上唯一实例 ID (可用于双向点击高亮与回放关联)
   cardCode?: number // 涉及卡片 (8位卡密)
   cardName?: string // 卡名快照缓存
   fromLocation?: number // 来源区域 (CardLocation: HAND/MZONE/DECK 等)
@@ -105,4 +170,6 @@ export interface DuelStep {
   dialogue?: string // 剧情对白 / 台词口播
   innerThoughts?: string // 内心独白 / 心理戏 (可选)
   description?: string // 步骤战术讲解 / 批注
+  boardAfter?: LightweightCardSnapshot[] // 执行此步骤后局面的盘面卡片轻量快照 (用于上一步/下一步真实回放)
+  lpChange?: { player: 0 | 1; oldLp: number; newLp: number } // 生命值变动数据 (伤害/回复)
 }

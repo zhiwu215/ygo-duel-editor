@@ -51,6 +51,7 @@ export const DuelScreenplayModal: React.FC = () => {
     selectedStepId,
     setIsScreenplayOpen,
     setSelectedStepId,
+    previewStepBoard,
     addStep,
     updateStep,
     deleteStep
@@ -72,7 +73,14 @@ export const DuelScreenplayModal: React.FC = () => {
     }
   }, [isScreenplayOpen, selectedStepId, steps, setSelectedStepId])
 
-  // 按 Esc 键关闭
+  // 当在台本窗口中选中步骤时，联动推演决斗盘面至该步骤时刻
+  useEffect(() => {
+    if (isScreenplayOpen && activeStepIndex >= 0) {
+      previewStepBoard(activeStepIndex)
+    }
+  }, [isScreenplayOpen, activeStepIndex, previewStepBoard])
+
+  // 按 Esc 键关闭与上下步快捷键
   useEffect(() => {
     if (!isScreenplayOpen) return
     const handleKeyDown = (e: KeyboardEvent): void => {

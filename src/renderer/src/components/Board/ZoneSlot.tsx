@@ -44,21 +44,21 @@ interface VariantConfig {
   icon: React.ComponentType<{ className?: string }>
 }
 
-// 中性统一基调：槽位本体一律中性深浅适配，区域类型靠图标+标签区分；
+// 中性统一基调：槽位本体具备清晰的桌垫槽位质感，区域类型靠图标+标签区分；
 // 语义例外仅有 EMZ（虚线蓝调 + 微弱氛围光）与灵摆刻度角标（pmark 着色）
 const NEUTRAL_BASE = {
-  border: 'border-border hover:border-blue-400/70',
-  bg: 'bg-muted/40 dark:bg-white/[0.04]',
-  shadow: '',
+  border: 'border-neutral-300/90 dark:border-neutral-700/80 hover:border-blue-400/80',
+  bg: 'bg-neutral-100/75 dark:bg-white/[0.05]',
+  shadow: 'shadow-2xs',
   text: 'text-muted-foreground/90'
 }
 
 const EMZ_BASE = {
-  border: 'border-blue-500/40 border-dashed hover:border-blue-500/80',
-  bg: 'bg-blue-500/[0.06] dark:bg-cyan-400/[0.05]',
+  border: 'border-blue-500/50 border-dashed hover:border-blue-500/90',
+  bg: 'bg-blue-500/[0.08] dark:bg-cyan-400/[0.08]',
   // 特殊区域常驻微弱氛围光
-  shadow: 'shadow-[0_0_10px_rgba(59,130,246,0.08)]',
-  text: 'text-blue-600/90 dark:text-cyan-200/90'
+  shadow: 'shadow-[0_0_10px_rgba(59,130,246,0.12)]',
+  text: 'text-blue-600 dark:text-cyan-200'
 }
 
 const VARIANT_CONFIGS: Record<ZoneColorVariant, VariantConfig> = {

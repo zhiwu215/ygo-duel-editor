@@ -1,5 +1,6 @@
 import { CdbCard } from './card'
 import { DuelPuzzleState } from './duel'
+import { DeckData } from './deck'
 
 /**
  * 卡片检索查询参数
@@ -54,6 +55,8 @@ export interface AppConfig {
   cdbPath?: string
   /** 主题 */
   theme: 'dark' | 'light'
+  /** 收藏的卡密列表 */
+  favorites?: number[]
 }
 
 /**
@@ -84,4 +87,27 @@ export interface IpcApi {
 
   // 本地卡图路径查询
   getCardImagePath: (code: number, small?: boolean) => Promise<string | null>
+
+  // 卡组编辑器独立窗口与卡组文件
+  openDeckEditor: () => Promise<void>
+  saveDeckFile: (deck: DeckData) => Promise<{ success: boolean; filePath?: string; error?: string }>
+  loadDeckFile: () => Promise<{
+    success: boolean
+    deck?: DeckData
+    filePath?: string
+    error?: string
+  }>
+  applyDeckToDuel: (params: {
+    player: 0 | 1
+    deck: DeckData
+    drawCount?: number
+  }) => Promise<boolean>
+  onApplyDeckToDuel: (
+    callback: (params: { player: 0 | 1; deck: DeckData; drawCount?: number }) => void
+  ) => () => void
+
+  // 卡片收藏
+  getFavorites: () => Promise<number[]>
+  toggleFavorite: (code: number) => Promise<{ isFavorite: boolean; favorites: number[] }>
+  onFavoritesChanged: (callback: (favorites: number[]) => void) => () => void
 }

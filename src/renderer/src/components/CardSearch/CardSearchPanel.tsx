@@ -7,10 +7,12 @@ import {
   ChevronRight,
   RotateCcw,
   Sparkles,
+  Star,
   X
 } from 'lucide-react'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useFavoritesStore } from '../../stores/useFavoritesStore'
 import { CdbCard } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
@@ -45,6 +47,7 @@ export const CardSearchPanel: React.FC = () => {
   } = useCardSearchStore()
 
   const { setHoveredCard } = useDuelStore()
+  const { isFavorite, toggleFavorite } = useFavoritesStore()
   const [localKw, setLocalKw] = useState(keyword)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -251,6 +254,25 @@ export const CardSearchPanel: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* 收藏按钮 */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleFavorite(card.id)
+                    }}
+                    title={isFavorite(card.id) ? '取消收藏' : '收藏此卡'}
+                    className="p-1 rounded text-muted-foreground hover:text-amber-400 shrink-0 transition-opacity"
+                  >
+                    <Star
+                      className={`w-3.5 h-3.5 transition-all ${
+                        isFavorite(card.id)
+                          ? 'fill-amber-400 text-amber-400 opacity-100'
+                          : 'opacity-0 group-hover:opacity-100 hover:text-foreground'
+                      }`}
+                    />
+                  </button>
                 </div>
               )
             })}

@@ -19,11 +19,14 @@ import {
   getMatchScenarioKey,
   createDefaultDuelists,
   normalizeDuelState,
-  createLightweightSnapshot
+  createLightweightSnapshot,
+  DeckData
 } from '@shared/index'
 import { inferMoveAction, inferPositionChangeAction } from '../utils/duelActionInference'
 
 interface DuelStoreState {
+  // 装载卡组到对局
+  applyDeckToPlayer: (player: 0 | 1, deck: DeckData, drawCount?: number) => void
   // 核心战场状态
   state: DuelPuzzleState
 
@@ -1810,6 +1813,74 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         })),
 
+      applyDeckToPlayer: (player, deck, drawCount = 0) =>
+        set((prev) => {
+          // 清除该玩家现有的 DECK 和 EXTRA 卡片
+          const otherCards = prev.state.cards.filter(
+            (c) =>
+              !(
+                c.controller === player &&
+                (c.location === CardLocation.DECK || c.location === CardLocation.EXTRA)
+              )
+          )
+
+          const newCards: FieldCard[] = []
+          const totalMain = deck.main.length
+          const actualDraw = Math.min(drawCount, totalMain)
+
+          // 1. 如果指定了抽卡数，主卡组顶部卡片进入手牌
+          for (let i = 0; i < actualDraw; i++) {
+            const code = deck.main[i]
+            newCards.push({
+              instanceId: `inst_${Date.now()}_h_${i}_${Math.random().toString(36).slice(2, 6)}`,
+              code,
+              controller: player,
+              owner: player,
+              location: CardLocation.HAND,
+              sequence: i,
+              position: CardPosition.FACEUP_ATTACK,
+              overlayMaterials: []
+            })
+          }
+
+          // 2. 其余主卡组卡片进 DECK
+          for (let i = actualDraw; i < totalMain; i++) {
+            const code = deck.main[i]
+            newCards.push({
+              instanceId: `inst_${Date.now()}_d_${i}_${Math.random().toString(36).slice(2, 6)}`,
+              code,
+              controller: player,
+              owner: player,
+              location: CardLocation.DECK,
+              sequence: i - actualDraw,
+              position: CardPosition.FACEDOWN_ATTACK,
+              overlayMaterials: []
+            })
+          }
+
+          // 3. 额外卡组卡片进 EXTRA
+          for (let i = 0; i < deck.extra.length; i++) {
+            const code = deck.extra[i]
+            newCards.push({
+              instanceId: `inst_${Date.now()}_e_${i}_${Math.random().toString(36).slice(2, 6)}`,
+              code,
+              controller: player,
+              owner: player,
+              location: CardLocation.EXTRA,
+              sequence: i,
+              position: CardPosition.FACEDOWN_ATTACK,
+              overlayMaterials: []
+            })
+          }
+
+          return {
+            state: {
+              ...prev.state,
+              cards: [...otherCards, ...newCards]
+            }
+          }
+        }),
+
       toggleTacticalView: () => set((prev) => ({ tacticalView: !prev.tacticalView })),
       setTacticalView: (enabled) => set({ tacticalView: enabled }),
 
@@ -1832,3 +1903,10 @@ export const useDuelStore = create<DuelStoreState>()(
     }
   )
 )
+
+// 跨窗口卡组应用广播监听
+if (typeof window !== 'undefined' && window.api?.onApplyDeckToDuel) {
+  window.api.onApplyDeckToDuel(({ player, deck, drawCount }) => {
+    useDuelStore.getState().applyDeckToPlayer(player, deck, drawCount)
+  })
+}

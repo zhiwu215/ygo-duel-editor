@@ -8,17 +8,25 @@ import {
 } from '../../../utils/lpMath'
 import { cn } from '../../../lib/utils'
 
-interface LpInputProps {
-  /** 玩家标签（如 '我方' / '对方'） */
-  label: string
-  /** 玩家编号 (0: 我方, 1: 对方) */
-  player: 0 | 1
+export interface LpInputProps {
   /** 当前生命值数值 */
   lp: number
-  /** 前置指示圆点的颜色类名 (如 'bg-blue-500' / 'bg-red-500') */
-  dotClass: string
   /** 生命值变更回调 */
-  onLpChange: (player: 0 | 1, lp: number) => void
+  onLpChange: (lp: number) => void
+  /** 可选：玩家编号 (0: 我方, 1: 对方) */
+  player?: 0 | 1
+  /** 可选：前置标签（如 'LP', '队伍 LP'；缺省时不显示） */
+  label?: string
+  /** 可选：前置指示圆点的颜色类名 (如 'bg-blue-500' / 'bg-red-500') */
+  dotClass?: string
+  /** 可选：输入框尺寸模式 ('default' | 'sm'，默认 'sm') */
+  size?: 'default' | 'sm'
+  /** 可选：弹窗弹出方向 ('top' | 'bottom' | 'auto')，默认 player === 0 向上弹，player === 1 向下弹 */
+  popoverPlacement?: 'top' | 'bottom' | 'auto'
+  /** 可选：水平对齐 ('left' | 'right'，默认 'right') */
+  align?: 'left' | 'right'
+  /** 可选：外层 className */
+  className?: string
 }
 
 /** 四则运算与直接修改按钮配置 */
@@ -53,7 +61,17 @@ const OP_BUTTONS: {
  * - 支持直接从键盘键入任意数值、算式或 inf/∞ (如 -1100, /2, 4000, inf)
  * - 实时显示公式计算结果，按 Enter 提交
  */
-export const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, onLpChange }) => {
+export const LpInput: React.FC<LpInputProps> = ({
+  lp,
+  onLpChange,
+  player,
+  label,
+  dotClass,
+  size = 'sm',
+  popoverPlacement = 'auto',
+  align = 'right',
+  className
+}) => {
   const [isFocused, setIsFocused] = useState(false)
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -65,7 +83,7 @@ export const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, o
 
   const handleCommit = (): void => {
     if (parseResult.valid && parseResult.result !== lp) {
-      onLpChange(player, parseResult.result)
+      onLpChange(parseResult.result)
     }
     setIsFocused(false)
     inputRef.current?.blur()
@@ -76,10 +94,22 @@ export const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, o
     inputRef.current?.blur()
   }
 
+  const isTop = popoverPlacement === 'top' || (popoverPlacement === 'auto' && player === 0)
+  const isRight = align === 'right'
+
   return (
-    <div className="relative flex items-center gap-1.5">
-      <span className={cn('w-2 h-2 rounded-full shrink-0', dotClass)} />
-      <span className="text-[11px] text-muted-foreground select-none">{label}</span>
+    <div className={cn('relative flex items-center gap-1 select-none', className)}>
+      {dotClass && <span className={cn('w-2 h-2 rounded-full shrink-0', dotClass)} />}
+      {label && (
+        <span
+          className={cn(
+            'text-muted-foreground select-none font-medium',
+            size === 'sm' ? 'text-[10px]' : 'text-[11px]'
+          )}
+        >
+          {label}
+        </span>
+      )}
 
       {/* 纯净数字输入框 (无原生微调箭头，等宽字体右对齐) */}
       <input
@@ -93,7 +123,6 @@ export const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, o
           e.currentTarget.select()
         }}
         onBlur={() => {
-          // 失去焦点自动提交有效算式结果
           handleCommit()
         }}
         onChange={(e) => {
@@ -109,30 +138,35 @@ export const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, o
           }
         }}
         className={cn(
-          'w-16 h-6 rounded border border-border/60 bg-background/60 text-right font-mono font-semibold text-xs px-1.5 py-0 select-all',
+          size === 'sm' ? 'w-14 h-4.5 text-[10px] px-1' : 'w-16 h-6 text-xs px-1.5',
+          'rounded border border-border/60 bg-background/60 text-right font-mono font-medium select-all',
           'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 transition-colors',
-          // 当数值为无限时，给予亮眼琥珀金色高亮展示
-          isInfiniteVal(lp) &&
-            !isFocused &&
-            'text-amber-500 dark:text-amber-400 font-extrabold text-sm',
-          // 当输入有效且有数值变动时，给予轻微高亮反馈
+          isInfiniteVal(lp) && !isFocused && 'text-amber-500 dark:text-amber-400 font-extrabold',
           isFocused &&
             parseResult.valid &&
             parseResult.result !== lp &&
             'border-blue-400/80 bg-blue-500/5'
         )}
-        title={`${label}生命值：${isInfiniteVal(lp) ? '无限 (∞)' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`}
+        title={
+          label
+            ? `${label}：${isInfiniteVal(lp) ? '无限 (∞)' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`
+            : `生命值：${isInfiniteVal(lp) ? '无限 (∞)' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`
+        }
       />
 
       {/* 聚焦时浮出的四则运算选择面板与实时算式预览 */}
       {isFocused && (
         <div
           onMouseDown={(e) => e.preventDefault()} // 阻止失焦，允许连贯点击运算符
-          className="absolute top-full left-0 mt-1 z-50 bg-popover/95 text-popover-foreground border border-border/80 shadow-xl rounded-lg p-2.5 flex flex-col gap-2 backdrop-blur-md min-w-[264px] select-none animate-in fade-in-0 zoom-in-95 duration-100"
+          className={cn(
+            'absolute z-50 bg-popover/95 text-popover-foreground border border-border/80 shadow-xl rounded-lg p-2 flex flex-col gap-1.5 backdrop-blur-md min-w-[240px] select-none animate-in fade-in-0 zoom-in-95 duration-100',
+            isTop ? 'bottom-full mb-1' : 'top-full mt-1',
+            isRight ? 'right-0' : 'left-0'
+          )}
         >
           {/* 运算模式选择条 (减 / 加 / 除 / 乘 / 直接改 / 无限) */}
           <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium px-0.5">
+            <div className="flex items-center justify-between text-[9px] text-muted-foreground font-medium px-0.5">
               <span>选择运算模式</span>
               <span>输入任意数值或键入 inf</span>
             </div>
@@ -157,7 +191,7 @@ export const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, o
                     }, 0)
                   }}
                   className={cn(
-                    'py-1 text-[11px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap',
+                    'py-0.5 text-[10px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap',
                     activeOp === btn.op
                       ? btn.activeClass
                       : 'border-border/60 bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground'
@@ -171,9 +205,9 @@ export const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, o
           </div>
 
           {/* 实时算式解析状态 */}
-          <div className="flex items-center justify-between text-xs font-mono px-2 py-1.5 rounded bg-muted/60 border border-border/40">
+          <div className="flex items-center justify-between text-[11px] font-mono px-2 py-1 rounded bg-muted/60 border border-border/40">
             <span
-              className="text-muted-foreground truncate max-w-[125px]"
+              className="text-muted-foreground truncate max-w-[120px]"
               title={parseResult.formula}
             >
               {parseResult.formula}
@@ -185,7 +219,7 @@ export const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, o
                   ? 'text-amber-500 dark:text-amber-400 font-extrabold'
                   : parseResult.valid
                     ? 'text-blue-500 dark:text-blue-400'
-                    : 'text-muted-foreground text-[11px]'
+                    : 'text-muted-foreground text-[10px]'
               )}
             >
               {parseResult.valid
@@ -195,10 +229,12 @@ export const LpInput: React.FC<LpInputProps> = ({ label, player, lp, dotClass, o
           </div>
 
           {/* 交互提示 */}
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground/75 px-0.5 pt-0.5 border-t border-border/40">
+          <div className="flex items-center justify-between text-[9px] text-muted-foreground/75 px-0.5 pt-0.5 border-t border-border/40">
             <span>点击运算符/无限或直接键入</span>
             <span>
-              <kbd className="font-sans px-1 rounded bg-muted border border-border/40">Enter</kbd>{' '}
+              <kbd className="font-sans px-1 rounded bg-muted border border-border/40 text-[9px]">
+                Enter
+              </kbd>{' '}
               确认
             </span>
           </div>

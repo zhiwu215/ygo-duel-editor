@@ -1,31 +1,74 @@
-import React from 'react'
-import { Plus } from 'lucide-react'
-import { CardLocation, CdbCard } from '@shared/index'
+import React, { useState, useRef, useEffect } from 'react'
+import { Plus, Check, Edit2 } from 'lucide-react'
+import { CardLocation, CdbCard, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
+import { DuelistHandStrip } from './DuelistHandStrip'
 import { ZoneSlot } from '../ZoneSlot'
-import { getDropPosOverride } from '../../../utils/zoneDrop'
+import { TurnOrderBadge } from './TurnOrderBadge'
+import { LpInput } from './LpInput'
 import { Badge } from '../../ui/badge'
+import { cn } from '../../../lib/utils'
+import { getDropPosOverride } from '../../../utils/zoneDrop'
 
 interface HandTrayProps {
   controller: 0 | 1
   ruleName?: string
 }
 
-export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
-  const { state, addCardToZone, moveCard } = useDuelStore()
-
+/**
+ * 单决斗者手牌托盘 (1v1 或单人阵营)
+ * 扁平单层结构，信息栏与手牌槽合一，紧凑设计确保 1080p 窗口零滚动条
+ */
+const SingleHandTray: React.FC<{
+  duelist: Duelist
+  controller: 0 | 1
+  cards: FieldCard[]
+  totalCount: number
+  ruleName?: string
+}> = ({ duelist, controller, cards, totalCount, ruleName }) => {
+  const { addCardToZone, moveCard, updateDuelist } = useDuelStore()
   const isOpponent = controller === 1
-  const handCards = state.cards.filter(
-    (c) => c.controller === controller && c.location === CardLocation.HAND
-  )
+
+  // 名字行内编辑
+  const [editingName, setEditingName] = useState<string | null>(null)
+  const isEditingName = editingName !== null
+  const nameInput = editingName ?? duelist.name
+
+  // 拖拽高亮与横向滚轮
+  const [isDragOver, setIsDragOver] = useState(false)
+  const trayRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // 监听原生非被动 wheel 事件，阻止外层纵向滚动，纯化为手牌横向平移
+  useEffect(() => {
+    const el = trayRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent): void => {
+      if (e.deltaY !== 0) {
+        e.preventDefault()
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollLeft += e.deltaY
+        }
+      }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   const handleDragOver = (e: React.DragEvent): void => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
+    if (!isDragOver) setIsDragOver(true)
+  }
+
+  const handleDragLeave = (): void => {
+    setIsDragOver(false)
   }
 
   const handleDrop = (e: React.DragEvent): void => {
     e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
       if (movedInstanceId) {
@@ -38,16 +81,17 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
             card: { code: srcCard.code, name: srcCard.card?.name },
             fromLocation: CardLocation.DECK,
             toLocation: CardLocation.HAND,
-            description: `${controller === 0 ? '我方' : '对方'}抽卡【${srcCard.card?.name || srcCard.code}】`
+            description: `${duelist.name}抽卡【${srcCard.card?.name || srcCard.code}】`
           })
         }
-        // Ctrl 拖入 = 公开手牌；默认未公开 (store 侧默认)
+
         moveCard(
           movedInstanceId,
           CardLocation.HAND,
-          handCards.length,
+          cards.length,
           controller,
-          getDropPosOverride(CardLocation.HAND, e.ctrlKey)
+          getDropPosOverride(CardLocation.HAND, e.ctrlKey),
+          duelist.id
         )
         return
       }
@@ -59,71 +103,153 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
         droppedCard,
         controller,
         CardLocation.HAND,
-        handCards.length,
-        getDropPosOverride(CardLocation.HAND, e.ctrlKey)
+        cards.length,
+        getDropPosOverride(CardLocation.HAND, e.ctrlKey),
+        duelist.id
       )
     } catch (err) {
-      console.error('[HandTray] Drop failed:', err)
+      console.error('[SingleHandTray] Drop failed:', err)
+    }
+  }
+
+  const handleSaveName = (): void => {
+    if (editingName !== null) {
+      const trimmed = editingName.trim()
+      if (trimmed && trimmed !== duelist.name) {
+        updateDuelist(duelist.id, { name: trimmed })
+      }
+      setEditingName(null)
     }
   }
 
   return (
-    <div className="relative z-10 w-full max-w-5xl shrink-0 p-2 rounded-lg bg-card border border-border shadow-sm flex flex-col gap-1.5">
-      <div className="flex items-center justify-between text-xs px-1">
+    <div
+      ref={trayRef}
+      onDragEnter={() => setIsDragOver(true)}
+      className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-lg bg-card border border-border shadow-sm flex flex-col gap-1"
+    >
+      {/* 顶部单行信息与操作栏 */}
+      <div className="flex items-center justify-between text-xs px-1 h-5">
         <div className="flex items-center gap-2">
           <span
-            className={`font-bold tracking-wide text-xs ${
+            className={cn(
+              'w-2 h-2 rounded-full shrink-0',
+              isOpponent ? 'bg-red-500' : 'bg-blue-500'
+            )}
+          />
+
+          <span
+            className={cn(
+              'font-bold tracking-wide text-xs',
               isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
-            }`}
+            )}
           >
-            {isOpponent ? '对方手牌' : '我方手牌'} ({handCards.length} 张)
+            {isOpponent ? '对方手牌' : '我方手牌'}
           </span>
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-medium">
-            {isOpponent ? '剧情 / 应对' : '我方'}
-          </Badge>
+
+          {/* 角色名称行内编辑 */}
+          {isEditingName ? (
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={nameInput}
+                onChange={(e) => setEditingName(e.target.value)}
+                onBlur={handleSaveName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveName()
+                  if (e.key === 'Escape') setEditingName(null)
+                }}
+                autoFocus
+                className="h-5 w-24 px-1 text-xs rounded border border-primary bg-background focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleSaveName}
+                className="p-0.5 text-muted-foreground hover:text-foreground"
+              >
+                <Check className="w-3 h-3 text-emerald-500" />
+              </button>
+            </div>
+          ) : (
+            <div
+              onClick={() => setEditingName(duelist.name)}
+              title="点击修改角色名称"
+              className="flex items-center gap-1 group cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded"
+            >
+              <span className="font-semibold text-foreground/90">{duelist.name}</span>
+              <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+            </div>
+          )}
+
+          {/* 手牌张数 */}
+          <span className="text-[11px] text-muted-foreground font-mono">({cards.length} 张)</span>
+
+          {/* LP 编辑 (包含四则运算与无限设置计算器) */}
+          <LpInput
+            lp={duelist.lp}
+            label="LP"
+            size="sm"
+            player={controller}
+            popoverPlacement={controller === 0 ? 'top' : 'bottom'}
+            onLpChange={(newLp) => updateDuelist(duelist.id, { lp: newLp })}
+          />
+
+          {/* 顺位与先攻标记（支持直接下拉切换全场每位角色的行动次序） */}
+          <TurnOrderBadge duelist={duelist} totalCount={totalCount} />
         </div>
-        <span className="text-[11px] text-muted-foreground/80 hidden sm:inline">
-          {isOpponent
-            ? '可直接拖拽卡片至此（默认未公开，右键可设为公开或转移）'
-            : '可从左侧搜索列表直接拖拽卡片至此放入手牌（Ctrl 拖入 = 公开）'}
-        </span>
-        {ruleName && (
-          <Badge variant="secondary" className="text-[10px] h-4 font-mono opacity-80">
-            场地: {ruleName}
-          </Badge>
-        )}
+
+        {/* 右侧：提示语与场地规则 */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground/80 hidden sm:inline">
+            {isOpponent
+              ? '可直接拖拽卡片至此（默认未公开，右键可设为公开）'
+              : '可从右侧搜索列表拖拽卡片至此放入手牌（Ctrl 拖入 = 公开）'}
+          </span>
+          {ruleName && (
+            <Badge variant="secondary" className="text-[10px] h-4 font-mono opacity-80">
+              场地: {ruleName}
+            </Badge>
+          )}
+        </div>
       </div>
 
-      {/* 手牌横向排布流 (卡多时横向滚动，纵向高度恒定) */}
+      {/* 手牌横向排布流 (固定紧凑高度，保证无纵向溢出) */}
       <div
+        ref={scrollContainerRef}
         onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="h-[114px] w-full px-2 py-1 rounded border border-dashed border-border hover:border-blue-400/60 bg-muted/30 dark:bg-black/25 flex items-center gap-2 overflow-x-auto transition-colors"
+        className={cn(
+          'h-[100px] w-full px-2 py-0.5 rounded border border-dashed flex items-center gap-1.5 overflow-x-auto overflow-y-hidden transition-colors',
+          isDragOver
+            ? 'border-primary bg-primary/10'
+            : isOpponent
+              ? 'border-red-500/25 hover:border-red-500/50 bg-muted/20 dark:bg-black/20'
+              : 'border-blue-500/25 hover:border-blue-500/50 bg-muted/20 dark:bg-black/20'
+        )}
       >
-        {handCards.map((c, idx) => (
+        {cards.map((c, idx) => (
           <div key={c.instanceId} className="shrink-0">
             <ZoneSlot
-              label={`${isOpponent ? '对方手牌' : '我方手牌'} ${idx + 1}`}
+              label={`${duelist.name} ${idx + 1}`}
               controller={controller}
               location={CardLocation.HAND}
               sequence={c.sequence}
               card={c}
+              duelistId={duelist.id}
             />
           </div>
         ))}
 
-        {handCards.length === 0 && (
+        {cards.length === 0 && (
           <div
-            className={`w-full h-full flex items-center justify-center text-xs gap-1.5 pointer-events-none ${
-              isOpponent
-                ? 'text-red-600/60 dark:text-red-300/50'
-                : 'text-blue-600/60 dark:text-blue-300/50'
-            }`}
+            className={cn(
+              'w-full h-full flex items-center justify-center text-xs gap-1.5 pointer-events-none select-none',
+              isOpponent ? 'text-red-500/40' : 'text-blue-500/40'
+            )}
           >
-            <Plus
-              className={`w-3.5 h-3.5 ${isOpponent ? 'text-red-600/70 dark:text-red-400/50' : 'text-blue-600/70 dark:text-blue-400/50'}`}
-            />
-            <span>
+            <Plus className="w-3.5 h-3.5" />
+            <span className="text-[11px]">
               {isOpponent
                 ? '对方手牌为空，可将手坑、解场或剧情卡片拖拽至此'
                 : '手牌为空，可将卡片拖拽至此放入起手手牌'}
@@ -132,5 +258,167 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * 多决斗者手牌托盘 (2v2、1v2 等多人模式)
+ * 顶部显示阵营汇总及队伍 LP 控制，下方并排各决斗者的独立手牌带
+ */
+const MultiHandTray: React.FC<{
+  duelists: Duelist[]
+  controller: 0 | 1
+  teamHandCards: FieldCard[]
+  totalCount: number
+  ruleName?: string
+}> = ({ duelists, controller, teamHandCards, totalCount, ruleName }) => {
+  const { state, expandedDuelistId, setExpandedDuelistId, toggleSharedLp, setPlayerLp } =
+    useDuelStore()
+  const isOpponent = controller === 1
+
+  const activeExpandedDuelist = duelists.find((d) => d.id === expandedDuelistId)
+  const isSharedLp = Boolean(state.matchConfig?.sharedLp)
+
+  return (
+    <div className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-lg bg-card border border-border shadow-sm flex flex-col gap-1">
+      {/* 顶部阵营状态栏 */}
+      <div className="flex items-center justify-between text-xs px-1 h-5">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              'font-bold tracking-wide text-xs',
+              isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+            )}
+          >
+            {isOpponent ? '对方手牌区' : '我方手牌区'}
+          </span>
+
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-medium">
+            {duelists.length} 位决斗者
+          </Badge>
+
+          <span className="text-[11px] text-muted-foreground font-mono">
+            全队共 {teamHandCards.length} 张手牌
+          </span>
+
+          {/* 多人时提供队伍共用 LP 开关 */}
+          <button
+            type="button"
+            onClick={toggleSharedLp}
+            title={
+              isSharedLp
+                ? '当前为队伍共用生命值，点击切换为每位决斗者独立生命值'
+                : '当前为独立生命值，点击切换为全队共用同一生命值'
+            }
+            className={cn(
+              'ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
+              isSharedLp
+                ? 'bg-primary/15 border-primary/40 text-primary'
+                : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {isSharedLp ? '✓ 队伍共用 LP' : '独立 LP'}
+          </button>
+
+          {/* 队伍共用 LP：仅在队伍共用模式下展示于队伍状态栏 (包含四则运算与无限设置计算器) */}
+          {isSharedLp && (
+            <LpInput
+              lp={state.players[controller]?.lp ?? duelists[0]?.lp ?? 8000}
+              label="队伍 LP"
+              size="sm"
+              player={controller}
+              popoverPlacement={controller === 0 ? 'top' : 'bottom'}
+              onLpChange={(newLp) => setPlayerLp(controller, newLp)}
+            />
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {ruleName && (
+            <Badge variant="secondary" className="text-[10px] h-4 font-mono opacity-80">
+              场地: {ruleName}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {/* 决斗者手牌带排布行 (横向并排，永远单行不换行，支持单人展开独占) */}
+      <div className="w-full flex items-center gap-1.5 overflow-x-auto overflow-y-hidden select-none">
+        {duelists.map((duelist) => {
+          const duelistCards = teamHandCards.filter((c) => {
+            if (c.duelistId) return c.duelistId === duelist.id
+            return duelist.id === duelists[0].id
+          })
+
+          const isExpanded = activeExpandedDuelist?.id === duelist.id
+          const isCollapsed = Boolean(
+            activeExpandedDuelist && activeExpandedDuelist.id !== duelist.id
+          )
+
+          return (
+            <DuelistHandStrip
+              key={duelist.id}
+              duelist={duelist}
+              controller={controller}
+              cards={duelistCards}
+              totalCount={totalCount}
+              isExpanded={isExpanded}
+              isCollapsed={isCollapsed}
+              isOnlyOne={false}
+              onExpand={() => setExpandedDuelistId(duelist.id)}
+              onCollapse={() => setExpandedDuelistId(null)}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
+  const { state } = useDuelStore()
+
+  // 获取本阵营决斗者列表
+  const rawDuelists = (state.duelists || []).filter((d) => d.team === controller)
+  const totalCount = state.duelists?.length || 2
+  const duelists: Duelist[] =
+    rawDuelists.length > 0
+      ? rawDuelists
+      : [
+          {
+            id: `duelist_${controller}_0`,
+            team: controller,
+            name: controller === 0 ? '我方' : '对方',
+            lp: state.players[controller]?.lp ?? 8000,
+            isFirst: controller === 0,
+            turnOrder: controller === 0 ? 1 : 2
+          }
+        ]
+
+  // 本阵营全部手牌
+  const teamHandCards = state.cards.filter(
+    (c) => c.controller === controller && c.location === CardLocation.HAND
+  )
+
+  if (duelists.length === 1) {
+    return (
+      <SingleHandTray
+        duelist={duelists[0]}
+        controller={controller}
+        cards={teamHandCards}
+        totalCount={totalCount}
+        ruleName={ruleName}
+      />
+    )
+  }
+
+  return (
+    <MultiHandTray
+      duelists={duelists}
+      controller={controller}
+      teamHandCards={teamHandCards}
+      totalCount={totalCount}
+      ruleName={ruleName}
+    />
   )
 }

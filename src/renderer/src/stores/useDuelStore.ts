@@ -12,12 +12,29 @@ import {
   CdbCard,
   DuelStep,
   DuelPhase,
-  DuelActionType
+  DuelActionType,
+  Duelist,
+  MatchConfig,
+  DuelSceneSnapshot,
+  getMatchScenarioKey,
+  createDefaultDuelists,
+  normalizeDuelState
 } from '@shared/index'
 
 interface DuelStoreState {
   // 核心战场状态
   state: DuelPuzzleState
+
+  // 多人手牌交互
+  expandedDuelistId: string | null
+  setExpandedDuelistId: (id: string | null) => void
+
+  // 多人对阵场景与角色管理
+  switchMatchConfig: (config: MatchConfig) => void
+  updateDuelist: (duelistId: string, patch: Partial<Duelist>) => void
+  setFirstDuelist: (duelistId: string) => void
+  setDuelistTurnOrder: (duelistId: string, newOrder: number) => void
+  toggleSharedLp: () => void
 
   // 选中与悬停交互
   selectedCardId: string | null
@@ -110,7 +127,8 @@ interface DuelStoreState {
     controller: 0 | 1,
     location: number,
     sequence: number,
-    position?: number
+    position?: number,
+    duelistId?: string
   ) => void
   /**
    * 移动场上或手牌中的卡片至目标区域与槽位
@@ -121,19 +139,22 @@ interface DuelStoreState {
    * - `toSequence`：目标格子序号（如怪兽/魔陷区 0~4；牌堆区域会自动追加到末尾）
    * - `toController`：可选，目标控制者（0: 我方, 1: 对方；缺省时保持原控制者）
    * - `customPos`：可选，自定义卡片表示形式（CardPosition；如按住 Ctrl 拖拽切换默认放置状态）
+   * - `targetDuelistId`：可选，目标决斗者 ID（当移动至手牌区时关联）
    *
    * @param instanceId 要移动卡片的唯一实例 ID
    * @param toLocation 目标区域
    * @param toSequence 目标格子序号
    * @param toController 可选，目标控制者 (0: 我方, 1: 对方)
    * @param customPos 可选，自定义卡片表示形式
+   * @param targetDuelistId 可选，目标决斗者 ID
    */
   moveCard: (
     instanceId: string,
     toLocation: number,
     toSequence: number,
     toController?: 0 | 1,
-    customPos?: number
+    customPos?: number,
+    targetDuelistId?: string
   ) => void
   removeCard: (instanceId: string) => void
   updateCardPosition: (instanceId: string, position: number) => void
@@ -196,6 +217,7 @@ export const useDuelStore = create<DuelStoreState>()(
   temporal(
     (set) => ({
       state: createInitialDuelState(5),
+      expandedDuelistId: null,
       selectedCardId: null,
       activeStatPopoverCardId: null,
       statPopoverPosition: null,
@@ -206,6 +228,8 @@ export const useDuelStore = create<DuelStoreState>()(
       currentStepIndex: null,
       isScreenplayOpen: false,
       selectedStepId: null,
+
+      setExpandedDuelistId: (id) => set({ expandedDuelistId: id }),
 
       currentTurn: 1,
       currentPhase: 'M1',
@@ -780,8 +804,12 @@ export const useDuelStore = create<DuelStoreState>()(
             player === 0 ? { ...prev.state.players[0], lp: updatedLp } : prev.state.players[0],
             player === 1 ? { ...prev.state.players[1], lp: updatedLp } : prev.state.players[1]
           ]
+          const isShared = prev.state.matchConfig?.sharedLp
+          const duelists = (prev.state.duelists || []).map((d) =>
+            isShared && d.team === player ? { ...d, lp: updatedLp } : d
+          )
           return {
-            state: { ...prev.state, players }
+            state: { ...prev.state, players, duelists }
           }
         }),
 
@@ -795,7 +823,182 @@ export const useDuelStore = create<DuelStoreState>()(
           state: { ...prev.state, firstTurnAttack: allow }
         })),
 
-      addCardToZone: (card, controller, location, sequence, customPos) =>
+      switchMatchConfig: (newConfig) =>
+        set((prev) => {
+          const currentConfig = prev.state.matchConfig || {
+            mode: '1v1',
+            team0Count: 1,
+            team1Count: 1,
+            sharedLp: false
+          }
+          const currentKey = getMatchScenarioKey(currentConfig)
+          const targetKey = getMatchScenarioKey(newConfig)
+
+          // 1. 将当前对阵局面完整保存至场景快照
+          const currentSnapshot: DuelSceneSnapshot = {
+            duelists:
+              prev.state.duelists ||
+              createDefaultDuelists(currentConfig.team0Count, currentConfig.team1Count),
+            cards: prev.state.cards,
+            turnPlayer: prev.state.turnPlayer,
+            firstTurnAttack: prev.state.firstTurnAttack,
+            steps: prev.state.steps,
+            matchConfig: currentConfig
+          }
+
+          const updatedScenarios: Record<string, DuelSceneSnapshot> = {
+            ...(prev.state.scenarios || {}),
+            [currentKey]: currentSnapshot
+          }
+
+          // 2. 检查目标场景是否已存在独立历史快照
+          if (updatedScenarios[targetKey]) {
+            const snap = updatedScenarios[targetKey]
+            return {
+              state: {
+                ...prev.state,
+                matchConfig: newConfig,
+                duelists: snap.duelists,
+                cards: snap.cards,
+                turnPlayer: snap.turnPlayer,
+                firstTurnAttack: snap.firstTurnAttack,
+                steps: snap.steps,
+                scenarios: updatedScenarios
+              },
+              expandedDuelistId: null,
+              selectedCardId: null
+            }
+          }
+
+          // 3. 首次进入新场景：生成全新决斗者列表，保留共用战场上已摆好的卡片，重置手牌
+          const newDuelists = createDefaultDuelists(newConfig.team0Count, newConfig.team1Count)
+          const boardCards = prev.state.cards.filter((c) => c.location !== CardLocation.HAND)
+
+          return {
+            state: {
+              ...prev.state,
+              matchConfig: newConfig,
+              duelists: newDuelists,
+              cards: boardCards,
+              scenarios: updatedScenarios
+            },
+            expandedDuelistId: null,
+            selectedCardId: null
+          }
+        }),
+
+      updateDuelist: (duelistId, patch) =>
+        set((prev) => {
+          const duelists = (prev.state.duelists || []).map((d) =>
+            d.id === duelistId ? { ...d, ...patch } : d
+          )
+          let players = prev.state.players
+          const target = duelists.find((d) => d.id === duelistId)
+
+          if (target && patch.lp !== undefined) {
+            const updatedLp = Math.max(0, patch.lp)
+            if (prev.state.matchConfig?.sharedLp) {
+              duelists.forEach((d) => {
+                if (d.team === target.team) {
+                  d.lp = updatedLp
+                }
+              })
+            }
+            players = [
+              target.team === 0 ? { ...players[0], lp: updatedLp } : players[0],
+              target.team === 1 ? { ...players[1], lp: updatedLp } : players[1]
+            ]
+          }
+
+          return {
+            state: {
+              ...prev.state,
+              duelists,
+              players
+            }
+          }
+        }),
+
+      setDuelistTurnOrder: (duelistId, newOrder) =>
+        set((prev) => {
+          const rawDuelists = prev.state.duelists || []
+          const target = rawDuelists.find((d) => d.id === duelistId)
+          if (!target) return prev
+
+          const currentTargetOrder = target.turnOrder ?? (target.isFirst ? 1 : 2)
+          if (currentTargetOrder === newOrder) return prev
+
+          const duelists = rawDuelists.map((d) => ({ ...d }))
+          const targetInList = duelists.find((d) => d.id === duelistId)!
+          const otherInList = duelists.find(
+            (d) => d.id !== duelistId && (d.turnOrder ?? (d.isFirst ? 1 : 2)) === newOrder
+          )
+
+          targetInList.turnOrder = newOrder
+          if (otherInList) {
+            otherInList.turnOrder = currentTargetOrder
+          }
+
+          // 同步 isFirst 与 turnPlayer
+          let turnPlayer = prev.state.turnPlayer
+          duelists.forEach((d) => {
+            const order = d.turnOrder ?? 2
+            d.isFirst = order === 1
+            if (d.isFirst) {
+              turnPlayer = d.team
+            }
+          })
+
+          return {
+            state: {
+              ...prev.state,
+              duelists,
+              turnPlayer
+            }
+          }
+        }),
+
+      setFirstDuelist: (duelistId) => {
+        useDuelStore.getState().setDuelistTurnOrder(duelistId, 1)
+      },
+
+      toggleSharedLp: () =>
+        set((prev) => {
+          const currentConfig = prev.state.matchConfig || {
+            mode: '1v1',
+            team0Count: 1,
+            team1Count: 1,
+            sharedLp: false
+          }
+          const nextShared = !currentConfig.sharedLp
+          const nextConfig: MatchConfig = { ...currentConfig, sharedLp: nextShared }
+
+          let duelists = prev.state.duelists || []
+          let players = prev.state.players
+          if (nextShared) {
+            const team0Lp = duelists.find((d) => d.team === 0)?.lp ?? prev.state.players[0].lp
+            const team1Lp = duelists.find((d) => d.team === 1)?.lp ?? prev.state.players[1].lp
+            duelists = duelists.map((d) => ({
+              ...d,
+              lp: d.team === 0 ? team0Lp : team1Lp
+            }))
+            players = [
+              { ...players[0], lp: team0Lp },
+              { ...players[1], lp: team1Lp }
+            ]
+          }
+
+          return {
+            state: {
+              ...prev.state,
+              matchConfig: nextConfig,
+              duelists,
+              players
+            }
+          }
+        }),
+
+      addCardToZone: (card, controller, location, sequence, customPos, duelistId) =>
         set((prev) => {
           const isPileZone =
             location === CardLocation.HAND ||
@@ -823,9 +1026,23 @@ export const useDuelStore = create<DuelStoreState>()(
           }
           const pos = customPos !== undefined ? customPos : defaultPos
 
+          // 针对手牌：确定归属决斗者 ID
+          let assignedDuelistId = duelistId
+          if (location === CardLocation.HAND && !assignedDuelistId) {
+            const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
+            assignedDuelistId =
+              teamDuelists[0]?.id || (controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
+          }
+
           // 堆叠型区域按已有数量计算新序号；离散格子则替换/覆盖同位置旧卡
           const existingPile = prev.state.cards
-            .filter((c) => c.controller === controller && c.location === location)
+            .filter((c) => {
+              if (c.controller !== controller || c.location !== location) return false
+              if (location === CardLocation.HAND && assignedDuelistId) {
+                return c.duelistId === assignedDuelistId
+              }
+              return true
+            })
             .sort((a, b) => a.sequence - b.sequence)
 
           let targetSeq = isPileZone ? existingPile.length : sequence
@@ -874,7 +1091,8 @@ export const useDuelStore = create<DuelStoreState>()(
             location,
             sequence: targetSeq,
             position: pos,
-            overlayMaterials: []
+            overlayMaterials: [],
+            duelistId: location === CardLocation.HAND ? assignedDuelistId : undefined
           }
 
           return {
@@ -894,8 +1112,9 @@ export const useDuelStore = create<DuelStoreState>()(
        * @param toSequence 目标格子序号 (如 0~4；牌堆区域会自动追加到末尾)
        * @param toController 可选，目标控制者 (0: 我方, 1: 对方；缺省时保持原控制者)
        * @param customPos 可选，自定义卡片表示形式 (CardPosition；如按住 Ctrl 拖拽切换默认放置状态)
+       * @param targetDuelistId 可选，目标决斗者 ID
        */
-      moveCard: (instanceId, toLocation, toSequence, toController, customPos) =>
+      moveCard: (instanceId, toLocation, toSequence, toController, customPos, targetDuelistId) =>
         set((prev) => {
           const targetCard = prev.state.cards.find((c) => c.instanceId === instanceId)
           if (!targetCard) return prev
@@ -909,15 +1128,39 @@ export const useDuelStore = create<DuelStoreState>()(
             toLocation === CardLocation.EXTRA ||
             toLocation === CardLocation.REMOVED
 
+          let assignedDuelistId = targetDuelistId
+          if (toLocation === CardLocation.HAND && !assignedDuelistId) {
+            if (
+              targetCard.location === CardLocation.HAND &&
+              targetCard.controller === ctrl &&
+              targetCard.duelistId
+            ) {
+              assignedDuelistId = targetCard.duelistId
+            } else {
+              const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === ctrl)
+              assignedDuelistId =
+                teamDuelists[0]?.id || (ctrl === 0 ? 'duelist_0_0' : 'duelist_1_0')
+            }
+          }
+
           let seq = toSequence
           let updatedCards = prev.state.cards
 
           if (isPileZone) {
             const targetPiles = prev.state.cards
-              .filter(
-                (c) =>
-                  c.controller === ctrl && c.location === toLocation && c.instanceId !== instanceId
-              )
+              .filter((c) => {
+                if (
+                  c.controller !== ctrl ||
+                  c.location !== toLocation ||
+                  c.instanceId === instanceId
+                ) {
+                  return false
+                }
+                if (toLocation === CardLocation.HAND && assignedDuelistId) {
+                  return c.duelistId === assignedDuelistId
+                }
+                return true
+              })
               .sort((a, b) => a.sequence - b.sequence)
 
             const insertIdx =
@@ -973,7 +1216,8 @@ export const useDuelStore = create<DuelStoreState>()(
                 location: toLocation,
                 sequence: seq,
                 controller: ctrl,
-                position: newPos
+                position: newPos,
+                duelistId: toLocation === CardLocation.HAND ? assignedDuelistId : c.duelistId
               }
             }
             return c
@@ -1238,32 +1482,52 @@ export const useDuelStore = create<DuelStoreState>()(
 
       loadState: (newState) =>
         set(() => ({
-          state: newState,
-          selectedCardId: null
+          state: normalizeDuelState(newState),
+          selectedCardId: null,
+          expandedDuelistId: null
         })),
 
       resetDuel: () =>
-        set((prev) => ({
-          state: createInitialDuelState(prev.state.masterRule),
-          selectedCardId: null,
-          activeStatPopoverCardId: null,
-          statPopoverPosition: null,
-          hoveredCard: null
-        })),
+        set((prev) => {
+          const baseState = createInitialDuelState(prev.state.masterRule)
+          if (prev.state.matchConfig) {
+            baseState.matchConfig = prev.state.matchConfig
+            baseState.duelists = createDefaultDuelists(
+              prev.state.matchConfig.team0Count,
+              prev.state.matchConfig.team1Count
+            )
+          }
+          return {
+            state: baseState,
+            selectedCardId: null,
+            activeStatPopoverCardId: null,
+            statPopoverPosition: null,
+            hoveredCard: null,
+            expandedDuelistId: null
+          }
+        }),
 
       swapSides: () =>
-        set((prev) => ({
-          state: {
-            ...prev.state,
-            cards: prev.state.cards.map((c) => ({
-              ...c,
-              controller: (c.controller === 0 ? 1 : 0) as 0 | 1
-            })),
-            players: [prev.state.players[1], prev.state.players[0]],
-            turnPlayer: (prev.state.turnPlayer === 0 ? 1 : 0) as 0 | 1
-          },
-          selectedCardId: null
-        })),
+        set((prev) => {
+          const duelists = (prev.state.duelists || []).map((d) => ({
+            ...d,
+            team: (d.team === 0 ? 1 : 0) as 0 | 1
+          }))
+          return {
+            state: {
+              ...prev.state,
+              cards: prev.state.cards.map((c) => ({
+                ...c,
+                controller: (c.controller === 0 ? 1 : 0) as 0 | 1
+              })),
+              duelists,
+              players: [prev.state.players[1], prev.state.players[0]],
+              turnPlayer: (prev.state.turnPlayer === 0 ? 1 : 0) as 0 | 1
+            },
+            selectedCardId: null,
+            expandedDuelistId: null
+          }
+        }),
 
       // 实战属性与指示物操作
       setCardCounter: (instanceId, counterType, count) =>

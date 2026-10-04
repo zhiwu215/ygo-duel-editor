@@ -40,6 +40,9 @@ function createWindow(): void {
     }
   })
 
+  // 彻底移除系统默认的原生菜单栏，避免用户按下 Alt 键时触发 Windows 原生的 File/Edit/View 工具栏
+  mainWindow.removeMenu()
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })

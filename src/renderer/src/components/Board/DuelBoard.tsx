@@ -84,7 +84,7 @@ export const DuelBoard: React.FC = () => {
       <div className="w-full h-full overflow-y-auto overflow-x-hidden p-2 sm:p-3 flex flex-col items-center relative z-10 min-h-0">
         <div className="w-full max-w-5xl flex flex-col items-center gap-2.5 my-auto shrink-0">
           {/* 顶部：对方手牌托盘 */}
-          <HandTray controller={1} ruleName={ruleInfo.name} />
+          <HandTray controller={1} />
 
           {/* 核心对战台网格 (标准 YGOPro 5 行对称矩阵布局) */}
           <div className="relative z-10 w-full py-2 px-3 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col items-center justify-center gap-1 shrink-0">

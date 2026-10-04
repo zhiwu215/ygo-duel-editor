@@ -12,7 +12,6 @@ import { getDropPosOverride } from '../../../utils/zoneDrop'
 
 interface HandTrayProps {
   controller: 0 | 1
-  ruleName?: string
 }
 
 /**
@@ -24,8 +23,7 @@ const SingleHandTray: React.FC<{
   controller: 0 | 1
   cards: FieldCard[]
   totalCount: number
-  ruleName?: string
-}> = ({ duelist, controller, cards, totalCount, ruleName }) => {
+}> = ({ duelist, controller, cards, totalCount }) => {
   const { addCardToZone, moveCard, updateDuelist } = useDuelStore()
   const isOpponent = controller === 1
 
@@ -211,18 +209,13 @@ const SingleHandTray: React.FC<{
           <TurnOrderBadge duelist={duelist} totalCount={totalCount} />
         </div>
 
-        {/* 右侧：提示语与场地规则 */}
+        {/* 右侧：拖拽操作提示 */}
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground/80 hidden sm:inline">
             {isOpponent
               ? '可直接拖拽卡片至此（默认未公开，右键可设为公开）'
               : '可从右侧搜索列表拖拽卡片至此放入手牌（Ctrl 拖入 = 公开）'}
           </span>
-          {ruleName && (
-            <Badge variant="secondary" className="text-[10px] h-4 font-mono opacity-80">
-              场地: {ruleName}
-            </Badge>
-          )}
         </div>
       </div>
 
@@ -286,8 +279,7 @@ const MultiHandTray: React.FC<{
   controller: 0 | 1
   teamHandCards: FieldCard[]
   totalCount: number
-  ruleName?: string
-}> = ({ duelists, controller, teamHandCards, totalCount, ruleName }) => {
+}> = ({ duelists, controller, teamHandCards, totalCount }) => {
   const { state, expandedDuelistId, setExpandedDuelistId, toggleSharedLp, setPlayerLp } =
     useDuelStore()
   const isOpponent = controller === 1
@@ -298,64 +290,54 @@ const MultiHandTray: React.FC<{
   return (
     <div className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1">
       {/* 顶部阵营状态栏 */}
-      <div className="flex items-center justify-between text-xs px-1 h-5">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'font-bold tracking-wide text-xs',
-              isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
-            )}
-          >
-            {isOpponent ? '对方手牌区' : '我方手牌区'}
-          </span>
-
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-medium">
-            {duelists.length} 位决斗者
-          </Badge>
-
-          <span className="text-[11px] text-muted-foreground font-mono">
-            全队共 {teamHandCards.length} 张手牌
-          </span>
-
-          {/* 多人时提供队伍共用 LP 开关 */}
-          <button
-            type="button"
-            onClick={toggleSharedLp}
-            title={
-              isSharedLp
-                ? '当前为队伍共用生命值，点击切换为每位决斗者独立生命值'
-                : '当前为独立生命值，点击切换为全队共用同一生命值'
-            }
-            className={cn(
-              'ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
-              isSharedLp
-                ? 'bg-primary/15 border-primary/40 text-primary'
-                : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {isSharedLp ? '✓ 队伍共用 LP' : '独立 LP'}
-          </button>
-
-          {/* 队伍共用 LP：仅在队伍共用模式下展示于队伍状态栏 (包含四则运算与无限设置计算器) */}
-          {isSharedLp && (
-            <LpInput
-              lp={state.players[controller]?.lp ?? duelists[0]?.lp ?? 8000}
-              label="队伍 LP"
-              size="sm"
-              player={controller}
-              popoverPlacement={controller === 0 ? 'top' : 'bottom'}
-              onLpChange={(newLp) => setPlayerLp(controller, newLp)}
-            />
+      <div className="flex items-center gap-2 text-xs px-1 h-5">
+        <span
+          className={cn(
+            'font-bold tracking-wide text-xs',
+            isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
           )}
-        </div>
+        >
+          {isOpponent ? '对方手牌区' : '我方手牌区'}
+        </span>
 
-        <div className="flex items-center gap-2">
-          {ruleName && (
-            <Badge variant="secondary" className="text-[10px] h-4 font-mono opacity-80">
-              场地: {ruleName}
-            </Badge>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-medium">
+          {duelists.length} 位决斗者
+        </Badge>
+
+        <span className="text-[11px] text-muted-foreground font-mono">
+          全队共 {teamHandCards.length} 张手牌
+        </span>
+
+        {/* 多人时提供队伍共用 LP 开关 */}
+        <button
+          type="button"
+          onClick={toggleSharedLp}
+          title={
+            isSharedLp
+              ? '当前为队伍共用生命值，点击切换为每位决斗者独立生命值'
+              : '当前为独立生命值，点击切换为全队共用同一生命值'
+          }
+          className={cn(
+            'ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
+            isSharedLp
+              ? 'bg-primary/15 border-primary/40 text-primary'
+              : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
           )}
-        </div>
+        >
+          {isSharedLp ? '✓ 队伍共用 LP' : '独立 LP'}
+        </button>
+
+        {/* 队伍共用 LP：仅在队伍共用模式下展示于队伍状态栏 (包含四则运算与无限设置计算器) */}
+        {isSharedLp && (
+          <LpInput
+            lp={state.players[controller]?.lp ?? duelists[0]?.lp ?? 8000}
+            label="队伍 LP"
+            size="sm"
+            player={controller}
+            popoverPlacement={controller === 0 ? 'top' : 'bottom'}
+            onLpChange={(newLp) => setPlayerLp(controller, newLp)}
+          />
+        )}
       </div>
 
       {/* 决斗者手牌带排布行 (横向并排，永远单行不换行，支持单人展开独占) */}
@@ -391,7 +373,7 @@ const MultiHandTray: React.FC<{
   )
 }
 
-export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
+export const HandTray: React.FC<HandTrayProps> = ({ controller }) => {
   const { state } = useDuelStore()
 
   // 获取本阵营决斗者列表
@@ -423,7 +405,6 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
         controller={controller}
         cards={teamHandCards}
         totalCount={totalCount}
-        ruleName={ruleName}
       />
     )
   }
@@ -434,7 +415,6 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
       controller={controller}
       teamHandCards={teamHandCards}
       totalCount={totalCount}
-      ruleName={ruleName}
     />
   )
 }

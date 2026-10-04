@@ -365,12 +365,11 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         {cards.length === 0 && (
           <div
             className={cn(
-              'w-full h-full flex items-center justify-center text-xs gap-1 pointer-events-none select-none',
+              'w-full h-full flex items-center justify-center pointer-events-none select-none',
               isOpponent ? 'text-red-500/40' : 'text-blue-500/40'
             )}
           >
             <Plus className="w-3 h-3" />
-            <span className="text-[10px]">可拖拽卡片至此</span>
           </div>
         )}
       </div>

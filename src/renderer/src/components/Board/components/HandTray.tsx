@@ -140,83 +140,69 @@ const SingleHandTray: React.FC<{
       className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1"
     >
       {/* 顶部单行信息与操作栏 */}
-      <div className="flex items-center justify-between text-xs px-1 h-5">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'w-2 h-2 rounded-full shrink-0',
-              isOpponent ? 'bg-red-500' : 'bg-blue-500'
-            )}
-          />
+      <div className="flex items-center gap-2 text-xs px-1 h-5">
+        <span
+          className={cn('w-2 h-2 rounded-full shrink-0', isOpponent ? 'bg-red-500' : 'bg-blue-500')}
+        />
 
-          <span
-            className={cn(
-              'font-bold tracking-wide text-xs',
-              isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
-            )}
-          >
-            {isOpponent ? '对方手牌' : '我方手牌'}
-          </span>
-
-          {/* 角色名称行内编辑 */}
-          {isEditingName ? (
-            <div className="flex items-center gap-1">
-              <input
-                type="text"
-                value={nameInput}
-                onChange={(e) => setEditingName(e.target.value)}
-                onBlur={handleSaveName}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveName()
-                  if (e.key === 'Escape') setEditingName(null)
-                }}
-                autoFocus
-                className="h-5 w-24 px-1 text-xs rounded border border-primary bg-background focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleSaveName}
-                className="p-0.5 text-muted-foreground hover:text-foreground"
-              >
-                <Check className="w-3 h-3 text-emerald-500" />
-              </button>
-            </div>
-          ) : (
-            <div
-              onClick={() => setEditingName(duelist.name)}
-              title="点击修改角色名称"
-              className="flex items-center gap-1 group cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded"
-            >
-              <span className="font-semibold text-foreground/90">{duelist.name}</span>
-              <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
-            </div>
+        <span
+          className={cn(
+            'font-bold tracking-wide text-xs',
+            isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
           )}
+        >
+          {isOpponent ? '对方手牌' : '我方手牌'}
+        </span>
 
-          {/* 手牌张数 */}
-          <span className="text-[11px] text-muted-foreground font-mono">({cards.length} 张)</span>
+        {/* 角色名称行内编辑 */}
+        {isEditingName ? (
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setEditingName(e.target.value)}
+              onBlur={handleSaveName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveName()
+                if (e.key === 'Escape') setEditingName(null)
+              }}
+              autoFocus
+              className="h-5 w-24 px-1 text-xs rounded border border-primary bg-background focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleSaveName}
+              className="p-0.5 text-muted-foreground hover:text-foreground"
+            >
+              <Check className="w-3 h-3 text-emerald-500" />
+            </button>
+          </div>
+        ) : (
+          <div
+            onClick={() => setEditingName(duelist.name)}
+            title="点击修改角色名称"
+            className="flex items-center gap-1 group cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded"
+          >
+            <span className="font-semibold text-foreground/90">{duelist.name}</span>
+            <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+          </div>
+        )}
 
-          {/* LP 编辑 (包含四则运算与无限设置计算器) */}
-          <LpInput
-            lp={duelist.lp}
-            label="LP"
-            size="sm"
-            player={controller}
-            popoverPlacement={controller === 0 ? 'top' : 'bottom'}
-            onLpChange={(newLp) => updateDuelist(duelist.id, { lp: newLp })}
-          />
+        {/* 手牌张数 */}
+        <span className="text-[11px] text-muted-foreground font-mono">({cards.length} 张)</span>
 
-          {/* 顺位与先攻标记（支持直接下拉切换全场每位角色的行动次序） */}
-          <TurnOrderBadge duelist={duelist} totalCount={totalCount} />
-        </div>
+        {/* LP 编辑 (包含四则运算与无限设置计算器) */}
+        <LpInput
+          lp={duelist.lp}
+          label="LP"
+          size="sm"
+          player={controller}
+          popoverPlacement={controller === 0 ? 'top' : 'bottom'}
+          onLpChange={(newLp) => updateDuelist(duelist.id, { lp: newLp })}
+        />
 
-        {/* 右侧：拖拽操作提示 */}
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground/80 hidden sm:inline">
-            {isOpponent
-              ? '可直接拖拽卡片至此（默认未公开，右键可设为公开）'
-              : '可从右侧搜索列表拖拽卡片至此放入手牌（Ctrl 拖入 = 公开）'}
-          </span>
-        </div>
+        {/* 顺位与先攻标记（支持直接下拉切换全场每位角色的行动次序） */}
+        <TurnOrderBadge duelist={duelist} totalCount={totalCount} />
       </div>
 
       {/* 手牌横向排布流 (固定紧凑高度，保证无纵向溢出) */}
@@ -253,16 +239,11 @@ const SingleHandTray: React.FC<{
         {cards.length === 0 && (
           <div
             className={cn(
-              'w-full h-full flex items-center justify-center text-xs gap-1.5 pointer-events-none select-none',
+              'w-full h-full flex items-center justify-center pointer-events-none select-none',
               isOpponent ? 'text-red-500/40' : 'text-blue-500/40'
             )}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span className="text-[11px]">
-              {isOpponent
-                ? '对方手牌为空，可将手坑、解场或剧情卡片拖拽至此'
-                : '手牌为空，可将卡片拖拽至此放入起手手牌'}
-            </span>
           </div>
         )}
       </div>

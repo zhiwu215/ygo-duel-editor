@@ -3,21 +3,30 @@ import { Button } from '../ui/button'
 import { Swords, Check, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
+import { DeckData } from '@shared/index'
+
 interface DeckApplyModalProps {
-  deckName: string
-  mainCount: number
-  extraCount: number
-  onConfirm: (player: 0 | 1, drawCount: number) => Promise<boolean>
+  deck?: DeckData
+  deckName?: string
+  mainCount?: number
+  extraCount?: number
+  onConfirm?: (player: 0 | 1, drawCount: number) => Promise<boolean>
+  onApply?: (player: 0 | 1, drawCount: number) => Promise<void>
   onClose: () => void
 }
 
 export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
+  deck,
   deckName,
   mainCount,
   extraCount,
   onConfirm,
+  onApply,
   onClose
 }) => {
+  const actualName = deck?.name || deckName || '当前卡组'
+  const actualMain = deck ? deck.main.length : mainCount || 0
+  const actualExtra = deck ? deck.extra.length : extraCount || 0
   const [player, setPlayer] = useState<0 | 1>(0)
   const [drawMode, setDrawMode] = useState<0 | 5>(5) // 0: 全留卡组, 5: 起手抽5张
   const [isApplying, setIsApplying] = useState(false)
@@ -25,7 +34,13 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
 
   const handleApply = async (): Promise<void> => {
     setIsApplying(true)
-    const ok = await onConfirm(player, drawMode)
+    let ok = false
+    if (onConfirm) {
+      ok = await onConfirm(player, drawMode)
+    } else if (onApply) {
+      await onApply(player, drawMode)
+      ok = true
+    }
     setIsApplying(false)
     if (ok) {
       setIsDone(true)
@@ -71,12 +86,14 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
             <div className="text-xs text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50 flex flex-col gap-1">
               <div className="flex justify-between">
                 <span>卡组名称:</span>
-                <span className="font-bold text-foreground truncate max-w-[240px]">{deckName}</span>
+                <span className="font-bold text-foreground truncate max-w-[240px]">
+                  {actualName}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>卡片构成:</span>
                 <span className="font-mono text-foreground">
-                  主卡组 {mainCount} 张 / 额外 {extraCount} 张
+                  主卡组 {actualMain} 张 / 额外 {actualExtra} 张
                 </span>
               </div>
             </div>

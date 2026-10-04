@@ -90,6 +90,10 @@ export interface IpcApi {
 
   // 卡组编辑器独立窗口与卡组文件
   openDeckEditor: () => Promise<void>
+  getDeckList: () => Promise<DeckData[]>
+  saveDeckToLibrary: (deck: DeckData) => Promise<{ success: boolean; deck: DeckData }>
+  deleteDeckFromLibrary: (id: string) => Promise<boolean>
+  duplicateDeckInLibrary: (id: string) => Promise<DeckData | null>
   saveDeckFile: (deck: DeckData) => Promise<{ success: boolean; filePath?: string; error?: string }>
   loadDeckFile: () => Promise<{
     success: boolean

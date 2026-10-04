@@ -25,6 +25,10 @@ const api: IpcApi = {
 
   // 卡组编辑器独立窗口与卡组文件
   openDeckEditor: () => ipcRenderer.invoke('window:open-deck-editor'),
+  getDeckList: () => ipcRenderer.invoke('deck:get-list'),
+  saveDeckToLibrary: (deck) => ipcRenderer.invoke('deck:save-to-library', deck),
+  deleteDeckFromLibrary: (id) => ipcRenderer.invoke('deck:delete-from-library', id),
+  duplicateDeckInLibrary: (id) => ipcRenderer.invoke('deck:duplicate-in-library', id),
   saveDeckFile: (deck) => ipcRenderer.invoke('deck:save-file', deck),
   loadDeckFile: () => ipcRenderer.invoke('deck:load-file'),
   applyDeckToDuel: (params) => ipcRenderer.invoke('deck:apply-to-duel', params),

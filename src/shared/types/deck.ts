@@ -1,15 +1,21 @@
 /**
  * 卡组数据结构与标准 .ydk 格式解析/生成器
  * 平台无关 (@shared)，两进程共享纯函数
+ * 面向决斗内容创作与推演：不设任何死锁卡数限制，支持剧情特化/超模额外与教学做场
  */
 import { CdbCard } from './card'
 import { CardUtils } from './card'
 
 export interface DeckData {
-  name: string
-  main: number[] // 主卡组卡密数组 (0~60)
-  extra: number[] // 额外卡组卡密数组 (0~15)
-  side: number[] // 副卡组卡密数组 (0~15)
+  id?: string // 唯一标识 ID
+  name: string // 卡组名称
+  description?: string // 卡组描述 / 剧情背景 / 展开思路说明
+  coverCard?: number // 封面王牌怪兽卡密 (若未指定则自动取额外第一张或主卡组第一张)
+  tags?: string[] // 分类 / Tag 标签 (如 '同人剧情', 'Combo教学', '残局特化')
+  main: number[] // 主卡组卡密数组 (自由容量，无强制限制)
+  extra: number[] // 额外卡组卡密数组 (自由容量，无强制限制，允许 >15 张剧情特权额外)
+  side: number[] // 副卡组卡密数组 (自由容量，无强制限制)
+  updatedAt?: number // 更新时间戳
 }
 
 export interface DeckStats {
@@ -28,12 +34,14 @@ export interface DeckStats {
 }
 
 /**
- * 解析标准 .ydk 纯文本为卡组数据
+ * 解析标准 .ydk 纯文本为卡组数据 (兼顾读取创作者元数据)
  */
 export function parseYdk(content: string, defaultName = '新建卡组'): DeckData {
   const lines = content.split(/\r?\n/)
   const deck: DeckData = {
     name: defaultName,
+    description: '',
+    tags: [],
     main: [],
     extra: [],
     side: []
@@ -47,6 +55,28 @@ export function parseYdk(content: string, defaultName = '新建卡组'): DeckDat
 
     if (line.startsWith('#name:')) {
       deck.name = line.replace('#name:', '').trim() || defaultName
+      continue
+    }
+
+    if (line.startsWith('#desc:')) {
+      deck.description = decodeURIComponent(line.replace('#desc:', '').trim())
+      continue
+    }
+
+    if (line.startsWith('#cover:')) {
+      const cover = parseInt(line.replace('#cover:', '').trim(), 10)
+      if (!isNaN(cover) && cover > 0) deck.coverCard = cover
+      continue
+    }
+
+    if (line.startsWith('#tags:')) {
+      const rawTags = line.replace('#tags:', '').trim()
+      deck.tags = rawTags
+        ? rawTags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : []
       continue
     }
 
@@ -70,11 +100,12 @@ export function parseYdk(content: string, defaultName = '新建卡组'): DeckDat
 
     const code = parseInt(line, 10)
     if (!isNaN(code) && code > 0) {
-      if (section === 'main' && deck.main.length < 60) {
+      // 自由创作模式：不设任何人为数量死锁限制
+      if (section === 'main') {
         deck.main.push(code)
-      } else if (section === 'extra' && deck.extra.length < 15) {
+      } else if (section === 'extra') {
         deck.extra.push(code)
-      } else if (section === 'side' && deck.side.length < 15) {
+      } else if (section === 'side') {
         deck.side.push(code)
       }
     }
@@ -84,15 +115,22 @@ export function parseYdk(content: string, defaultName = '新建卡组'): DeckDat
 }
 
 /**
- * 将卡组数据序列化为标准 .ydk 格式
+ * 将卡组数据序列化为标准 .ydk 格式 (元数据以安全注释形式附带)
  */
 export function generateYdk(deck: DeckData): string {
-  const lines: string[] = [
-    `#created by YGO Duel Editor`,
-    `#name:${deck.name || '未命名卡组'}`,
-    `#main`
-  ]
+  const lines: string[] = [`#created by YGO Duel Editor`, `#name:${deck.name || '未命名卡组'}`]
 
+  if (deck.description) {
+    lines.push(`#desc:${encodeURIComponent(deck.description)}`)
+  }
+  if (deck.coverCard) {
+    lines.push(`#cover:${deck.coverCard}`)
+  }
+  if (deck.tags && deck.tags.length > 0) {
+    lines.push(`#tags:${deck.tags.join(',')}`)
+  }
+
+  lines.push(`#main`)
   for (const code of deck.main) {
     lines.push(String(code))
   }

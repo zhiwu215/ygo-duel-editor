@@ -4,6 +4,7 @@ import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
 import { configService } from '../services/configService'
 import { imageService } from '../services/imageService'
+import { deckService } from '../services/deckService'
 
 export function registerAllIpcHandlers(): void {
   // CDB 数据库操作
@@ -81,5 +82,31 @@ export function registerAllIpcHandlers(): void {
   // 本地卡图路径查询
   ipcMain.handle('image:get-path', async (_, code: number, small?: boolean) => {
     return imageService.findCardImagePath(code, !!small)
+  })
+
+  // 卡组编辑器独立窗口与卡组文件
+  ipcMain.handle('window:open-deck-editor', async () => {
+    deckService.openDeckEditorWindow()
+  })
+
+  ipcMain.handle('deck:save-file', async (_, deck) => {
+    return deckService.saveDeckFile(deck)
+  })
+
+  ipcMain.handle('deck:load-file', async () => {
+    return deckService.loadDeckFile()
+  })
+
+  ipcMain.handle('deck:apply-to-duel', async (_, params) => {
+    return deckService.applyDeckToDuel(params)
+  })
+
+  // 卡片收藏夹
+  ipcMain.handle('favorites:get', async () => {
+    return deckService.getFavorites()
+  })
+
+  ipcMain.handle('favorites:toggle', async (_, code: number) => {
+    return deckService.toggleFavorite(code)
   })
 }

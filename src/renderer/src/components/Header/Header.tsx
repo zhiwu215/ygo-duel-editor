@@ -15,7 +15,8 @@ import {
   Layers,
   Eye,
   EyeOff,
-  BookOpen
+  BookOpen,
+  SquareStack
 } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
@@ -352,6 +353,18 @@ export const Header: React.FC = () => {
           >
             <BookOpen className="w-3.5 h-3.5 text-amber-500" />
             <span>台本</span>
+          </Button>
+
+          {/* 卡组编辑器独立窗口 */}
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => window.api.openDeckEditor()}
+            title="打开卡组编辑器 (独立窗口)"
+            className="h-6 px-2 gap-1 text-[11px] font-semibold border-border/80 text-foreground hover:bg-muted"
+          >
+            <SquareStack className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>卡组</span>
           </Button>
 
           <Button

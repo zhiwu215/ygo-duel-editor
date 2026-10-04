@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import { IpcApi, CardSearchParams, DuelPuzzleState, AppConfig } from '@shared/index'
+import { IpcApi, CardSearchParams, DuelPuzzleState, AppConfig, DeckData } from '@shared/index'
 
 // 实现类型完备的 IPC 桥接层
 const api: IpcApi = {
@@ -21,7 +21,34 @@ const api: IpcApi = {
   selectGameDirectory: () => ipcRenderer.invoke('config:select-game-dir'),
 
   getCardImagePath: (code: number, small?: boolean) =>
-    ipcRenderer.invoke('image:get-path', code, small)
+    ipcRenderer.invoke('image:get-path', code, small),
+
+  // 卡组编辑器独立窗口与卡组文件
+  openDeckEditor: () => ipcRenderer.invoke('window:open-deck-editor'),
+  saveDeckFile: (deck) => ipcRenderer.invoke('deck:save-file', deck),
+  loadDeckFile: () => ipcRenderer.invoke('deck:load-file'),
+  applyDeckToDuel: (params) => ipcRenderer.invoke('deck:apply-to-duel', params),
+  onApplyDeckToDuel: (callback) => {
+    const handler = (
+      _: unknown,
+      params: { player: 0 | 1; deck: DeckData; drawCount?: number }
+    ): void => callback(params)
+    ipcRenderer.on('deck:applied-to-duel', handler)
+    return () => {
+      ipcRenderer.removeListener('deck:applied-to-duel', handler)
+    }
+  },
+
+  // 卡片收藏
+  getFavorites: () => ipcRenderer.invoke('favorites:get'),
+  toggleFavorite: (code) => ipcRenderer.invoke('favorites:toggle', code),
+  onFavoritesChanged: (callback) => {
+    const handler = (_: unknown, favs: number[]): void => callback(favs)
+    ipcRenderer.on('favorites:changed', handler)
+    return () => {
+      ipcRenderer.removeListener('favorites:changed', handler)
+    }
+  }
 }
 
 if (process.contextIsolated) {

@@ -1,6 +1,7 @@
 export * from './types/rules'
 export * from './types/card'
 export * from './types/story'
+export * from './types/deck'
 export * from './types/duel'
 export * from './types/ipc'
 export * from './constants/locations'

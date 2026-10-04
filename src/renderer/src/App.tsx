@@ -4,14 +4,20 @@ import { RightSidebar } from './components/RightSidebar/RightSidebar'
 import { DuelBoard } from './components/Board/DuelBoard'
 import { CardDetailPanel } from './components/CardDetail/CardDetailPanel'
 import { DuelScreenplayModal } from './components/StorySequencer/DuelScreenplayModal'
+import { DeckEditorApp } from './components/DeckEditor/DeckEditorApp'
 import { useConfigStore } from './stores/useConfigStore'
 
 export function App(): React.JSX.Element {
   const { loadConfig } = useConfigStore()
+  const isDeckEditor = window.location.hash === '#deck-editor'
 
   useEffect(() => {
     loadConfig()
-  }, [])
+  }, [loadConfig])
+
+  if (isDeckEditor) {
+    return <DeckEditorApp />
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-foreground overflow-hidden">

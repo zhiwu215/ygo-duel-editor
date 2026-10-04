@@ -20,7 +20,8 @@ import {
   createDefaultDuelists,
   normalizeDuelState,
   createLightweightSnapshot,
-  DeckData
+  DeckData,
+  DuelType
 } from '@shared/index'
 import { inferMoveAction, inferPositionChangeAction } from '../utils/duelActionInference'
 
@@ -50,13 +51,14 @@ interface DuelStoreState {
   tacticalView: boolean
 
   // 左侧栏模态 (VSCode 风格活动栏与多模态面板)
-  activeLeftTab: 'card' | 'agent'
+  activeLeftTab: 'archives' | 'card' | 'agent'
   isLeftOpen: boolean
   leftWidth: number
-  setActiveLeftTab: (tab: 'card' | 'agent') => void
+  setActiveLeftTab: (tab: 'archives' | 'card' | 'agent') => void
   setLeftOpen: (open: boolean) => void
-  toggleLeftTab: (tab: 'card' | 'agent') => void
+  toggleLeftTab: (tab: 'archives' | 'card' | 'agent') => void
   setLeftWidth: (width: number) => void
+  loadProjectAndStart: (state: DuelPuzzleState) => void
 
   // 右侧栏模态与剧情步骤编排
   activeRightTab: 'search' | 'steps'
@@ -121,7 +123,10 @@ interface DuelStoreState {
   setStatPopoverPosition: (pos: { x: number; y: number } | null) => void
   openStatPopover: (id: string, initialPos?: { x: number; y: number }) => void
   closeStatPopover: () => void
+  /** 设置规则（如大师规则3） */
   setMasterRule: (rule: MasterRule) => void
+  /** 设置决斗类型（如残局、Combo） */
+  setDuelType: (type: DuelType) => void
   setTitle: (title: string) => void
   setHint: (hint: string) => void
   setPlayerLp: (player: 0 | 1, lp: number) => void
@@ -657,6 +662,22 @@ export const useDuelStore = create<DuelStoreState>()(
         })),
       setLeftWidth: (width) => set({ leftWidth: Math.max(280, Math.min(width, 600)) }),
 
+      /** 加载决斗档案并开始第一回合 */
+      loadProjectAndStart: (newState) => {
+        const normalized = normalizeDuelState(newState)
+        set({
+          state: normalized,
+          currentTurn: 1,
+          currentPhase: 'M1',
+          currentChain: 0,
+          activeTurnPlayer: normalized.turnPlayer ?? 0,
+          selectedCardId: null,
+          expandedDuelistId: null,
+          hoveredCard: null
+        })
+        useDuelStore.temporal.getState().clear()
+      },
+
       setActiveRightTab: (tab) => set({ activeRightTab: tab }),
       setCurrentStepIndex: (index) => set({ currentStepIndex: index }),
       setIsScreenplayOpen: (open) => set({ isScreenplayOpen: open }),
@@ -749,6 +770,11 @@ export const useDuelStore = create<DuelStoreState>()(
             state: { ...prev.state, masterRule: rule, cards: newCards }
           }
         }),
+
+      setDuelType: (duelType) =>
+        set((prev) => ({
+          state: { ...prev.state, duelType }
+        })),
 
       setTitle: (title) =>
         set((prev) => ({
@@ -1733,7 +1759,10 @@ export const useDuelStore = create<DuelStoreState>()(
 
       resetDuel: () =>
         set((prev) => {
-          const baseState = createInitialDuelState(prev.state.masterRule)
+          const baseState = createInitialDuelState(
+            prev.state.masterRule,
+            prev.state.duelType || 'full'
+          )
           if (prev.state.matchConfig) {
             baseState.matchConfig = prev.state.matchConfig
             baseState.duelists = createDefaultDuelists(

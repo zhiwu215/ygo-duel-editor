@@ -78,13 +78,45 @@ export function registerAllIpcHandlers(): void {
     }
   })
 
-  // 项目工程保存打开
+  // 项目工程保存打开与决斗档案库
   ipcMain.handle('file:save-project', async (_, state: DuelPuzzleState) => {
     return fileService.saveProjectFile(state)
   })
 
   ipcMain.handle('file:load-project', async () => {
     return fileService.loadProjectFile()
+  })
+
+  ipcMain.handle('file:get-project-list', async () => {
+    return fileService.getProjectList()
+  })
+
+  ipcMain.handle('file:load-project-by-path', async (_, filePath: string) => {
+    return fileService.loadProjectByPath(filePath)
+  })
+
+  ipcMain.handle('file:delete-project-file', async (_, filePath: string) => {
+    return fileService.deleteProjectFile(filePath)
+  })
+
+  ipcMain.handle('file:duplicate-project-file', async (_, filePath: string) => {
+    return fileService.duplicateProjectFile(filePath)
+  })
+
+  ipcMain.handle('file:reveal-file', async (_, filePath: string) => {
+    return fileService.revealFileInFolder(filePath)
+  })
+
+  ipcMain.handle('file:get-projects-dir', async () => {
+    return fileService.getProjectsDirectory()
+  })
+
+  ipcMain.handle('file:open-projects-dir', async () => {
+    return fileService.openProjectsDirectory()
+  })
+
+  ipcMain.handle('file:select-projects-dir', async () => {
+    return fileService.selectProjectsDirectory()
   })
 
   // 用户配置

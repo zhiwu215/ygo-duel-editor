@@ -73,7 +73,22 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
 
   for (const line of lines) {
     const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('--')) continue
+    if (!trimmed) continue
+
+    if (trimmed.startsWith('-- 决斗标题:')) {
+      const parsedTitle = trimmed.replace('-- 决斗标题:', '').trim()
+      if (parsedTitle) state.title = parsedTitle
+      continue
+    }
+
+    if (trimmed.startsWith('-- 工程类型:')) {
+      if (trimmed.includes('Combo') || trimmed.includes('combo')) state.duelType = 'combo'
+      else if (trimmed.includes('残局') || trimmed.includes('puzzle')) state.duelType = 'puzzle'
+      else if (trimmed.includes('整局') || trimmed.includes('full')) state.duelType = 'full'
+      continue
+    }
+
+    if (trimmed.startsWith('--')) continue
 
     // 匹配 ReloadFieldBegin
     const reloadMatch = trimmed.match(reloadFieldRegex)

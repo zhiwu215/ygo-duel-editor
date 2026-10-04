@@ -1,5 +1,5 @@
 import { CdbCard } from './card'
-import { DuelPuzzleState } from './duel'
+import { DuelPuzzleState, DuelType } from './duel'
 import { DeckData } from './deck'
 import { DuelPhase, DuelActionType } from './story'
 
@@ -159,6 +159,25 @@ export interface AppConfig {
   favorites?: number[]
   /** AI 决斗编排顾问模型配置 */
   agentConfig?: AgentModelConfig
+  /** 最近打开或保存的工程文件路径列表 */
+  recentProjectPaths?: string[]
+  /** 决斗档案默认保存与归档目录 */
+  projectsDirectory?: string
+}
+
+/**
+ * 决斗档案元数据 (用于决斗档案面板展示与快速载入)
+ */
+export interface DuelProjectMeta {
+  id: string // 唯一标识
+  filePath: string // 文件绝对路径
+  title: string // 工程标题
+  duelType: DuelType // 'full' | 'puzzle' | 'combo'
+  hint?: string // 战术要点 / 剧情注释
+  masterRule: number // 规则版本 (2~5)
+  cardCount: number // 卡片数量 (场上/手牌等)
+  stepCount?: number // 步骤数量
+  updatedAt: number // 最后修改时间戳 (ms)
 }
 
 /**
@@ -192,6 +211,20 @@ export interface IpcApi {
   // 工程保存与打开
   saveProjectFile: (state: DuelPuzzleState) => Promise<{ success: boolean; filePath?: string }>
   loadProjectFile: () => Promise<{ success: boolean; state?: DuelPuzzleState }>
+
+  // 决斗档案
+  getProjectList: () => Promise<DuelProjectMeta[]>
+  loadProjectByPath: (
+    filePath: string
+  ) => Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }>
+  deleteProjectFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+  duplicateProjectFile: (
+    filePath: string
+  ) => Promise<{ success: boolean; newPath?: string; error?: string }>
+  revealFileInFolder: (filePath: string) => Promise<void>
+  getProjectsDirectory: () => Promise<string>
+  openProjectsDirectory: () => Promise<void>
+  selectProjectsDirectory: () => Promise<string | null>
 
   // 用户设置
   getConfig: () => Promise<AppConfig>

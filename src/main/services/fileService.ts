@@ -1,14 +1,150 @@
-import { dialog, BrowserWindow } from 'electron'
-import { readFileSync, writeFileSync } from 'fs'
+import { dialog, BrowserWindow, app, shell } from 'electron'
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  unlinkSync
+} from 'fs'
+import { join, basename, extname } from 'path'
 import {
   DuelPuzzleState,
+  DuelProjectMeta,
+  normalizeDuelState,
   generateLuaScript,
   parseLuaScript,
   generateScreenplayMarkdown
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
+import { configService } from './configService'
 
 export class FileService {
+  private projectsDir: string
+
+  constructor() {
+    this.projectsDir = join(app.getPath('userData'), 'projects')
+    this.ensureProjectsDirectory()
+  }
+
+  /**
+   * 获取当前生效的工程存储目录 (优先使用用户自定义目录)
+   */
+  public getProjectsDirectory(): string {
+    const customDir = configService.get().projectsDirectory
+    if (customDir && existsSync(customDir)) {
+      return customDir
+    }
+    return this.projectsDir
+  }
+
+  /**
+   * 确保工程专属目录存在，首次创建时写入预设对局档案
+   */
+  public ensureProjectsDirectory(): string {
+    const dir = this.getProjectsDirectory()
+    try {
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true })
+      }
+      const files = readdirSync(dir)
+      const hasDuelFiles = files.some((f) => f.endsWith('.ygoduel') || f.endsWith('.json'))
+      if (!hasDuelFiles) {
+        this.seedPresetProjects(dir)
+      }
+    } catch (err) {
+      console.error('[FileService] Failed to ensure projects directory:', err)
+    }
+    return dir
+  }
+
+  /**
+   * 首次启动时注入 3 份预设对局档案 (整局、残局、Combo)
+   */
+  private seedPresetProjects(targetDir = this.getProjectsDirectory()): void {
+    try {
+      const presets: Array<{ filename: string; state: Partial<DuelPuzzleState> }> = [
+        {
+          filename: '【同人剧情】主角暗黑神力觉醒·逆转之决斗.ygoduel',
+          state: {
+            version: '1.1.0',
+            title: '【同人剧情】主角暗黑神力觉醒·逆转之决斗',
+            hint: '同人剧场版高潮：主角在绝境关头突破极限，手牌仅剩一卡，发动墓地效果展开反击逆转终局！',
+            duelType: 'full',
+            masterRule: 5,
+            turnPlayer: 0,
+            firstTurnAttack: true,
+            players: [
+              { lp: 100, maxHand: 0, startHand: 0 },
+              { lp: 8000, maxHand: 0, startHand: 0 }
+            ],
+            cards: [],
+            steps: []
+          }
+        },
+        {
+          filename: '【残局特化】突破神之阵·绝境解场.ygoduel',
+          state: {
+            version: '1.1.0',
+            title: '【残局特化】突破神之阵·绝境解场',
+            hint: '残局解谜：敌方场上存在全抗高打点怪兽，利用连锁优先级与墓地效果突破神之封锁完成斩杀。',
+            duelType: 'puzzle',
+            masterRule: 5,
+            turnPlayer: 0,
+            firstTurnAttack: true,
+            players: [
+              { lp: 800, maxHand: 0, startHand: 0 },
+              { lp: 4000, maxHand: 0, startHand: 0 }
+            ],
+            cards: [],
+            steps: []
+          }
+        },
+        {
+          filename: '【Combo教学】百夫长骑士·标准做场演示.ygoduel',
+          state: {
+            version: '1.1.0',
+            title: '【Combo教学】百夫长骑士·标准做场演示',
+            hint: '做场路线教学：特异特勒单卡动，检索石像，做场赤霄+鲜花+重骑士加速同调压制教学。',
+            duelType: 'combo',
+            masterRule: 5,
+            turnPlayer: 0,
+            firstTurnAttack: true,
+            players: [
+              { lp: 8000, maxHand: 0, startHand: 0 },
+              { lp: 8000, maxHand: 0, startHand: 0 }
+            ],
+            cards: [],
+            steps: []
+          }
+        }
+      ]
+
+      for (const p of presets) {
+        const fullPath = join(targetDir, p.filename)
+        if (!existsSync(fullPath)) {
+          writeFileSync(fullPath, JSON.stringify(p.state, null, 2), 'utf-8')
+        }
+      }
+    } catch (err) {
+      console.error('[FileService] Failed to seed preset projects:', err)
+    }
+  }
+
+  /**
+   * 记录最近打开或保存的工程路径
+   */
+  private recordRecentProject(filePath: string): void {
+    try {
+      const cfg = configService.get()
+      const recents = (cfg.recentProjectPaths || []).filter((p) => p !== filePath)
+      recents.unshift(filePath)
+      configService.save({ recentProjectPaths: recents.slice(0, 50) })
+    } catch (err) {
+      console.error('[FileService] Failed to record recent project:', err)
+    }
+  }
   /**
    * 打开选择 cards.cdb 文件对话框
    */
@@ -155,10 +291,13 @@ export class FileService {
     window?: BrowserWindow
   ): Promise<{ success: boolean; filePath?: string }> {
     try {
+      const defaultDir = this.ensureProjectsDirectory()
       const defaultName = `${state.title || 'project'}.ygoduel`
+      const defaultPath = join(defaultDir, defaultName)
+
       const res = await dialog.showSaveDialog(window || BrowserWindow.getFocusedWindow()!, {
         title: '保存决斗编辑器工程文件',
-        defaultPath: defaultName,
+        defaultPath,
         filters: [
           { name: 'YGO Duel Project', extensions: ['ygoduel', 'json'] },
           { name: 'All Files', extensions: ['*'] }
@@ -170,6 +309,7 @@ export class FileService {
       }
 
       writeFileSync(res.filePath, JSON.stringify(state, null, 2), 'utf-8')
+      this.recordRecentProject(res.filePath)
       return { success: true, filePath: res.filePath }
     } catch (err) {
       console.error('[FileService] Save project failed:', err)
@@ -197,12 +337,202 @@ export class FileService {
         return { success: false }
       }
 
-      const content = readFileSync(res.filePaths[0], 'utf-8')
-      const state = JSON.parse(content) as DuelPuzzleState
+      const filePath = res.filePaths[0]
+      const content = readFileSync(filePath, 'utf-8')
+      const rawState = JSON.parse(content) as DuelPuzzleState
+      const state = normalizeDuelState(rawState)
+      this.recordRecentProject(filePath)
       return { success: true, state }
     } catch (err) {
       console.error('[FileService] Load project failed:', err)
       return { success: false }
+    }
+  }
+
+  /**
+   * 获取所有对局档案列表 (扫描 projects 目录与最近工程历史)
+   */
+  public async getProjectList(): Promise<DuelProjectMeta[]> {
+    this.ensureProjectsDirectory()
+    const metaMap = new Map<string, DuelProjectMeta>()
+
+    const tryAddFile = (filePath: string): void => {
+      try {
+        if (!existsSync(filePath)) return
+        const stat = statSync(filePath)
+        if (!stat.isFile()) return
+
+        const content = readFileSync(filePath, 'utf-8')
+        const data = JSON.parse(content) as DuelPuzzleState
+        if (!data || typeof data !== 'object') return
+
+        const ext = extname(filePath)
+        const nameWithoutExt = basename(filePath, ext)
+        const title = data.title || nameWithoutExt || '未命名对局'
+        const duelType = data.duelType || 'full'
+        const hint = data.hint || ''
+        const masterRule = data.masterRule || 5
+        const cardCount = Array.isArray(data.cards) ? data.cards.length : 0
+        const stepCount = Array.isArray(data.steps) ? data.steps.length : 0
+
+        metaMap.set(filePath, {
+          id: filePath,
+          filePath,
+          title,
+          duelType,
+          hint,
+          masterRule,
+          cardCount,
+          stepCount,
+          updatedAt: stat.mtimeMs
+        })
+      } catch (err) {
+        console.warn('[FileService] Failed to read project meta:', filePath, err)
+      }
+    }
+
+    // 1. 扫描当前配置的工程目录
+    const currentDir = this.ensureProjectsDirectory()
+    try {
+      if (existsSync(currentDir)) {
+        const files = readdirSync(currentDir)
+        for (const file of files) {
+          if (file.endsWith('.ygoduel') || file.endsWith('.json')) {
+            tryAddFile(join(currentDir, file))
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[FileService] Error scanning projects directory:', err)
+    }
+
+    // 2. 补充最近打开的历史工程 (若存在且未失效)
+    const recents = configService.get().recentProjectPaths || []
+    for (const p of recents) {
+      if (!metaMap.has(p)) {
+        tryAddFile(p)
+      }
+    }
+
+    // 3. 按最后修改时间倒序排列
+    return Array.from(metaMap.values()).sort((a, b) => b.updatedAt - a.updatedAt)
+  }
+
+  /**
+   * 按绝对路径读取对局档案
+   */
+  public async loadProjectByPath(
+    filePath: string
+  ): Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }> {
+    try {
+      if (!existsSync(filePath)) {
+        return { success: false, error: '文件不存在或已被移除' }
+      }
+      const content = readFileSync(filePath, 'utf-8')
+      const rawState = JSON.parse(content) as DuelPuzzleState
+      const state = normalizeDuelState(rawState)
+      this.recordRecentProject(filePath)
+      return { success: true, state }
+    } catch (err) {
+      console.error('[FileService] loadProjectByPath failed:', err)
+      return { success: false, error: err instanceof Error ? err.message : '读取工程文件失败' }
+    }
+  }
+
+  /**
+   * 删除对局档案文件
+   */
+  public async deleteProjectFile(filePath: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (existsSync(filePath)) {
+        unlinkSync(filePath)
+      }
+      // 从最近工程中移除
+      const cfg = configService.get()
+      const recents = (cfg.recentProjectPaths || []).filter((p) => p !== filePath)
+      configService.save({ recentProjectPaths: recents })
+      return { success: true }
+    } catch (err) {
+      console.error('[FileService] deleteProjectFile failed:', err)
+      return { success: false, error: err instanceof Error ? err.message : '删除失败' }
+    }
+  }
+
+  /**
+   * 复制创建对局档案副本
+   */
+  public async duplicateProjectFile(
+    filePath: string
+  ): Promise<{ success: boolean; newPath?: string; error?: string }> {
+    try {
+      if (!existsSync(filePath)) {
+        return { success: false, error: '原文件不存在' }
+      }
+      const content = readFileSync(filePath, 'utf-8')
+      const state = JSON.parse(content) as DuelPuzzleState
+      state.title = `${state.title || '对局'} (副本)`
+
+      const baseDir = this.ensureProjectsDirectory()
+      let newFilename = `${state.title.replace(/[\\/:*?"<>|]/g, '_')}.ygoduel`
+      let newPath = join(baseDir, newFilename)
+
+      if (existsSync(newPath)) {
+        newFilename = `${state.title.replace(/[\\/:*?"<>|]/g, '_')}_${Date.now()}.ygoduel`
+        newPath = join(baseDir, newFilename)
+      }
+
+      writeFileSync(newPath, JSON.stringify(state, null, 2), 'utf-8')
+      this.recordRecentProject(newPath)
+      return { success: true, newPath }
+    } catch (err) {
+      console.error('[FileService] duplicateProjectFile failed:', err)
+      return { success: false, error: err instanceof Error ? err.message : '创建副本失败' }
+    }
+  }
+
+  /**
+   * 在操作系统的资源管理器中高亮定位文件
+   */
+  public async revealFileInFolder(filePath: string): Promise<void> {
+    try {
+      if (existsSync(filePath)) {
+        shell.showItemInFolder(filePath)
+      }
+    } catch (err) {
+      console.error('[FileService] revealFileInFolder failed:', err)
+    }
+  }
+
+  /**
+   * 打开选择工程存储目录对话框并保存设置
+   */
+  public async selectProjectsDirectory(window?: BrowserWindow): Promise<string | null> {
+    const currentDir = this.getProjectsDirectory()
+    const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
+      title: '选择决斗工程默认保存与归档目录',
+      defaultPath: currentDir,
+      properties: ['openDirectory', 'createDirectory']
+    })
+
+    if (res.canceled || res.filePaths.length === 0) {
+      return null
+    }
+
+    const selectedDir = res.filePaths[0]
+    configService.save({ projectsDirectory: selectedDir })
+    this.ensureProjectsDirectory()
+    return selectedDir
+  }
+
+  /**
+   * 打开工程存储目录
+   */
+  public async openProjectsDirectory(): Promise<void> {
+    try {
+      const dir = this.ensureProjectsDirectory()
+      await shell.openPath(dir)
+    } catch (err) {
+      console.error('[FileService] openProjectsDirectory failed:', err)
     }
   }
 

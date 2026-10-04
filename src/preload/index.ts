@@ -26,6 +26,18 @@ const api: IpcApi = {
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   loadProjectFile: () => ipcRenderer.invoke('file:load-project'),
 
+  // 决斗档案
+  getProjectList: () => ipcRenderer.invoke('file:get-project-list'),
+  loadProjectByPath: (filePath: string) =>
+    ipcRenderer.invoke('file:load-project-by-path', filePath),
+  deleteProjectFile: (filePath: string) => ipcRenderer.invoke('file:delete-project-file', filePath),
+  duplicateProjectFile: (filePath: string) =>
+    ipcRenderer.invoke('file:duplicate-project-file', filePath),
+  revealFileInFolder: (filePath: string) => ipcRenderer.invoke('file:reveal-file', filePath),
+  getProjectsDirectory: () => ipcRenderer.invoke('file:get-projects-dir'),
+  openProjectsDirectory: () => ipcRenderer.invoke('file:open-projects-dir'),
+  selectProjectsDirectory: () => ipcRenderer.invoke('file:select-projects-dir'),
+
   getConfig: () => ipcRenderer.invoke('config:get'),
   saveConfig: (cfg: Partial<AppConfig>) => ipcRenderer.invoke('config:save', cfg),
   selectGameDirectory: () => ipcRenderer.invoke('config:select-game-dir'),

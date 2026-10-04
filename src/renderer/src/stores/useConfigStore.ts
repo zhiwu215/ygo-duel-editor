@@ -8,6 +8,8 @@ interface ConfigStoreState {
   loadConfig: () => Promise<void>
   selectCdbFile: () => Promise<string | null>
   selectGameDir: () => Promise<string | null>
+  /** 选择决斗档案保存目录 */
+  selectProjectsDir: () => Promise<string | null>
   setTheme: (theme: 'dark' | 'light') => Promise<void>
   toggleTheme: () => Promise<void>
 }
@@ -68,6 +70,19 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       return dir
     } catch (err) {
       console.error('[useConfigStore] selectGameDir error:', err)
+      return null
+    }
+  },
+
+  selectProjectsDir: async () => {
+    try {
+      const dir = await window.api.selectProjectsDirectory()
+      if (dir) {
+        await get().loadConfig()
+      }
+      return dir
+    } catch (err) {
+      console.error('[useConfigStore] selectProjectsDir error:', err)
       return null
     }
   }

@@ -6,7 +6,7 @@ import {
   formatCardStatsLine,
   formatCardSeriesLine
 } from '../../utils/cardFormat'
-import { HelpCircle, ZoomIn, X, Copy, Check } from 'lucide-react'
+import { HelpCircle, ZoomIn, X, Copy, Check, BookOpen, PanelLeftClose } from 'lucide-react'
 
 export const CardDetailPanel: React.FC = () => {
   const { hoveredCard, selectedCardId, state } = useDuelStore()
@@ -70,13 +70,30 @@ export const CardDetailPanel: React.FC = () => {
 
   if (!currentCard) {
     return (
-      <aside className="w-80 h-full border-r border-border bg-card/30 flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none shrink-0">
-        <HelpCircle className="w-10 h-10 text-muted-foreground/30 mb-3" />
-        <p className="font-medium text-foreground/80">尚未选择卡片</p>
-        <p className="text-[11px] text-muted-foreground/60 mt-1 leading-relaxed">
-          点击或悬停在卡片搜索列表、或者场上的卡片上，即可在此处查阅超高清卡图与详细效果说明。
-        </p>
-      </aside>
+      <div className="w-full h-full bg-card/30 flex flex-col select-none">
+        {/* VSCode 风格面板顶栏 */}
+        <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs font-bold text-foreground">卡片详情</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => useDuelStore.getState().setLeftOpen(false)}
+            title="收起左侧面板"
+            className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          >
+            <PanelLeftClose className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none">
+          <HelpCircle className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="font-medium text-foreground/80">尚未选择卡片</p>
+          <p className="text-[11px] text-muted-foreground/60 mt-1 leading-relaxed">
+            点击或悬停在卡片搜索列表、或者场上的卡片上，即可在此处查阅超高清卡图与详细效果说明。
+          </p>
+        </div>
+      </div>
     )
   }
 
@@ -85,7 +102,23 @@ export const CardDetailPanel: React.FC = () => {
 
   return (
     <>
-      <aside className="w-80 h-full border-r border-border bg-card/40 flex flex-col shrink-0 overflow-hidden">
+      <div className="w-full h-full bg-card/40 flex flex-col overflow-hidden">
+        {/* VSCode 风格面板顶栏 */}
+        <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <BookOpen className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <span className="text-xs font-bold text-foreground">卡片详情</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => useDuelStore.getState().setLeftOpen(false)}
+            title="收起左侧面板"
+            className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          >
+            <PanelLeftClose className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         {/* 卡图展示区域 (原生 59:86 卡牌黄金比例，居中高质感渲染) */}
         <div className="pt-3 pb-2.5 px-4 flex flex-col items-center select-none shrink-0">
           <div
@@ -152,7 +185,7 @@ export const CardDetailPanel: React.FC = () => {
             {currentCard.desc}
           </div>
         </div>
-      </aside>
+      </div>
 
       {/* 卡图放大查看 Lightbox 弹窗 */}
       {showImageModal && (

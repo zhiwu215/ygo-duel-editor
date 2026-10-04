@@ -6,6 +6,7 @@ import { configService } from '../services/configService'
 import { imageService } from '../services/imageService'
 import { deckService } from '../services/deckService'
 import { ocgcoreService } from '../services/ocgcoreService'
+import { agentService } from '../services/agentService'
 
 export function registerAllIpcHandlers(): void {
   // CDB 数据库操作
@@ -148,5 +149,14 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('favorites:toggle', async (_, code: number) => {
     return deckService.toggleFavorite(code)
+  })
+
+  // AI 决斗编排
+  ipcMain.handle('agent:send-message', async (_, params) => {
+    return agentService.sendMessage(params)
+  })
+
+  ipcMain.handle('agent:abort', async () => {
+    return agentService.abort()
   })
 }

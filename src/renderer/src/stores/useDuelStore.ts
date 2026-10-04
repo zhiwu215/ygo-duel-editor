@@ -49,6 +49,15 @@ interface DuelStoreState {
   hoveredInstanceId: string | null
   tacticalView: boolean
 
+  // 左侧栏模态 (VSCode 风格活动栏与多模态面板)
+  activeLeftTab: 'card' | 'agent'
+  isLeftOpen: boolean
+  leftWidth: number
+  setActiveLeftTab: (tab: 'card' | 'agent') => void
+  setLeftOpen: (open: boolean) => void
+  toggleLeftTab: (tab: 'card' | 'agent') => void
+  setLeftWidth: (width: number) => void
+
   // 右侧栏模态与剧情步骤编排
   activeRightTab: 'search' | 'steps'
   currentStepIndex: number | null
@@ -232,6 +241,9 @@ export const useDuelStore = create<DuelStoreState>()(
       hoveredCard: null,
       hoveredInstanceId: null,
       tacticalView: false,
+      activeLeftTab: 'card',
+      isLeftOpen: true,
+      leftWidth: 340,
       activeRightTab: 'search',
       currentStepIndex: null,
       isScreenplayOpen: false,
@@ -635,6 +647,15 @@ export const useDuelStore = create<DuelStoreState>()(
         const topCard = deckCards[deckCards.length - 1]
         moveCard(topCard.instanceId, CardLocation.HAND, 999, controller, CardPosition.FACEDOWN)
       },
+
+      setActiveLeftTab: (tab) => set({ activeLeftTab: tab, isLeftOpen: true }),
+      setLeftOpen: (open) => set({ isLeftOpen: open }),
+      toggleLeftTab: (tab) =>
+        set((prev) => ({
+          activeLeftTab: tab,
+          isLeftOpen: prev.activeLeftTab === tab ? !prev.isLeftOpen : true
+        })),
+      setLeftWidth: (width) => set({ leftWidth: Math.max(280, Math.min(width, 600)) }),
 
       setActiveRightTab: (tab) => set({ activeRightTab: tab }),
       setCurrentStepIndex: (index) => set({ currentStepIndex: index }),

@@ -1,6 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import { IpcApi, CardSearchParams, DuelPuzzleState, AppConfig, DeckData } from '@shared/index'
+import {
+  IpcApi,
+  CardSearchParams,
+  DuelPuzzleState,
+  AppConfig,
+  DeckData,
+  AgentStreamEvent
+} from '@shared/index'
 
 // 实现类型完备的 IPC 桥接层
 const api: IpcApi = {
@@ -54,6 +61,17 @@ const api: IpcApi = {
     ipcRenderer.on('favorites:changed', handler)
     return () => {
       ipcRenderer.removeListener('favorites:changed', handler)
+    }
+  },
+
+  // AI 决斗编排
+  agentSendMessage: (params) => ipcRenderer.invoke('agent:send-message', params),
+  agentAbort: () => ipcRenderer.invoke('agent:abort'),
+  onAgentEvent: (callback) => {
+    const handler = (_: unknown, event: unknown): void => callback(event as AgentStreamEvent)
+    ipcRenderer.on('agent:event', handler)
+    return () => {
+      ipcRenderer.removeListener('agent:event', handler)
     }
   }
 }

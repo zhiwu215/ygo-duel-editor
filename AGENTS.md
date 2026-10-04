@@ -35,7 +35,8 @@ pnpm typecheck            # 双端类型检查 = typecheck:node + typecheck:web�
 pnpm typecheck:node       #   仅检查 main / preload / shared（tsconfig.node.json）
 pnpm typecheck:web        #   仅检查 renderer（tsconfig.web.json）
 pnpm lint                 # ESLint（带 --cache）
-pnpm format               # Prettier 全仓格式化；单文件用 pnpm exec prettier --write <file>
+pnpm format               # Prettier 全仓格式化（`prettier --write .`）
+pnpm exec prettier --write src # 【推荐】仅格式化源码目录，避免误扫根目录其他本地文件夹；单文件用 pnpm exec prettier --write <file>
 pnpm build                # 先 typecheck 再 electron-vite build
 pnpm build:win            # Windows 打包（另有 build:mac / build:linux / build:unpack）
 ```
@@ -112,18 +113,18 @@ src/
 │   ├── index.ts                #   应用入口：窗口创建、生命周期
 │   ├── db/cdbService.ts        #   cards.cdb 只读访问（模块级单实例，export const cdbService）
 │   ├── ipc/registerIpc.ts      #   所有 ipcMain.handle 集中注册地
-│   └── services/               #   业务服务（configStore/fileService/imageService）
+│   └── services/               #   业务服务（configStore/fileService/imageService/agentService）
 ├── preload/                    # 安全桥接层
 │   ├── index.ts                #   contextBridge 实现 IpcApi
 │   └── index.d.ts              #   window.api 类型声明
 ├── renderer/src/               # 渲染进程 (React SPA)
-│   ├── main.tsx / App.tsx      #   入口与顶层布局（Header + 三栏）
-│   ├── components/             #   按功能域分目录（Board/CardDetail/CardSearch/Header/ui）
+│   ├── main.tsx / App.tsx      #   入口与顶层布局（Header + 左侧活动栏 + 战场 + 右侧栏）
+│   ├── components/             #   按功能域分目录（BehindSpirit/Board/CardDetail/CardSearch/Header/LeftSidebar/RightSidebar/StorySequencer/ui）
 │   ├── stores/                 #   Zustand store，每个文件一个业务关注点
 │   ├── lib/utils.ts            #   cn() 工具
 │   └── utils/cardImage.ts      #   卡图 URL / 卡背
 └── shared/                     # 双进程共享层（@shared），平台无关
-    ├── types/                  #   card.ts / duel.ts / rules.ts / ipc.ts
+    ├── types/                  #   card.ts / duel.ts / rules.ts / ipc.ts / story.ts
     ├── constants/              #   locations.ts / positions.ts（ocgcore 位掩码）
     └── engine/                 #   luaGenerator.ts / luaParser.ts（Lua 双向引擎）
 ```
@@ -225,7 +226,7 @@ Board/
 
 ## 9. 代码风格（由工具强制，不要手工维护规则）
 
-Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：无分号、单引号、行宽 100、无尾逗号。**提交前跑 `pnpm format`，风格问题不要手工争论。**
+Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：无分号、单引号、行宽 100、无尾逗号。**提交前跑 `pnpm exec prettier --write src`（推荐）或单文件 `pnpm exec prettier --write <file>`，避免全仓格式化误扫到根目录下的参考子仓库（如 pi、opencode 等）。风格问题不要手工争论。**
 
 需要人工遵守、工具管不着的：
 

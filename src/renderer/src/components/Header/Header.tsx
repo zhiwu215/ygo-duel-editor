@@ -103,6 +103,16 @@ export const Header: React.FC = () => {
     }
   }, [loadState])
 
+  const handleExportScreenplay = React.useCallback(async (): Promise<void> => {
+    if (!window.api?.exportScreenplayFile) return
+    const res = await window.api.exportScreenplayFile(state)
+    if (res.success && res.filePath) {
+      alert(`同人决斗剧本台本已成功导出：\n${res.filePath}`)
+    } else if (res.error) {
+      alert(`导出失败: ${res.error}`)
+    }
+  }, [state])
+
   // ---------- 全局快捷键 (与菜单提示保持一致：N/O/S/I/E + Z/Y) ----------
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -179,6 +189,7 @@ export const Header: React.FC = () => {
             onSaveProject={handleSaveProject}
             onImportLua={handleImportLua}
             onExportLua={handleExportLua}
+            onExportScreenplay={handleExportScreenplay}
           />
 
           <Separator orientation="vertical" className="h-3.5 mx-2" />

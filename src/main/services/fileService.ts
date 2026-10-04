@@ -1,6 +1,11 @@
 import { dialog, BrowserWindow } from 'electron'
 import { readFileSync, writeFileSync } from 'fs'
-import { DuelPuzzleState, generateLuaScript, parseLuaScript } from '@shared/index'
+import {
+  DuelPuzzleState,
+  generateLuaScript,
+  parseLuaScript,
+  generateScreenplayMarkdown
+} from '@shared/index'
 import { cdbService } from '../db/cdbService'
 
 export class FileService {
@@ -198,6 +203,38 @@ export class FileService {
     } catch (err) {
       console.error('[FileService] Load project failed:', err)
       return { success: false }
+    }
+  }
+
+  /**
+   * 导出同人决斗台本 Markdown 文档 (.md)
+   */
+  public async exportScreenplayFile(
+    state: DuelPuzzleState,
+    window?: BrowserWindow
+  ): Promise<{ success: boolean; filePath?: string; error?: string }> {
+    try {
+      const defaultName = `${state.title.replace(/[\\/:*?"<>|]/g, '_') || 'duel_screenplay'}.md`
+      const res = await dialog.showSaveDialog(window || BrowserWindow.getFocusedWindow()!, {
+        title: '导出同人决斗剧本台本 Markdown 文档',
+        defaultPath: defaultName,
+        filters: [
+          { name: 'Markdown Document', extensions: ['md'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      })
+
+      if (res.canceled || !res.filePath) {
+        return { success: false }
+      }
+
+      const mdContent = generateScreenplayMarkdown(state)
+      writeFileSync(res.filePath, mdContent, 'utf-8')
+
+      return { success: true, filePath: res.filePath }
+    } catch (err: unknown) {
+      console.error('[FileService] exportScreenplayFile error:', err)
+      return { success: false, error: err instanceof Error ? err.message : '导出台本失败' }
     }
   }
 }

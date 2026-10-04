@@ -139,7 +139,7 @@ const SingleHandTray: React.FC<{
   return (
     <div
       ref={trayRef}
-      className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-lg bg-card border border-border shadow-sm flex flex-col gap-1"
+      className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1"
     >
       {/* 顶部单行信息与操作栏 */}
       <div className="flex items-center justify-between text-xs px-1 h-5">
@@ -296,7 +296,7 @@ const MultiHandTray: React.FC<{
   const isSharedLp = Boolean(state.matchConfig?.sharedLp)
 
   return (
-    <div className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-lg bg-card border border-border shadow-sm flex flex-col gap-1">
+    <div className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1">
       {/* 顶部阵营状态栏 */}
       <div className="flex items-center justify-between text-xs px-1 h-5">
         <div className="flex items-center gap-2">

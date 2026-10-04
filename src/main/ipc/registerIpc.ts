@@ -89,6 +89,22 @@ export function registerAllIpcHandlers(): void {
     deckService.openDeckEditorWindow()
   })
 
+  ipcMain.handle('deck:get-list', async () => {
+    return deckService.getDeckList()
+  })
+
+  ipcMain.handle('deck:save-to-library', async (_, deck) => {
+    return deckService.saveDeckToLibrary(deck)
+  })
+
+  ipcMain.handle('deck:delete-from-library', async (_, id: string) => {
+    return deckService.deleteDeckFromLibrary(id)
+  })
+
+  ipcMain.handle('deck:duplicate-in-library', async (_, id: string) => {
+    return deckService.duplicateDeckInLibrary(id)
+  })
+
   ipcMain.handle('deck:save-file', async (_, deck) => {
     return deckService.saveDeckFile(deck)
   })

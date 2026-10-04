@@ -8,19 +8,11 @@ interface DeckStatsBarProps {
 export const DeckStatsBar: React.FC<DeckStatsBarProps> = ({ stats }) => {
   return (
     <div className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-md bg-muted/30 border border-border/50 select-none">
-      {/* 主卡组统计 */}
+      {/* 主卡组统计 (自由容量，无强制限制) */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 font-bold">
           <span className="text-foreground">主卡组</span>
-          <span
-            className={
-              stats.mainCount >= 40 && stats.mainCount <= 60
-                ? 'text-foreground font-mono'
-                : 'text-amber-500 font-mono'
-            }
-          >
-            {stats.mainCount} / 60
-          </span>
+          <span className="text-foreground font-mono font-bold">{stats.mainCount} 张</span>
         </div>
 
         <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
@@ -44,19 +36,20 @@ export const DeckStatsBar: React.FC<DeckStatsBarProps> = ({ stats }) => {
         </div>
       </div>
 
-      {/* 额外与副卡组统计 */}
+      {/* 额外与副卡组统计 (自由容量，允许 >15 额外与同人超模) */}
       <div className="flex items-center gap-4 text-[11px]">
         {/* 额外卡组 */}
         <div className="flex items-center gap-2">
           <span className="font-bold text-foreground">额外</span>
           <span
             className={
-              stats.extraCount <= 15
-                ? 'text-foreground font-mono font-bold'
-                : 'text-rose-500 font-mono font-bold'
+              stats.extraCount > 15
+                ? 'text-purple-400 font-mono font-bold bg-purple-950/40 px-1 rounded'
+                : 'text-foreground font-mono font-bold'
             }
+            title={stats.extraCount > 15 ? '同人/剧情突破特权：额外卡组超过 15 张' : undefined}
           >
-            {stats.extraCount} / 15
+            {stats.extraCount} 张{stats.extraCount > 15 ? ' (剧情特权)' : ''}
           </span>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             {stats.fusionCount > 0 && (
@@ -89,7 +82,7 @@ export const DeckStatsBar: React.FC<DeckStatsBarProps> = ({ stats }) => {
         {/* 副卡组 */}
         <div className="flex items-center gap-1.5">
           <span className="font-bold text-foreground">副卡组</span>
-          <span className="font-mono text-muted-foreground">{stats.sideCount} / 15</span>
+          <span className="font-mono text-muted-foreground">{stats.sideCount} 张</span>
         </div>
       </div>
     </div>

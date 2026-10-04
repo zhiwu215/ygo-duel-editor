@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
+import { DeckLibraryView } from './DeckLibraryView'
 import { DeckDetailCard } from './DeckDetailCard'
 import { DeckGrid } from './DeckGrid'
 import { DeckStatsBar } from './DeckStatsBar'
@@ -10,24 +11,34 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import {
-  SquareStack,
+  ArrowLeft,
   FolderOpen,
   Save,
   ArrowUpDown,
   Dices,
   Swords,
   Trash2,
-  FilePlus2
+  FilePlus2,
+  Download,
+  Tag,
+  FileText,
+  Plus,
+  X
 } from 'lucide-react'
 
 export const DeckEditorApp: React.FC = () => {
   const {
+    viewMode,
     deck,
     cardDetails,
     selectedCard,
     testHandCards,
     setSelectedCard,
     setDeckName,
+    setDeckDescription,
+    addDeckTag,
+    removeDeckTag,
+    setDeckCover,
     addCard,
     removeCard,
     clearDeck,
@@ -36,57 +47,125 @@ export const DeckEditorApp: React.FC = () => {
     closeTestHand,
     saveDeckFile,
     importDeckFile,
+    saveCurrentDeckToLibrary,
+    backToLibrary,
     applyToDuel,
     getStats
   } = useDeckEditorStore()
 
   const [showApplyModal, setShowApplyModal] = useState<boolean>(false)
+  const [newTagInput, setNewTagInput] = useState<string>('')
+  const [saveToast, setSaveToast] = useState<string | null>(null)
 
+  // 1. 若当前为卡组资产库视图，渲染总览卡组库
+  if (viewMode === 'library') {
+    return <DeckLibraryView />
+  }
+
+  // 2. 当前为卡组三栏编辑台
   const stats = getStats()
 
-  const handleSave = async (): Promise<void> => {
+  // 保存到本地卡组库
+  const handleSaveToLibrary = async (): Promise<void> => {
+    const ok = await saveCurrentDeckToLibrary()
+    if (ok) {
+      setSaveToast('卡组已成功保存到资产库')
+      setTimeout(() => setSaveToast(null), 2000)
+    } else {
+      alert('保存到卡组库失败')
+    }
+  }
+
+  // 导出为 .ydk
+  const handleExportYdk = async (): Promise<void> => {
     const res = await saveDeckFile()
     if (res.success && res.filePath) {
-      alert(`卡组已成功保存：\n${res.filePath}`)
+      alert(`卡组已成功导出：\n${res.filePath}`)
     } else if (res.error) {
-      alert(`保存失败: ${res.error}`)
+      alert(`导出失败: ${res.error}`)
     }
   }
 
-  const handleImport = async (): Promise<void> => {
-    const ok = await importDeckFile()
-    if (!ok) {
-      // 用户取消
-    }
+  // 导入外部 .ydk
+  const handleImportYdk = async (): Promise<void> => {
+    await importDeckFile()
   }
 
+  // 清空
   const handleClear = (): void => {
     if (deck.main.length > 0 || deck.extra.length > 0 || deck.side.length > 0) {
-      if (confirm('确认清空当前编辑的卡组？')) {
+      if (confirm('确认清空当前卡组的所有卡片？')) {
         clearDeck()
       }
     }
   }
 
+  // 添加 Tag
+  const handleAddTag = (): void => {
+    if (newTagInput.trim()) {
+      addDeckTag(newTagInput.trim())
+      setNewTagInput('')
+    }
+  }
+
+  // 切换封面
+  const handleToggleCover = (): void => {
+    if (!selectedCard) return
+    if (deck.coverCard === selectedCard.id) {
+      setDeckCover(undefined)
+    } else {
+      setDeckCover(selectedCard.id)
+    }
+  }
+
   return (
     <div className="flex flex-col w-screen h-screen bg-background text-foreground select-none overflow-hidden font-sans">
-      {/* 1. 顶部操作工具栏 (严禁 emoji，使用标准 Lucide 图标) */}
+      {/* 1. 顶部操作工具栏 (无 emoji，纯 Lucide 矢量图标) */}
       <header className="h-11 px-3 border-b border-border bg-card flex items-center justify-between shrink-0">
-        {/* 左侧：卡组图标与卡组名称行内编辑 */}
+        {/* 左侧：返回卡组库与卡组名称 */}
         <div className="flex items-center gap-2">
-          <SquareStack className="w-4 h-4 text-primary" />
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={() => void backToLibrary()}
+            className="h-7 px-2 gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            title="返回卡组总览库"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>返回卡组库</span>
+          </Button>
+
+          <Separator orientation="vertical" className="h-4 mx-0.5" />
+
           <Input
             type="text"
             value={deck.name}
             onChange={(e) => setDeckName(e.target.value)}
             placeholder="卡组名称"
-            className="h-7 w-48 text-xs font-bold bg-background/70 border-border/70"
+            className="h-7 w-52 text-xs font-bold bg-background/80 border-border/80"
             title="点击修改卡组名称"
           />
+
+          {saveToast && (
+            <span className="text-[11px] font-bold text-emerald-500 animate-in fade-in duration-150">
+              {saveToast}
+            </span>
+          )}
         </div>
 
         {/* 右侧：动作按钮组 */}
         <div className="flex items-center gap-1.5">
+          <Button
+            variant="default"
+            size="xs"
+            onClick={() => void handleSaveToLibrary()}
+            title="保存卡组修改至本地卡组资产库"
+            className="h-7 px-2.5 gap-1 text-xs font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>保存到库</span>
+          </Button>
+
           <Button
             variant="ghost"
             size="xs"
@@ -101,7 +180,7 @@ export const DeckEditorApp: React.FC = () => {
           <Button
             variant="outline"
             size="xs"
-            onClick={handleImport}
+            onClick={() => void handleImportYdk()}
             title="导入外部 .ydk 卡组文件"
             className="h-7 px-2 gap-1 text-xs"
           >
@@ -112,12 +191,12 @@ export const DeckEditorApp: React.FC = () => {
           <Button
             variant="outline"
             size="xs"
-            onClick={handleSave}
-            title="保存卡组为标准 .ydk 文件"
+            onClick={() => void handleExportYdk()}
+            title="导出卡组为标准 .ydk 文件"
             className="h-7 px-2 gap-1 text-xs font-semibold"
           >
-            <Save className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>保存</span>
+            <Download className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>导出 YDK</span>
           </Button>
 
           <Separator orientation="vertical" className="h-4 mx-0.5" />
@@ -173,12 +252,82 @@ export const DeckEditorApp: React.FC = () => {
         </div>
       </header>
 
-      {/* 2. MDPro3 风格三栏主舞台 */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* 左栏：卡片大图与详细效果展示 */}
-        <DeckDetailCard card={selectedCard} />
+      {/* 2. 创作元数据横条 (描述说明、分类标签管理、封面设定) */}
+      <div className="px-3 py-1.5 bg-muted/30 border-b border-border/70 flex items-center justify-between gap-3 text-xs shrink-0">
+        {/* 描述编辑 */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <Input
+            type="text"
+            value={deck.description || ''}
+            onChange={(e) => setDeckDescription(e.target.value)}
+            placeholder="输入卡组描述、同人剧情背景或 Combo 做场要点..."
+            className="h-6.5 text-[11.5px] bg-background/60 border-border/60 flex-1 min-w-0"
+          />
+        </div>
 
-        {/* 中栏：卡组统计条 + 卡片矩阵网格 */}
+        <Separator orientation="vertical" className="h-4" />
+
+        {/* 分类 Tags 管理 */}
+        <div className="flex items-center gap-1.5 shrink-0 max-w-[420px] overflow-x-auto scrollbar-none">
+          <Tag className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+
+          {deck.tags &&
+            deck.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-muted/80 text-foreground border border-border/60 shrink-0"
+              >
+                <span>#{tag}</span>
+                <button
+                  type="button"
+                  onClick={() => removeDeckTag(tag)}
+                  className="text-muted-foreground hover:text-destructive cursor-pointer"
+                  title="移除标签"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            ))}
+
+          <div className="flex items-center gap-1">
+            <Input
+              type="text"
+              value={newTagInput}
+              onChange={(e) => setNewTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleAddTag()
+                }
+              }}
+              placeholder="+ 标签回车"
+              className="h-6 w-20 text-[11px] bg-background/60 border-border/60 px-1.5"
+            />
+            {newTagInput && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={handleAddTag}
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. MDPro3 风格三栏主舞台 */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* 左栏：卡片大图与详细效果展示 + 设为封面 */}
+        <DeckDetailCard
+          card={selectedCard}
+          isCover={selectedCard ? deck.coverCard === selectedCard.id : false}
+          onToggleCover={handleToggleCover}
+        />
+
+        {/* 中栏：卡组统计条 + 卡片矩阵网格 (无死锁限制，允许自由创作) */}
         <main className="flex-1 flex flex-col p-2.5 gap-2.5 min-w-0 min-h-0 bg-background/50">
           <DeckStatsBar stats={stats} />
           <DeckGrid
@@ -193,7 +342,7 @@ export const DeckEditorApp: React.FC = () => {
         <DeckSearchPanel onSelectCard={setSelectedCard} onAddCard={(card) => addCard(card)} />
       </div>
 
-      {/* 3. 模态弹窗 */}
+      {/* 4. 模态弹窗 */}
       {testHandCards && (
         <DeckTestHandModal
           cards={testHandCards}
@@ -205,9 +354,7 @@ export const DeckEditorApp: React.FC = () => {
 
       {showApplyModal && (
         <DeckApplyModal
-          deckName={deck.name}
-          mainCount={deck.main.length}
-          extraCount={deck.extra.length}
+          deck={deck}
           onConfirm={async (player, drawCount) => {
             return applyToDuel(player, drawCount)
           }}

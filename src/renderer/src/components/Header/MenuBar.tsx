@@ -17,7 +17,8 @@ import {
   Keyboard,
   Info,
   Check,
-  Coffee
+  Coffee,
+  BookOpen
 } from 'lucide-react'
 import wechatQr from '../../REMOVED'
 import alipayQr from '../../REMOVED'
@@ -67,7 +68,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   const [showSupportDialog, setShowSupportDialog] = useState(false)
   const menuBarRef = useRef<HTMLDivElement>(null)
 
-  const { resetDuel, swapSides } = useDuelStore()
+  const { resetDuel, swapSides, openScreenplayWithStep } = useDuelStore()
   // temporal 经 useStore 包装成响应式订阅，撤销/重做可用状态随历史变化实时更新
   const { undo, redo, pastStates, futureStates } = useStore(useDuelStore.temporal)
   const canUndo = pastStates.length > 0
@@ -166,6 +167,18 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               resetDuel()
             }
           }
+        }
+      ]
+    },
+    {
+      id: 'story',
+      label: '剧情/台本',
+      items: [
+        {
+          label: '决斗台本与剧本工作台...',
+          icon: BookOpen,
+          shortcut: 'Ctrl+Shift+S',
+          action: () => openScreenplayWithStep()
         }
       ]
     },

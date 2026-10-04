@@ -1,0 +1,766 @@
+import React, { useState, useEffect, useMemo } from 'react'
+import {
+  PHASE_SHORT_NAMES,
+  PHASE_NAMES,
+  ACTION_TYPE_NAMES,
+  ACTION_TYPE_COLORS,
+  CardLocation
+} from '@shared/index'
+import { useDuelStore } from '../../stores/useDuelStore'
+import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Badge } from '../ui/badge'
+import {
+  BookOpen,
+  Film,
+  Sparkles,
+  Plus,
+  Trash2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  Copy,
+  Check,
+  FileText,
+  Layers,
+  BrainCircuit,
+  Lightbulb
+} from 'lucide-react'
+import { cn } from '../../lib/utils'
+
+/** 常用角色预设快速气泡 */
+const CHARACTER_PRESETS = [
+  '我方',
+  '对方',
+  '旁白/解说',
+  '暗游戏',
+  '海马濑人',
+  '城之内克也',
+  '游城十代',
+  '凯撒亮',
+  '不动游星',
+  '杰克·阿特拉斯'
+]
+
+export const DuelScreenplayModal: React.FC = () => {
+  const {
+    state,
+    isScreenplayOpen,
+    selectedStepId,
+    setIsScreenplayOpen,
+    setSelectedStepId,
+    addStep,
+    updateStep,
+    deleteStep
+  } = useDuelStore()
+
+  const steps = useMemo(() => state.steps || [], [state.steps])
+
+  // 模式切换: 'editor' (分步撰写工作台) | 'document' (完整台本文档排版预览)
+  const [viewMode, setViewMode] = useState<'editor' | 'document'>('editor')
+  const [copiedFullScript, setCopiedFullScript] = useState<boolean>(false)
+
+  // 确保有当前选中的步骤 ID
+  const activeStep = steps.find((s) => s.id === selectedStepId) || steps[0]
+  const activeStepIndex = steps.findIndex((s) => s.id === (activeStep?.id || ''))
+
+  useEffect(() => {
+    if (isScreenplayOpen && !selectedStepId && steps.length > 0) {
+      setSelectedStepId(steps[0].id)
+    }
+  }, [isScreenplayOpen, selectedStepId, steps, setSelectedStepId])
+
+  // 按 Esc 键关闭
+  useEffect(() => {
+    if (!isScreenplayOpen) return
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setIsScreenplayOpen(false)
+      } else if (e.ctrlKey && e.key === 'ArrowUp') {
+        // Ctrl + Up: 上一步骤
+        e.preventDefault()
+        if (activeStepIndex > 0) {
+          setSelectedStepId(steps[activeStepIndex - 1].id)
+        }
+      } else if ((e.ctrlKey && e.key === 'ArrowDown') || (e.ctrlKey && e.key === 'Enter')) {
+        // Ctrl + Down 或 Ctrl + Enter: 下一步骤
+        e.preventDefault()
+        if (activeStepIndex < steps.length - 1) {
+          setSelectedStepId(steps[activeStepIndex + 1].id)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isScreenplayOpen, activeStepIndex, steps, setSelectedStepId, setIsScreenplayOpen])
+
+  if (!isScreenplayOpen) return null
+
+  // 快速在当前步之后追加一步
+  const handleInsertAfterCurrent = (): void => {
+    const baseTurn = activeStep ? activeStep.turn : 1
+    const basePhase = activeStep ? activeStep.phase : 'M1'
+    const basePlayer = activeStep ? activeStep.actionPlayer : 0
+    addStep({
+      turn: baseTurn,
+      turnPlayer: activeStep ? activeStep.turnPlayer : 0,
+      phase: basePhase,
+      actionPlayer: basePlayer,
+      actionType: 'NORMAL_SUMMON',
+      fromLocation: CardLocation.HAND,
+      toLocation: CardLocation.MZONE
+    })
+    setTimeout(() => {
+      const latest = useDuelStore.getState().state.steps
+      if (latest && latest.length > 0) {
+        setSelectedStepId(latest[latest.length - 1].id)
+      }
+    }, 50)
+  }
+
+  // 导出/复制完整台本文档为 Markdown / 纯文本格式
+  const generateFullScriptText = (): string => {
+    const lines: string[] = []
+    lines.push(`## 决斗台本：《${state.title || '未命名对局'}》`)
+    if (state.hint) lines.push(`> 剧情提示: ${state.hint}`)
+    lines.push('')
+
+    let lastTurn = -1
+    let lastPhase = ''
+
+    steps.forEach((s, idx) => {
+      if (s.turn !== lastTurn) {
+        lines.push(`\n### 【第 ${s.turn} 回合 · ${s.turnPlayer === 0 ? '我方' : '对方'}回合】`)
+        lastTurn = s.turn
+        lastPhase = ''
+      }
+      if (s.phase !== lastPhase) {
+        lines.push(`\n**>> ${PHASE_SHORT_NAMES[s.phase] || s.phase} <<**`)
+        lastPhase = s.phase
+      }
+
+      const actName = ACTION_TYPE_NAMES[s.actionType] || s.actionType
+      const cardDesc = s.cardName ? `【${s.cardName}】` : s.cardCode ? `【卡密:${s.cardCode}】` : ''
+      const pName = s.actionPlayer === 0 ? '我方' : '对方'
+      const chainStr = s.chainIndex ? ` (Chain ${s.chainIndex})` : ''
+
+      lines.push(`${idx + 1}. [操作] ${pName}：${actName} ${cardDesc}${chainStr}`)
+
+      if (s.speaker || s.dialogue) {
+        const spk = s.speaker ? `【${s.speaker}】` : ''
+        lines.push(`   ${spk}：“${s.dialogue || ''}”`)
+      }
+      if (s.innerThoughts) {
+        lines.push(`   （心理戏）：${s.innerThoughts}`)
+      }
+      if (s.description) {
+        lines.push(`   *战术解说*：${s.description}`)
+      }
+    })
+
+    return lines.join('\n')
+  }
+
+  const handleCopyFullScript = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(generateFullScriptText())
+      setCopiedFullScript(true)
+      setTimeout(() => setCopiedFullScript(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy screenplay text:', err)
+    }
+  }
+
+  return (
+    <div
+      onMouseDown={(e) => e.stopPropagation()}
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in-0 duration-150 select-none"
+    >
+      <div className="w-[1100px] max-w-[96vw] h-[88vh] bg-card text-card-foreground border border-border/80 shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+        {/* 1. 顶栏：工作台标题、双视图切换与快速导出 */}
+        <div className="px-5 py-3 border-b border-border/70 bg-muted/25 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm text-foreground tracking-wide">
+                  决斗台本与剧本创作工作台
+                </span>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-amber-500/40 text-amber-500 bg-amber-500/10"
+                >
+                  对局叙事联动
+                </Badge>
+              </div>
+              <span className="text-[11px] text-muted-foreground mt-0.5">
+                深度关联对局回合与每一步操作 · 沉浸式撰写人物台词、内心戏与战术解说
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* 视图模式切换：分步撰写 vs 完整台本文档预览 */}
+            <div className="flex items-center p-0.5 rounded-lg border border-border bg-background/80">
+              <button
+                type="button"
+                onClick={() => setViewMode('editor')}
+                className={cn(
+                  'px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5',
+                  viewMode === 'editor'
+                    ? 'bg-amber-500 text-neutral-950 font-bold shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Film className="w-3.5 h-3.5" />
+                <span>分步创作模式</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('document')}
+                className={cn(
+                  'px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5',
+                  viewMode === 'document'
+                    ? 'bg-amber-500 text-neutral-950 font-bold shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>完整剧本文档预览</span>
+              </button>
+            </div>
+
+            {/* 复制全文 */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyFullScript}
+              className="h-7 text-xs font-semibold gap-1.5 border-border"
+              title="一键复制完整台本文档，方便直接用于视频配音或小说写作"
+            >
+              {copiedFullScript ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  <span className="text-emerald-500 font-bold">已复制全文</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>复制台本</span>
+                </>
+              )}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setIsScreenplayOpen(false)}
+              className="h-7 w-7 text-muted-foreground hover:text-foreground ml-1"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* 2. 主体工作区 */}
+        {viewMode === 'document' ? (
+          /* 完整剧本文档排版预览视图 */
+          <div className="flex-1 min-h-0 overflow-y-auto p-8 select-text bg-background/50 flex flex-col items-center">
+            <div className="w-full max-w-3xl flex flex-col gap-5 bg-card border border-border/80 rounded-xl p-8 shadow-sm">
+              <div className="border-b border-border/70 pb-4 flex flex-col gap-1">
+                <h1 className="text-xl font-extrabold text-foreground">
+                  《{state.title || '未命名决斗剧情'}》
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  大师规则 (MR{state.masterRule}) · 共 {steps.length} 个动作节点
+                </p>
+                {state.hint && (
+                  <p className="text-xs text-amber-500 bg-amber-500/10 p-2 rounded border border-amber-500/20 mt-2">
+                    剧情开场提示：{state.hint}
+                  </p>
+                )}
+              </div>
+
+              {steps.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">
+                  暂无编排动作步骤。切换到「分步创作模式」开始添加对局剧情吧！
+                </div>
+              ) : (
+                <div className="flex flex-col gap-6 text-sm leading-relaxed">
+                  {steps.map((s, idx) => {
+                    const isFirstInTurn = idx === 0 || steps[idx - 1].turn !== s.turn
+                    const isFirstInPhase =
+                      isFirstInTurn ||
+                      steps[idx - 1].phase !== s.phase ||
+                      steps[idx - 1].turn !== s.turn
+
+                    const pName = s.actionPlayer === 0 ? '我方' : '对方'
+                    const actName = ACTION_TYPE_NAMES[s.actionType] || s.actionType
+                    const color = ACTION_TYPE_COLORS[s.actionType]
+
+                    return (
+                      <div key={s.id} className="flex flex-col gap-1.5">
+                        {isFirstInTurn && (
+                          <div className="pt-2 font-bold text-sm text-blue-400 flex items-center gap-2 border-b border-blue-500/20 pb-1 mt-2">
+                            <Sparkles className="w-4 h-4" />
+                            <span>
+                              第 {s.turn} 回合 · {s.turnPlayer === 0 ? '我方回合' : '对方回合'}
+                            </span>
+                          </div>
+                        )}
+                        {isFirstInPhase && (
+                          <div className="text-xs font-semibold text-muted-foreground/80 pl-2">
+                            ▶ {PHASE_NAMES[s.phase]}
+                          </div>
+                        )}
+
+                        <div className="pl-4 border-l-2 border-border/80 flex flex-col gap-1 py-0.5">
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="font-mono text-muted-foreground">#{idx + 1}</span>
+                            <span
+                              className={cn(
+                                'font-bold px-1 rounded text-[11px]',
+                                s.actionPlayer === 0
+                                  ? 'text-blue-400 bg-blue-500/10'
+                                  : 'text-rose-400 bg-rose-500/10'
+                              )}
+                            >
+                              {pName}
+                            </span>
+                            <span
+                              className={cn(
+                                'font-bold px-1.5 py-0.5 rounded border text-[10px]',
+                                color.bg,
+                                color.text,
+                                color.border
+                              )}
+                            >
+                              {actName}
+                            </span>
+                            {s.cardName && (
+                              <span className="font-bold text-foreground">【{s.cardName}】</span>
+                            )}
+                            {s.chainIndex && s.chainIndex > 0 && (
+                              <span className="text-[10px] text-teal-400 font-bold bg-teal-500/10 px-1 rounded">
+                                Chain {s.chainIndex}
+                              </span>
+                            )}
+                          </div>
+
+                          {(s.speaker || s.dialogue) && (
+                            <div className="mt-1 p-2 rounded-lg bg-muted/40 border border-border/60 text-xs">
+                              {s.speaker && (
+                                <span className="font-bold text-amber-500 mr-1.5">
+                                  【{s.speaker}】:
+                                </span>
+                              )}
+                              <span className="italic text-foreground/90 font-serif text-[13px]">
+                                “{s.dialogue || ''}”
+                              </span>
+                            </div>
+                          )}
+
+                          {s.innerThoughts && (
+                            <div className="text-xs text-sky-400/90 italic pl-1 flex items-center gap-1">
+                              <BrainCircuit className="w-3.5 h-3.5 shrink-0" />
+                              <span>（心声：{s.innerThoughts}）</span>
+                            </div>
+                          )}
+
+                          {s.description && (
+                            <div className="text-[11px] text-muted-foreground/80 pl-1 flex items-center gap-1">
+                              <Lightbulb className="w-3 h-3 text-amber-400/80 shrink-0" />
+                              <span>战术备忘：{s.description}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* 分步撰写模式：左侧大纲时间轴 + 右侧宽敞剧本写作台 */
+          <div className="flex-1 min-h-0 flex overflow-hidden">
+            {/* 2.1 左侧：回合与动作步骤大纲 (Timeline Outline) */}
+            <div className="w-[340px] h-full border-r border-border/70 bg-muted/15 flex flex-col shrink-0 overflow-hidden">
+              <div className="p-2.5 border-b border-border/60 bg-muted/20 flex items-center justify-between shrink-0">
+                <span className="font-bold text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Film className="w-3.5 h-3.5 text-amber-500" />
+                  <span>对局动作大纲 ({steps.length})</span>
+                </span>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={handleInsertAfterCurrent}
+                  className="h-6 text-[11px] gap-1 font-semibold border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>加动作</span>
+                </Button>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-1.5">
+                {steps.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs">
+                    <p className="font-semibold text-foreground/80">尚无任何动作节点</p>
+                    <p className="text-[11px] text-muted-foreground/60 mt-1">
+                      点击右上角「加动作」建立对局大纲
+                    </p>
+                  </div>
+                ) : (
+                  steps.map((s, idx) => {
+                    const isSelected = activeStep?.id === s.id
+                    const isFirstInTurn = idx === 0 || steps[idx - 1].turn !== s.turn
+                    const isFirstInPhase =
+                      isFirstInTurn ||
+                      steps[idx - 1].phase !== s.phase ||
+                      steps[idx - 1].turn !== s.turn
+
+                    const hasScript = Boolean(s.dialogue || s.speaker || s.innerThoughts)
+                    const color = ACTION_TYPE_COLORS[s.actionType]
+                    const actName = ACTION_TYPE_NAMES[s.actionType] || s.actionType
+
+                    return (
+                      <div key={s.id} className="flex flex-col gap-1">
+                        {isFirstInTurn && (
+                          <div className="flex items-center justify-between px-2 py-1 rounded bg-blue-950/40 border border-blue-500/20 text-[11px] font-bold text-blue-300 mt-1">
+                            <span>第 {s.turn} 回合</span>
+                            <span className="text-[10px] font-normal text-muted-foreground">
+                              {s.turnPlayer === 0 ? '我方回合' : '对方回合'}
+                            </span>
+                          </div>
+                        )}
+                        {isFirstInPhase && (
+                          <div className="text-[10px] text-muted-foreground font-semibold px-1 pt-0.5">
+                            {PHASE_SHORT_NAMES[s.phase] || s.phase}
+                          </div>
+                        )}
+
+                        <div
+                          onClick={() => setSelectedStepId(s.id)}
+                          className={cn(
+                            'p-2 rounded-lg border transition-all cursor-pointer flex items-center gap-2 select-none',
+                            isSelected
+                              ? 'border-amber-400 bg-amber-500/10 shadow-sm ring-1 ring-amber-400/40'
+                              : 'border-border/60 bg-card/60 hover:bg-muted/40 hover:border-border'
+                          )}
+                        >
+                          <span className="font-mono text-[10px] font-bold text-muted-foreground shrink-0 w-4">
+                            {idx + 1}
+                          </span>
+
+                          {/* 卡图或动作图标 */}
+                          {s.cardCode ? (
+                            <img
+                              src={getCardImageUrl(s.cardCode, true)}
+                              alt={s.cardName || ''}
+                              className="w-7 h-10 object-cover rounded border border-border/80 shrink-0"
+                              onError={(e) => {
+                                e.currentTarget.src = CARD_BACK_IMAGE
+                              }}
+                            />
+                          ) : (
+                            <div className="w-7 h-10 rounded border border-dashed border-border/80 flex items-center justify-center shrink-0 text-muted-foreground/60">
+                              <Layers className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+
+                          {/* 动作类型与台词概览 */}
+                          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                            <div className="flex items-center justify-between gap-1">
+                              <span
+                                className={cn(
+                                  'text-[9px] font-bold px-1 rounded truncate',
+                                  s.actionPlayer === 0
+                                    ? 'text-blue-400 bg-blue-500/10'
+                                    : 'text-rose-400 bg-rose-500/10'
+                                )}
+                              >
+                                {s.actionPlayer === 0 ? '我方' : '对方'}
+                              </span>
+                              <span
+                                className={cn(
+                                  'text-[9px] font-bold px-1 py-0.2 rounded border truncate',
+                                  color.bg,
+                                  color.text,
+                                  color.border
+                                )}
+                              >
+                                {actName}
+                              </span>
+                            </div>
+
+                            <span
+                              className="font-bold text-xs text-foreground truncate"
+                              title={s.cardName || '未指定卡片'}
+                            >
+                              {s.cardName || '动作事件'}
+                            </span>
+
+                            {/* 台词标记 */}
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+                              {hasScript ? (
+                                <span className="text-amber-500 flex items-center gap-1 truncate font-medium">
+                                  <MessageSquare className="w-2.5 h-2.5 shrink-0" />
+                                  <span className="truncate">{s.dialogue || s.speaker}</span>
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/50 italic text-[9px]">
+                                  待补充台词
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* 2.2 右侧：宽敞浸润式台词与剧情创作区 (Spacious Script Studio) */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-5 select-text bg-background/40">
+              {activeStep ? (
+                <>
+                  {/* 2.2.1 顶部动作上下文横幅 (与对局强关联) */}
+                  <div className="p-3.5 rounded-xl bg-card border border-border/80 shadow-xs flex items-center justify-between gap-4 select-none">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {activeStep.cardCode ? (
+                        <div className="w-12 h-[70px] rounded-md overflow-hidden border border-border/80 bg-black/60 shadow-sm shrink-0">
+                          <img
+                            src={getCardImageUrl(activeStep.cardCode, true)}
+                            alt={activeStep.cardName || ''}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = CARD_BACK_IMAGE
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-[70px] rounded-md border border-dashed border-border flex items-center justify-center shrink-0 text-muted-foreground/60">
+                          <Layers className="w-5 h-5" />
+                        </div>
+                      )}
+
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-foreground truncate">
+                            {activeStep.cardName || '未指定卡片动作'}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-xs font-bold px-2 py-0.5 rounded border',
+                              ACTION_TYPE_COLORS[activeStep.actionType].bg,
+                              ACTION_TYPE_COLORS[activeStep.actionType].text,
+                              ACTION_TYPE_COLORS[activeStep.actionType].border
+                            )}
+                          >
+                            {ACTION_TYPE_NAMES[activeStep.actionType]}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="font-semibold text-blue-400">
+                            第 {activeStep.turn} 回合
+                          </span>
+                          <span>·</span>
+                          <span className="font-medium text-foreground/80">
+                            {PHASE_NAMES[activeStep.phase]}
+                          </span>
+                          <span>·</span>
+                          <span>{activeStep.actionPlayer === 0 ? '我方发起' : '对方发起'}</span>
+                          {activeStep.chainIndex && activeStep.chainIndex > 0 && (
+                            <>
+                              <span>·</span>
+                              <span className="text-teal-400 font-bold">
+                                Chain {activeStep.chainIndex}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 快捷跳转/导航按钮 */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={activeStepIndex <= 0}
+                        onClick={() => setSelectedStepId(steps[activeStepIndex - 1].id)}
+                        className="h-8 px-2.5 text-xs font-semibold gap-1"
+                        title="上一动作步骤 (快捷键 Ctrl + ↑)"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        <span>上一步</span>
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        disabled={activeStepIndex >= steps.length - 1}
+                        onClick={() => setSelectedStepId(steps[activeStepIndex + 1].id)}
+                        className="h-8 px-2.5 text-xs font-bold gap-1 bg-amber-500 hover:bg-amber-400 text-neutral-950"
+                        title="下一动作步骤 (快捷键 Ctrl + ↓ 或 Ctrl + Enter)"
+                      >
+                        <span>下一步</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 2.2.2 角色说话人与预设选择 */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
+                        <span>说话角色 (Speaker)</span>
+                      </label>
+                      <span className="text-[11px] text-muted-foreground">
+                        点击下方角色预设快速填入
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="text"
+                        value={activeStep.speaker || ''}
+                        onChange={(e) => updateStep(activeStep.id, { speaker: e.target.value })}
+                        placeholder="输入角色名，例如：凯撒亮、游城十代、海马濑人"
+                        className="h-8 text-xs font-bold text-amber-500 dark:text-amber-400 max-w-sm"
+                      />
+                    </div>
+
+                    {/* 角色预设药丸标签栏 */}
+                    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                      {CHARACTER_PRESETS.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => updateStep(activeStep.id, { speaker: name })}
+                          className={cn(
+                            'text-[11px] px-2 py-0.5 rounded-full border transition-all font-medium',
+                            activeStep.speaker === name
+                              ? 'bg-amber-500 text-neutral-950 border-amber-500 font-bold'
+                              : 'bg-background hover:bg-muted border-border text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2.2.3 角色台词正文 (宽敞多行自适应文本框) */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>角色台词 / 召唤口播 / 决斗战吼</span>
+                      </label>
+                      <span className="text-[11px] text-muted-foreground font-mono">
+                        {(activeStep.dialogue || '').length} 字
+                      </span>
+                    </div>
+
+                    <textarea
+                      rows={5}
+                      value={activeStep.dialogue || ''}
+                      onChange={(e) => updateStep(activeStep.id, { dialogue: e.target.value })}
+                      placeholder="在此畅快编写人物台词、召唤台本或攻宣战吼，例如：&#10;「在这瞬间，我发动速攻魔法卡！将场上的怪兽作为祭品，特殊召唤电子龙！」"
+                      className="w-full rounded-xl border border-border/80 bg-background/80 p-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all font-serif leading-relaxed placeholder:font-sans placeholder:text-muted-foreground/60"
+                    />
+                  </div>
+
+                  {/* 2.2.4 心理活动与内心戏 (Inner Thoughts) */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-bold text-xs text-sky-400 flex items-center gap-1.5">
+                      <BrainCircuit className="w-3.5 h-3.5" />
+                      <span>内心独白 / 心理戏 (可选)</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={activeStep.innerThoughts || ''}
+                      onChange={(e) => updateStep(activeStep.id, { innerThoughts: e.target.value })}
+                      placeholder="（输入角色的心声或冷汗，例如：（这家伙……第一回合就做出了这样的场面吗……绝对不能让他继续攻过来！））"
+                      className="w-full rounded-lg border border-border/70 bg-background/60 p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-400 focus:border-sky-400 transition-all italic leading-relaxed placeholder:text-muted-foreground/50"
+                    />
+                  </div>
+
+                  {/* 2.2.5 战术解说与额外批注 */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-bold text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Lightbulb className="w-3.5 h-3.5 text-amber-400/80" />
+                      <span>战术解说 / 备忘说明 (可选)</span>
+                    </label>
+                    <Input
+                      type="text"
+                      value={activeStep.description || ''}
+                      onChange={(e) => updateStep(activeStep.id, { description: e.target.value })}
+                      placeholder="备忘此步操作的战术意图，例如：诱骗对方发动神圣防护罩、预留融合素材等"
+                      className="h-8 text-xs"
+                    />
+                  </div>
+
+                  {/* 2.2.6 底栏控制：快捷插入与删除 */}
+                  <div className="pt-3 border-t border-border/60 flex items-center justify-between select-none">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (window.confirm('确定要删除这一个动作步骤吗？')) {
+                          deleteStep(activeStep.id)
+                        }
+                      }}
+                      className="text-muted-foreground hover:text-destructive text-xs gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>删除当前步骤</span>
+                    </Button>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleInsertAfterCurrent}
+                        className="text-xs font-semibold gap-1.5"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>在此之后插入新动作</span>
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center p-8 text-center text-muted-foreground text-xs">
+                  <BookOpen className="w-12 h-12 text-muted-foreground/30 mb-3" />
+                  <p className="font-bold text-sm text-foreground/80">未选择动作步骤</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1 max-w-sm leading-relaxed">
+                    在左侧大纲中点击任意对局动作，即可在此尽情撰写该操作对应的人物台词与剧情对白。
+                  </p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleInsertAfterCurrent}
+                    className="mt-4 gap-1.5 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>添加第一步动作与台本</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

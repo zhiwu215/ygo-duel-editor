@@ -8,7 +8,11 @@ import {
   createInitialDuelState,
   CardLocation,
   CardPosition,
-  CdbCard
+  CardType,
+  CdbCard,
+  DuelStep,
+  DuelPhase,
+  DuelActionType
 } from '@shared/index'
 
 interface DuelStoreState {
@@ -22,6 +26,61 @@ interface DuelStoreState {
   hoveredCard: CdbCard | null
   hoveredInstanceId: string | null
   tacticalView: boolean
+
+  // 右侧栏模态与剧情步骤编排
+  activeRightTab: 'search' | 'steps'
+  currentStepIndex: number | null
+  isScreenplayOpen: boolean
+  selectedStepId: string | null
+
+  // 决斗推进时序与实战自动记谱
+  currentTurn: number
+  currentPhase: DuelPhase
+  currentChain: number
+  isAutoRecording: boolean
+
+  setCurrentTurn: (turn: number) => void
+  setCurrentPhase: (phase: DuelPhase) => void
+  setCurrentChain: (chain: number) => void
+  resetChain: () => void
+  nextPhase: () => void
+  nextTurn: () => void
+  setIsAutoRecording: (recording: boolean) => void
+
+  /** 记录一条决斗操作至步骤流中 */
+  recordAction: (params: {
+    actionType: DuelActionType
+    card?: { code: number; name?: string }
+    actionPlayer?: 0 | 1
+    fromLocation?: number
+    fromSequence?: number
+    toLocation?: number
+    toSequence?: number
+    chainIndex?: number
+    description?: string
+  }) => void
+
+  // 决斗盘实战动作执行器 (直接在盘面上打牌并自动记谱)
+  executeActivateCard: (instanceId: string) => void
+  executeChainCard: (instanceId: string) => void
+  executeAttackCard: (instanceId: string) => void
+  executeNormalSummon: (instanceId: string) => void
+  executeSpecialSummon: (instanceId: string) => void
+  executeSetCard: (instanceId: string) => void
+  executeDrawCard: (controller: 0 | 1) => void
+  executeSendToGrave: (instanceId: string) => void
+  executeBanishCard: (instanceId: string) => void
+
+  setActiveRightTab: (tab: 'search' | 'steps') => void
+  setCurrentStepIndex: (index: number | null) => void
+  setIsScreenplayOpen: (open: boolean) => void
+  setSelectedStepId: (id: string | null) => void
+  openScreenplayWithStep: (stepId?: string | null) => void
+  addStep: (step: Omit<DuelStep, 'id'>) => void
+  updateStep: (stepId: string, patch: Partial<DuelStep>) => void
+  deleteStep: (stepId: string) => void
+  moveStep: (stepId: string, direction: 'up' | 'down') => void
+  clearSteps: () => void
 
   // 动作
   setActiveStatPopoverCardId: (id: string | null) => void
@@ -143,6 +202,552 @@ export const useDuelStore = create<DuelStoreState>()(
       hoveredCard: null,
       hoveredInstanceId: null,
       tacticalView: false,
+      activeRightTab: 'search',
+      currentStepIndex: null,
+      isScreenplayOpen: false,
+      selectedStepId: null,
+
+      currentTurn: 1,
+      currentPhase: 'M1',
+      currentChain: 0,
+      isAutoRecording: true,
+
+      setCurrentTurn: (turn) => set({ currentTurn: turn }),
+      setCurrentPhase: (phase) => set({ currentPhase: phase }),
+      setCurrentChain: (chain) => set({ currentChain: chain }),
+      resetChain: () => set({ currentChain: 0 }),
+      nextPhase: () =>
+        set((prev) => {
+          const phases: DuelPhase[] = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP']
+          const curIdx = phases.indexOf(prev.currentPhase)
+          if (curIdx < phases.length - 1) {
+            return { currentPhase: phases[curIdx + 1], currentChain: 0 }
+          } else {
+            const nextTurn = prev.currentTurn + 1
+            const nextTurnPlayer = (prev.state.turnPlayer === 0 ? 1 : 0) as 0 | 1
+            return {
+              currentTurn: nextTurn,
+              currentPhase: 'DP',
+              currentChain: 0,
+              state: {
+                ...prev.state,
+                turnPlayer: nextTurnPlayer
+              }
+            }
+          }
+        }),
+      nextTurn: () =>
+        set((prev) => {
+          const nextTurn = prev.currentTurn + 1
+          const nextTurnPlayer = (prev.state.turnPlayer === 0 ? 1 : 0) as 0 | 1
+          return {
+            currentTurn: nextTurn,
+            currentPhase: 'DP',
+            currentChain: 0,
+            state: {
+              ...prev.state,
+              turnPlayer: nextTurnPlayer
+            }
+          }
+        }),
+      setIsAutoRecording: (recording) => set({ isAutoRecording: recording }),
+
+      recordAction: (params) =>
+        set((prev) => {
+          const newStep: DuelStep = {
+            id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            turn: prev.currentTurn,
+            turnPlayer: prev.state.turnPlayer,
+            phase: prev.currentPhase,
+            actionPlayer: params.actionPlayer ?? prev.state.turnPlayer,
+            actionType: params.actionType,
+            cardCode: params.card?.code,
+            cardName: params.card?.name,
+            fromLocation: params.fromLocation,
+            fromSequence: params.fromSequence,
+            toLocation: params.toLocation,
+            toSequence: params.toSequence,
+            chainIndex: params.chainIndex,
+            description: params.description
+          }
+          const existing = prev.state.steps || []
+          return {
+            state: {
+              ...prev.state,
+              steps: [...existing, newStep]
+            }
+          }
+        }),
+
+      executeActivateCard: (instanceId) => {
+        const { state, currentTurn, currentPhase, currentChain } = useDuelStore.getState()
+        const card = state.cards.find((c) => c.instanceId === instanceId)
+        if (!card) return
+
+        const nextChain = currentChain + 1
+        let targetLoc = card.location
+        let targetSeq = card.sequence
+        let updatedCards = [...state.cards]
+
+        if (card.location === CardLocation.HAND) {
+          const isSpellOrTrap = card.card
+            ? (card.card.type & (CardType.SPELL | CardType.TRAP)) !== 0
+            : true
+          if (isSpellOrTrap) {
+            const occupiedSeqs = state.cards
+              .filter((c) => c.controller === card.controller && c.location === CardLocation.SZONE)
+              .map((c) => c.sequence)
+            const freeSeq = [0, 1, 2, 3, 4].find((s) => !occupiedSeqs.includes(s))
+            if (freeSeq !== undefined) {
+              targetLoc = CardLocation.SZONE
+              targetSeq = freeSeq
+              updatedCards = updatedCards.map((c) =>
+                c.instanceId === instanceId
+                  ? {
+                      ...c,
+                      location: CardLocation.SZONE,
+                      sequence: freeSeq,
+                      position: CardPosition.FACEUP
+                    }
+                  : c
+              )
+            }
+          }
+        } else if (card.location === CardLocation.SZONE && card.position & CardPosition.FACEDOWN) {
+          updatedCards = updatedCards.map((c) =>
+            c.instanceId === instanceId ? { ...c, position: CardPosition.FACEUP } : c
+          )
+        }
+
+        const pName = card.controller === 0 ? '我方' : '对方'
+        const cName = card.card?.name || (card.code ? String(card.code) : '卡片')
+        const newStep: DuelStep = {
+          id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          turn: currentTurn,
+          turnPlayer: state.turnPlayer,
+          phase: currentPhase,
+          actionPlayer: card.controller,
+          actionType: 'ACTIVATE',
+          cardCode: card.code,
+          cardName: card.card?.name,
+          fromLocation: card.location,
+          fromSequence: card.sequence,
+          toLocation: targetLoc,
+          toSequence: targetSeq,
+          chainIndex: nextChain,
+          description: `${pName}发动【${cName}】(Chain ${nextChain})`
+        }
+
+        set((prev) => ({
+          currentChain: nextChain,
+          state: {
+            ...prev.state,
+            cards: updatedCards,
+            steps: [...(prev.state.steps || []), newStep]
+          }
+        }))
+      },
+
+      executeChainCard: (instanceId) => {
+        const { currentChain } = useDuelStore.getState()
+        if (currentChain === 0) {
+          set({ currentChain: 1 })
+        }
+        useDuelStore.getState().executeActivateCard(instanceId)
+      },
+
+      executeAttackCard: (instanceId) => {
+        const { state, currentTurn, currentPhase } = useDuelStore.getState()
+        const card = state.cards.find((c) => c.instanceId === instanceId)
+        if (!card) return
+
+        const pName = card.controller === 0 ? '我方' : '对方'
+        const cName = card.card?.name || (card.code ? String(card.code) : '怪兽')
+        const newStep: DuelStep = {
+          id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          turn: currentTurn,
+          turnPlayer: state.turnPlayer,
+          phase: currentPhase,
+          actionPlayer: card.controller,
+          actionType: 'ATTACK',
+          cardCode: card.code,
+          cardName: card.card?.name,
+          fromLocation: CardLocation.MZONE,
+          fromSequence: card.sequence,
+          description: `${pName}【${cName}】发动攻击！`
+        }
+
+        set((prev) => ({
+          currentChain: 0,
+          state: {
+            ...prev.state,
+            steps: [...(prev.state.steps || []), newStep]
+          }
+        }))
+      },
+
+      executeNormalSummon: (instanceId) => {
+        const { state, currentTurn, currentPhase } = useDuelStore.getState()
+        const card = state.cards.find((c) => c.instanceId === instanceId)
+        if (!card) return
+
+        const occupiedSeqs = state.cards
+          .filter(
+            (c) =>
+              c.controller === card.controller &&
+              c.location === CardLocation.MZONE &&
+              c.sequence <= 4
+          )
+          .map((c) => c.sequence)
+        const freeSeq = [2, 1, 3, 0, 4].find((s) => !occupiedSeqs.includes(s)) ?? 2
+
+        const updatedCards = state.cards.map((c) =>
+          c.instanceId === instanceId
+            ? {
+                ...c,
+                location: CardLocation.MZONE,
+                sequence: freeSeq,
+                position: CardPosition.FACEUP_ATTACK
+              }
+            : c
+        )
+
+        const pName = card.controller === 0 ? '我方' : '对方'
+        const cName = card.card?.name || (card.code ? String(card.code) : '怪兽')
+        const newStep: DuelStep = {
+          id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          turn: currentTurn,
+          turnPlayer: state.turnPlayer,
+          phase: currentPhase,
+          actionPlayer: card.controller,
+          actionType: 'NORMAL_SUMMON',
+          cardCode: card.code,
+          cardName: card.card?.name,
+          fromLocation: card.location,
+          fromSequence: card.sequence,
+          toLocation: CardLocation.MZONE,
+          toSequence: freeSeq,
+          description: `${pName}通常召唤【${cName}】`
+        }
+
+        set((prev) => ({
+          currentChain: 0,
+          state: {
+            ...prev.state,
+            cards: updatedCards,
+            steps: [...(prev.state.steps || []), newStep]
+          }
+        }))
+      },
+
+      executeSpecialSummon: (instanceId) => {
+        const { state, currentTurn, currentPhase } = useDuelStore.getState()
+        const card = state.cards.find((c) => c.instanceId === instanceId)
+        if (!card) return
+
+        const occupiedSeqs = state.cards
+          .filter(
+            (c) =>
+              c.controller === card.controller &&
+              c.location === CardLocation.MZONE &&
+              c.sequence <= 4
+          )
+          .map((c) => c.sequence)
+        const freeSeq = [2, 1, 3, 0, 4].find((s) => !occupiedSeqs.includes(s)) ?? 2
+
+        const updatedCards = state.cards.map((c) =>
+          c.instanceId === instanceId
+            ? {
+                ...c,
+                location: CardLocation.MZONE,
+                sequence: freeSeq,
+                position: CardPosition.FACEUP_ATTACK
+              }
+            : c
+        )
+
+        const pName = card.controller === 0 ? '我方' : '对方'
+        const cName = card.card?.name || (card.code ? String(card.code) : '怪兽')
+        const newStep: DuelStep = {
+          id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          turn: currentTurn,
+          turnPlayer: state.turnPlayer,
+          phase: currentPhase,
+          actionPlayer: card.controller,
+          actionType: 'SPECIAL_SUMMON',
+          cardCode: card.code,
+          cardName: card.card?.name,
+          fromLocation: card.location,
+          fromSequence: card.sequence,
+          toLocation: CardLocation.MZONE,
+          toSequence: freeSeq,
+          description: `${pName}特殊召唤【${cName}】`
+        }
+
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: updatedCards,
+            steps: [...(prev.state.steps || []), newStep]
+          }
+        }))
+      },
+
+      executeSetCard: (instanceId) => {
+        const { state, currentTurn, currentPhase } = useDuelStore.getState()
+        const card = state.cards.find((c) => c.instanceId === instanceId)
+        if (!card) return
+
+        const isMonster = card.card
+          ? (card.card.type & CardType.MONSTER) !== 0
+          : card.location === CardLocation.MZONE
+        const targetLocation = isMonster ? CardLocation.MZONE : CardLocation.SZONE
+        const targetPosition = isMonster ? CardPosition.FACEDOWN_DEFENSE : CardPosition.FACEDOWN
+
+        let targetSeq = card.sequence
+        let updatedCards = [...state.cards]
+
+        if (card.location === CardLocation.HAND) {
+          const occupiedSeqs = state.cards
+            .filter(
+              (c) =>
+                c.controller === card.controller && c.location === targetLocation && c.sequence <= 4
+            )
+            .map((c) => c.sequence)
+          const freeSeq = [2, 1, 3, 0, 4].find((s) => !occupiedSeqs.includes(s)) ?? 0
+          targetSeq = freeSeq
+          updatedCards = updatedCards.map((c) =>
+            c.instanceId === instanceId
+              ? { ...c, location: targetLocation, sequence: freeSeq, position: targetPosition }
+              : c
+          )
+        } else {
+          updatedCards = updatedCards.map((c) =>
+            c.instanceId === instanceId ? { ...c, position: targetPosition } : c
+          )
+        }
+
+        const pName = card.controller === 0 ? '我方' : '对方'
+        const cName = card.card?.name || (card.code ? String(card.code) : '卡片')
+        const newStep: DuelStep = {
+          id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          turn: currentTurn,
+          turnPlayer: state.turnPlayer,
+          phase: currentPhase,
+          actionPlayer: card.controller,
+          actionType: isMonster ? 'SET_MONSTER' : 'SET_SPELL_TRAP',
+          cardCode: card.code,
+          cardName: card.card?.name,
+          fromLocation: card.location,
+          fromSequence: card.sequence,
+          toLocation: targetLocation,
+          toSequence: targetSeq,
+          description: `${pName}覆盖【${cName}】`
+        }
+
+        set((prev) => ({
+          currentChain: 0,
+          state: {
+            ...prev.state,
+            cards: updatedCards,
+            steps: [...(prev.state.steps || []), newStep]
+          }
+        }))
+      },
+
+      executeSendToGrave: (instanceId) => {
+        const { state, currentTurn, currentPhase } = useDuelStore.getState()
+        const card = state.cards.find((c) => c.instanceId === instanceId)
+        if (!card) return
+
+        const updatedCards = state.cards.map((c) =>
+          c.instanceId === instanceId
+            ? { ...c, location: CardLocation.GRAVE, sequence: 0, position: CardPosition.FACEUP }
+            : c
+        )
+
+        const cName = card.card?.name || (card.code ? String(card.code) : '卡片')
+        const newStep: DuelStep = {
+          id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          turn: currentTurn,
+          turnPlayer: state.turnPlayer,
+          phase: currentPhase,
+          actionPlayer: card.controller,
+          actionType: 'TO_GRAVE',
+          cardCode: card.code,
+          cardName: card.card?.name,
+          fromLocation: card.location,
+          fromSequence: card.sequence,
+          toLocation: CardLocation.GRAVE,
+          toSequence: 0,
+          description: `【${cName}】送去墓地`
+        }
+
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: updatedCards,
+            steps: [...(prev.state.steps || []), newStep]
+          }
+        }))
+      },
+
+      executeBanishCard: (instanceId) => {
+        const { state, currentTurn, currentPhase } = useDuelStore.getState()
+        const card = state.cards.find((c) => c.instanceId === instanceId)
+        if (!card) return
+
+        const updatedCards = state.cards.map((c) =>
+          c.instanceId === instanceId
+            ? { ...c, location: CardLocation.REMOVED, sequence: 0, position: CardPosition.FACEUP }
+            : c
+        )
+
+        const cName = card.card?.name || (card.code ? String(card.code) : '卡片')
+        const newStep: DuelStep = {
+          id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          turn: currentTurn,
+          turnPlayer: state.turnPlayer,
+          phase: currentPhase,
+          actionPlayer: card.controller,
+          actionType: 'BANISH',
+          cardCode: card.code,
+          cardName: card.card?.name,
+          fromLocation: card.location,
+          fromSequence: card.sequence,
+          toLocation: CardLocation.REMOVED,
+          toSequence: 0,
+          description: `【${cName}】除外`
+        }
+
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: updatedCards,
+            steps: [...(prev.state.steps || []), newStep]
+          }
+        }))
+      },
+
+      executeDrawCard: (controller) => {
+        const { state, currentTurn, currentPhase } = useDuelStore.getState()
+        const deckCards = state.cards.filter(
+          (c) => c.controller === controller && c.location === CardLocation.DECK
+        )
+        if (deckCards.length === 0) return
+
+        const topCard = deckCards[deckCards.length - 1]
+        const updatedCards = state.cards.map((c) =>
+          c.instanceId === topCard.instanceId
+            ? { ...c, location: CardLocation.HAND, sequence: 0, position: CardPosition.FACEDOWN }
+            : c
+        )
+
+        const pName = controller === 0 ? '我方' : '对方'
+        const cName = topCard.card?.name || (topCard.code ? String(topCard.code) : '卡片')
+        const newStep: DuelStep = {
+          id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          turn: currentTurn,
+          turnPlayer: state.turnPlayer,
+          phase: currentPhase,
+          actionPlayer: controller,
+          actionType: 'DRAW',
+          cardCode: topCard.code,
+          cardName: topCard.card?.name,
+          fromLocation: CardLocation.DECK,
+          fromSequence: topCard.sequence,
+          toLocation: CardLocation.HAND,
+          toSequence: 0,
+          description: `${pName}抽卡【${cName}】`
+        }
+
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            cards: updatedCards,
+            steps: [...(prev.state.steps || []), newStep]
+          }
+        }))
+      },
+
+      setActiveRightTab: (tab) => set({ activeRightTab: tab }),
+      setCurrentStepIndex: (index) => set({ currentStepIndex: index }),
+      setIsScreenplayOpen: (open) => set({ isScreenplayOpen: open }),
+      setSelectedStepId: (id) => set({ selectedStepId: id }),
+      openScreenplayWithStep: (stepId) =>
+        set((prev) => ({
+          isScreenplayOpen: true,
+          selectedStepId:
+            stepId !== undefined ? stepId : prev.selectedStepId || prev.state.steps?.[0]?.id || null
+        })),
+
+      addStep: (stepData) =>
+        set((prev) => {
+          const newStep: DuelStep = {
+            ...stepData,
+            id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+          }
+          const existing = prev.state.steps || []
+          return {
+            state: {
+              ...prev.state,
+              steps: [...existing, newStep]
+            }
+          }
+        }),
+
+      updateStep: (stepId, patch) =>
+        set((prev) => {
+          const existing = prev.state.steps || []
+          return {
+            state: {
+              ...prev.state,
+              steps: existing.map((s) => (s.id === stepId ? { ...s, ...patch } : s))
+            }
+          }
+        }),
+
+      deleteStep: (stepId) =>
+        set((prev) => {
+          const existing = prev.state.steps || []
+          return {
+            state: {
+              ...prev.state,
+              steps: existing.filter((s) => s.id !== stepId)
+            }
+          }
+        }),
+
+      moveStep: (stepId, direction) =>
+        set((prev) => {
+          const existing = [...(prev.state.steps || [])]
+          const idx = existing.findIndex((s) => s.id === stepId)
+          if (idx === -1) return prev
+          if (direction === 'up' && idx > 0) {
+            const temp = existing[idx - 1]
+            existing[idx - 1] = existing[idx]
+            existing[idx] = temp
+          } else if (direction === 'down' && idx < existing.length - 1) {
+            const temp = existing[idx + 1]
+            existing[idx + 1] = existing[idx]
+            existing[idx] = temp
+          }
+          return {
+            state: {
+              ...prev.state,
+              steps: existing
+            }
+          }
+        }),
+
+      clearSteps: () =>
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            steps: []
+          },
+          currentStepIndex: null
+        })),
 
       setMasterRule: (rule) =>
         set((prev) => {

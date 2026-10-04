@@ -16,13 +16,14 @@
   由于 `removeCard` 直接变更 `state.cards`，而 store 挂载了 `zundo` 撤销中间件，删除操作天然无缝支持 `Ctrl+Z` 撤销与恢复。
 
 **src/renderer/src/stores/useDuelStore.ts**
+
 ```diff
  interface DuelStoreState {
    // 选中与悬停交互
    selectedCardId: string | null
    hoveredCard: CdbCard | null
 +  hoveredInstanceId: string | null
- 
+
    // 动作
    setMasterRule: (rule: MasterRule) => void
 
@@ -31,7 +32,7 @@
    setHoveredCard: (card: CdbCard | null) => void
 +  setHoveredInstanceId: (id: string | null) => void
  }
- 
+
  export const useDuelStore = create<DuelStoreState>()(
    temporal(
      (set) => ({
@@ -62,7 +63,7 @@
 
 ##### 核心作用：给状态拍摄快照
 
-英文单词 *temporal* 本义为“时间维度的”。在程序运行时，它相当于一个在底层静默工作的历史记录仪：
+英文单词 _temporal_ 本义为“时间维度的”。在程序运行时，它相当于一个在底层静默工作的历史记录仪：
 
 - 每当通过 action 内部调用 `set(...)` 修改了场面（例如摆放一张卡、移动格子槽位、变更攻守表示形式、或者执行 Del 快捷键删除卡片）；
 - `temporal` 就会把变更前的数据快照有序存入历史堆栈（`pastStates`）；
@@ -151,6 +152,7 @@ hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredIn
   在 `onMouseLeave` 事件中，为了防止用户鼠标在紧密排列的卡片间快速划动时产生的时序交叉（后一张卡片的 mouseEnter 偶发先于前一张卡片的 mouseLeave 触发），增加一层实例 ID 校验，仅当离开的卡片确实等于当前记录的悬停卡片时才置为 `null`，确保悬停状态流转稳定精准。
 
 **src/renderer/src/components/Board/CardItem.tsx**
+
 ```diff
  export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) => {
 -  const { selectedCardId, setSelectedCardId, setHoveredCard } = useDuelStore()
@@ -185,6 +187,7 @@ hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredIn
   同时，在弹窗因按下 `Escape` 或点击关闭按钮销毁时，在 `useEffect` 的卸载清理阶段执行 `setHoveredInstanceId(null)`，杜绝弹窗关闭后残留失效悬停引用的潜在隐患。
 
 **src/renderer/src/components/Board/PileListModal.tsx**
+
 ```diff
    const {
      state,
@@ -234,6 +237,7 @@ hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredIn
   - **级联关闭菜单**：一旦确认要执行删除，调用 `e.preventDefault()` 截断事件，执行 `removeCard(targetId)`，并联动调用 `useContextMenuStore.getState().closeMenu()` 顺带关闭此前可能已展开的右键菜单。
 
 **src/renderer/src/components/Board/DuelBoard.tsx**
+
 ```diff
 -import React from 'react'
 +import React, { useEffect } from 'react'
@@ -245,7 +249,7 @@ hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredIn
  export const DuelBoard: React.FC = () => {
    const { state } = useDuelStore()
    const ruleInfo = MASTER_RULES[state.masterRule]
- 
+
 +  // 全局快捷键：Del / Delete 键直接删除当前鼠标指向或选中的卡片
 +  useEffect(() => {
 +    const handleKeyDown = (e: KeyboardEvent): void => {
@@ -300,7 +304,8 @@ useEffect(() => {
 ```ts
 const target = e.target as HTMLElement | null
 const isInput =
-  target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+  target &&
+  (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
 if (isInput) return
 ```
 
@@ -309,10 +314,12 @@ if (isInput) return
 在实际操作中，用户可能会在右侧检索栏搜索卡片名，或者在顶栏生命值区域手动输入数值。若在输入文字过程中手滑打错了字，本能会按下键盘上的 `Delete` 键去清除光标后的错别字；而此时用户的鼠标指针恰巧可能正悬停在决斗场上的某张关键怪兽上方。
 
 如果没有这层拦截防护：
+
 - 系统就会在用户试图删除输入框错别字的同时，判定当前存在 `hoveredInstanceId`；
 - 从而导致输入框文字未按预期处理，场上辛辛苦苦做好的怪兽反而被意外抹除。
 
 通过判断事件源 `e.target` 是否隶属于 `<input>`、`<textarea>` 或 `contentEditable` 可编辑节点：
+
 - 一旦确认用户当前正在输入文本，立即提前 `return`；
 - 将 `Delete` 按键完整归还给浏览器原生文本编辑器去删字，彻底杜绝场面误删事故。
 
@@ -345,6 +352,7 @@ if (targetId) {
   这不仅为使用者提供了显式的发现渠道，也清晰解释了“指向卡片或选中卡片时均可直删，且支持撤销”的规则，使新特性具备完备的自解释性。
 
 **src/renderer/src/components/Header/MenuBar.tsx**
+
 ```diff
                  ['撤销', 'Ctrl + Z'],
                  ['重做', 'Ctrl + Y / Ctrl + Shift + Z'],

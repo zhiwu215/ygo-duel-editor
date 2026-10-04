@@ -14,7 +14,8 @@ import {
   ArrowLeftRight,
   Layers,
   Eye,
-  EyeOff
+  EyeOff,
+  BookOpen
 } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
@@ -38,7 +39,13 @@ export const Header: React.FC = () => {
     resetDuel,
     swapSides,
     tacticalView,
-    toggleTacticalView
+    toggleTacticalView,
+    openScreenplayWithStep,
+    currentTurn,
+    currentPhase,
+    currentChain,
+    nextPhase,
+    resetChain
   } = useDuelStore()
 
   // temporal 经 useStore 包装成响应式订阅，按钮可用状态随历史变化实时更新
@@ -117,9 +124,12 @@ export const Header: React.FC = () => {
           e.preventDefault()
           redo()
         }
-      } else if (mod && e.key.toLowerCase() === 's') {
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault()
         handleSaveProject()
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        openScreenplayWithStep()
       } else if (mod && e.key.toLowerCase() === 'o') {
         e.preventDefault()
         handleOpenProject()
@@ -141,7 +151,8 @@ export const Header: React.FC = () => {
     handleOpenProject,
     handleExportLua,
     handleImportLua,
-    toggleTacticalView
+    toggleTacticalView,
+    openScreenplayWithStep
   ])
 
   return (
@@ -271,6 +282,31 @@ export const Header: React.FC = () => {
               {state.turnPlayer === 0 ? '我方' : '对方'}
             </Button>
           </div>
+
+          <Separator orientation="vertical" className="h-4" />
+
+          {/* 回合与阶段快捷推进 */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-foreground">第{currentTurn}回合</span>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={nextPhase}
+              title="点击推进至下一阶段 (DP → SP → M1 → BP → M2 → EP)"
+              className="h-6 px-1.5 text-[11px] font-extrabold bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20"
+            >
+              {currentPhase}
+            </Button>
+            {currentChain > 0 && (
+              <span
+                onClick={resetChain}
+                title="当前处于连锁中，点击结算重置"
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 cursor-pointer animate-pulse"
+              >
+                C{currentChain} 结算
+              </span>
+            )}
+          </div>
         </div>
 
         {/* 右侧：历史 / 场面操作 / 文件 */}
@@ -325,6 +361,18 @@ export const Header: React.FC = () => {
               <EyeOff className="w-3.5 h-3.5" />
             )}
             <span>透视</span>
+          </Button>
+
+          {/* 决斗台本与剧本工作台 */}
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => openScreenplayWithStep()}
+            title="决斗台本与剧本工作台 (Ctrl+Shift+S)：大屏沉浸式撰写剧情、角色台词与心理戏"
+            className="h-6 px-2 gap-1 text-[11px] font-semibold border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-amber-500" />
+            <span>台本</span>
           </Button>
 
           <Button

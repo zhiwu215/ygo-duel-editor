@@ -29,6 +29,18 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller, ruleName }) => {
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
       if (movedInstanceId) {
+        const { state, isAutoRecording, recordAction } = useDuelStore.getState()
+        const srcCard = state.cards.find((c) => c.instanceId === movedInstanceId)
+        if (isAutoRecording && srcCard && srcCard.location === CardLocation.DECK) {
+          recordAction({
+            actionType: 'DRAW',
+            actionPlayer: controller,
+            card: { code: srcCard.code, name: srcCard.card?.name },
+            fromLocation: CardLocation.DECK,
+            toLocation: CardLocation.HAND,
+            description: `${controller === 0 ? '我方' : '对方'}抽卡【${srcCard.card?.name || srcCard.code}】`
+          })
+        }
         // Ctrl 拖入 = 公开手牌；默认未公开 (store 侧默认)
         moveCard(
           movedInstanceId,

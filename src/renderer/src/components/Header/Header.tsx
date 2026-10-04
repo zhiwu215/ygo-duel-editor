@@ -19,13 +19,14 @@ import {
 } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
-import { MASTER_RULES, MasterRule } from '@shared/index'
+import { MASTER_RULES, MasterRule, isExportableMatch } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { MenuBar } from './MenuBar'
-import { LpInput } from './components/LpInput'
+import { MatchSelector } from './components/MatchSelector'
+import { ExportStatusBadge } from './components/ExportStatusBadge'
 import { cn } from '../../lib/utils'
 
 export const Header: React.FC = () => {
@@ -33,8 +34,6 @@ export const Header: React.FC = () => {
     state,
     setMasterRule,
     setTitle,
-    setPlayerLp,
-    setTurnPlayer,
     loadState,
     resetDuel,
     swapSides,
@@ -78,6 +77,14 @@ export const Header: React.FC = () => {
   }, [loadState])
 
   const handleExportLua = React.useCallback(async (): Promise<void> => {
+    if (!isExportableMatch(state.matchConfig)) {
+      const t0 = state.matchConfig?.team0Count ?? 1
+      const t1 = state.matchConfig?.team1Count ?? 1
+      alert(
+        `当前对阵 (${t0}v${t1}) 仅用于剧情编排，暂无法导出 Lua。\n\nocgcore 单机引擎物理上仅支持 1v1 与 2v2 双打导出。请在对阵选择器中切换至 1v1 或 2v2 后再进行导出。`
+      )
+      return
+    }
     const res = await window.api.exportLuaFile(state)
     if (res.success && res.filePath) {
       alert(`Lua 决斗脚本导出成功！\n路径: ${res.filePath}`)
@@ -185,8 +192,12 @@ export const Header: React.FC = () => {
           />
         </div>
 
-        {/* 右侧：卡库连接状态 + 主题切换 */}
+        {/* 右侧：导出状态徽标 + 卡库连接状态 + 主题切换 */}
         <div className="flex items-center gap-1.5">
+          <ExportStatusBadge />
+
+          <Separator orientation="vertical" className="h-3.5" />
+
           <button
             type="button"
             onClick={selectCdbFile}
@@ -246,42 +257,10 @@ export const Header: React.FC = () => {
             </Select>
           </div>
 
-          <LpInput
-            label="对方"
-            player={1}
-            lp={state.players[1].lp}
-            dotClass="bg-red-500"
-            onLpChange={setPlayerLp}
-          />
-
-          <LpInput
-            label="我方"
-            player={0}
-            lp={state.players[0].lp}
-            dotClass="bg-blue-500"
-            onLpChange={setPlayerLp}
-          />
-
           <Separator orientation="vertical" className="h-4" />
 
-          {/* 先攻方 (语义色仅用于文字) */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground">先攻</span>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => setTurnPlayer(state.turnPlayer === 0 ? 1 : 0)}
-              title="点击切换先攻方"
-              className={cn(
-                'h-6 px-2 text-[11px] font-semibold bg-background/60',
-                state.turnPlayer === 0
-                  ? 'text-blue-600 dark:text-blue-400 border-blue-500/40'
-                  : 'text-red-600 dark:text-red-400 border-red-500/40'
-              )}
-            >
-              {state.turnPlayer === 0 ? '我方' : '对方'}
-            </Button>
-          </div>
+          {/* 对阵人数选择器 (1v1 / 2v2双打 / 自定义人数) */}
+          <MatchSelector />
 
           <Separator orientation="vertical" className="h-4" />
 
@@ -413,16 +392,31 @@ export const Header: React.FC = () => {
             <span>导入</span>
           </Button>
 
-          {/* 唯一实心强调色按钮：核心动作导出 */}
-          <Button
-            size="xs"
-            onClick={handleExportLua}
-            title="导出符合 ocgcore 标准的 Lua 决斗脚本 (Ctrl+E)"
-            className="h-6 px-2.5 bg-blue-600 hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400 text-white font-semibold"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>导出 Lua</span>
-          </Button>
+          {/* 核心动作导出：若人数不支持 ocgcore 导出则置灰禁用 */}
+          {(() => {
+            const canExport = isExportableMatch(state.matchConfig)
+            return (
+              <Button
+                size="xs"
+                onClick={handleExportLua}
+                disabled={!canExport}
+                title={
+                  canExport
+                    ? '导出符合 ocgcore 标准的 Lua 决斗脚本 (Ctrl+E)'
+                    : '当前人数配置仅用于剧情编排，ocgcore 仅支持 1v1 与 2v2 双打导出'
+                }
+                className={cn(
+                  'h-6 px-2.5 font-semibold transition-colors',
+                  canExport
+                    ? 'bg-blue-600 hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400 text-white'
+                    : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
+                )}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>导出 Lua</span>
+              </Button>
+            )
+          })()}
         </div>
       </div>
     </header>

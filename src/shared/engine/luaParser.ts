@@ -1,4 +1,10 @@
-import { DuelPuzzleState, FieldCard, createInitialDuelState } from '../types/duel'
+import {
+  DuelPuzzleState,
+  FieldCard,
+  createInitialDuelState,
+  normalizeDuelState,
+  createDefaultDuelists
+} from '../types/duel'
 import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 import { MasterRule } from '../types/rules'
@@ -49,12 +55,12 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
   // 2. 匹配 Debug.SetPlayerInfo
   // 例: Debug.SetPlayerInfo(0, 8000, 0, 0)
   const playerInfoRegex =
-    /Debug\.SetPlayerInfo\s*\(\s*([01])\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i
+    /Debug\.SetPlayerInfo\s*\(\s*([0-3])\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i
 
   // 3. 匹配 Debug.AddCard
   // 例: Debug.AddCard(89631139, 0, 0, LOCATION_MZONE, 2, POS_FACEUP_ATTACK)
   const addCardRegex =
-    /Debug\.AddCard\s*\(\s*(\d+)\s*,\s*([01])\s*,\s*([01])\s*,\s*([^,]+)\s*,\s*(\d+)\s*,\s*([^,)]+)\s*\)/i
+    /Debug\.AddCard\s*\(\s*(\d+)\s*,\s*([0-3])\s*,\s*([0-3])\s*,\s*([^,]+)\s*,\s*(\d+)\s*,\s*([^,)]+)\s*\)/i
 
   // 4. 匹配 Debug.ShowHint
   const hintRegex = /Debug\.ShowHint\s*\(\s*["'](.*)["']\s*\)/i
@@ -62,6 +68,7 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
   // 5. 匹配 c:add_counter(0x1, 3)
   const addCounterRegex = /(?:\w+):add_counter\s*\(\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*(\d+)\s*\)/i
 
+  let isTag = false
   let lastAddedCard: FieldCard | null = null
 
   for (const line of lines) {
@@ -71,6 +78,10 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
     // 匹配 ReloadFieldBegin
     const reloadMatch = trimmed.match(reloadFieldRegex)
     if (reloadMatch) {
+      const flagsPart = reloadMatch[1] || ''
+      if (flagsPart.includes('DUEL_TAG_MODE') || flagsPart.includes('0x20')) {
+        isTag = true
+      }
       if (reloadMatch[2]) {
         const ruleNum = parseInt(reloadMatch[2].trim(), 10)
         if ([2, 3, 4, 5].includes(ruleNum)) {
@@ -83,7 +94,8 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
     // 匹配 SetPlayerInfo
     const playerMatch = trimmed.match(playerInfoRegex)
     if (playerMatch) {
-      const pIdx = parseInt(playerMatch[1], 10) as 0 | 1
+      const rawP = parseInt(playerMatch[1], 10)
+      const pIdx = (rawP === 0 || rawP === 2 ? 0 : 1) as 0 | 1
       state.players[pIdx].lp = parseInt(playerMatch[2], 10)
       state.players[pIdx].startHand = parseInt(playerMatch[3], 10)
       state.players[pIdx].maxHand = parseInt(playerMatch[4], 10)
@@ -101,11 +113,26 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
     const cardMatch = trimmed.match(addCardRegex)
     if (cardMatch) {
       const code = parseInt(cardMatch[1], 10)
-      const owner = parseInt(cardMatch[2], 10) as 0 | 1
-      const controller = parseInt(cardMatch[3], 10) as 0 | 1
+      const rawOwner = parseInt(cardMatch[2], 10)
+      const rawController = parseInt(cardMatch[3], 10)
+      if (rawController === 2 || rawController === 3 || rawOwner === 2 || rawOwner === 3) {
+        isTag = true
+      }
+
+      // 控制者映射为 0 或 1 (0/2 为我方阵营，1/3 为对方阵营)
+      const controller: 0 | 1 = rawController === 0 || rawController === 2 ? 0 : 1
+      const owner: 0 | 1 = rawOwner === 0 || rawOwner === 2 ? 0 : 1
       const location = parseLocationValue(cardMatch[4])
       const sequence = parseInt(cardMatch[5], 10)
       const position = parsePositionValue(cardMatch[6])
+
+      // 决斗者 ID 识别 (在手牌或 2v2 Tag 下)
+      let duelistId = controller === 0 ? 'duelist_0_0' : 'duelist_1_0'
+      if (rawController === 2) {
+        duelistId = 'duelist_0_1'
+      } else if (rawController === 3) {
+        duelistId = 'duelist_1_1'
+      }
 
       // 如果是超量素材 (LOCATION_OVERLAY)，将其附加给对应怪兽
       if (location === CardLocation.OVERLAY) {
@@ -128,7 +155,8 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
           sequence,
           position,
           overlayMaterials: [],
-          counters: {}
+          counters: {},
+          duelistId
         }
         state.cards.push(fieldCard)
         lastAddedCard = fieldCard
@@ -153,5 +181,15 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
     }
   }
 
-  return state
+  if (isTag) {
+    state.matchConfig = {
+      mode: 'tag',
+      team0Count: 2,
+      team1Count: 2,
+      sharedLp: false
+    }
+    state.duelists = createDefaultDuelists(2, 2)
+  }
+
+  return normalizeDuelState(state)
 }

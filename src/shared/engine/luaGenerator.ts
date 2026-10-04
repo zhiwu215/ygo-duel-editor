@@ -54,12 +54,40 @@ function getPositionConstName(pos: number): string {
  * 将 DuelPuzzleState 格式化输出为符合 ocgcore 标准的 Lua 脚本
  */
 export function generateLuaScript(state: DuelPuzzleState): string {
+  // 校验当前对局是否符合 ocgcore 导出范围 (1v1 或 2v2)
+  const team0Count =
+    state.matchConfig?.team0Count ?? (state.duelists?.filter((d) => d.team === 0).length || 1)
+  const team1Count =
+    state.matchConfig?.team1Count ?? (state.duelists?.filter((d) => d.team === 1).length || 1)
+  const isTag = state.matchConfig?.mode === 'tag' || (team0Count === 2 && team1Count === 2)
+
+  if (team0Count !== 1 && team0Count !== 2) {
+    throw new Error(
+      `当前人数 (${team0Count}v${team1Count}) 仅用于剧情编排。ocgcore 引擎仅支持 1v1 与 2v2 双打导出。`
+    )
+  }
+  if (team1Count !== 1 && team1Count !== 2) {
+    throw new Error(
+      `当前人数 (${team0Count}v${team1Count}) 仅用于剧情编排。ocgcore 引擎仅支持 1v1 与 2v2 双打导出。`
+    )
+  }
+
   const lines: string[] = []
+
+  const duelistsTeam0 = state.duelists?.filter((d) => d.team === 0) || []
+  const duelistsTeam1 = state.duelists?.filter((d) => d.team === 1) || []
 
   // 1. 头部注释
   lines.push('-- ==============================================================')
   lines.push(`-- 决斗标题: ${state.title || '未命名对局'}`)
   lines.push(`-- 规则版本: 大师规则 (MR${state.masterRule})`)
+  lines.push(`-- 决斗模式: ${isTag ? '2v2 双打 (Tag Duel)' : '1v1 标准决斗'}`)
+  if (isTag && duelistsTeam0.length >= 2 && duelistsTeam1.length >= 2) {
+    lines.push(`-- 我方先锋 (Player 0): ${duelistsTeam0[0].name} (LP: ${duelistsTeam0[0].lp})`)
+    lines.push(`-- 我方副将 (Player 2): ${duelistsTeam0[1].name} (LP: ${duelistsTeam0[1].lp})`)
+    lines.push(`-- 对方先锋 (Player 1): ${duelistsTeam1[0].name} (LP: ${duelistsTeam1[0].lp})`)
+    lines.push(`-- 对方副将 (Player 3): ${duelistsTeam1[1].name} (LP: ${duelistsTeam1[1].lp})`)
+  }
   lines.push(`-- 导出工具: YGO Duel Editor`)
   lines.push('-- ==============================================================')
   lines.push('')
@@ -67,6 +95,7 @@ export function generateLuaScript(state: DuelPuzzleState): string {
   // 2. 初始化环境
   const flags: string[] = []
   if (state.firstTurnAttack) flags.push('DUEL_ATTACK_FIRST_TURN')
+  if (isTag) flags.push('DUEL_TAG_MODE')
   const flagStr = flags.length > 0 ? flags.join(' + ') : '0'
 
   lines.push(`-- 1. 初始化规则环境`)
@@ -74,12 +103,19 @@ export function generateLuaScript(state: DuelPuzzleState): string {
   lines.push('')
 
   // 3. 玩家信息设置
+  const lp0 = state.matchConfig?.sharedLp
+    ? state.players[0].lp
+    : (duelistsTeam0[0]?.lp ?? state.players[0].lp)
+  const lp1 = state.matchConfig?.sharedLp
+    ? state.players[1].lp
+    : (duelistsTeam1[0]?.lp ?? state.players[1].lp)
+
   lines.push(`-- 2. 双方生命值与手牌配置`)
   lines.push(
-    `Debug.SetPlayerInfo(0, ${state.players[0].lp}, ${state.players[0].startHand}, ${state.players[0].maxHand})`
+    `Debug.SetPlayerInfo(0, ${lp0}, ${state.players[0].startHand}, ${state.players[0].maxHand})`
   )
   lines.push(
-    `Debug.SetPlayerInfo(1, ${state.players[1].lp}, ${state.players[1].startHand}, ${state.players[1].maxHand})`
+    `Debug.SetPlayerInfo(1, ${lp1}, ${state.players[1].startHand}, ${state.players[1].maxHand})`
   )
   lines.push('')
 
@@ -99,7 +135,7 @@ export function generateLuaScript(state: DuelPuzzleState): string {
   ]
 
   for (const p of players) {
-    const pName = p === 0 ? '我方玩家 (Player 0)' : '对方玩家 (Player 1)'
+    const pName = p === 0 ? '我方阵营 (Team 0)' : '对方阵营 (Team 1)'
     lines.push(`-- -------------------------------------------------------------`)
     lines.push(`-- >>> ${pName} <<<`)
     lines.push(`-- -------------------------------------------------------------`)
@@ -111,7 +147,6 @@ export function generateLuaScript(state: DuelPuzzleState): string {
       if (cardsInLoc.length === 0) continue
 
       lines.push(`-- [${group.name}]`)
-      // 按格子序号排序
       cardsInLoc.sort((a, b) => a.sequence - b.sequence)
 
       for (const card of cardsInLoc) {
@@ -119,11 +154,23 @@ export function generateLuaScript(state: DuelPuzzleState): string {
         const posName = getPositionConstName(card.position)
         const cardNameComment = card.card?.name ? ` -- ${card.card.name}` : ''
 
+        // 在 2v2 Tag 模式下，手牌区分 Player 0/2 与 Player 1/3
+        let targetController = card.controller
+        if (isTag && card.location === CardLocation.HAND) {
+          const teamDuelists = p === 0 ? duelistsTeam0 : duelistsTeam1
+          if (teamDuelists.length >= 2 && card.duelistId === teamDuelists[1].id) {
+            // 队友手牌: Team 0 的队友为 Player 2，Team 1 的队友为 Player 3
+            targetController = (p === 0 ? 2 : 3) as 0 | 1
+          } else {
+            targetController = p
+          }
+        }
+
         const hasCounters = card.counters && Object.values(card.counters).some((v) => v > 0)
 
         if (hasCounters) {
           lines.push(
-            `local c = Debug.AddCard(${card.code}, ${card.owner}, ${card.controller}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
+            `local c = Debug.AddCard(${card.code}, ${card.owner}, ${targetController}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
           )
           for (const [typeIdStr, count] of Object.entries(card.counters!)) {
             const countNum = Number(count)
@@ -136,7 +183,7 @@ export function generateLuaScript(state: DuelPuzzleState): string {
           }
         } else {
           lines.push(
-            `Debug.AddCard(${card.code}, ${card.owner}, ${card.controller}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
+            `Debug.AddCard(${card.code}, ${card.owner}, ${targetController}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
           )
         }
 
@@ -144,7 +191,7 @@ export function generateLuaScript(state: DuelPuzzleState): string {
         if (card.overlayMaterials && card.overlayMaterials.length > 0) {
           for (const matCode of card.overlayMaterials) {
             lines.push(
-              `Debug.AddCard(${matCode}, ${card.owner}, ${card.controller}, LOCATION_OVERLAY, ${card.sequence}, POS_FACEUP) -- 超量素材`
+              `Debug.AddCard(${matCode}, ${card.owner}, ${targetController}, LOCATION_OVERLAY, ${card.sequence}, POS_FACEUP) -- 超量素材`
             )
           }
         }

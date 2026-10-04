@@ -40,6 +40,7 @@ interface ZoneSlotProps {
   pendulumDirection?: 'left' | 'right' // 灵摆箭头指向 (左向 ◀ 或右向 ▶)
   colorVariant?: ZoneColorVariant
   className?: string
+  duelistId?: string // 归属决斗者 ID (手牌格强绑定)
 }
 
 interface VariantConfig {
@@ -176,7 +177,8 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   isPendulum,
   pendulumDirection,
   colorVariant = 'monster',
-  className = ''
+  className = '',
+  duelistId
 }) => {
   const {
     addCardToZone,
@@ -220,6 +222,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   // 释放落子 (支持从左侧面板新增卡片，也支持在场上/手牌间拖动调整位置)
   const handleDrop = (e: React.DragEvent): void => {
     e.preventDefault()
+    e.stopPropagation()
     setIsOver(false)
     // Ctrl 拖入切换默认放置状态 (魔陷发动 / 怪兽盖守 / 手牌公开)
     const posOverride = getDropPosOverride(location, e.ctrlKey)
@@ -315,7 +318,14 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
             })
           }
         }
-        moveCard(movedInstanceId, location, sequence, controller, posOverride)
+        moveCard(
+          movedInstanceId,
+          location,
+          sequence,
+          controller,
+          posOverride,
+          duelistId || card?.duelistId
+        )
       } else {
         const dataStr = e.dataTransfer.getData('application/json')
         if (!dataStr) return
@@ -339,7 +349,14 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
             })
           }
         }
-        addCardToZone(droppedCard, controller, location, sequence, posOverride)
+        addCardToZone(
+          droppedCard,
+          controller,
+          location,
+          sequence,
+          posOverride,
+          duelistId || card?.duelistId
+        )
       }
 
       // 怪兽/魔陷/额外卡组落子后浮出轻量表示切换条 (可继续拖下一张，旧提示自动被顶掉)
@@ -398,7 +415,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         }
       }}
       className={`group relative ${
-        isSquareCell ? 'w-[104px] h-[104px]' : 'w-[74px] h-[104px]'
+        isSquareCell ? 'w-[92px] h-[92px]' : 'w-[64px] h-[92px]'
       } rounded border ${config.border} ${config.bg} ${config.shadow} flex flex-col items-center justify-center transition-all duration-150 select-none shrink-0 ${
         // 拖拽目标态：唯一强调色
         isOver ? 'ring-2 ring-blue-400 bg-blue-500/15 scale-[1.03] border-transparent' : ''

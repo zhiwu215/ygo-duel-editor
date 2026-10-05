@@ -35,6 +35,10 @@ interface DuelStoreState {
   expandedDuelistId: string | null
   setExpandedDuelistId: (id: string | null) => void
 
+  // 当前查看的决斗者 (多人时决定棋盘主卡组/额外卡组等区域归属谁)
+  activeDuelistId: string | null
+  setActiveDuelistId: (id: string | null) => void
+
   // 多人对阵场景与角色管理
   switchMatchConfig: (config: MatchConfig) => void
   updateDuelist: (duelistId: string, patch: Partial<Duelist>) => void
@@ -240,6 +244,7 @@ export const useDuelStore = create<DuelStoreState>()(
     (set) => ({
       state: createInitialDuelState(5),
       expandedDuelistId: null,
+      activeDuelistId: null,
       selectedCardId: null,
       activeStatPopoverCardId: null,
       statPopoverPosition: null,
@@ -255,6 +260,7 @@ export const useDuelStore = create<DuelStoreState>()(
       selectedStepId: null,
 
       setExpandedDuelistId: (id) => set({ expandedDuelistId: id }),
+      setActiveDuelistId: (id) => set({ activeDuelistId: id }),
 
       currentTurn: 1,
       currentPhase: 'M1',

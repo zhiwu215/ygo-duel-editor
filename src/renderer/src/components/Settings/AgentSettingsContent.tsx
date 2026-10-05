@@ -1,283 +1,497 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
-  Plug,
-  KeyRound,
-  Cpu,
+  Plus,
   Check,
   Loader2,
   RefreshCw,
-  Plus,
-  Unplug,
+  Trash2,
   Eye,
   EyeOff,
-  FlaskConical
+  Search,
+  Pencil,
+  MoreHorizontal,
+  AlertCircle,
+  Sparkles,
+  Image as ImageIcon
 } from 'lucide-react'
 import {
+  AgentApiFormat,
   AgentModelConfig,
+  AgentModelInfo,
+  AgentProviderConfig,
+  AgentProviderModelConfig,
   AgentProviderPreset,
-  AgentProviderConnection,
-  AgentModelInfo
+  AGENT_API_FORMAT_LABELS,
+  AGENT_API_FORMAT_VALUES,
+  DEFAULT_AGENT_API_FORMAT,
+  cleanAgentApiKey,
+  createProviderFromPreset,
+  isProviderReady,
+  normalizeAgentApiFormat
 } from '@shared/index'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { Button } from '../ui/button'
+import { Switch } from '../ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { cn } from '../../lib/utils'
 
-/** 设置窗中 AI 顾问部分的三个分区（由 SettingsApp 左侧导航驱动） */
-export type AgentSettingsSection = 'providers' | 'models' | 'chat'
+export type AgentSettingsSection = 'model-settings' | 'chat'
 
 interface AgentSettingsContentProps {
   section: AgentSettingsSection
-  /** 连接成功后跳转到「模型」分区等导航请求 */
-  onNavigate?: (section: AgentSettingsSection) => void
 }
 
-/** 混淆 API Key：仅显示前 4 与后 4 位 */
-function maskApiKey(key: string): string {
-  if (key.length <= 8) return '••••••••'
-  return `${key.slice(0, 4)}••••••••${key.slice(-4)}`
+type ProviderStatus = 'ready' | 'unavailable' | 'disabled'
+
+function resolveProviderStatus(provider: AgentProviderConfig): ProviderStatus {
+  if (!provider.enabled) return 'disabled'
+  return isProviderReady(provider) ? 'ready' : 'unavailable'
 }
 
-/** 通用凭据清洗：去除首尾空格、外层引号与不可见字符 */
-function cleanApiKey(key: string): string {
-  return key
-    .trim()
-    .replace(/^["']|["']$/g, '')
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+const STATUS_DOT_CLASS: Record<ProviderStatus, string> = {
+  ready: 'bg-emerald-500',
+  unavailable: 'bg-amber-500',
+  disabled: 'bg-neutral-300 dark:bg-neutral-600'
 }
 
-/** 将当前配置聚合为「已连接提供商」视图 */
-function toConnection(
-  cfg: AgentModelConfig,
-  presets: AgentProviderPreset[]
-): AgentProviderConnection {
-  const preset = presets.find((p) => p.baseUrl === cfg.baseUrl)
-  return {
-    id: preset?.id || 'custom',
-    name: preset?.name || cfg.provider || '自定义提供商',
-    baseUrl: cfg.baseUrl,
-    kind: preset ? 'preset' : 'custom',
-    hasApiKey: Boolean(cfg.apiKey.trim()),
-    model: cfg.model
+function StatusDot({
+  status,
+  className
+}: {
+  status: ProviderStatus
+  className?: string
+}): React.JSX.Element {
+  return (
+    <span
+      className={cn('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT_CLASS[status], className)}
+    />
+  )
+}
+
+function formatContextWindow(tokens?: number): string | null {
+  if (!tokens || tokens <= 0) return null
+  if (tokens >= 1_000_000) return `${Math.round(tokens / 100_000) / 10}M`
+  if (tokens >= 1024) return `${Math.round(tokens / 1024)}K`
+  return String(tokens)
+}
+
+function mergeFetchedModels(
+  existing: AgentProviderModelConfig[],
+  fetched: AgentModelInfo[]
+): AgentProviderModelConfig[] {
+  const known = new Set(existing.map((m) => m.id))
+  const added = fetched
+    .filter((m) => !known.has(m.id))
+    .map<AgentProviderModelConfig>((m) => ({
+      id: m.id,
+      name: m.name,
+      supportsReasoning: m.supportsReasoning,
+      supportsVision: m.supportsVision,
+      contextWindow: m.contextWindow,
+      enabled: true,
+      custom: true
+    }))
+  return [...existing, ...added]
+}
+
+interface ResolvedSelection {
+  provider: AgentProviderConfig
+  preset: AgentProviderPreset | null
+  configured: boolean
+}
+
+export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ section }) => {
+  const { config, presets, loadPresets, upsertProvider, removeProvider, selectModel } =
+    useAgentStore()
+
+  const [selection, setSelection] = useState<string | null>(null)
+  const [navSearch, setNavSearch] = useState('')
+
+  useEffect(() => {
+    if (presets.length === 0) void loadPresets()
+  }, [presets.length, loadPresets])
+
+  const providers = useMemo(() => config.providers ?? [], [config.providers])
+
+  const presetProviders = useMemo(
+    () =>
+      presets.map((preset) => ({
+        preset,
+        configured: providers.find((p) => p.presetId === preset.id || p.id === preset.id) ?? null
+      })),
+    [presets, providers]
+  )
+
+  const customProviders = useMemo(() => providers.filter((p) => !p.presetId), [providers])
+
+  const q = navSearch.trim().toLowerCase()
+  const matchesQuery = (name: string, baseUrl: string, models: { id: string }[]): boolean => {
+    if (!q) return true
+    return (
+      name.toLowerCase().includes(q) ||
+      baseUrl.toLowerCase().includes(q) ||
+      models.some((m) => m.id.toLowerCase().includes(q))
+    )
   }
+
+  const effectiveSelection = useMemo((): string | null => {
+    const isValid = Boolean(
+      selection &&
+      (selection.startsWith('provider:')
+        ? providers.some((p) => p.id === selection.slice('provider:'.length))
+        : presetProviders.some(
+            (x) => x.preset.id === selection.slice('preset:'.length) && !x.configured
+          ))
+    )
+    if (isValid) return selection
+    if (config.provider && providers.some((p) => p.id === config.provider)) {
+      return `provider:${config.provider}`
+    }
+    if (presetProviders.length > 0) return `preset:${presetProviders[0].preset.id}`
+    if (customProviders.length > 0) return `provider:${customProviders[0].id}`
+    return null
+  }, [selection, providers, presetProviders, customProviders, config.provider])
+
+  const resolved = useMemo((): ResolvedSelection | null => {
+    if (!effectiveSelection) return null
+    if (effectiveSelection.startsWith('provider:')) {
+      const provider = providers.find((p) => p.id === effectiveSelection.slice('provider:'.length))
+      if (!provider) return null
+      const preset = provider.presetId
+        ? (presets.find((p) => p.id === provider.presetId) ?? null)
+        : null
+      return { provider, preset, configured: true }
+    }
+    const preset = presets.find((p) => p.id === effectiveSelection.slice('preset:'.length))
+    if (!preset) return null
+    return { provider: createProviderFromPreset(preset), preset, configured: false }
+  }, [effectiveSelection, providers, presets])
+
+  const activeModelInfo = useMemo((): AgentProviderModelConfig | null => {
+    const provider = providers.find((p) => p.id === config.provider)
+    return provider?.models.find((m) => m.id === config.model) ?? null
+  }, [providers, config.provider, config.model])
+
+  const openAddProvider = (): void => {
+    const id = `custom-${Date.now().toString(36)}`
+    upsertProvider({
+      id,
+      name: '新供应商',
+      baseUrl: '',
+      apiFormat: DEFAULT_AGENT_API_FORMAT,
+      apiKey: '',
+      enabled: true,
+      models: []
+    })
+    setSelection(`provider:${id}`)
+  }
+
+  const deleteProvider = (providerId: string): void => {
+    const remainingCustom = customProviders.filter((p) => p.id !== providerId)
+    removeProvider(providerId)
+    const nextSelection = remainingCustom[0]
+      ? `provider:${remainingCustom[0].id}`
+      : presetProviders[0]
+        ? `preset:${presetProviders[0].preset.id}`
+        : null
+    setSelection(nextSelection)
+  }
+
+  return (
+    <div className="text-xs">
+      {section === 'model-settings' && (
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[11px] leading-5 text-muted-foreground pt-1">
+              管理自定义模型供应商，配置后可在聊天时选择使用。
+            </p>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={openAddProvider}
+              className="gap-1 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>添加供应商</span>
+            </Button>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-border bg-card flex h-[520px]">
+            <div className="w-44 shrink-0 border-r border-border flex flex-col">
+              <div className="p-2 border-b border-border/60">
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-background">
+                  <Search className="w-3 h-3 text-muted-foreground shrink-0" />
+                  <input
+                    value={navSearch}
+                    onChange={(e) => setNavSearch(e.target.value)}
+                    placeholder="搜索供应商..."
+                    className="flex-1 min-w-0 bg-transparent text-[11px] outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-2 space-y-3">
+                <div>
+                  <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
+                    常用提供商
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    {presetProviders.map(({ preset, configured }) => {
+                      if (!matchesQuery(preset.name, preset.baseUrl, configured?.models ?? [])) {
+                        return null
+                      }
+                      const key = configured ? `provider:${configured.id}` : `preset:${preset.id}`
+                      return (
+                        <NavItem
+                          key={key}
+                          active={effectiveSelection === key}
+                          label={preset.name}
+                          status={configured ? resolveProviderStatus(configured) : 'unavailable'}
+                          onClick={() => setSelection(key)}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
+                    自定义供应商
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    {customProviders.map((provider) =>
+                      matchesQuery(provider.name, provider.baseUrl, provider.models) ? (
+                        <NavItem
+                          key={provider.id}
+                          active={effectiveSelection === `provider:${provider.id}`}
+                          label={provider.name}
+                          status={resolveProviderStatus(provider)}
+                          onClick={() => setSelection(`provider:${provider.id}`)}
+                        />
+                      ) : null
+                    )}
+                    <button
+                      type="button"
+                      onClick={openAddProvider}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                    >
+                      <Plus className="w-3 h-3 shrink-0" />
+                      <span className="text-[11px] font-medium">新供应商</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 min-w-0 overflow-y-auto p-4">
+              {resolved ? (
+                <ProviderDetailPanel
+                  key={`${resolved.provider.id}:${resolved.configured ? 'on' : 'off'}`}
+                  provider={resolved.provider}
+                  preset={resolved.preset}
+                  configured={resolved.configured}
+                  activeProviderId={config.provider}
+                  activeModelId={config.model}
+                  onUpsert={upsertProvider}
+                  onRemove={() => deleteProvider(resolved.provider.id)}
+                  onSelectModel={selectModel}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-[11px] text-muted-foreground">
+                  从左侧选择一个供应商开始配置
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {section === 'chat' && <ChatSection config={config} activeModelInfo={activeModelInfo} />}
+    </div>
+  )
 }
 
-/**
- * AI 顾问设置内容（提供商 / 模型 / 对话三个分区）。
- *
- * 与旧版模态弹窗的差异：所有改动即时落盘 (VSCode/OpenCode 式即时生效)，
- * 文本类输入在失焦时提交，避免每个按键都写配置文件。
- */
-export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({
-  section,
-  onNavigate
-}) => {
-  const { config, updateConfig, saveConfig } = useAgentStore()
+interface NavItemProps {
+  active: boolean
+  label: string
+  status: ProviderStatus
+  onClick: () => void
+}
 
-  const [draft, setDraft] = useState<AgentModelConfig>(() => ({ ...config }))
-  const [presets, setPresets] = useState<AgentProviderPreset[]>([])
-  const [connectingId, setConnectingId] = useState<string | null>(null)
-  /** 连接校验进行中 / 校验失败的提示（显示在连接行内） */
-  const [connectingBusy, setConnectingBusy] = useState(false)
-  const [connectError, setConnectError] = useState('')
-  const [keyInput, setKeyInput] = useState('')
+function NavItem({ active, label, status, onClick }: NavItemProps): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors',
+        active
+          ? 'bg-accent/70 text-foreground'
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+      )}
+    >
+      <StatusDot status={status} />
+      <span className="min-w-0 flex-1 truncate text-[11px] font-medium">{label}</span>
+    </button>
+  )
+}
+
+interface ProviderDetailPanelProps {
+  provider: AgentProviderConfig
+  preset: AgentProviderPreset | null
+  configured: boolean
+  activeProviderId?: string
+  activeModelId: string
+  onUpsert: (provider: AgentProviderConfig) => void
+  onRemove: () => void
+  onSelectModel: (providerId: string, modelId: string) => void
+}
+
+function ProviderDetailPanel({
+  provider,
+  preset,
+  configured,
+  activeProviderId,
+  activeModelId,
+  onUpsert,
+  onRemove,
+  onSelectModel
+}: ProviderDetailPanelProps): React.JSX.Element {
+  const [urlDraft, setUrlDraft] = useState(provider.baseUrl)
+  const [keyDraft, setKeyDraft] = useState(provider.apiKey)
+  const [nameDraft, setNameDraft] = useState(provider.name)
   const [showKey, setShowKey] = useState(false)
-  const [customUrl, setCustomUrl] = useState('')
-  const [customKey, setCustomKey] = useState('')
-  const [customModel, setCustomModel] = useState('')
-  const [modelsList, setModelsList] = useState<AgentModelInfo[]>([])
-  const [modelsLoading, setModelsLoading] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [keyError, setKeyError] = useState('')
+  const [keyBusy, setKeyBusy] = useState(false)
+  const [addModelDraft, setAddModelDraft] = useState('')
+  const [modelsBusy, setModelsBusy] = useState(false)
   const [modelsError, setModelsError] = useState('')
-  const [manualModel, setManualModel] = useState('')
-  /** 「测试连接」探针的进行中状态与结果 */
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
 
-  /** 已连接状态下的「修改密钥」内联状态 */
-  const [isEditingKey, setIsEditingKey] = useState(false)
-  const [editKeyInput, setEditKeyInput] = useState('')
-  const [showEditKey, setShowEditKey] = useState(false)
-  const [editKeyBusy, setEditKeyBusy] = useState(false)
-  const [editKeyError, setEditKeyError] = useState('')
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    void (async (): Promise<void> => {
-      try {
-        if (window.api?.agentGetProviderPresets)
-          setPresets(await window.api.agentGetProviderPresets())
-      } catch {
-        setPresets([])
-      }
-    })()
-  }, [])
-
-  const connected = useMemo((): AgentProviderConnection | null => {
-    if (!draft.baseUrl?.trim()) return null
-    return toConnection(draft, presets)
-  }, [draft, presets])
-
-  /** 即时落盘：更新本地草稿 + store + 配置文件 */
-  const apply = (next: AgentModelConfig): void => {
-    setDraft(next)
-    updateConfig(next)
-    void saveConfig()
-  }
-
-  // 拉取模型列表（凭据用入参显式传入：连接后立即拉取时，本次渲染闭包里的 draft 可能还是旧值）
-  const refreshModels = async (override?: { baseUrl?: string; apiKey?: string }): Promise<void> => {
-    if (!window.api?.agentFetchModels) return
-    const baseUrl = override?.baseUrl ?? draft.baseUrl
-    const apiKey = override?.apiKey ?? draft.apiKey
-    if (!baseUrl?.trim()) return
-    setModelsLoading(true)
-    setModelsError('')
-    setModelsList([])
-    const res = await window.api.agentFetchModels({
-      baseUrl,
-      apiKey: apiKey || ''
-    })
-    if (res.success && res.models) {
-      setModelsList(res.models)
-    } else {
-      setModelsError(res.error || '拉取失败')
+    if (!menuOpen) return
+    const handler = (e: MouseEvent): void => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
     }
-    setModelsLoading(false)
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
+  const isCustom = !provider.presetId
+  const status = resolveProviderStatus(configured ? provider : { ...provider, enabled: true })
+  const canActivate = configured && provider.apiKey.trim().length > 0
+
+  const commit = (patch: Partial<AgentProviderConfig>, selectModelId?: string): void => {
+    const next: AgentProviderConfig = { ...provider, ...patch }
+    onUpsert(next)
+    if (selectModelId) onSelectModel(next.id, selectModelId)
   }
 
-  // 进入「模型」分区时自动拉取厂商模型列表（延迟到定时器内触发，避免 effect 内同步 setState）
-  useEffect(() => {
-    if (section !== 'models') return
-    const timer = setTimeout(() => {
-      void refreshModels()
-    }, 0)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section])
-
-  /** 断开当前提供商（清空 Key 并立即落盘，保留 baseUrl 以便重连） */
-  const disconnect = (): void => {
-    apply({ ...draft, apiKey: '', model: '' })
-    setTestResult(null)
-  }
-
-  /** 从预设发起连接 */
-  const connectPreset = (p: AgentProviderPreset): void => {
-    setConnectingId(p.id)
-    setKeyInput('')
-    setConnectError('')
-    setDraft((d) => ({ ...d, baseUrl: p.baseUrl, model: d.model || p.model }))
-  }
-
-  /**
-   * 实测凭据是否被厂商接受：HTTP 401 说明 key 被明确拒绝，此时不允许保存，
-   * 避免把无效密钥写进配置后 chat 与拉取全部连锁失败（厂商其余错误不拦，允许连接）
-   */
-  /**
-   * 实测凭据是否被厂商接受：HTTP 401 说明 key 被明确拒绝，此时不允许保存，
-   * 避免把无效密钥写进配置后 chat 与拉取全部连锁失败（厂商其余错误不拦，允许连接）
-   */
-  /**
-   * 实测凭据是否被厂商接受：HTTP 401 说明 key 被明确拒绝，此时不允许保存，
-   * 避免把无效密钥写进配置后 chat 与拉取全部连锁失败（厂商其余错误不拦，允许连接）
-   */
-  const validateCredential = async (
+  const validateKey = async (
     baseUrl: string,
     apiKey: string
   ): Promise<{ ok: boolean; error?: string }> => {
-    if (!window.api?.agentFetchModels) return { ok: true }
-    const cleaned = cleanApiKey(apiKey)
-    const probe = await window.api.agentFetchModels({ baseUrl, apiKey: cleaned })
+    if (!window.api?.agentFetchModels || !baseUrl.trim()) return { ok: true }
+    const probe = await window.api.agentFetchModels({ baseUrl, apiKey: cleanAgentApiKey(apiKey) })
     if (probe.success) return { ok: true }
     const err = probe.error || '未知错误'
-    if (err.includes('HTTP 401') || err.includes('身份验证失败')) {
-      return { ok: false, error: err }
-    }
+    if (err.includes('HTTP 401') || err.includes('身份验证失败')) return { ok: false, error: err }
     return { ok: true, error: err }
   }
 
-  /** 保存修改后的密钥并重新验证 */
-  const saveEditedKey = async (): Promise<void> => {
-    const cleaned = cleanApiKey(editKeyInput)
-    if (!cleaned) return
-    setEditKeyBusy(true)
-    setEditKeyError('')
-    const check = await validateCredential(draft.baseUrl, cleaned)
-    setEditKeyBusy(false)
-    if (!check.ok) {
-      setEditKeyError(check.error || '密钥校验失败')
+  const commitKey = async (): Promise<void> => {
+    const cleaned = cleanAgentApiKey(keyDraft)
+    if (cleaned === provider.apiKey) return
+    if (!cleaned) {
+      setKeyError('')
+      commit({ apiKey: '' })
       return
     }
-    apply({
-      ...draft,
-      apiKey: cleaned
-    })
-    setIsEditingKey(false)
-    setTestResult({ ok: true, message: '密钥更新成功并已验证通过' })
-    void refreshModels({ baseUrl: draft.baseUrl, apiKey: cleaned })
-  }
-
-  /** 确认连接（预设）：实测通过后立即落盘，再带上刚输入的凭据拉取模型列表 */
-  const confirmPresetKey = async (): Promise<void> => {
-    const preset = presets.find((p) => p.id === connectingId)
-    if (!preset) return
-    const cleaned = cleanApiKey(keyInput)
-    if (!cleaned) return
-    setConnectingBusy(true)
-    setConnectError('')
-    const check = await validateCredential(preset.baseUrl, cleaned)
-    setConnectingBusy(false)
+    setKeyBusy(true)
+    setKeyError('')
+    const check = await validateKey(urlDraft, cleaned)
+    setKeyBusy(false)
     if (!check.ok) {
-      setConnectError(check.error || '密钥校验失败')
+      setKeyError(check.error || '密钥校验失败')
       return
     }
-    apply({
-      ...draft,
-      baseUrl: preset.baseUrl,
-      apiKey: cleaned,
-      model: draft.model || preset.model
-    })
-    setConnectingId(null)
-    setKeyInput('')
-    setTestResult(null)
-    onNavigate?.('models')
-    void refreshModels({ baseUrl: preset.baseUrl, apiKey: cleaned })
+    const modelId = provider.models.find((m) => m.enabled)?.id
+    commit({ apiKey: cleaned }, modelId)
+    await pullModels({ baseUrl: urlDraft, apiKey: cleaned })
   }
 
-  /** 连接自定义提供商：实测通过后立即落盘 */
-  const connectCustom = async (): Promise<void> => {
-    if (!customUrl.trim()) return
-    const baseUrl = customUrl.trim()
-    const cleaned = cleanApiKey(customKey)
-    setConnectingBusy(true)
-    setConnectError('')
-    const check = await validateCredential(baseUrl, cleaned)
-    setConnectingBusy(false)
-    if (!check.ok) {
-      setConnectError(check.error || '密钥校验失败')
+  const commitUrl = (): void => {
+    const next = urlDraft.trim()
+    if (next === provider.baseUrl) return
+    commit({ baseUrl: next })
+  }
+
+  const commitRename = (): void => {
+    const next = nameDraft.trim()
+    setRenaming(false)
+    if (!next || next === provider.name) {
+      setNameDraft(provider.name)
       return
     }
-    apply({
-      ...draft,
-      provider: 'custom-openai',
-      baseUrl,
-      apiKey: cleaned,
-      model: customModel.trim() || draft.model
-    })
-    setCustomUrl('')
-    setCustomKey('')
-    setCustomModel('')
-    setTestResult(null)
-    onNavigate?.('models')
-    void refreshModels({ baseUrl, apiKey: cleaned })
+    commit({ name: next })
   }
 
-  /** 实测当前已保存凭据的连通性（「连接不上」时的第一手诊断信息） */
+  const setModelEnabled = (modelId: string, enabled: boolean): void => {
+    const models = provider.models.map((m) => (m.id === modelId ? { ...m, enabled } : m))
+    const wasActive = activeProviderId === provider.id && activeModelId === modelId
+    commit({ models }, !enabled && wasActive ? models.find((m) => m.enabled)?.id : undefined)
+  }
+
+  const addModel = (): void => {
+    const id = addModelDraft.trim()
+    if (!id) return
+    setAddModelDraft('')
+    if (provider.models.some((m) => m.id === id)) return
+    commit({ models: [...provider.models, { id, enabled: true, custom: true }] }, id)
+  }
+
+  const removeModel = (modelId: string): void => {
+    const wasActive = activeProviderId === provider.id && activeModelId === modelId
+    const models = provider.models.filter((m) => m.id !== modelId)
+    commit({ models }, wasActive ? models.find((m) => m.enabled)?.id : undefined)
+  }
+
+  const pullModels = async (source?: { baseUrl: string; apiKey: string }): Promise<void> => {
+    if (!window.api?.agentFetchModels) return
+    const baseUrl = (source?.baseUrl ?? urlDraft).trim()
+    const apiKey = cleanAgentApiKey(source?.apiKey ?? keyDraft)
+    setModelsBusy(true)
+    setModelsError('')
+    const res = await window.api.agentFetchModels({ baseUrl, apiKey })
+    setModelsBusy(false)
+    if (!res.success || !res.models) {
+      setModelsError(res.error || '拉取失败')
+      return
+    }
+    if (res.models.length === 0) {
+      setModelsError('接口未返回任何模型')
+      return
+    }
+    const models = mergeFetchedModels(provider.models, res.models)
+    const keepActive = models.some((m) => m.enabled && m.id === activeModelId)
+    const adopt = !keepActive && (activeProviderId === provider.id || !activeModelId)
+    const patch: Partial<AgentProviderConfig> = { models }
+    if (source) patch.apiKey = apiKey
+    commit(patch, adopt ? models.find((m) => m.enabled)?.id : undefined)
+  }
+
   const testConnection = async (): Promise<void> => {
     if (!window.api?.agentFetchModels) return
     setTesting(true)
     setTestResult(null)
-    const cleaned = cleanApiKey(draft.apiKey)
     const probe = await window.api.agentFetchModels({
-      baseUrl: draft.baseUrl,
-      apiKey: cleaned
+      baseUrl: urlDraft.trim(),
+      apiKey: cleanAgentApiKey(keyDraft)
     })
     setTesting(false)
     setTestResult(
@@ -287,473 +501,410 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({
     )
   }
 
-  /** 选用模型（即时落盘） */
-  const pickModel = (id: string): void => {
-    apply({ ...draft, model: id })
-    setManualModel('')
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div
+            className={cn(
+              'w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0',
+              status === 'ready'
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+            )}
+          >
+            {preset?.badge ?? <Sparkles className="w-3.5 h-3.5" />}
+          </div>
+          {renaming ? (
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') {
+                  setNameDraft(provider.name)
+                  setRenaming(false)
+                }
+              }}
+              className="min-w-0 w-40 px-2 py-1 rounded border border-border bg-background text-xs font-semibold"
+            />
+          ) : (
+            <div className="min-w-0">
+              <div className="text-xs font-semibold truncate">{provider.name}</div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {preset?.description ?? (isCustom ? '自定义端点' : 'OpenAI 兼容接口')}
+                {!configured && ' · 未连接'}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Switch
+            checked={provider.enabled !== false}
+            onCheckedChange={(enabled) => commit({ enabled })}
+            aria-label={provider.enabled !== false ? '禁用供应商' : '启用供应商'}
+          />
+          {isCustom && (
+            <div className="relative" ref={menuRef}>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="text-muted-foreground"
+              >
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </Button>
+              {menuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-28 bg-popover border border-border rounded-md shadow-lg z-50 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRenaming(true)
+                      setMenuOpen(false)
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-left hover:bg-muted/60"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    <span>重命名</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onRemove}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-left text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>删除</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[11px] text-muted-foreground mb-1">Base URL</label>
+        <input
+          type="text"
+          value={urlDraft}
+          onChange={(e) => setUrlDraft(e.target.value)}
+          onBlur={commitUrl}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          placeholder="https://api.example.com/v1"
+          spellCheck={false}
+          className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background text-[11px] font-mono"
+        />
+      </div>
+
+      <div>
+        <label className="block text-[11px] text-muted-foreground mb-1">API 格式</label>
+        <Select
+          value={normalizeAgentApiFormat(provider.apiFormat)}
+          onValueChange={(val) => commit({ apiFormat: val as AgentApiFormat })}
+        >
+          <SelectTrigger size="sm" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {AGENT_API_FORMAT_VALUES.map((format) => (
+              <SelectItem key={format} value={format}>
+                {AGENT_API_FORMAT_LABELS[format]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <label className="text-[11px] text-muted-foreground">API Key</label>
+          {preset?.apiKeyUrl && (
+            <button
+              type="button"
+              onClick={() => void window.api.openExternal(preset.apiKeyUrl as string)}
+              className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline"
+            >
+              获取 API Key
+            </button>
+          )}
+        </div>
+        <div className="flex gap-1.5">
+          <input
+            type={showKey ? 'text' : 'password'}
+            value={keyDraft}
+            onChange={(e) => setKeyDraft(e.target.value)}
+            onBlur={() => void commitKey()}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            placeholder="输入 API Key（仅保存在本地设备）"
+            spellCheck={false}
+            className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-border bg-background text-[11px] font-mono"
+          />
+          <Button
+            size="icon-sm"
+            variant="outline"
+            onClick={() => setShowKey((v) => !v)}
+            title={showKey ? '隐藏密钥' : '显示密钥'}
+            className="shrink-0"
+          >
+            {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void testConnection()}
+            disabled={testing || keyBusy || !urlDraft.trim()}
+            className="shrink-0"
+          >
+            {testing || keyBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '测试连接'}
+          </Button>
+        </div>
+        {keyError && (
+          <div className="mt-1.5 flex items-start gap-1.5 px-2 py-1.5 rounded border border-destructive/40 bg-destructive/10 text-[11px] text-destructive break-all">
+            <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+            <span>{keyError}</span>
+          </div>
+        )}
+        {testResult && (
+          <div
+            className={cn(
+              'mt-1.5 px-2 py-1.5 rounded text-[11px] break-all',
+              testResult.ok
+                ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                : 'border border-destructive/40 bg-destructive/10 text-destructive'
+            )}
+          >
+            {testResult.message}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <span className="text-[11px] text-muted-foreground">模型列表</span>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void pullModels()}
+              disabled={modelsBusy || !urlDraft.trim()}
+              title="从厂商接口拉取当前可用模型"
+              className="gap-1"
+            >
+              <RefreshCw className={cn('w-3 h-3', modelsBusy && 'animate-spin')} />
+              <span>拉取模型</span>
+            </Button>
+            <Button size="xs" variant="secondary" onClick={addModel} className="gap-1">
+              <Plus className="w-3 h-3" />
+              <span>添加模型</span>
+            </Button>
+          </div>
+        </div>
+
+        {modelsError && (
+          <div className="mb-1.5 px-2 py-1.5 rounded border border-destructive/40 bg-destructive/10 text-[11px] text-destructive break-all">
+            {modelsError}
+          </div>
+        )}
+
+        {provider.models.length > 0 ? (
+          <div className="rounded-lg border border-border divide-y divide-border overflow-hidden bg-background/60">
+            {provider.models.map((model) => {
+              const isActive = activeProviderId === provider.id && activeModelId === model.id
+              const ctx = formatContextWindow(model.contextWindow)
+              return (
+                <div
+                  key={model.id}
+                  className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-muted/30 transition-colors"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onSelectModel(provider.id, model.id)}
+                    disabled={!canActivate || !model.enabled}
+                    title={canActivate ? '设为当前使用模型' : '配置 API Key 后可选用'}
+                    className="min-w-0 flex-1 flex items-center gap-1.5 text-left disabled:cursor-not-allowed"
+                  >
+                    <span className="min-w-0 truncate text-[11px] font-medium">
+                      {model.name ?? model.id}
+                    </span>
+                    {model.name && model.name !== model.id && (
+                      <span className="font-mono text-[10px] text-muted-foreground truncate">
+                        {model.id}
+                      </span>
+                    )}
+                    {ctx && (
+                      <span className="text-[9px] px-1 py-0.5 rounded border border-border bg-muted text-muted-foreground shrink-0">
+                        {ctx}
+                      </span>
+                    )}
+                    {model.supportsVision && (
+                      <span className="text-[9px] px-1 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400 shrink-0 inline-flex items-center gap-0.5">
+                        <ImageIcon className="w-2.5 h-2.5" />
+                        视觉
+                      </span>
+                    )}
+                    {model.supportsReasoning && (
+                      <span className="text-[9px] px-1 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                        推理
+                      </span>
+                    )}
+                    {isActive && (
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 shrink-0 inline-flex items-center gap-0.5">
+                        <Check className="w-3 h-3" />
+                        使用中
+                      </span>
+                    )}
+                  </button>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={() => removeModel(model.id)}
+                    title="删除模型"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                  <Switch
+                    checked={model.enabled}
+                    onCheckedChange={(v) => setModelEnabled(model.id, v)}
+                    aria-label={model.enabled ? '停用模型' : '启用模型'}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 h-12 px-3 rounded-lg border border-dashed border-border text-[11px] text-muted-foreground">
+            <AlertCircle className="w-3 h-3 shrink-0" />
+            <span>暂无模型。填好 API Key 后点「拉取模型」从厂商接口获取，也可手动添加。</span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5 mt-2">
+          <input
+            type="text"
+            value={addModelDraft}
+            onChange={(e) => setAddModelDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) addModel()
+            }}
+            placeholder="输入模型 ID 后回车，如 deepseek-chat"
+            spellCheck={false}
+            className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-border bg-background text-[11px] font-mono"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!addModelDraft.trim()}
+            onClick={addModel}
+            className="shrink-0"
+          >
+            添加
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface ChatSectionProps {
+  config: AgentModelConfig
+  activeModelInfo: AgentProviderModelConfig | null
+}
+
+function ChatSection({ config, activeModelInfo }: ChatSectionProps): React.JSX.Element {
+  const { updateConfig, saveConfig } = useAgentStore()
+  const [promptDraft, setPromptDraft] = useState<string | null>(null)
+  const [contextDraft, setContextDraft] = useState<string | null>(null)
+  const [maxTokensDraft, setMaxTokensDraft] = useState<string | null>(null)
+
+  const apply = (patch: Partial<AgentModelConfig>): void => {
+    updateConfig(patch)
+    void saveConfig()
   }
 
+  const promptValue = promptDraft ?? config.systemPrompt ?? ''
+  const contextValue = contextDraft ?? config.contextWindow ?? ''
+  const maxTokensValue = maxTokensDraft ?? config.maxTokens ?? ''
+  const reasoningSupported = Boolean(activeModelInfo?.supportsReasoning)
+
   return (
-    <div className="text-xs">
-      {/* ============ 提供商 ============ */}
-      {section === 'providers' && (
-        <div className="space-y-4">
-          {/* 已连接 */}
-          <section>
-            <h3 className="text-xs font-bold text-foreground mb-1.5">已连接</h3>
-            {connected && connected.hasApiKey ? (
-              <div className="rounded-lg border border-border bg-card/60 overflow-hidden">
-                <div className="flex items-center gap-3 p-3">
-                  <div className="p-2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                    <Plug className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold">{connected.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                        {connected.kind === 'preset' ? '预设' : '自定义'}
-                      </span>
-                    </div>
-                    <div className="font-mono text-[10px] text-muted-foreground truncate">
-                      {connected.baseUrl} · {maskApiKey(draft.apiKey)} · {draft.model || '未选模型'}
-                    </div>
-                  </div>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => {
-                      setIsEditingKey((v) => !v)
-                      setEditKeyInput(draft.apiKey)
-                      setEditKeyError('')
-                    }}
-                    className="gap-1"
-                  >
-                    <KeyRound className="w-3.5 h-3.5" />
-                    <span>修改密钥</span>
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => void testConnection()}
-                    disabled={testing}
-                    className="gap-1"
-                  >
-                    {testing ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <FlaskConical className="w-3.5 h-3.5" />
-                    )}
-                    <span>测试连接</span>
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    onClick={disconnect}
-                    className="gap-1 text-muted-foreground hover:text-destructive"
-                  >
-                    <Unplug className="w-3.5 h-3.5" />
-                    <span>断开</span>
-                  </Button>
-                </div>
-                {/* 密钥修改抽屉 */}
-                {isEditingKey && (
-                  <div className="px-3 pb-3 pt-2 border-t border-border bg-muted/20 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-1.5 font-medium">
-                        <KeyRound className="w-3 h-3 text-amber-500" />
-                        更新 {connected.name} 的 API Key
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        （仅保存在本地设备）
-                      </span>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <input
-                        type={showEditKey ? 'text' : 'password'}
-                        value={editKeyInput}
-                        onChange={(e) => {
-                          setEditKeyInput(e.target.value)
-                          setEditKeyError('')
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && void saveEditedKey()}
-                        placeholder="输入 API Key"
-                        autoFocus
-                        className="flex-1 px-2.5 py-1.5 rounded border border-border bg-background text-xs font-mono"
-                      />
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => setShowEditKey((v) => !v)}
-                        className="text-muted-foreground"
-                      >
-                        {showEditKey ? (
-                          <EyeOff className="w-3.5 h-3.5" />
-                        ) : (
-                          <Eye className="w-3.5 h-3.5" />
-                        )}
-                      </Button>
-                      <Button
-                        size="xs"
-                        onClick={() => void saveEditedKey()}
-                        disabled={!editKeyInput.trim() || editKeyBusy}
-                        className="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold"
-                      >
-                        {editKeyBusy ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          '保存并验证'
-                        )}
-                      </Button>
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => setIsEditingKey(false)}
-                        disabled={editKeyBusy}
-                      >
-                        取消
-                      </Button>
-                    </div>
-                    {editKeyError && (
-                      <div className="text-[11px] text-destructive bg-destructive/10 p-2 rounded border border-destructive/20 break-all">
-                        {editKeyError}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {testResult && (
-                  <div
-                    className={
-                      testResult.ok
-                        ? 'px-3 py-2 border-t border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-600 dark:text-emerald-400 break-all'
-                        : 'px-3 py-2 border-t border-destructive/40 bg-destructive/10 text-[11px] text-destructive break-all'
-                    }
-                  >
-                    {testResult.message}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-3 rounded-lg border border-dashed border-border text-[11px] text-muted-foreground text-center">
-                尚未连接任何提供商，请在下方选择常用提供商或添加自定义提供商。
-              </div>
-            )}
-          </section>
+    <div className="space-y-4">
+      <div>
+        <label className="block text-xs font-semibold mb-1.5">
+          创作者补充背景设定 (System Instruction)
+        </label>
+        <textarea
+          value={promptValue}
+          onChange={(e) => setPromptDraft(e.target.value)}
+          onBlur={() => {
+            apply({ systemPrompt: promptValue })
+            setPromptDraft(null)
+          }}
+          placeholder="可填入决斗双方的角色性格（如海马的高傲狂妄、暗游戏的稳重热血）、作品同人世界观设定等..."
+          rows={5}
+          className="w-full px-2.5 py-2 rounded-lg border border-border bg-background text-xs resize-none leading-relaxed"
+        />
+      </div>
 
-          {/* 常用提供商 */}
-          <section>
-            <h3 className="text-xs font-bold text-foreground mb-1.5">常用提供商</h3>
-            <div className="rounded-lg border border-border divide-y divide-border overflow-hidden bg-card/60">
-              {presets.map((p) => {
-                const isConnected = connected?.id === p.id && connected.hasApiKey
-                const isConnecting = connectingId === p.id
-                return (
-                  <div key={p.id}>
-                    <div className="flex items-center gap-3 px-3 py-2.5 hover:bg-muted/30 transition-colors">
-                      <div className="p-1.5 rounded bg-muted text-foreground/80">
-                        <Plug className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-semibold">{p.name}</div>
-                        <div className="font-mono text-[10px] text-muted-foreground truncate">
-                          {p.baseUrl}
-                        </div>
-                      </div>
-                      {isConnected ? (
-                        <span className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
-                          <Check className="w-3.5 h-3.5" />
-                          已连接
-                        </span>
-                      ) : (
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => connectPreset(p)}
-                          className="gap-1"
-                        >
-                          <Plus className="w-3 h-3" />
-                          <span>连接</span>
-                        </Button>
-                      )}
-                    </div>
-                    {/* Key 输入展开区 */}
-                    {isConnecting && (
-                      <div className="px-3 pb-3 pt-1 bg-muted/20 space-y-2">
-                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                          <KeyRound className="w-3 h-3" />
-                          输入 {p.name} 的 API Key（仅保存在本地）
-                        </div>
-                        <div className="flex gap-1.5">
-                          <input
-                            type={showKey ? 'text' : 'password'}
-                            value={keyInput}
-                            onChange={(e) => setKeyInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && void confirmPresetKey()}
-                            placeholder="sk-..."
-                            autoFocus
-                            className="flex-1 px-2.5 py-1.5 rounded border border-border bg-background text-xs font-mono"
-                          />
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => setShowKey((v) => !v)}
-                            className="text-muted-foreground"
-                          >
-                            {showKey ? (
-                              <EyeOff className="w-3.5 h-3.5" />
-                            ) : (
-                              <Eye className="w-3.5 h-3.5" />
-                            )}
-                          </Button>
-                          <Button
-                            size="xs"
-                            onClick={() => void confirmPresetKey()}
-                            disabled={!keyInput.trim() || connectingBusy}
-                            className="bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold"
-                          >
-                            {connectingBusy ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              '确认连接'
-                            )}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() => {
-                              setConnectingId(null)
-                              setConnectError('')
-                            }}
-                          >
-                            取消
-                          </Button>
-                        </div>
-                        {connectError && connectingId && (
-                          <div className="px-2 py-1.5 rounded border border-destructive/40 bg-destructive/10 text-[11px] text-destructive break-all">
-                            {connectError}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-
-          {/* 自定义提供商 */}
-          <section>
-            <h3 className="text-xs font-bold text-foreground mb-1.5">自定义提供商</h3>
-            <div className="rounded-lg border border-border p-3 space-y-2 bg-card/60">
-              <p className="text-[11px] text-muted-foreground">
-                任何 OpenAI 兼容接口（含 LM Studio / vLLM / 中转网关）均可接入，Pi Agent
-                会按接口地址自动适配协议差异。
-              </p>
-              <input
-                type="text"
-                value={customUrl}
-                onChange={(e) => setCustomUrl(e.target.value)}
-                placeholder="API Base URL，如 https://your-gateway.example.com/v1"
-                className="w-full px-2.5 py-1.5 rounded border border-border bg-background text-xs"
-              />
-              <div className="flex gap-1.5">
-                <input
-                  type="password"
-                  value={customKey}
-                  onChange={(e) => setCustomKey(e.target.value)}
-                  placeholder="API Key（可选）"
-                  className="flex-1 px-2.5 py-1.5 rounded border border-border bg-background text-xs font-mono"
-                />
-                <input
-                  type="text"
-                  value={customModel}
-                  onChange={(e) => setCustomModel(e.target.value)}
-                  placeholder="默认模型（可选）"
-                  className="flex-1 px-2.5 py-1.5 rounded border border-border bg-background text-xs font-mono"
-                />
-                <Button
-                  size="xs"
-                  onClick={() => void connectCustom()}
-                  disabled={!customUrl.trim() || connectingBusy}
-                  className="gap-1 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold shrink-0"
-                >
-                  {connectingBusy ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Plus className="w-3 h-3" />
-                  )}
-                  <span>连接</span>
-                </Button>
-              </div>
-              {connectError && !connectingId && (
-                <div className="px-2 py-1.5 rounded border border-destructive/40 bg-destructive/10 text-[11px] text-destructive break-all">
-                  {connectError}
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+      {reasoningSupported ? (
+        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold">
+          <input
+            type="checkbox"
+            checked={Boolean(config.enableReasoning)}
+            onChange={(e) => apply({ enableReasoning: e.target.checked })}
+            className="rounded border-border text-amber-500 focus:ring-amber-500"
+          />
+          <span>启用模型推理 / 思考链 (Reasoning)</span>
+        </label>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          当前模型不支持思考链；在「模型设置」中切换到支持推理的模型（如 DeepSeek
+          Reasoner）后此处可启用。
+        </p>
       )}
 
-      {/* ============ 模型 ============ */}
-      {section === 'models' && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-xs font-bold">从接口拉取模型列表</div>
-              <div className="font-mono text-[10px] text-muted-foreground truncate">
-                {draft.baseUrl || '未设置接口地址'}
-              </div>
-            </div>
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => void refreshModels()}
-              disabled={modelsLoading || !draft.baseUrl}
-              className="gap-1 shrink-0"
-            >
-              {modelsLoading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="w-3.5 h-3.5" />
-              )}
-              <span>刷新列表</span>
-            </Button>
-          </div>
-
-          {modelsError && (
-            <div className="p-2.5 rounded-lg border border-destructive/40 bg-destructive/10 text-[11px] text-destructive">
-              {modelsError}
-            </div>
-          )}
-          {!draft.apiKey && !modelsError && (
-            <div className="p-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-600 dark:text-amber-400">
-              未配置 API Key，部分厂商可能拒绝拉取（401），也可继续手动填写模型名。
-            </div>
-          )}
-
-          {modelsList.length > 0 ? (
-            <div className="rounded-lg border border-border divide-y divide-border max-h-72 overflow-y-auto bg-card/60">
-              {modelsList.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => pickModel(m.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
-                >
-                  <Cpu className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <span className="text-xs font-mono truncate flex-1">{m.id}</span>
-                  {draft.model === m.id && (
-                    <Check className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  )}
-                </button>
-              ))}
-            </div>
-          ) : (
-            !modelsLoading &&
-            !modelsError && (
-              <div className="p-3 rounded-lg border border-dashed border-border text-[11px] text-muted-foreground text-center">
-                尚未拉取到模型列表
-              </div>
-            )
-          )}
-
-          {/* 手动填写模型（列表拉取失败时的兜底） */}
-          <div className="flex items-center gap-1.5 pt-1">
-            <input
-              type="text"
-              value={manualModel}
-              onChange={(e) => setManualModel(e.target.value)}
-              onKeyDown={(e) =>
-                e.key === 'Enter' && manualModel.trim() && pickModel(manualModel.trim())
-              }
-              placeholder="手动填写模型名称 (如 deepseek-chat)"
-              className="flex-1 px-2.5 py-1.5 rounded border border-border bg-background text-xs font-mono"
-            />
-            <Button
-              size="xs"
-              variant="outline"
-              disabled={!manualModel.trim()}
-              onClick={() => pickModel(manualModel.trim())}
-            >
-              使用
-            </Button>
-          </div>
+      <div className="grid grid-cols-2 gap-2.5 pt-1">
+        <div>
+          <label className="block text-[11px] font-semibold mb-1">上下文窗口 (tokens)</label>
+          <input
+            type="number"
+            min={1024}
+            step={1024}
+            value={contextValue}
+            onChange={(e) => setContextDraft(e.target.value)}
+            onBlur={() => {
+              if (contextDraft === null) return
+              apply({ contextWindow: contextDraft ? Number(contextDraft) : undefined })
+              setContextDraft(null)
+            }}
+            placeholder="131072"
+            className="w-full px-2.5 py-1.5 rounded border border-border bg-background text-xs font-mono"
+          />
         </div>
-      )}
-
-      {/* ============ 对话 ============ */}
-      {section === 'chat' && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold mb-1.5">
-              创作者补充背景设定 (System Instruction)
-            </label>
-            <textarea
-              value={draft.systemPrompt || ''}
-              onChange={(e) => setDraft((d) => ({ ...d, systemPrompt: e.target.value }))}
-              onBlur={() => apply({ ...draft })}
-              placeholder="可填入决斗双方的角色性格（如海马的高傲狂妄、暗游戏的稳重热血）、作品同人世界观设定等..."
-              rows={5}
-              className="w-full px-2.5 py-2 rounded-lg border border-border bg-background text-xs resize-none leading-relaxed"
-            />
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold">
-            <input
-              type="checkbox"
-              checked={Boolean(draft.enableReasoning)}
-              onChange={(e) => apply({ ...draft, enableReasoning: e.target.checked })}
-              className="rounded border-border text-amber-500 focus:ring-amber-500"
-            />
-            <span>启用模型推理 / 思考链 (Reasoning)</span>
-          </label>
-          <p className="text-[10px] text-muted-foreground -mt-2">
-            仅对支持思考链的模型（如 deepseek-reasoner）生效。
-          </p>
-
-          <div className="grid grid-cols-2 gap-2.5 pt-1">
-            <div>
-              <label className="block text-[11px] font-semibold mb-1">上下文窗口 (tokens)</label>
-              <input
-                type="number"
-                min={1024}
-                step={1024}
-                value={draft.contextWindow ?? ''}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    contextWindow: e.target.value ? Number(e.target.value) : undefined
-                  }))
-                }
-                onBlur={() => apply({ ...draft })}
-                placeholder="131072"
-                className="w-full px-2.5 py-1.5 rounded border border-border bg-background text-xs font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold mb-1">单次回复上限 (tokens)</label>
-              <input
-                type="number"
-                min={256}
-                step={256}
-                value={draft.maxTokens ?? ''}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    maxTokens: e.target.value ? Number(e.target.value) : undefined
-                  }))
-                }
-                onBlur={() => apply({ ...draft })}
-                placeholder="8192"
-                className="w-full px-2.5 py-1.5 rounded border border-border bg-background text-xs font-mono"
-              />
-            </div>
-          </div>
-          <p className="text-[10px] text-muted-foreground -mt-1.5">
-            按所选模型实际能力填写（留空使用默认值），影响 token 估算与自动压缩。失焦后自动保存。
-          </p>
+        <div>
+          <label className="block text-[11px] font-semibold mb-1">单次回复上限 (tokens)</label>
+          <input
+            type="number"
+            min={256}
+            step={256}
+            value={maxTokensValue}
+            onChange={(e) => setMaxTokensDraft(e.target.value)}
+            onBlur={() => {
+              if (maxTokensDraft === null) return
+              apply({ maxTokens: maxTokensDraft ? Number(maxTokensDraft) : undefined })
+              setMaxTokensDraft(null)
+            }}
+            placeholder="8192"
+            className="w-full px-2.5 py-1.5 rounded border border-border bg-background text-xs font-mono"
+          />
         </div>
-      )}
+      </div>
+      <p className="text-[10px] text-muted-foreground -mt-1.5">
+        按所选模型实际能力填写（留空使用默认值），影响 token 估算与自动压缩。失焦后自动保存。
+      </p>
     </div>
   )
 }

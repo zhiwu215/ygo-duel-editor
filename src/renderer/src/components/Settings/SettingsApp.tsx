@@ -1,14 +1,5 @@
 import React, { useEffect, useState, JSX } from 'react'
-import {
-  X,
-  Palette,
-  FolderOpen,
-  Plug,
-  Cpu,
-  MessageSquareText,
-  Folder,
-  FolderKanban
-} from 'lucide-react'
+import { X, Palette, FolderOpen, Plug, MessageSquareText, Folder, FolderKanban } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useAgentStore } from '../../stores/useAgentStore'
@@ -54,16 +45,10 @@ const NAV_GROUPS: SettingsNavGroup[] = [
     title: 'AI 顾问 (背后灵)',
     items: [
       {
-        id: 'providers',
-        label: '提供商',
+        id: 'model-settings',
+        label: '模型设置',
         icon: Plug,
-        description: '连接与管理 OpenAI 兼容的模型提供商'
-      },
-      {
-        id: 'models',
-        label: '模型',
-        icon: Cpu,
-        description: '从厂商接口拉取并选用可用模型'
+        description: '管理模型供应商、API Key 与模型列表'
       },
       {
         id: 'chat',
@@ -235,7 +220,12 @@ export function SettingsApp(): JSX.Element {
 
       {/* 右侧内容 */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-8 py-8">
+        <div
+          className={cn(
+            'mx-auto px-8 py-8',
+            section === 'model-settings' ? 'max-w-4xl' : 'max-w-2xl'
+          )}
+        >
           <header className="mb-6">
             <h1 className="text-lg font-bold">{current.label}</h1>
             <p className="text-xs text-muted-foreground mt-1">{current.description}</p>
@@ -248,7 +238,7 @@ export function SettingsApp(): JSX.Element {
           ) : section === 'paths' ? (
             <PathsSection />
           ) : (
-            <AgentSettingsContent section={section} onNavigate={(s) => setSection(s)} />
+            <AgentSettingsContent section={section} />
           )}
         </div>
       </main>

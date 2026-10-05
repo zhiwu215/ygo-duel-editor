@@ -11,8 +11,12 @@ import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardStatPopover } from './components/CardStatPopover'
 
 export const DuelBoard: React.FC = () => {
-  const { state } = useDuelStore()
+  const { state, activeDuelistId } = useDuelStore()
   const ruleInfo = MASTER_RULES[state.masterRule]
+
+  // 多人对局时「当前查看的决斗者」：棋盘上的主卡组 / 额外卡组等堆叠区跟着TA 切换，
+  // 单人（1v1）时为 null，行为与原先完全一致。
+  const activeDuelist = state.duelists?.find((d) => d.id === activeDuelistId) || null
 
   // —— 决斗盘自适应缩放 ——
   // 决斗盘内部是固定像素网格（怪兽/魔陷格 92px、侧翼堆叠区 64px），其自然宽度（MR1/2/4/5 约
@@ -130,7 +134,16 @@ export const DuelBoard: React.FC = () => {
       location === CardLocation.EXTRA ||
       location === CardLocation.REMOVED
     ) {
-      const pile = state.cards.filter((c) => c.controller === controller && c.location === location)
+      // 仅当「当前查看的决斗者」属于本阵营时才按duelistId 收窄；
+      // 查看对方玩家时，我方/另一侧的堆叠区保持阵营全量，不会被一起过滤掉。
+      const ownerScope =
+        activeDuelist && activeDuelist.team === controller ? activeDuelist.id : null
+      const pile = state.cards.filter(
+        (c) =>
+          c.controller === controller &&
+          c.location === location &&
+          (ownerScope ? c.duelistId === ownerScope : true)
+      )
       // 主卡组：sequence 最小 = 卡组顶 = 下一抽，与卡组面板列表最左一张保持一致；
       // 墓地/额外/除外：后加入的压在更上层，数组末位即最新一张。
       if (location === CardLocation.DECK) {
@@ -148,7 +161,14 @@ export const DuelBoard: React.FC = () => {
 
   // 辅助统计指定区域的卡片总数 (如卡组、额外、墓地、除外区堆叠计数)
   const getCardCount = (controller: 0 | 1, location: number): number => {
-    return state.cards.filter((c) => c.controller === controller && c.location === location).length
+    // 与 getCard 同一口径：只看当前查看决斗者所属阵营的堆叠区
+    const ownerScope = activeDuelist && activeDuelist.team === controller ? activeDuelist.id : null
+    return state.cards.filter(
+      (c) =>
+        c.controller === controller &&
+        c.location === location &&
+        (ownerScope ? c.duelistId === ownerScope : true)
+    ).length
   }
 
   return (

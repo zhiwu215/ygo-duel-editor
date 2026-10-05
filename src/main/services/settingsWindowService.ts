@@ -25,9 +25,9 @@ class SettingsWindowService {
     }
 
     this.settingsWindow = new BrowserWindow({
-      width: 980,
-      height: 720,
-      minWidth: 780,
+      width: 1060,
+      height: 740,
+      minWidth: 900,
       minHeight: 560,
       show: false,
       autoHideMenuBar: true,

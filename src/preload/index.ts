@@ -82,6 +82,7 @@ const api: IpcApi = {
   agentFetchModels: (params) => ipcRenderer.invoke('agent:fetch-models', params),
   agentGetProviderPresets: () => ipcRenderer.invoke('agent:get-provider-presets'),
   openSettingsWindow: () => ipcRenderer.invoke('window:open-settings'),
+  openExternal: (url: string) => ipcRenderer.invoke('app:open-external', url),
   onConfigUpdated: (callback) => {
     const handler = (): void => callback()
     ipcRenderer.on('config:updated', handler)

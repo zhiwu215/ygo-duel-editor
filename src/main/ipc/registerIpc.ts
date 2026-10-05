@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, shell } from 'electron'
 import { CardSearchParams, DuelPuzzleState, AppConfig } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
@@ -199,5 +199,13 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('agent:get-provider-presets', async () => {
     return agentService.getProviderPresets()
+  })
+
+  // 通用宿主能力：用系统默认浏览器打开外部链接
+  ipcMain.handle('app:open-external', async (_, url: string) => {
+    const target = String(url ?? '').trim()
+    if (!/^https?:\/\//i.test(target)) return false
+    await shell.openExternal(target)
+    return true
   })
 }

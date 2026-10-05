@@ -12,7 +12,6 @@ import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import {
   ArrowLeft,
-  FolderOpen,
   Folder,
   Save,
   ArrowUpDown,
@@ -48,7 +47,6 @@ export const DeckEditorApp: React.FC = () => {
     drawTestHand,
     closeTestHand,
     saveDeckFile,
-    importDeckFile,
     saveCurrentDeckToLibrary,
     backToLibrary,
     applyToDuel,
@@ -86,11 +84,6 @@ export const DeckEditorApp: React.FC = () => {
     } else if (res.error) {
       alert(`导出失败: ${res.error}`)
     }
-  }
-
-  // 导入外部 .ydk
-  const handleImportYdk = async (): Promise<void> => {
-    await importDeckFile()
   }
 
   // 清空
@@ -177,17 +170,6 @@ export const DeckEditorApp: React.FC = () => {
           >
             <FilePlus2 className="w-3.5 h-3.5 text-muted-foreground" />
             <span>新建</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => void handleImportYdk()}
-            title="导入外部 .ydk 卡组文件"
-            className="h-7 px-2 gap-1 text-xs"
-          >
-            <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>导入 YDK</span>
           </Button>
 
           <Button

@@ -6,10 +6,13 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
 import { Separator } from '../ui/separator'
+import { YdkPasteModal } from './YdkPasteModal'
 import {
   Layers,
   Plus,
   FolderOpen,
+  ClipboardPaste,
+  ChevronDown,
   Folder,
   Search,
   Edit3,
@@ -40,10 +43,13 @@ export const DeckLibraryView: React.FC = () => {
     createNewDeck,
     deleteDeckFromLibrary,
     duplicateDeckInLibrary,
-    importDeckFileToLibrary
+    importDeckFileToLibrary,
+    importDeckTextToLibrary
   } = useDeckEditorStore()
 
   const [contextMenu, setContextMenu] = useState<DeckContextMenuState | null>(null)
+  const [importMenuOpen, setImportMenuOpen] = useState<boolean>(false)
+  const [showPasteModal, setShowPasteModal] = useState<boolean>(false)
 
   useEffect(() => {
     void fetchDeckList()
@@ -64,6 +70,22 @@ export const DeckLibraryView: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [contextMenu])
+
+  useEffect(() => {
+    if (!importMenuOpen) return
+    const close = (): void => setImportMenuOpen(false)
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') close()
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('resize', close)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [importMenuOpen])
 
   const groups = useMemo(() => {
     const map = new Map<string, number>()
@@ -171,15 +193,53 @@ export const DeckLibraryView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void importDeckFileToLibrary()}
-            className="h-8 text-xs gap-1.5 font-medium"
-          >
-            <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>导入 YDK</span>
-          </Button>
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setImportMenuOpen((v) => !v)}
+              title="导入 YDK 卡组"
+              className="h-8 text-xs gap-1.5 font-medium"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>导入 YDK</span>
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </Button>
+
+            {importMenuOpen && (
+              <div
+                onMouseDown={(e) => e.stopPropagation()}
+                className="absolute top-full right-0 mt-1 z-50"
+              >
+                <div className="w-44 bg-popover border border-border rounded-md overflow-hidden shadow-lg py-1">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.stopPropagation()
+                      setImportMenuOpen(false)
+                      void importDeckFileToLibrary()
+                    }}
+                    className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                    <span className="font-medium">从 .ydk 文件导入</span>
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.stopPropagation()
+                      setImportMenuOpen(false)
+                      setShowPasteModal(true)
+                    }}
+                    className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                  >
+                    <ClipboardPaste className="w-3.5 h-3.5 shrink-0" />
+                    <span className="font-medium">粘贴 YDK 文本</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <Button
             variant="default"
@@ -434,6 +494,13 @@ export const DeckLibraryView: React.FC = () => {
             <span>删除卡组</span>
           </Button>
         </div>
+      )}
+
+      {showPasteModal && (
+        <YdkPasteModal
+          onConfirm={async (text, deckName) => importDeckTextToLibrary(text, deckName)}
+          onClose={() => setShowPasteModal(false)}
+        />
       )}
     </div>
   )

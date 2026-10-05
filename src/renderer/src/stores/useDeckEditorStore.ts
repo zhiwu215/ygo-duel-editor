@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import { DeckData, DeckStats, CdbCard, CardUtils, calculateDeckStats } from '@shared/index'
+import {
+  DeckData,
+  DeckStats,
+  CdbCard,
+  CardUtils,
+  calculateDeckStats,
+  parseYdk
+} from '@shared/index'
 
 interface DeckEditorState {
   // 视图模式：'library' (总览卡组资产库) 或 'editor' (卡组三栏编辑台)
@@ -29,6 +36,7 @@ interface DeckEditorState {
   deleteDeckFromLibrary: (id: string) => Promise<boolean>
   duplicateDeckInLibrary: (id: string) => Promise<DeckData | null>
   importDeckFileToLibrary: () => Promise<boolean>
+  importDeckTextToLibrary: (text: string, deckName: string) => Promise<boolean>
 
   // 动作：卡组单体编辑
   setSelectedCard: (card: CdbCard | null) => void
@@ -47,7 +55,6 @@ interface DeckEditorState {
   drawTestHand: () => number[]
   closeTestHand: () => void
   saveDeckFile: () => Promise<{ success: boolean; filePath?: string; error?: string }>
-  importDeckFile: () => Promise<boolean>
   applyToDuel: (player: 0 | 1, drawCount?: number, targetDeck?: DeckData) => Promise<boolean>
   getStats: () => DeckStats
 }
@@ -200,6 +207,20 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
       }
     } catch (err) {
       console.error('[DeckEditorStore] importDeckFileToLibrary error:', err)
+    }
+    return false
+  },
+
+  importDeckTextToLibrary: async (text: string, deckName: string): Promise<boolean> => {
+    if (!window.api?.saveDeckToLibrary) return false
+    try {
+      const deck = parseYdk(text, deckName)
+      if (deck.main.length + deck.extra.length + deck.side.length === 0) return false
+      await window.api.saveDeckToLibrary(deck)
+      await get().fetchDeckList()
+      return true
+    } catch (err) {
+      console.error('[DeckEditorStore] importDeckTextToLibrary error:', err)
     }
     return false
   },
@@ -382,15 +403,6 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
   saveDeckFile: async (): Promise<{ success: boolean; filePath?: string; error?: string }> => {
     const { deck } = get()
     return window.api.saveDeckFile(deck)
-  },
-
-  importDeckFile: async (): Promise<boolean> => {
-    const res = await window.api.loadDeckFile()
-    if (res.success && res.deck) {
-      await get().loadDeck(res.deck)
-      return true
-    }
-    return false
   },
 
   applyToDuel: async (player, drawCount, targetDeck): Promise<boolean> => {

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CdbCard, CardSearchParams } from '@shared/index'
+import { CdbCard, CardSearchParams, NumericCompareOp } from '@shared/index'
 
 const PAGE_SIZE = 40
 
@@ -11,8 +11,11 @@ export interface CardSearchFilters {
   attribute: number // 属性掩码
   race: number // 种族掩码
   level: number // 等级 / Rank / Link
+  levelOp: NumericCompareOp // 星级比较符
   atk: number | undefined // 攻击力
+  atkOp: NumericCompareOp // 攻击力比较符
   def: number | undefined // 守备力
+  defOp: NumericCompareOp // 守备力比较符
   code: number | undefined // 精确卡密
   sortField: 'id' | 'atk' | 'def' | 'level' | 'name'
   sortOrder: 'ASC' | 'DESC'
@@ -26,8 +29,11 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
   attribute: 0,
   race: 0,
   level: 0,
+  levelOp: 'eq',
   atk: undefined,
+  atkOp: 'eq',
   def: undefined,
+  defOp: 'eq',
   code: undefined,
   sortField: 'id',
   sortOrder: 'DESC'
@@ -100,8 +106,11 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
       attribute: customParams.attribute !== undefined ? customParams.attribute : state.attribute,
       race: customParams.race !== undefined ? customParams.race : state.race,
       level: customParams.level !== undefined ? customParams.level : state.level,
+      levelOp: customParams.levelOp !== undefined ? customParams.levelOp : state.levelOp,
       atk: customParams.atk !== undefined ? customParams.atk : state.atk,
+      atkOp: customParams.atkOp !== undefined ? customParams.atkOp : state.atkOp,
       def: customParams.def !== undefined ? customParams.def : state.def,
+      defOp: customParams.defOp !== undefined ? customParams.defOp : state.defOp,
       code: customParams.code !== undefined ? customParams.code : state.code,
       sortField: customParams.sortField !== undefined ? customParams.sortField : state.sortField,
       sortOrder: customParams.sortOrder !== undefined ? customParams.sortOrder : state.sortOrder,
@@ -144,8 +153,11 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
         attribute: state.attribute,
         race: state.race,
         level: state.level,
+        levelOp: state.levelOp,
         atk: state.atk,
+        atkOp: state.atkOp,
         def: state.def,
+        defOp: state.defOp,
         code: state.code,
         sortField: state.sortField,
         sortOrder: state.sortOrder,

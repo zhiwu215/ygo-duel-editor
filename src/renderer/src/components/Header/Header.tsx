@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react'
 import { useStore } from 'zustand'
-import { Layers } from 'lucide-react'
 import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { MASTER_RULES, MasterRule, isExportableMatch } from '@shared/index'
@@ -227,15 +226,18 @@ export const Header: React.FC = () => {
         <div className="flex items-center gap-3">
           {/* 主规则选择 */}
           <div className="flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-muted-foreground" />
             <Select
               value={state.masterRule}
               onValueChange={(val) => {
                 if (val !== null) setMasterRule(val as MasterRule)
               }}
             >
-              <SelectTrigger size="sm" className="w-28 h-7 text-xs bg-background/60">
-                <SelectValue />
+              <SelectTrigger
+                size="sm"
+                className="w-28 h-7 text-xs bg-background/60"
+                title="选择规则版本 (MR1~MR5)"
+              >
+                <SelectValue>{MASTER_RULES[state.masterRule]?.shortName ?? 'MR5'}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {Object.values(MASTER_RULES).map((info) => (

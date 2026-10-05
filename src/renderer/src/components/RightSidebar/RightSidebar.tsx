@@ -39,7 +39,7 @@ export const RightSidebar: React.FC = () => {
               className={cn(
                 'flex items-center justify-center gap-1.5 py-1 px-3 text-xs font-semibold rounded-md transition-all relative',
                 activeRightTab === 'steps'
-                  ? 'bg-amber-500 text-neutral-950 font-bold shadow-xs'
+                  ? 'bg-primary text-primary-foreground shadow-xs'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -50,8 +50,8 @@ export const RightSidebar: React.FC = () => {
                   className={cn(
                     'text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full shadow-xs',
                     activeRightTab === 'steps'
-                      ? 'bg-neutral-950 text-amber-400'
-                      : 'bg-amber-500/20 text-amber-500 border border-amber-500/30'
+                      ? 'bg-primary-foreground/20 text-primary-foreground'
+                      : 'bg-muted text-muted-foreground border border-border'
                   )}
                 >
                   {stepCount}

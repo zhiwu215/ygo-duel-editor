@@ -264,7 +264,7 @@ export const DuelScreenplayModal: React.FC = () => {
               variant="default"
               size="sm"
               onClick={() => void handleExportMarkdown()}
-              className="h-7 text-xs font-bold gap-1.5 shadow-xs bg-amber-500 hover:bg-amber-600 text-neutral-950"
+              className="h-7 text-xs font-bold gap-1.5 shadow-xs"
               title="导出为标准同人决斗剧本 Markdown 文档 (.md)"
             >
               <Download className="w-3.5 h-3.5" />
@@ -295,7 +295,7 @@ export const DuelScreenplayModal: React.FC = () => {
                   大师规则 (MR{state.masterRule}) · 共 {steps.length} 个动作节点
                 </p>
                 {state.hint && (
-                  <p className="text-xs text-amber-500 bg-amber-500/10 p-2 rounded border border-amber-500/20 mt-2">
+                  <p className="text-xs text-muted-foreground bg-muted p-2 rounded border border-border mt-2">
                     剧情开场提示：{state.hint}
                   </p>
                 )}
@@ -370,7 +370,7 @@ export const DuelScreenplayModal: React.FC = () => {
                           {(s.speaker || s.dialogue) && (
                             <div className="mt-1 p-2 rounded-lg bg-muted/40 border border-border/60 text-xs">
                               {s.speaker && (
-                                <span className="font-bold text-amber-500 mr-1.5">
+                                <span className="font-bold text-foreground mr-1.5">
                                   【{s.speaker}】:
                                 </span>
                               )}
@@ -389,7 +389,7 @@ export const DuelScreenplayModal: React.FC = () => {
 
                           {s.description && (
                             <div className="text-[11px] text-muted-foreground/80 pl-1 flex items-center gap-1">
-                              <Lightbulb className="w-3 h-3 text-amber-400/80 shrink-0" />
+                              <Lightbulb className="w-3 h-3 text-muted-foreground shrink-0" />
                               <span>战术备忘：{s.description}</span>
                             </div>
                           )}
@@ -523,7 +523,7 @@ export const DuelScreenplayModal: React.FC = () => {
                             {/* 台词标记 */}
                             <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
                               {hasScript ? (
-                                <span className="text-amber-500 flex items-center gap-1 truncate font-medium">
+                                <span className="text-foreground flex items-center gap-1 truncate font-medium">
                                   <MessageSquare className="w-2.5 h-2.5 shrink-0" />
                                   <span className="truncate">{s.dialogue || s.speaker}</span>
                                 </span>
@@ -678,7 +678,7 @@ export const DuelScreenplayModal: React.FC = () => {
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <label className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500/70" />
+                        <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
                         <span>角色台词 / 召唤口播 / 决斗战吼</span>
                       </label>
                       <span className="text-[11px] text-muted-foreground font-mono">
@@ -691,7 +691,7 @@ export const DuelScreenplayModal: React.FC = () => {
                       value={activeStep.dialogue || ''}
                       onChange={(e) => updateStep(activeStep.id, { dialogue: e.target.value })}
                       placeholder="在此畅快编写人物台词、召唤台本或攻宣战吼，例如：&#10;「在这瞬间，我发动速攻魔法卡！将场上的怪兽作为祭品，特殊召唤电子龙！」"
-                      className="w-full rounded-xl border border-border/80 bg-background/80 p-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all font-serif leading-relaxed placeholder:font-sans placeholder:text-muted-foreground/60"
+                      className="w-full rounded-xl border border-border/80 bg-background/80 p-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-all font-serif leading-relaxed placeholder:font-sans placeholder:text-muted-foreground/60"
                     />
                   </div>
 
@@ -713,7 +713,7 @@ export const DuelScreenplayModal: React.FC = () => {
                   {/* 2.2.5 战术解说与额外批注 */}
                   <div className="flex flex-col gap-1.5">
                     <label className="font-bold text-xs text-muted-foreground flex items-center gap-1.5">
-                      <Lightbulb className="w-3.5 h-3.5 text-amber-400/80" />
+                      <Lightbulb className="w-3.5 h-3.5 text-muted-foreground" />
                       <span>战术解说 / 备忘说明 (可选)</span>
                     </label>
                     <Input

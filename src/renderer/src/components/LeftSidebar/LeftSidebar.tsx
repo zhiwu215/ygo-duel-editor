@@ -155,7 +155,7 @@ export function LeftSidebar(): JSX.Element {
           {/* 右侧拖拽把手 */}
           <div
             onMouseDown={handleResizeMouseDown}
-            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:w-1.5 hover:bg-amber-500/80 active:bg-amber-500 transition-all z-30"
+            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:w-1.5 hover:bg-primary/60 active:bg-primary transition-all z-30"
             title="拖拽调整左侧栏宽度"
           />
 

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import wechatQr from '../../assets/sponsor/wechat.jpg'
 import alipayQr from '../../assets/sponsor/alipay.jpg'
+import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { cn } from '../../lib/utils'
 
@@ -409,9 +410,13 @@ export const MenuBar: React.FC<MenuBarProps> = ({
             </button>
 
             <div className="text-center space-y-1">
-              <div className="w-10 h-10 rounded-md bg-muted border border-border flex items-center justify-center mx-auto">
-                <Info className="w-5 h-5 text-muted-foreground" />
-              </div>
+              <img
+                src={appIcon}
+                alt=""
+                aria-hidden="true"
+                className="w-10 h-10 mx-auto rounded-md object-cover"
+                draggable={false}
+              />
               <h3 className="font-semibold text-base pt-1">YGO Duel Editor</h3>
               <p className="text-xs text-muted-foreground">版本 1.0.0</p>
             </div>
@@ -484,6 +489,9 @@ export const MenuBar: React.FC<MenuBarProps> = ({
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed text-center">
               如果 YGO Duel Editor 对你有帮助，欢迎请作者喝杯咖啡
+            </p>
+            <p className="text-[11px] text-muted-foreground/90 leading-relaxed text-center px-1 py-1.5 rounded-md bg-muted/50 border border-border/60">
+              收款码仅用于自愿支持，不影响任何功能
             </p>
             <div className="flex items-start justify-center gap-6">
               {[

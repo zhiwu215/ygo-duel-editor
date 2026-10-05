@@ -10,12 +10,9 @@ import { HelpCircle, ZoomIn, X, Copy, Check } from 'lucide-react'
 
 export const CardDetailPanel: React.FC = () => {
   const { hoveredCard, selectedCardId, state } = useDuelStore()
-  /** 是否打开卡图高清放大查看弹窗 (Modal) */
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
-  /** 卡片名称是否刚刚完成复制（用于展示 1.5 秒「已复制」反馈） */
   const [copiedName, setCopiedName] = useState<boolean>(false)
 
-  // 如果没有悬停的卡，优先使用当前选中的场上卡片
   let currentCard = hoveredCard
   const selectedFieldCard = selectedCardId
     ? state.cards.find((c) => c.instanceId === selectedCardId)
@@ -24,7 +21,6 @@ export const CardDetailPanel: React.FC = () => {
     currentCard = selectedFieldCard.card
   }
 
-  // 如果选中卡片暂缺 CDB 详情，异步拉取并自动回填
   useEffect(() => {
     if (!currentCard && selectedFieldCard && !selectedFieldCard.card) {
       window.api
@@ -41,7 +37,6 @@ export const CardDetailPanel: React.FC = () => {
     }
   }, [currentCard, selectedFieldCard])
 
-  // 监听 Esc 键关闭大图弹窗 (捕获阶段拦截，阻止冒泡到列表弹窗等底层组件)
   useEffect(() => {
     if (!showImageModal) return
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -71,7 +66,6 @@ export const CardDetailPanel: React.FC = () => {
   if (!currentCard) {
     return (
       <div className="w-full h-full bg-card/30 flex flex-col select-none">
-        {/* VSCode 风格面板顶栏 */}
         <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
           <span className="text-xs font-bold text-foreground">卡片详情</span>
         </div>
@@ -92,12 +86,10 @@ export const CardDetailPanel: React.FC = () => {
   return (
     <>
       <div className="w-full h-full bg-card/40 flex flex-col overflow-hidden">
-        {/* VSCode 风格面板顶栏 */}
         <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
           <span className="text-xs font-bold text-foreground">卡片详情</span>
         </div>
 
-        {/* 卡图展示区域 (原生 59:86 卡牌黄金比例，居中高质感渲染) */}
         <div className="pt-3 pb-2.5 px-4 flex flex-col items-center select-none shrink-0">
           <div
             className="group relative cursor-zoom-in rounded-md overflow-hidden shadow-md border border-border/80 bg-black/40"
@@ -126,9 +118,7 @@ export const CardDetailPanel: React.FC = () => {
 
         <div className="border-t border-border" />
 
-        {/* 卡片详情数据区 (游戏王经典结构化排版) */}
         <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2 select-text">
-          {/* 标题横幅: 卡名[卡密] (点击快速复制卡名) */}
           <div
             onClick={handleCopyName}
             className="group relative flex items-center justify-center px-2 py-1 rounded border border-border/70 bg-muted/60 dark:bg-muted/30 shadow-inner text-center cursor-pointer hover:bg-muted/80 transition-colors select-none"
@@ -146,32 +136,25 @@ export const CardDetailPanel: React.FC = () => {
             </span>
           </div>
 
-          {/* 经典蓝色元信息行 */}
           <div className="flex flex-col gap-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 select-text leading-snug">
-            {/* 类别与种族/属性行 */}
             <div>{formatCardTypeLine(currentCard)}</div>
 
-            {/* 星级/阶级与攻防行 (仅怪兽) */}
             {statsLine && <div>{statsLine}</div>}
 
-            {/* 系列字段行 (若有) */}
             {seriesLine && <div>{seriesLine}</div>}
           </div>
 
-          {/* 效果描述文本 (支持原生鼠标划选复制，无浮动按钮遮挡) */}
           <div className="pt-1 text-xs text-foreground/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
             {currentCard.desc}
           </div>
         </div>
       </div>
 
-      {/* 卡图放大查看 Lightbox 弹窗 */}
       {showImageModal && (
         <div
           className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 select-none animate-in fade-in"
           onClick={() => setShowImageModal(false)}
         >
-          {/* 顶部工具栏 */}
           <div
             className="absolute top-4 right-4 flex items-center gap-3 z-10"
             onClick={(e) => e.stopPropagation()}
@@ -189,7 +172,6 @@ export const CardDetailPanel: React.FC = () => {
             </button>
           </div>
 
-          {/* 高清卡图主体 */}
           <div
             className="relative max-h-[85vh] max-w-[90vw] flex items-center justify-center"
             onClick={(e) => e.stopPropagation()}

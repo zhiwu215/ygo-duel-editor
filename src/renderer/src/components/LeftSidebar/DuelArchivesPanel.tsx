@@ -1,21 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import {
-  FolderOpen,
-  Folder,
-  RotateCw,
-  Search,
-  Layers,
-  Copy,
-  Trash2,
-  ExternalLink,
-  Clock,
-  Check
-} from 'lucide-react'
+import { Search, Layers, Copy, Trash2, ExternalLink, Clock, Check } from 'lucide-react'
 import { DuelProjectMeta, DuelType } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { Input } from '../ui/input'
-import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
 type FilterType = 'all' | DuelType
@@ -32,7 +20,6 @@ export const DuelArchivesPanel: React.FC = () => {
   const { config, selectProjectsDir } = useConfigStore()
 
   const [projects, setProjects] = useState<DuelProjectMeta[]>([])
-  const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [lastLoadedPath, setLastLoadedPath] = useState<string | null>(null)
@@ -40,14 +27,11 @@ export const DuelArchivesPanel: React.FC = () => {
 
   // 获取档案列表 (用于刷新按钮)
   const fetchProjects = useCallback(async (): Promise<void> => {
-    setLoading(true)
     try {
       const list = await window.api.getProjectList()
       setProjects(list)
     } catch (err) {
       console.error('[DuelArchives] Fetch projects failed:', err)
-    } finally {
-      setLoading(false)
     }
   }, [])
 
@@ -69,17 +53,6 @@ export const DuelArchivesPanel: React.FC = () => {
       cancelled = true
     }
   }, [])
-
-  // 打开外部 .ygoduel 文件
-  const handleOpenExternal = async (): Promise<void> => {
-    const res = await window.api.loadProjectFile()
-    if (res.success && res.state) {
-      loadProjectAndStart(res.state)
-      setFeedbackMessage(`已载入外部工程: ${res.state.title || '对局'}`)
-      void fetchProjects()
-      setTimeout(() => setFeedbackMessage(null), 3000)
-    }
-  }
 
   // 打开工程存储文件夹
   const handleOpenFolder = async (): Promise<void> => {
@@ -185,37 +158,6 @@ export const DuelArchivesPanel: React.FC = () => {
           <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-muted text-muted-foreground font-mono">
             {projects.length}
           </span>
-        </div>
-
-        <div className="flex items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={fetchProjects}
-            disabled={loading}
-            title="刷新档案列表"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <RotateCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={handleOpenExternal}
-            title="打开外部 .ygoduel 工程文件"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <FolderOpen className="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={handleOpenFolder}
-            title="打开本地 projects 存储文件夹"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <Folder className="w-3.5 h-3.5" />
-          </Button>
         </div>
       </div>
 

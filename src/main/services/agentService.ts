@@ -493,7 +493,7 @@ export class AgentService {
     }
 
     if (!cfg.apiKey && !isLocalEndpoint(cfg.baseUrl)) {
-      const errMsg = '请先在「设置 → AI 顾问」中配置 API Key'
+      const errMsg = '请先在「设置 → 背后灵 → 模型设置」中配置 API Key'
       this.emitEvent({ type: 'error', message: errMsg })
       return { success: false, error: errMsg }
     }

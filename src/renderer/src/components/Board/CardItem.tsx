@@ -124,6 +124,12 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       onDragStart={(e) => {
         if (card.location === CardLocation.HAND) {
           e.dataTransfer.setData(HAND_REORDER_DRAG_TYPE, card.instanceId)
+          const rect = e.currentTarget.getBoundingClientRect()
+          e.dataTransfer.setDragImage(
+            e.currentTarget,
+            e.clientX - rect.left,
+            e.clientY - rect.top
+          )
         }
         e.dataTransfer.setData('text/instanceId', card.instanceId)
         if (card.card) {

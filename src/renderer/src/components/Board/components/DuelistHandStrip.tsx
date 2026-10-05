@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import { Crown, Plus } from 'lucide-react'
 import { CardLocation, CdbCard, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
@@ -8,11 +9,13 @@ import { LpInput } from './LpInput'
 import { getDropPosOverride } from '../../../utils/zoneDrop'
 import { cn } from '../../../lib/utils'
 import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
+import {
+  captureHandCardAnchors,
+  getHandInsertionPosition,
+  type HandInsertionPosition
+} from '../../../utils/handReorder'
 
-interface HandInsertionPosition {
-  targetInstanceId: string | null
-  side: 'before' | 'after'
-}
+const MemoizedHandZoneSlot = React.memo(ZoneSlot)
 
 interface DuelistHandStripProps {
   duelist: Duelist
@@ -53,7 +56,10 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   onExpand,
   onCollapse
 }) => {
-  const { addCardToZone, moveCard, reorderHandCards, updateDuelist } = useDuelStore()
+  const addCardToZone = useDuelStore((s) => s.addCardToZone)
+  const moveCard = useDuelStore((s) => s.moveCard)
+  const reorderHandCards = useDuelStore((s) => s.reorderHandCards)
+  const updateDuelist = useDuelStore((s) => s.updateDuelist)
   const isSharedLp = Boolean(useDuelStore((s) => s.state.matchConfig?.sharedLp))
   const isActiveViewer = useDuelStore((s) => s.activeDuelistId === duelist.id)
   const setActiveDuelistId = useDuelStore((s) => s.setActiveDuelistId)
@@ -77,6 +83,11 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   const [handInsertionPosition, setHandInsertionPosition] = useState<HandInsertionPosition | null>(
     null
   )
+  const draggedHandCardIdRef = useRef<string | null>(null)
+  const hideDraggedCardFrameRef = useRef<number | null>(null)
+  const handInsertionPositionRef = useRef<HandInsertionPosition | null>(null)
+  const handCardAnchorsRef = useRef<ReturnType<typeof captureHandCardAnchors>>([])
+  const hasCapturedHandLayoutRef = useRef(false)
   const hoverExpandTimerRef = useRef<NodeJS.Timeout | null>(null)
   const stripRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -111,7 +122,15 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   useEffect(() => {
     const handleGlobalDragEnd = (): void => {
       setIsDragOver(false)
+      if (hideDraggedCardFrameRef.current !== null) {
+        window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
+        hideDraggedCardFrameRef.current = null
+      }
       setDraggedHandCardId(null)
+      draggedHandCardIdRef.current = null
+      handInsertionPositionRef.current = null
+      handCardAnchorsRef.current = []
+      hasCapturedHandLayoutRef.current = false
       setHandInsertionPosition(null)
       if (hoverExpandTimerRef.current) {
         clearTimeout(hoverExpandTimerRef.current)
@@ -123,12 +142,33 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     return () => {
       window.removeEventListener('dragend', handleGlobalDragEnd)
       window.removeEventListener('drop', handleGlobalDragEnd)
+      if (hideDraggedCardFrameRef.current !== null) {
+        window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
+      }
     }
   }, [])
 
+  const updateHandInsertionPosition = (next: HandInsertionPosition | null): void => {
+    const current = handInsertionPositionRef.current
+    if (current?.targetInstanceId === next?.targetInstanceId && current?.side === next?.side) return
+    handInsertionPositionRef.current = next
+    setHandInsertionPosition(next)
+  }
+
+  const captureHandLayout = (): void => {
+    if (isCollapsed) return
+    const container = scrollContainerRef.current
+    if (!hasCapturedHandLayoutRef.current && container) {
+      handCardAnchorsRef.current = captureHandCardAnchors(container)
+      hasCapturedHandLayoutRef.current = true
+    }
+  }
+
   // 拖拽悬停至收缩窄条时，自动展开
   const handleDragEnter = (e: React.DragEvent): void => {
-    setIsDragOver(!e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE))
+    const isHandReorder = e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)
+    setIsDragOver(!isHandReorder)
+    if (isHandReorder) captureHandLayout()
     if (isCollapsed) {
       if (hoverExpandTimerRef.current) clearTimeout(hoverExpandTimerRef.current)
       hoverExpandTimerRef.current = setTimeout(() => {
@@ -140,7 +180,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>): void => {
     if (e.currentTarget.contains(e.relatedTarget as Node)) return
     setIsDragOver(false)
-    setHandInsertionPosition(null)
+    updateHandInsertionPosition(null)
     if (hoverExpandTimerRef.current) {
       clearTimeout(hoverExpandTimerRef.current)
       hoverExpandTimerRef.current = null
@@ -150,7 +190,23 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   const handleDragStartCapture = (e: React.DragEvent<HTMLDivElement>): void => {
     focusAsViewer()
     const cardElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-instance-id]')
-    setDraggedHandCardId(cardElement?.dataset.handInstanceId ?? null)
+    const instanceId = cardElement?.dataset.handInstanceId ?? null
+    draggedHandCardIdRef.current = instanceId
+    hasCapturedHandLayoutRef.current = false
+    captureHandLayout()
+    updateHandInsertionPosition(null)
+
+    if (hideDraggedCardFrameRef.current !== null) {
+      window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
+    }
+    setDraggedHandCardId(null)
+    // Let Chromium capture the native drag image before hiding the source card.
+    if (instanceId) {
+      hideDraggedCardFrameRef.current = window.requestAnimationFrame(() => {
+        hideDraggedCardFrameRef.current = null
+        setDraggedHandCardId(instanceId)
+      })
+    }
   }
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>): void => {
@@ -158,34 +214,21 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     if (e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) {
       e.dataTransfer.dropEffect = 'move'
       setIsDragOver(false)
-      const gapElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-gap-side]')
-      if (gapElement) {
-        const targetInstanceId = gapElement.dataset.handGapTarget || null
-        const side = gapElement.dataset.handGapSide as HandInsertionPosition['side']
-        setHandInsertionPosition((current) =>
-          current?.targetInstanceId === targetInstanceId && current.side === side
-            ? current
-            : { targetInstanceId, side }
-        )
-        return
-      }
-      const cardElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-instance-id]')
-      const targetInstanceId = cardElement?.dataset.handInstanceId ?? null
-      if (targetInstanceId === draggedHandCardId) {
-        setHandInsertionPosition(null)
-        return
-      }
-      const rect = cardElement?.getBoundingClientRect()
-      const side = rect && e.clientX >= rect.left + rect.width / 2 ? 'after' : 'before'
-      setHandInsertionPosition((current) =>
-        current?.targetInstanceId === targetInstanceId && current.side === side
-          ? current
-          : { targetInstanceId, side }
-      )
+      captureHandLayout()
+      const container = scrollContainerRef.current
+      const nextPosition = container
+        ? getHandInsertionPosition(
+            container,
+            handCardAnchorsRef.current,
+            draggedHandCardIdRef.current,
+            e.clientX
+          )
+        : null
+      updateHandInsertionPosition(nextPosition)
       return
     }
     e.dataTransfer.dropEffect = 'copy'
-    setHandInsertionPosition(null)
+    updateHandInsertionPosition(null)
   }
 
   const getInsertionIndex = (position: HandInsertionPosition | null): number => {
@@ -198,15 +241,16 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(false)
-    const gapElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-gap-side]')
-    const insertionPosition = gapElement
-      ? {
-          targetInstanceId: gapElement.dataset.handGapTarget || null,
-          side: gapElement.dataset.handGapSide as HandInsertionPosition['side']
-        }
-      : handInsertionPosition
-    setHandInsertionPosition(null)
+    if (hideDraggedCardFrameRef.current !== null) {
+      window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
+      hideDraggedCardFrameRef.current = null
+    }
     setDraggedHandCardId(null)
+    const insertionPosition = handInsertionPositionRef.current
+    updateHandInsertionPosition(null)
+    draggedHandCardIdRef.current = null
+    handCardAnchorsRef.current = []
+    hasCapturedHandLayoutRef.current = false
     // 向该决斗者手牌拖入卡片即视为选定他，棋盘卡组区同步切换
     focusAsViewer()
     if (hoverExpandTimerRef.current) {
@@ -229,15 +273,16 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
           movingCard.location === CardLocation.HAND &&
           (movingCard.duelistId ?? fallbackDuelistId) === duelist.id
         ) {
+          if (!insertionPosition) return
           const targetInstanceId =
-            insertionPosition?.targetInstanceId ?? cards[cards.length - 1]?.instanceId ?? null
+            insertionPosition.targetInstanceId ?? cards[cards.length - 1]?.instanceId ?? null
           if (targetInstanceId) {
             reorderHandCards(
               controller,
               duelist.id,
               movedInstanceId,
               targetInstanceId,
-              insertionPosition?.targetInstanceId ? insertionPosition.side === 'after' : true
+              insertionPosition.targetInstanceId ? insertionPosition.side === 'after' : true
             )
           }
           return
@@ -455,26 +500,31 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
       >
         {cards.map((c, idx) => {
           const isGapBefore =
-            draggedHandCardId !== c.instanceId &&
             handInsertionPosition?.targetInstanceId === c.instanceId &&
             handInsertionPosition.side === 'before'
           const isGapAfter =
-            draggedHandCardId !== c.instanceId &&
             handInsertionPosition?.targetInstanceId === c.instanceId &&
             handInsertionPosition.side === 'after'
 
           return (
             <React.Fragment key={c.instanceId}>
               {isGapBefore && (
-                <div
-                  aria-hidden="true"
-                  data-hand-gap-side="before"
-                  data-hand-gap-target={c.instanceId}
-                  className="w-[64px] h-[92px] shrink-0"
-                />
+                <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />
               )}
-              <div className="shrink-0" data-hand-instance-id={c.instanceId}>
-                <ZoneSlot
+              <motion.div
+                layout="position"
+                transition={{
+                  layout: {
+                    type: 'spring',
+                    stiffness: 170,
+                    damping: 25,
+                    mass: 1
+                  }
+                }}
+                className={cn('shrink-0', draggedHandCardId === c.instanceId && 'invisible')}
+                data-hand-instance-id={c.instanceId}
+              >
+                <MemoizedHandZoneSlot
                   label={`${duelist.name} ${idx + 1}`}
                   controller={controller}
                   location={CardLocation.HAND}
@@ -482,27 +532,13 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
                   card={c}
                   duelistId={duelist.id}
                 />
-              </div>
+              </motion.div>
               {isGapAfter && (
-                <div
-                  aria-hidden="true"
-                  data-hand-gap-side="after"
-                  data-hand-gap-target={c.instanceId}
-                  className="w-[64px] h-[92px] shrink-0"
-                />
+                <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />
               )}
             </React.Fragment>
           )
         })}
-        {handInsertionPosition?.targetInstanceId === null && (
-          <div
-            aria-hidden="true"
-            data-hand-gap-side="after"
-            data-hand-gap-target=""
-            className="w-[64px] h-[92px] shrink-0"
-          />
-        )}
-
         {cards.length === 0 && (
           <div
             className={cn(

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { motion } from 'framer-motion'
 import { Plus, Check, Edit2 } from 'lucide-react'
 import { CardLocation, CdbCard, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
@@ -9,11 +10,13 @@ import { LpInput } from './LpInput'
 import { cn } from '../../../lib/utils'
 import { getDropPosOverride } from '../../../utils/zoneDrop'
 import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
+import {
+  captureHandCardAnchors,
+  getHandInsertionPosition,
+  type HandInsertionPosition
+} from '../../../utils/handReorder'
 
-interface HandInsertionPosition {
-  targetInstanceId: string | null
-  side: 'before' | 'after'
-}
+const MemoizedHandZoneSlot = React.memo(ZoneSlot)
 
 interface HandTrayProps {
   controller: 0 | 1
@@ -29,7 +32,10 @@ const SingleHandTray: React.FC<{
   cards: FieldCard[]
   totalCount: number
 }> = ({ duelist, controller, cards, totalCount }) => {
-  const { addCardToZone, moveCard, reorderHandCards, updateDuelist } = useDuelStore()
+  const addCardToZone = useDuelStore((s) => s.addCardToZone)
+  const moveCard = useDuelStore((s) => s.moveCard)
+  const reorderHandCards = useDuelStore((s) => s.reorderHandCards)
+  const updateDuelist = useDuelStore((s) => s.updateDuelist)
   const isOpponent = controller === 1
 
   // 名字行内编辑
@@ -43,6 +49,11 @@ const SingleHandTray: React.FC<{
   const [handInsertionPosition, setHandInsertionPosition] = useState<HandInsertionPosition | null>(
     null
   )
+  const draggedHandCardIdRef = useRef<string | null>(null)
+  const hideDraggedCardFrameRef = useRef<number | null>(null)
+  const handInsertionPositionRef = useRef<HandInsertionPosition | null>(null)
+  const handCardAnchorsRef = useRef<ReturnType<typeof captureHandCardAnchors>>([])
+  const hasCapturedHandLayoutRef = useRef(false)
   const trayRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -66,7 +77,15 @@ const SingleHandTray: React.FC<{
   useEffect(() => {
     const handleGlobalDragEnd = (): void => {
       setIsDragOver(false)
+      if (hideDraggedCardFrameRef.current !== null) {
+        window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
+        hideDraggedCardFrameRef.current = null
+      }
       setDraggedHandCardId(null)
+      draggedHandCardIdRef.current = null
+      handInsertionPositionRef.current = null
+      handCardAnchorsRef.current = []
+      hasCapturedHandLayoutRef.current = false
       setHandInsertionPosition(null)
     }
     window.addEventListener('dragend', handleGlobalDragEnd)
@@ -74,18 +93,53 @@ const SingleHandTray: React.FC<{
     return () => {
       window.removeEventListener('dragend', handleGlobalDragEnd)
       window.removeEventListener('drop', handleGlobalDragEnd)
+      if (hideDraggedCardFrameRef.current !== null) {
+        window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
+      }
     }
   }, [])
 
+  const updateHandInsertionPosition = (next: HandInsertionPosition | null): void => {
+    const current = handInsertionPositionRef.current
+    if (current?.targetInstanceId === next?.targetInstanceId && current?.side === next?.side) return
+    handInsertionPositionRef.current = next
+    setHandInsertionPosition(next)
+  }
+
+  const captureHandLayout = (): void => {
+    const container = scrollContainerRef.current
+    if (!hasCapturedHandLayoutRef.current && container) {
+      handCardAnchorsRef.current = captureHandCardAnchors(container)
+      hasCapturedHandLayoutRef.current = true
+    }
+  }
+
   const handleDragStartCapture = (e: React.DragEvent<HTMLDivElement>): void => {
     const cardElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-instance-id]')
-    setDraggedHandCardId(cardElement?.dataset.handInstanceId ?? null)
+    const instanceId = cardElement?.dataset.handInstanceId ?? null
+    draggedHandCardIdRef.current = instanceId
+    hasCapturedHandLayoutRef.current = false
+    captureHandLayout()
+    updateHandInsertionPosition(null)
+
+    if (hideDraggedCardFrameRef.current !== null) {
+      window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
+    }
+    setDraggedHandCardId(null)
+    // Let Chromium capture the native drag image before hiding the source card.
+    if (instanceId) {
+      hideDraggedCardFrameRef.current = window.requestAnimationFrame(() => {
+        hideDraggedCardFrameRef.current = null
+        setDraggedHandCardId(instanceId)
+      })
+    }
   }
 
   const handleDragEnter = (e: React.DragEvent): void => {
     e.preventDefault()
     if (e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) {
       setIsDragOver(false)
+      captureHandLayout()
       return
     }
     if (!isDragOver) setIsDragOver(true)
@@ -96,34 +150,21 @@ const SingleHandTray: React.FC<{
     if (e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) {
       e.dataTransfer.dropEffect = 'move'
       setIsDragOver(false)
-      const gapElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-gap-side]')
-      if (gapElement) {
-        const targetInstanceId = gapElement.dataset.handGapTarget || null
-        const side = gapElement.dataset.handGapSide as HandInsertionPosition['side']
-        setHandInsertionPosition((current) =>
-          current?.targetInstanceId === targetInstanceId && current.side === side
-            ? current
-            : { targetInstanceId, side }
-        )
-        return
-      }
-      const cardElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-instance-id]')
-      const targetInstanceId = cardElement?.dataset.handInstanceId ?? null
-      if (targetInstanceId === draggedHandCardId) {
-        setHandInsertionPosition(null)
-        return
-      }
-      const rect = cardElement?.getBoundingClientRect()
-      const side = rect && e.clientX >= rect.left + rect.width / 2 ? 'after' : 'before'
-      setHandInsertionPosition((current) =>
-        current?.targetInstanceId === targetInstanceId && current.side === side
-          ? current
-          : { targetInstanceId, side }
-      )
+      captureHandLayout()
+      const container = scrollContainerRef.current
+      const nextPosition = container
+        ? getHandInsertionPosition(
+            container,
+            handCardAnchorsRef.current,
+            draggedHandCardIdRef.current,
+            e.clientX
+          )
+        : null
+      updateHandInsertionPosition(nextPosition)
       return
     }
     e.dataTransfer.dropEffect = 'copy'
-    setHandInsertionPosition(null)
+    updateHandInsertionPosition(null)
     if (!isDragOver) setIsDragOver(true)
   }
 
@@ -131,7 +172,7 @@ const SingleHandTray: React.FC<{
     e.preventDefault()
     if (e.currentTarget.contains(e.relatedTarget as Node)) return
     setIsDragOver(false)
-    setHandInsertionPosition(null)
+    updateHandInsertionPosition(null)
   }
 
   const getInsertionIndex = (position: HandInsertionPosition | null): number => {
@@ -144,15 +185,16 @@ const SingleHandTray: React.FC<{
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(false)
-    const gapElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-gap-side]')
-    const insertionPosition = gapElement
-      ? {
-          targetInstanceId: gapElement.dataset.handGapTarget || null,
-          side: gapElement.dataset.handGapSide as HandInsertionPosition['side']
-        }
-      : handInsertionPosition
-    setHandInsertionPosition(null)
+    if (hideDraggedCardFrameRef.current !== null) {
+      window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
+      hideDraggedCardFrameRef.current = null
+    }
     setDraggedHandCardId(null)
+    const insertionPosition = handInsertionPositionRef.current
+    updateHandInsertionPosition(null)
+    draggedHandCardIdRef.current = null
+    handCardAnchorsRef.current = []
+    hasCapturedHandLayoutRef.current = false
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
       if (movedInstanceId) {
@@ -165,15 +207,16 @@ const SingleHandTray: React.FC<{
           movingCard.location === CardLocation.HAND &&
           (movingCard.duelistId ?? duelist.id) === duelist.id
         ) {
+          if (!insertionPosition) return
           const targetInstanceId =
-            insertionPosition?.targetInstanceId ?? cards[cards.length - 1]?.instanceId ?? null
+            insertionPosition.targetInstanceId ?? cards[cards.length - 1]?.instanceId ?? null
           if (targetInstanceId) {
             reorderHandCards(
               controller,
               duelist.id,
               movedInstanceId,
               targetInstanceId,
-              insertionPosition?.targetInstanceId ? insertionPosition.side === 'after' : true
+              insertionPosition.targetInstanceId ? insertionPosition.side === 'after' : true
             )
           }
           return
@@ -307,26 +350,31 @@ const SingleHandTray: React.FC<{
       >
         {cards.map((c, idx) => {
           const isGapBefore =
-            draggedHandCardId !== c.instanceId &&
             handInsertionPosition?.targetInstanceId === c.instanceId &&
             handInsertionPosition.side === 'before'
           const isGapAfter =
-            draggedHandCardId !== c.instanceId &&
             handInsertionPosition?.targetInstanceId === c.instanceId &&
             handInsertionPosition.side === 'after'
 
           return (
             <React.Fragment key={c.instanceId}>
               {isGapBefore && (
-                <div
-                  aria-hidden="true"
-                  data-hand-gap-side="before"
-                  data-hand-gap-target={c.instanceId}
-                  className="w-[64px] h-[92px] shrink-0"
-                />
+                <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />
               )}
-              <div className="shrink-0" data-hand-instance-id={c.instanceId}>
-                <ZoneSlot
+              <motion.div
+                layout="position"
+                transition={{
+                  layout: {
+                    type: 'spring',
+                    stiffness: 170,
+                    damping: 25,
+                    mass: 1
+                  }
+                }}
+                className={cn('shrink-0', draggedHandCardId === c.instanceId && 'invisible')}
+                data-hand-instance-id={c.instanceId}
+              >
+                <MemoizedHandZoneSlot
                   label={`${duelist.name} ${idx + 1}`}
                   controller={controller}
                   location={CardLocation.HAND}
@@ -334,27 +382,13 @@ const SingleHandTray: React.FC<{
                   card={c}
                   duelistId={duelist.id}
                 />
-              </div>
+              </motion.div>
               {isGapAfter && (
-                <div
-                  aria-hidden="true"
-                  data-hand-gap-side="after"
-                  data-hand-gap-target={c.instanceId}
-                  className="w-[64px] h-[92px] shrink-0"
-                />
+                <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />
               )}
             </React.Fragment>
           )
         })}
-        {handInsertionPosition?.targetInstanceId === null && (
-          <div
-            aria-hidden="true"
-            data-hand-gap-side="after"
-            data-hand-gap-target=""
-            className="w-[64px] h-[92px] shrink-0"
-          />
-        )}
-
         {cards.length === 0 && (
           <div
             className={cn(
@@ -380,8 +414,12 @@ const MultiHandTray: React.FC<{
   teamHandCards: FieldCard[]
   totalCount: number
 }> = ({ duelists, controller, teamHandCards, totalCount }) => {
-  const { state, expandedDuelistId, setExpandedDuelistId, toggleSharedLp, setPlayerLp } =
-    useDuelStore()
+  const sharedLp = useDuelStore((s) => s.state.matchConfig?.sharedLp)
+  const teamLp = useDuelStore((s) => s.state.players[controller]?.lp)
+  const expandedDuelistId = useDuelStore((s) => s.expandedDuelistId)
+  const setExpandedDuelistId = useDuelStore((s) => s.setExpandedDuelistId)
+  const toggleSharedLp = useDuelStore((s) => s.toggleSharedLp)
+  const setPlayerLp = useDuelStore((s) => s.setPlayerLp)
   const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
   const setActiveDuelistId = useDuelStore((s) => s.setActiveDuelistId)
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
@@ -446,7 +484,7 @@ const MultiHandTray: React.FC<{
   }, [])
 
   const activeExpandedDuelist = duelists.find((d) => d.id === expandedDuelistId)
-  const isSharedLp = Boolean(state.matchConfig?.sharedLp)
+  const isSharedLp = Boolean(sharedLp)
 
   return (
     <div className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1">
@@ -524,7 +562,7 @@ const MultiHandTray: React.FC<{
         {/* 队伍共用 LP：仅在队伍共用模式下展示于队伍状态栏 (包含四则运算与无限设置计算器) */}
         {isSharedLp && (
           <LpInput
-            lp={state.players[controller]?.lp ?? duelists[0]?.lp ?? 8000}
+            lp={teamLp ?? duelists[0]?.lp ?? 8000}
             label="队伍 LP"
             size="sm"
             player={controller}

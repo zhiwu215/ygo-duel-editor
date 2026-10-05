@@ -178,7 +178,6 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     addCardToZone,
     setSelectedCardId,
     moveCard,
-    reorderHandCards,
     addOverlayMaterial,
     overlayOnTop,
     removeCard,
@@ -227,6 +226,13 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   // 释放落子 (支持从左侧面板新增卡片，也支持在场上/手牌间拖动调整位置)
   const handleDrop = (e: React.DragEvent): void => {
     e.preventDefault()
+    // 手牌内部排序由整条手牌带统一处理，保持目标预览与最终落点一致。
+    if (
+      location === CardLocation.HAND &&
+      e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)
+    ) {
+      return
+    }
     e.stopPropagation()
     setIsOver(false)
     // Ctrl 拖入切换默认放置状态 (魔陷发动 / 怪兽盖守 / 手牌公开)
@@ -234,34 +240,6 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     try {
       /** 鼠标拖动的卡片 */
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
-
-      // 手牌内部拖到另一张牌上时，按鼠标落点一侧直接重排，而不是转成跨区域移动。
-      if (location === CardLocation.HAND && card && movedInstanceId) {
-        const duelState = useDuelStore.getState().state
-        const movingCard = duelState.cards.find((item) => item.instanceId === movedInstanceId)
-        const teamDuelists = (duelState.duelists || []).filter(
-          (duelist) => duelist.team === controller
-        )
-        const fallbackDuelistId = teamDuelists[0]?.id ?? `duelist_${controller}_0`
-        const targetDuelistId = duelistId ?? card.duelistId ?? fallbackDuelistId
-        const movingDuelistId = movingCard?.duelistId ?? fallbackDuelistId
-
-        if (
-          movingCard?.location === CardLocation.HAND &&
-          movingCard.controller === controller &&
-          movingDuelistId === targetDuelistId
-        ) {
-          const rect = e.currentTarget.getBoundingClientRect()
-          reorderHandCards(
-            controller,
-            targetDuelistId,
-            movedInstanceId,
-            card.instanceId,
-            e.clientX >= rect.left + rect.width / 2
-          )
-          return
-        }
-      }
 
       // Alt 键拖入已有怪兽格：进行超量叠放（超量怪兽置顶，素材垫在下方）
       if (card && location === CardLocation.MZONE && e.altKey) {

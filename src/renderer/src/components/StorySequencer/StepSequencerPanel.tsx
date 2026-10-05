@@ -238,7 +238,7 @@ export const StepSequencerPanel: React.FC = () => {
       <div className="p-2.5 border-b border-border/60 bg-muted/10 flex items-center justify-between shrink-0">
         <div className="flex flex-col">
           <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
-            <Film className="w-3.5 h-3.5 text-amber-500" />
+            <Film className="w-3.5 h-3.5 text-muted-foreground" />
             <span>对局剧情编排</span>
           </span>
           <span className="text-[10px] text-muted-foreground">
@@ -252,7 +252,7 @@ export const StepSequencerPanel: React.FC = () => {
             variant="outline"
             onClick={() => openScreenplayWithStep()}
             title="打开大屏决斗台本工作台，沉浸式编写角色台词与剧情"
-            className="h-7 px-2 text-xs font-semibold gap-1 border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+            className="h-7 px-2 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
           >
             <BookOpen className="w-3.5 h-3.5" />
             <span>台本</span>
@@ -262,7 +262,7 @@ export const StepSequencerPanel: React.FC = () => {
             size="xs"
             variant="default"
             onClick={handleOpenAdd}
-            className="h-7 px-2.5 text-xs font-semibold gap-1 bg-amber-500 hover:bg-amber-400 text-neutral-950 shadow-sm"
+            className="h-7 px-2.5 text-xs font-semibold gap-1 shadow-sm"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>添加步骤</span>
@@ -365,7 +365,7 @@ export const StepSequencerPanel: React.FC = () => {
                   className={cn(
                     'flex-1 text-[10px] font-extrabold py-0.5 rounded transition-all text-center cursor-pointer',
                     isActive
-                      ? 'bg-amber-500 text-neutral-950 shadow-xs'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                   title={`切换到 ${PHASE_NAMES[p] || p}`}
@@ -414,7 +414,7 @@ export const StepSequencerPanel: React.FC = () => {
                 size="sm"
                 variant="outline"
                 onClick={handleOpenAdd}
-                className="h-7 text-xs font-semibold gap-1 border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+                className="h-7 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>新建第 1 步</span>
@@ -489,7 +489,7 @@ export const StepSequencerPanel: React.FC = () => {
                   className={cn(
                     'group relative flex flex-col gap-1.5 p-2 rounded-lg border transition-all cursor-pointer select-none',
                     isCurrentPlaying
-                      ? 'border-amber-400 ring-2 ring-amber-400/40 bg-card/90 shadow-md'
+                      ? 'border-primary/60 ring-2 ring-primary/25 bg-card/90 shadow-md'
                       : step.actionPlayer === 0
                         ? 'border-blue-500/30 bg-muted/20 hover:border-blue-500/60 hover:bg-muted/30'
                         : 'border-rose-500/30 bg-muted/20 hover:border-rose-500/60 hover:bg-muted/30'
@@ -578,10 +578,10 @@ export const StepSequencerPanel: React.FC = () => {
                         openScreenplayWithStep(step.id)
                       }}
                       title="点击进入大屏决斗台本工作台精修台词与剧情"
-                      className="mt-0.5 p-1.5 rounded bg-background/80 hover:bg-background border border-border/50 hover:border-amber-500/50 cursor-pointer text-[11px] leading-relaxed flex flex-col gap-0.5 transition-colors"
+                      className="mt-0.5 p-1.5 rounded bg-background/80 hover:bg-background border border-border/50 hover:border-foreground/30 cursor-pointer text-[11px] leading-relaxed flex flex-col gap-0.5 transition-colors"
                     >
                       {step.speaker && (
-                        <span className="font-bold text-[10px] text-amber-500 dark:text-amber-400">
+                        <span className="font-bold text-[10px] text-foreground">
                           【{step.speaker}】:
                         </span>
                       )}
@@ -606,7 +606,7 @@ export const StepSequencerPanel: React.FC = () => {
                         openScreenplayWithStep(step.id)
                       }}
                       title="在决斗台本工作台中精修台词与剧情"
-                      className="h-5 w-5 text-amber-500 hover:text-amber-400"
+                      className="h-5 w-5 text-muted-foreground hover:text-foreground"
                     >
                       <BookOpen className="w-3 h-3" />
                     </Button>
@@ -733,7 +733,7 @@ export const StepSequencerPanel: React.FC = () => {
             {/* 弹窗顶栏 */}
             <div className="flex items-center justify-between border-b border-border/60 pb-2">
               <span className="font-bold text-sm flex items-center gap-1.5">
-                <Film className="w-4 h-4 text-amber-500" />
+                <Film className="w-4 h-4 text-muted-foreground" />
                 <span>{editingStepId ? '编辑对局步骤' : '添加对局新步骤'}</span>
               </span>
               <Button
@@ -816,7 +816,7 @@ export const StepSequencerPanel: React.FC = () => {
                   <select
                     value={formActionType}
                     onChange={(e) => setFormActionType(e.target.value as DuelActionType)}
-                    className="h-7 text-xs rounded border border-border bg-background px-2 font-bold text-amber-500"
+                    className="h-7 text-xs rounded border border-border bg-background px-2 font-bold text-foreground"
                   >
                     {ALL_ACTIONS.map((act) => (
                       <option key={act} value={act}>
@@ -918,11 +918,7 @@ export const StepSequencerPanel: React.FC = () => {
                 >
                   取消
                 </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="h-7 px-4 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-neutral-950"
-                >
+                <Button type="submit" size="sm" className="h-7 px-4 text-xs font-bold">
                   {editingStepId ? '保存修改' : '确认添加'}
                 </Button>
               </div>

@@ -27,7 +27,7 @@ import { inferMoveAction, inferPositionChangeAction } from '../utils/duelActionI
 
 interface DuelStoreState {
   // 装载卡组到对局
-  applyDeckToPlayer: (player: 0 | 1, deck: DeckData, drawCount?: number) => void
+  applyDeckToPlayer: (player: 0 | 1, deck: DeckData, drawCount?: number, duelistId?: string) => void
   // 核心战场状态
   state: DuelPuzzleState
 
@@ -649,17 +649,35 @@ export const useDuelStore = create<DuelStoreState>()(
       },
 
       executeDrawCard: (controller) => {
-        const { state, moveCard } = useDuelStore.getState()
+        const { state, moveCard, activeDuelistId } = useDuelStore.getState()
+        // 多人时每位决斗者是独立牌堆：只从「当前查看的决斗者」的卡组顶抽，
+        // 否则会对整个阵营的DECK 排序，可能抽走同阵营其他人的牌。
+        const activeDuelist = (state.duelists || []).find(
+          (d) => d.id === activeDuelistId && d.team === controller
+        )
+        const ownerScope = activeDuelist?.id ?? null
         // 卡组顶 = 卡组列表最左（sequence 最小）= 下一抽。必须显式按 sequence 排序：
-        // 经过列表重排或移入移出后，cards 数组的物理顺序会与 sequence 脱钩，
+        // 经过列表重排或移入移出后，cards 数组的物理顺序会与sequence 脱钩，
         // 直接取数组末位会抽错卡。
         const deckCards = state.cards
-          .filter((c) => c.controller === controller && c.location === CardLocation.DECK)
+          .filter(
+            (c) =>
+              c.controller === controller &&
+              c.location === CardLocation.DECK &&
+              (ownerScope ? c.duelistId === ownerScope : true)
+          )
           .sort((a, b) => a.sequence - b.sequence)
         if (deckCards.length === 0) return
 
         const topCard = deckCards[0]
-        moveCard(topCard.instanceId, CardLocation.HAND, 999, controller, CardPosition.FACEDOWN)
+        moveCard(
+          topCard.instanceId,
+          CardLocation.HAND,
+          999,
+          controller,
+          CardPosition.FACEDOWN,
+          ownerScope ?? undefined
+        )
       },
 
       setActiveLeftTab: (tab) => set({ activeLeftTab: tab, isLeftOpen: true }),
@@ -844,7 +862,9 @@ export const useDuelStore = create<DuelStoreState>()(
           const currentKey = getMatchScenarioKey(currentConfig)
           const targetKey = getMatchScenarioKey(newConfig)
 
-          // 1. 将当前对阵局面完整保存至场景快照
+          // 1. 将当前这整场决斗完整存档：场面、血量、决斗者、步骤、开局盘面一个都不能少，
+          //    否则切回本场景时信息会丢失。players 与 initialBoardSnapshot 是后补的字段，
+          //    旧快照可能没有，这里原样保留 undefined 由读取侧兜底。
           const currentSnapshot: DuelSceneSnapshot = {
             duelists:
               prev.state.duelists ||
@@ -853,7 +873,9 @@ export const useDuelStore = create<DuelStoreState>()(
             turnPlayer: prev.state.turnPlayer,
             firstTurnAttack: prev.state.firstTurnAttack,
             steps: prev.state.steps,
-            matchConfig: currentConfig
+            matchConfig: currentConfig,
+            players: prev.state.players,
+            initialBoardSnapshot: prev.state.initialBoardSnapshot
           }
 
           const updatedScenarios: Record<string, DuelSceneSnapshot> = {
@@ -861,7 +883,18 @@ export const useDuelStore = create<DuelStoreState>()(
             [currentKey]: currentSnapshot
           }
 
-          // 2. 检查目标场景是否已存在独立历史快照
+          // 切换场景后残留的运行时状态统一清零，避免带着上一场的回合/阶段/选中项进来
+          const resetRuntime = {
+            expandedDuelistId: null,
+            activeDuelistId: null,
+            selectedCardId: null,
+            currentStepIndex: null,
+            currentTurn: 1,
+            currentPhase: 'M1' as const,
+            currentChain: 0
+          }
+
+          // 2. 目标场景已有独立存档 → 整场还原（场面/血量/步骤/开局盘面）
           if (updatedScenarios[targetKey]) {
             const snap = updatedScenarios[targetKey]
             return {
@@ -870,30 +903,40 @@ export const useDuelStore = create<DuelStoreState>()(
                 matchConfig: newConfig,
                 duelists: snap.duelists,
                 cards: snap.cards,
+                // 旧存档可能没有 players / initialBoardSnapshot，回落到当前值而不是硬写8000
+                players: snap.players ?? prev.state.players,
+                initialBoardSnapshot: snap.initialBoardSnapshot ?? prev.state.initialBoardSnapshot,
                 turnPlayer: snap.turnPlayer,
                 firstTurnAttack: snap.firstTurnAttack,
                 steps: snap.steps,
                 scenarios: updatedScenarios
               },
-              expandedDuelistId: null,
-              selectedCardId: null
+              ...resetRuntime,
+              activeTurnPlayer: snap.turnPlayer
             }
           }
 
-          // 3. 首次进入新场景：生成全新决斗者列表，保留共用战场上已摆好的卡片，重置手牌
+          // 3. 首次进入该场景：这是一场全新的决斗，场面从零开始（不继承上一场的任何卡片）。
+          //    旧场景的完整对局已存进上面的 currentSnapshot，切回来时会原样还原。
           const newDuelists = createDefaultDuelists(newConfig.team0Count, newConfig.team1Count)
-          const boardCards = prev.state.cards.filter((c) => c.location !== CardLocation.HAND)
 
           return {
             state: {
               ...prev.state,
               matchConfig: newConfig,
               duelists: newDuelists,
-              cards: boardCards,
+              cards: [],
+              players: [
+                { lp: 8000, maxHand: 0, startHand: 0 },
+                { lp: 8000, maxHand: 0, startHand: 0 }
+              ],
+              steps: [],
+              initialBoardSnapshot: undefined,
+              turnPlayer: 0,
+              firstTurnAttack: newConfig.mode === '1v1' ? prev.state.firstTurnAttack : true,
               scenarios: updatedScenarios
             },
-            expandedDuelistId: null,
-            selectedCardId: null
+            ...resetRuntime
           }
         }),
 
@@ -1085,19 +1128,31 @@ export const useDuelStore = create<DuelStoreState>()(
           }
           const pos = customPos !== undefined ? customPos : defaultPos
 
-          // 针对手牌：确定归属决斗者 ID
+          // 归属决斗者 ID：手牌与堆叠区（主卡组/额外/墓地/除外）都必须写。
+          // 堆叠区若留空，这些牌在多人对局里会因`c.duelistId === ownerScope` 不成立
+          // 而既不显示也清不掉。取值优先级：调用方指定 > 当前查看的决斗者 > 该阵营首位。
+          const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
+          const isOwnerScopedZone =
+            location === CardLocation.HAND ||
+            location === CardLocation.DECK ||
+            location === CardLocation.EXTRA ||
+            location === CardLocation.GRAVE ||
+            location === CardLocation.REMOVED
           let assignedDuelistId = duelistId
-          if (location === CardLocation.HAND && !assignedDuelistId) {
-            const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
+          if (isOwnerScopedZone && !assignedDuelistId) {
             assignedDuelistId =
-              teamDuelists[0]?.id || (controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
+              teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ||
+              teamDuelists[0]?.id ||
+              (controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
           }
 
           // 堆叠型区域按已有数量计算新序号；离散格子则替换/覆盖同位置旧卡
           const existingPile = prev.state.cards
             .filter((c) => {
               if (c.controller !== controller || c.location !== location) return false
-              if (location === CardLocation.HAND && assignedDuelistId) {
+              // 手牌与堆叠区都按归属过滤：多人时每位决斗者是独立牌堆，
+              // 混算序号会让 A 的新卡插到 B 的堆里造成错位。
+              if (isOwnerScopedZone && assignedDuelistId) {
                 return c.duelistId === assignedDuelistId
               }
               return true
@@ -1151,7 +1206,7 @@ export const useDuelStore = create<DuelStoreState>()(
             sequence: targetSeq,
             position: pos,
             overlayMaterials: [],
-            duelistId: location === CardLocation.HAND ? assignedDuelistId : undefined
+            duelistId: isOwnerScopedZone ? assignedDuelistId : undefined
           }
 
           return {
@@ -1188,18 +1243,15 @@ export const useDuelStore = create<DuelStoreState>()(
             toLocation === CardLocation.REMOVED
 
           let assignedDuelistId = targetDuelistId
-          if (toLocation === CardLocation.HAND && !assignedDuelistId) {
-            if (
-              targetCard.location === CardLocation.HAND &&
-              targetCard.controller === ctrl &&
-              targetCard.duelistId
-            ) {
-              assignedDuelistId = targetCard.duelistId
-            } else {
-              const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === ctrl)
-              assignedDuelistId =
-                teamDuelists[0]?.id || (ctrl === 0 ? 'duelist_0_0' : 'duelist_1_0')
-            }
+          if (isPileZone && !assignedDuelistId) {
+            // 保留原属主（从 A 手牌拖到墓地仍是 A 的牌）；原卡无归属时
+            // 回落到当前查看的决斗者 / 该阵营首位，保证堆叠区卡片都有明确归属。
+            const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === ctrl)
+            assignedDuelistId =
+              targetCard.duelistId ||
+              teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ||
+              teamDuelists[0]?.id ||
+              (ctrl === 0 ? 'duelist_0_0' : 'duelist_1_0')
           }
 
           let seq = toSequence
@@ -1215,7 +1267,7 @@ export const useDuelStore = create<DuelStoreState>()(
                 ) {
                   return false
                 }
-                if (toLocation === CardLocation.HAND && assignedDuelistId) {
+                if (isPileZone && assignedDuelistId) {
                   return c.duelistId === assignedDuelistId
                 }
                 return true
@@ -1276,7 +1328,7 @@ export const useDuelStore = create<DuelStoreState>()(
                 sequence: seq,
                 controller: ctrl,
                 position: newPos,
-                duelistId: toLocation === CardLocation.HAND ? assignedDuelistId : c.duelistId
+                duelistId: isPileZone ? assignedDuelistId : c.duelistId
               }
             }
             return c
@@ -1872,14 +1924,26 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         })),
 
-      applyDeckToPlayer: (player, deck, drawCount = 0) =>
+      applyDeckToPlayer: (player, deck, drawCount = 0, duelistId) =>
         set((prev) => {
-          // 清除该玩家现有的 DECK 和 EXTRA 卡片
+          // 多人对局时每位决斗者拥有独立卡组：只清掉该决斗者自己的主卡组 / 额外卡组，
+          // 同阵营其他人的卡组必须原样保留。未传 duelistId（1v1、跨窗口广播）时清整个阵营。
+          const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === player)
+          const multi = teamDuelists.length > 1
+          // 未指定时回落到「当前查看的决斗者」，再回落到该阵营首位——与 addCardToZone 同口径
+          const ownerScope =
+            duelistId && teamDuelists.some((d) => d.id === duelistId)
+              ? duelistId
+              : multi
+                ? (teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ??
+                  teamDuelists[0]?.id)
+                : null
           const otherCards = prev.state.cards.filter(
             (c) =>
               !(
                 c.controller === player &&
-                (c.location === CardLocation.DECK || c.location === CardLocation.EXTRA)
+                (c.location === CardLocation.DECK || c.location === CardLocation.EXTRA) &&
+                (ownerScope ? c.duelistId === ownerScope : true)
               )
           )
 
@@ -1901,7 +1965,8 @@ export const useDuelStore = create<DuelStoreState>()(
               // 手牌里侧 = 未公开。若用 FACEUP_ATTACK，CardItem 的 isPublicHand 会成立，
               // 5 张起手会被打上「公开」角标。
               position: CardPosition.FACEDOWN,
-              overlayMaterials: []
+              overlayMaterials: [],
+              duelistId: ownerScope ?? undefined
             })
           }
 
@@ -1918,7 +1983,8 @@ export const useDuelStore = create<DuelStoreState>()(
               // 主卡组一律里侧备着。不能用 FACEDOWN_ATTACK(0x2)——它是「暗黑同调」那类
               // 特殊表里侧，不在 CardItem 的 isFacedown 判定内，会被当成表侧渲染出卡面。
               position: CardPosition.FACEDOWN,
-              overlayMaterials: []
+              overlayMaterials: [],
+              duelistId: ownerScope ?? undefined
             })
           }
 
@@ -1933,7 +1999,8 @@ export const useDuelStore = create<DuelStoreState>()(
               location: CardLocation.EXTRA,
               sequence: i,
               position: CardPosition.FACEDOWN,
-              overlayMaterials: []
+              overlayMaterials: [],
+              duelistId: ownerScope ?? undefined
             })
           }
 

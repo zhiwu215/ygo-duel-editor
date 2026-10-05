@@ -25,8 +25,6 @@ const PROVIDER_TIMEOUT_MS = 60_000
 const MODEL_LIST_TIMEOUT_MS = 15_000
 /** 未配置时的默认上下文窗口（tokens） */
 const DEFAULT_CONTEXT_WINDOW = 131_072
-/** 未配置时的默认单次回复上限（tokens） */
-const DEFAULT_MAX_TOKENS = 8_192
 
 /**
  * 本地推理服务（Ollama / LM Studio 等）不需要 API Key，但 Pi 的 models.json schema
@@ -131,10 +129,19 @@ const PROVIDER_PRESETS: AgentProviderPreset[] = [
  * 通过 DefaultResourceLoader 的 systemPromptOverride 注入为真正的 system 消息，
  */
 function buildSystemPrompt(cfg: AgentModelConfig): string {
-  return `你是一个专业的《游戏王》卡牌决斗剧情创作者，你能调用工具查真实卡片数据、读取当前盘面、把推演步骤交给创作者。
+  return `你是一个专业的《游戏王》卡牌决斗剧情创作者，你能调用工具查真实卡片数据、读取当前盘面、把场面布局与推演步骤交给创作者。
 
 规则：
+- 直接给结论，不要先写「我先查一下」「让我看看」这类过程说明。
+- 需要查多张卡时，把卡密一次性传给 get_card_info；同一个工具不要重复调用同一个目标。
+- 查不到或工具报错时，基于已有信息作答并说明不确定处，不要因此中止或只给免责声明。
 - 不要使用 emoji、表情符号和颜文字。
+- 用户口述了一个具体局面（生命值、场上怪兽与表示形式、手牌）并要求「摆到决斗场 / 复盘这个场面」时，调用 propose_board_setup 提交布局：
+  - 复盘全新局面必须 clearExisting: true，否则会叠加在原有卡片上。
+  - 动态攻防必须填 customAtk / customDef。卡库里这类卡的攻防是 ?，不填就显示不出真实数值。
+  - 手牌必须填 duelistName，否则多人模式下会挂到错的决斗者名下；名字先用 get_current_board 查。
+  - sequence 是该方自己视角的左边起数（seq0 = 该方最左格）。对方场地左右镜像，但序号不变。
+  - 用户只说「有一张盖卡」而没说是哪张时，code 传 0 并填 isUnknown: true，不要瞎猜卡名。
 - 战术推演完成后，调用 propose_duel_steps 把步骤交给创作者。${
     cfg.systemPrompt ? `\n\n【创作者补充设定】\n${cfg.systemPrompt}` : ''
   }`
@@ -196,7 +203,7 @@ function cleanSchema(schema: JsonSchema): Record<string, unknown> {
 
 /**
  * 工具参数的 JSON Schema 构造器
- * 提供常用类型（Object, String, Number, Array, Optional）的便捷创建方法
+ * 提供常用类型（Object, String, Number, Boolean, Array, Optional）的便捷创建方法
  */
 const Type = {
   Object: (props: Record<string, JsonSchema>): Record<string, unknown> => {
@@ -216,6 +223,10 @@ const Type = {
     type: 'number',
     ...opts
   }),
+  Boolean: (opts?: { description?: string }): JsonSchema => ({
+    type: 'boolean',
+    ...opts
+  }),
   Array: (items: JsonSchema, opts?: { description?: string }): JsonSchema => ({
     type: 'array',
     items,
@@ -227,6 +238,9 @@ const Type = {
   })
 }
 import {
+  AgentBoardCardPlacement,
+  AgentBoardLpTarget,
+  AgentBoardSetupProposal,
   AgentModelConfig,
   AgentModelInfo,
   AgentProviderPreset,
@@ -239,8 +253,10 @@ import {
   DuelPhase,
   DuelActionType,
   CardLocation,
+  CdbCard,
   cleanAgentApiKey,
   isLocalEndpoint,
+  normalizeAgentBoardPlacement,
   resolveActiveRuntime,
   toPiApiType
 } from '@shared/index'
@@ -262,6 +278,8 @@ export class AgentService {
   private currentBoardState: DuelPuzzleState | null = null
   /** 本轮已收集的战术步骤提案（工具闭包通过实例字段跨消息共享） */
   private collectedProposals: AgentStepProposal[] = []
+  /** 本轮已提交的场面布局提案（同一轮内后写的覆盖先写的，与步骤提案同生命周期） */
+  private collectedBoardSetup: AgentBoardSetupProposal | null = null
   /** 本轮已累计的正文与思考链增量 */
   private streamText = ''
   private streamThought = ''
@@ -451,9 +469,13 @@ export class AgentService {
               id: cfg.model,
               name: cfg.model,
               reasoning: Boolean(cfg.enableReasoning),
-              // 声明上下文与输出上限，让 Pi 的 token 估算与自动压缩正常工作
+              // 声明上下文上限，让 Pi 的 token 估算与自动压缩正常工作
               contextWindow: cfg.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
-              maxTokens: cfg.maxTokens ?? DEFAULT_MAX_TOKENS,
+              // 输出上限：读不到模型真实上限时**整个省略 maxTokens 字段**，
+              // 让厂商按自己的默认值走，而不是猜一个数把回答截在半途。
+              // 参考 ZCode 的处理：值不可知就不写进 models.json（它用 JSON Merge Patch
+              // 达成同样效果，值为 undefined 的 key 不会出现在请求体里）。
+              ...(cfg.maxTokens ? { maxTokens: cfg.maxTokens } : {}),
               // Pi 只认 text / image 两种模态，未开启图片输入时整个省略
               ...(cfg.supportsVision ? { input: ['text', 'image'] } : {}),
               ...(Object.keys(compat).length > 0 ? { compat } : {})
@@ -541,6 +563,7 @@ export class AgentService {
     // 2. 准备盘面快照并重置本轮提案收集
     this.currentBoardState = params.boardState || null
     this.collectedProposals = []
+    this.collectedBoardSetup = null
 
     // 3. 读取大模型配置
     const appConfig = configService.get()
@@ -581,7 +604,8 @@ export class AgentService {
     const searchCardsTool = defineTool({
       name: 'search_cards',
       label: '搜索游戏王卡片',
-      description: '从本地卡库数据库检索卡片，获取准确卡名、卡密密码、类型、属性、攻防与效果描述',
+      description:
+        '从本地卡库数据库检索卡片，返回卡名、卡密、类型、攻防与效果摘要。只在不知道卡名或卡密时使用；一旦拿到卡密就改用 get_card_info（支持一次传多个卡密）。同一个关键词不要重复调用，多张卡请分别用各自的关键词查或合并成一次 get_card_info',
       parameters: Type.Object({
         keyword: Type.String({ description: '卡名关键词、效果描述关键词或8位卡密' }),
         limit: Type.Optional(Type.Number({ description: '返回结果数量上限，默认 15 条' }))
@@ -626,47 +650,79 @@ export class AgentService {
     const getCardInfoTool = defineTool({
       name: 'get_card_info',
       label: '获取卡片详细规则信息',
-      description: '根据 8 位卡密精确查询卡片的完整效果文本与卡牌属性',
+      description:
+        '根据 8 位卡密精确查询卡片的完整效果文本与卡牌属性。codes 支持一次传多个卡密批量查询——盘面上出现多张卡时务必一次性传入，不要逐张调用',
       parameters: Type.Object({
-        code: Type.Number({ description: '8 位卡密密码 (例如青眼白龙为 89631139)' })
+        codes: Type.Array(Type.Number(), {
+          description:
+            '8 位卡密的数组 (例如 [89631139, 13955608])。已从 search_cards 结果中拿到卡密时优先直接用本工具，不要再重复 search_cards'
+        })
       }),
-      execute: async (_toolCallId, p: { code: number }) => {
+      execute: async (_toolCallId, p: { codes: number[] }) => {
+        const codes = p.codes ?? []
         this.emitEvent({
           type: 'tool_call_start',
           id: _toolCallId,
           toolName: 'get_card_info',
-          params: { code: p.code }
+          params: { codes }
         })
 
-        const dict = cdbService.getCardsByIds([p.code])
-        const card = dict[p.code]
-
-        if (!card) {
+        if (codes.length === 0) {
           this.emitEvent({
             type: 'tool_call_end',
             id: _toolCallId,
             toolName: 'get_card_info',
-            resultSummary: `未在数据库中找到卡密 ${p.code}`
+            resultSummary: '未提供卡密'
           })
-          const details: Record<string, unknown> = { found: false }
           return {
-            content: [{ type: 'text', text: `数据库中未找到卡密 ${p.code}` }],
+            content: [{ type: 'text', text: '未提供任何卡密，无法查询。' }],
+            details: { found: 0 }
+          }
+        }
+
+        const dict = cdbService.getCardsByIds(codes)
+        const found = codes.map((code) => dict[code]).filter((c): c is CdbCard => Boolean(c))
+        const missing = codes.filter((code) => !dict[code])
+
+        if (found.length === 0) {
+          this.emitEvent({
+            type: 'tool_call_end',
+            id: _toolCallId,
+            toolName: 'get_card_info',
+            resultSummary: `未在数据库中找到卡密 ${missing.join(', ')}`
+          })
+          const details: Record<string, unknown> = { found: 0, missing }
+          return {
+            content: [{ type: 'text', text: `数据库中未找到卡密 ${missing.join(', ')}` }],
             details
           }
         }
 
-        const fullText = `【${card.name}】\n卡密: ${card.id}\n类型掩码: 0x${card.type.toString(16)}\n等级: ${card.level & 0xff} | 属性: ${card.attribute} | 种族: ${card.race}\n攻击力: ${card.atk} | 守备力: ${card.def}\n效果描述:\n${card.desc}`
+        const fullText = found
+          .map(
+            (card) =>
+              `【${card.name}】\n卡密: ${card.id}\n类型掩码: 0x${card.type.toString(16)}\n等级: ${card.level & 0xff} | 属性: ${card.attribute} | 种族: ${card.race}\n攻击力: ${card.atk} | 守备力: ${card.def}\n效果描述:\n${card.desc}`
+          )
+          .join('\n\n---\n\n')
+        const suffix = missing.length > 0 ? `\n\n（未找到卡密：${missing.join(', ')}）` : ''
 
         this.emitEvent({
           type: 'tool_call_end',
           id: _toolCallId,
           toolName: 'get_card_info',
-          resultSummary: `已获取【${card.name}】的详细效果`
+          resultSummary:
+            found.length === 1
+              ? `已获取【${found[0].name}】的详细效果`
+              : `已获取${found.length} 张卡片的详细效果`
         })
 
-        const details: Record<string, unknown> = { found: true, name: card.name }
+        const details: Record<string, unknown> = {
+          found: found.length,
+          names: found.map((c) => c.name),
+          missing
+        }
         return {
-          content: [{ type: 'text', text: fullText }],
+          content: [{ type: 'text', text: fullText + suffix }],
           details
         }
       }
@@ -711,6 +767,17 @@ export class AgentService {
         lines.push(`双方生命值: 我方(P0) LP ${p0.lp} vs 对方(P1) LP ${p1.lp}`)
         lines.push(`先攻回合方: ${state.turnPlayer === 0 ? '我方(P0)' : '对方(P1)'}`)
 
+        // 决斗者名单：布局提案要按名字把手牌归到具体人，主进程这边不写盘面，
+        // 所以这是模型唯一能拿到「韩诺」这类名字的途径。
+        const duelists = state.duelists || []
+        if (duelists.length > 0) {
+          lines.push(
+            `决斗者名单: ${duelists
+              .map((d) => `${d.name}(${d.team === 0 ? '我方' : '对方'} LP ${d.lp})`)
+              .join('、')}`
+          )
+        }
+
         const cards = state.cards || []
         lines.push(`场上及手牌卡片总计: ${cards.length} 张`)
 
@@ -725,7 +792,7 @@ export class AgentService {
           else if (c.location === CardLocation.EXTRA) locName = '额外卡组'
           else if (c.location === CardLocation.DECK) locName = '主卡组'
 
-          const name = c.card?.name || `卡密:${c.code}`
+          const name = c.card?.name || (c.code > 0 ? `卡密:${c.code}` : '未知盖卡')
           lines.push(`- [${owner}] ${name} 位于 ${locName}`)
         }
 
@@ -859,16 +926,216 @@ export class AgentService {
     })
 
     /**
-     * 工具 5：调用无头规则引擎校验战术 (validate_with_ocgcore)
-     * 接入官方 ocgcore 规则引擎 (WebAssembly 沙箱)，
-     * 对复杂的时点连锁（如诱发效果、神宣时点、伤判阶段）进行底层物理模拟与规则合规性排雷。
+     * 工具 5：复盘场面布局 (propose_board_setup)
+     * 当用户口述了一个具体局面（LP、怪兽区/魔陷区配置、手牌）并要求「摆到决斗场上」时调用。
+     * 只产出**待确认的布局提案**，不直接改盘面 —— 由渲染层弹出预览卡，用户确认后才写入。
+     */
+    const proposeBoardSetupTool = defineTool({
+      name: 'propose_board_setup',
+      label: '复盘场面布局',
+      description:
+        '当用户口述了一个完整局面并要求把它摆到决斗场上时调用，提交一份待确认的布局（双方 LP + 每张牌的区域/格子/表示形式）。只提交提案，不会直接改动盘面，创作者确认后才会生效。复盘全新局面时 clearExisting 必须为 true。',
+      parameters: Type.Object({
+        summary: Type.String({ description: '这个局面的摘要，说明是什么场合、双方各剩什么' }),
+        clearExisting: Type.Boolean({
+          description:
+            '是否先清空现有盘面再摆。复盘一个全新局面必须为 true，否则会在原有卡片上叠加摆放'
+        }),
+        lp: Type.Array(
+          Type.Object({
+            side: Type.Number({ description: '阵营：0 = 我方，1 = 对方' }),
+            lp: Type.Number({ description: '目标生命值' }),
+            duelistName: Type.Optional({
+              description: '多人模式下指定决斗者名（如「韩诺」）；手牌与 LP 都属于具体决斗者'
+            })
+          }),
+          { description: '生命值设定；不需要改动的一方可以不传' }
+        ),
+        cards: Type.Array(
+          Type.Object({
+            code: Type.Number({ description: '8 位卡密' }),
+            cardName: Type.Optional({ description: '卡名，仅用于人工核对' }),
+            side: Type.Number({ description: '阵营：0 = 我方，1 = 对方' }),
+            location: Type.String({
+              description:
+                '区域: MZONE 怪兽区 / SZONE 魔陷区 / HAND 手牌 / GRAVE 墓地 / DECK 主卡组 / EXTRA 额外卡组 / REMOVED 除外区'
+            }),
+            sequence: Type.Number({
+              description:
+                '格子序号 0~4，恒定按**该方自己视角的左边起数**：seq0 = 该方最左格。对方的格子在屏幕上左右镜像（对方的 seq0 显示在屏幕最右边），但序号本身不变。手牌等堆叠区统一传 0，按顺序追加'
+            }),
+            position: Type.Optional({
+              description:
+                '表示形式: FACEUP_ATTACK 表侧攻击 / FACEUP_DEFENSE 表侧守备 / FACEDOWN 里侧盖放 / FACEUP 表侧表示。缺省时怪兽区按表攻、魔陷区与手牌按盖放'
+            }),
+            duelistName: Type.Optional({
+              description:
+                '目标决斗者名（如「韩诺」）；手牌必填，否则多人模式下会挂错人。可先用 get_current_board 查当前决斗者名单'
+            }),
+            isUnknown: Type.Optional({
+              description:
+                '仅当用户描述了一张「不知道是什么的盖卡」时为 true（如「魔陷区有一张盖卡」）。此时 code 传 0，格子会显示为无卡名的卡背。不要给已知卡设 true'
+            }),
+            customAtk: Type.Optional({
+              description:
+                '覆盖显示攻击力。动态攻防必须填（如「特拉戈迪亚攻击力上升手牌数量 X600，手牌 6 张 → 3600」），因为卡库里该卡atk 是 ?，不填显示不出真实数值'
+            }),
+            customDef: Type.Optional({ description: '覆盖显示守备力' })
+          }),
+          { description: '卡片落位列表' }
+        )
+      }),
+      execute: async (
+        _toolCallId,
+        p: {
+          summary: string
+          clearExisting: boolean
+          lp?: Array<{ side: number; lp: number; duelistName?: string }>
+          cards?: Array<{
+            code: number
+            cardName?: string
+            side: number
+            location: string
+            sequence: number
+            position?: string
+            duelistName?: string
+            isUnknown?: boolean
+            customAtk?: number
+            customDef?: number
+          }>
+        }
+      ) => {
+        this.emitEvent({
+          type: 'tool_call_start',
+          id: _toolCallId,
+          toolName: 'propose_board_setup',
+          params: { cardCount: p.cards?.length ?? 0, clearExisting: p.clearExisting }
+        })
+
+        const warnings: string[] = []
+        const rawCards = p.cards ?? []
+        const codes = rawCards
+          .filter((c) => !c.isUnknown)
+          .map((c) => c.code)
+          .filter((c) => Number.isFinite(c) && c > 0)
+        const dict = codes.length > 0 ? cdbService.getCardsByIds(codes) : {}
+
+        const placements: AgentBoardCardPlacement[] = []
+        rawCards.forEach((c, idx) => {
+          // 未知盖卡：用户说了「有一张盖卡」但没说是哪张。这类卡不查卡库，
+          // code 记 0 表示「有卡但无卡面数据」，由渲染层显示卡背。
+          if (c.isUnknown) {
+            const norm = normalizeAgentBoardPlacement({
+              location: c.location,
+              sequence: c.sequence,
+              position: c.position
+            })
+            if (!norm.ok || !norm.zone) {
+              warnings.push(`第 ${idx + 1} 张未知盖卡：${norm.reason ?? '落位参数无效'}，已跳过`)
+              return
+            }
+            placements.push({
+              code: 0,
+              cardName: c.cardName?.trim() || '未知盖卡',
+              side: c.side === 1 ? 1 : 0,
+              location: norm.zone,
+              sequence: norm.sequence ?? 0,
+              position: norm.facing ?? 'FACEDOWN',
+              isUnknown: true,
+              duelistName: c.duelistName?.trim() || undefined,
+              customAtk: Number.isFinite(c.customAtk as number) ? c.customAtk : undefined,
+              customDef: Number.isFinite(c.customDef as number) ? c.customDef : undefined
+            })
+            return
+          }
+
+          const label = c.cardName || dict[c.code]?.name || `卡密 ${c.code}`
+          if (!Number.isFinite(c.code) || c.code <= 0 || !dict[c.code]) {
+            warnings.push(`第 ${idx + 1} 张【${label}】的卡密 ${c.code} 在卡库中不存在，已跳过`)
+            return
+          }
+          const norm = normalizeAgentBoardPlacement({
+            location: c.location,
+            sequence: c.sequence,
+            position: c.position
+          })
+          if (!norm.ok || !norm.zone) {
+            warnings.push(`第 ${idx + 1} 张【${label}】：${norm.reason ?? '落位参数无效'}，已跳过`)
+            return
+          }
+          placements.push({
+            code: c.code,
+            cardName: dict[c.code].name,
+            side: c.side === 1 ? 1 : 0,
+            location: norm.zone,
+            sequence: norm.sequence ?? 0,
+            position: norm.facing,
+            duelistName: c.duelistName?.trim() || undefined,
+            customAtk: Number.isFinite(c.customAtk as number) ? c.customAtk : undefined,
+            customDef: Number.isFinite(c.customDef as number) ? c.customDef : undefined
+          })
+        })
+
+        const lpTargets: AgentBoardLpTarget[] = (p.lp ?? [])
+          .filter((t) => Number.isFinite(t.lp))
+          .map((t) => ({
+            side: t.side === 1 ? 1 : 0,
+            lp: Math.max(0, Math.trunc(t.lp)),
+            duelistName: t.duelistName?.trim() || undefined
+          }))
+
+        const setup: AgentBoardSetupProposal = {
+          summary: p.summary || '（未提供局面摘要）',
+          clearExisting: Boolean(p.clearExisting),
+          lp: lpTargets,
+          cards: placements,
+          warnings
+        }
+
+        this.collectedBoardSetup = setup
+        this.emitEvent({ type: 'board_setup_ready', setup })
+        this.emitEvent({
+          type: 'tool_call_end',
+          id: _toolCallId,
+          toolName: 'propose_board_setup',
+          resultSummary: `待确认布局：${lpTargets.length} 项 LP、${placements.length} 张卡${
+            warnings.length > 0 ? `，${warnings.length} 条警告` : ''
+          }`
+        })
+
+        const lines: string[] = [
+          `布局提案已提交，等待创作者在预览卡中确认：${placements.length} 张卡、${lpTargets.length} 项生命值。`,
+          '此时盘面尚未改动。请在正文中用一两句话说明这个布局要怎么用，不要重复罗列每张卡。'
+        ]
+        if (warnings.length > 0) {
+          lines.push(`已自动剔除 ${warnings.length} 处无效落位：`)
+          lines.push(...warnings.map((w) => `- ${w}`))
+        }
+        const details: Record<string, unknown> = {
+          cards: placements.length,
+          lp: lpTargets.length,
+          warnings: warnings.length
+        }
+        return { content: [{ type: 'text', text: lines.join('\n') }], details }
+      }
+    })
+
+    /**
+     * 工具 6：调用无头规则引擎校验战术 (validate_with_ocgcore)
+     * 接入官方 ocgcore 规则引擎 (WebAssembly 沙箱)。
+     *
+     * **当前只做引擎可用性自检**：ocgcoreService 尚未接受局面输入，
+     * 拿不到任何卡与连锁状态，因此不存在真实的战术模拟。
+     * 措辞上必须如实告知模型「无法校验」，绝不能返回「模拟通过」——
+     * 那会让模型把一句空话当成合法性依据写进结论。
      */
     const validateWithOcgcoreTool = defineTool({
       name: 'validate_with_ocgcore',
       label: '调用无头规则引擎校验战术',
-      description: '调用官方 ocgcore 引擎对战术合法性进行沙箱模拟与时点排雷',
+      description:
+        '可选。检测官方 ocgcore 引擎是否就绪。注意：当前引擎未接入局面输入，只能确认引擎可用性、**无法真正校验战术合法性**。因此不要把它当作合法性结论的依据，仍需基于已查证的卡片数据自行推演；引擎不可用时更不要因此回避作答',
       parameters: Type.Object({
-        summary: Type.String({ description: '战术动作说明' })
+        summary: Type.String({ description: '战术动作说明（当前仅用于日志，不会进入引擎）' })
       }),
       execute: async (_toolCallId, p: { summary: string }) => {
         this.emitEvent({
@@ -881,29 +1148,44 @@ export class AgentService {
         try {
           const core = await ocgcoreService.getCore()
           const [maj, min] = core.getVersion()
-          const resultMsg = `ocgcore 规则引擎 (v${maj}.${min}) 模拟通过：战术操作在官方规则物理体系下合规。`
+          const resultMsg = `ocgcore 规则引擎 (v${maj}.${min}) 已就绪，但引擎当前未接入局面输入，**本次没有对任何战术做合法性校验**。请不要把这当作「战术合规」的证据，仍需基于已查证的卡片数据自行推演时点与连锁合法性。`
 
           this.emitEvent({
             type: 'tool_call_end',
             id: _toolCallId,
             toolName: 'validate_with_ocgcore',
-            resultSummary: `引擎校验通过 (v${maj}.${min})`
+            resultSummary: `引擎就绪 (v${maj}.${min})，未做战术校验`
           })
 
-          const details: Record<string, unknown> = { success: true, version: `${maj}.${min}` }
+          const details: Record<string, unknown> = {
+            success: true,
+            engineAvailable: true,
+            validated: false,
+            version: `${maj}.${min}`
+          }
           return {
             content: [{ type: 'text', text: resultMsg }],
             details
           }
         } catch (err: unknown) {
-          const errText = `ocgcore 校验异常: ${err instanceof Error ? err.message : String(err)}`
+          // getCore() 失败是**环境未就绪**（引擎未安装 / 路径不对 / 加载失败），
+          // 与「战术被规则判为不合法」是两件事。必须用不同措辞告知模型，
+          // 否则它会以为战术有问题，转而输出「引擎不可用，合法性以人工排雷」
+          // 这类免责声明，把本该给出的结论吞掉。
+          const errDetail = err instanceof Error ? err.message : String(err)
+          const errText = `ocgcore 规则引擎尚未就绪，本次已跳过自动合法性校验（原因：${errDetail}）。这不代表战术不合法，请直接基于已查证的卡片数据给出结论，不要因为缺少引擎校验而回避作答或输出免责声明。`
           this.emitEvent({
             type: 'tool_call_end',
             id: _toolCallId,
             toolName: 'validate_with_ocgcore',
-            resultSummary: '引擎校验报错'
+            resultSummary: '引擎未就绪，已跳过'
           })
-          const details: Record<string, unknown> = { success: false, error: errText }
+          const details: Record<string, unknown> = {
+            success: false,
+            skipped: true,
+            reason: 'engine_unavailable',
+            error: errDetail
+          }
           return {
             content: [{ type: 'text', text: errText }],
             details
@@ -919,6 +1201,7 @@ export class AgentService {
         getCardInfoTool,
         getCurrentBoardTool,
         proposeStepsTool,
+        proposeBoardSetupTool,
         validateWithOcgcoreTool
       ])
 
@@ -953,8 +1236,33 @@ export class AgentService {
         this.emitEvent({ type: 'error', message: errMsg })
         return { success: false, error: errMsg }
       }
-      if (!lastAssistant || (!this.streamText && this.collectedProposals.length === 0)) {
+      // 撞上单次回复长度上限：回答会被硬截断在半途，且要求模型调用的 propose_duel_steps
+      // 通常还没来得及执行。这种情况必须显式告知，否则用户只会看到一段没写完的正文，
+      // 误以为 AI 答完了。设置里调高「单次回复上限」可缓解。
+      if (lastAssistant?.stopReason === 'length') {
+        const errMsg = this.streamText
+          ? '回答因超出单次回复长度上限被截断，内容不完整。可在「设置 → 模型设置 → 对话」中调高「单次回复上限」后重试。'
+          : '模型回复超出单次回复长度上限即被截断，未输出任何内容。请在「设置 → 模型设置 → 对话」中调高「单次回复上限」后重试。'
+        this.emitEvent({ type: 'error', message: errMsg })
+        return { success: false, error: errMsg }
+      }
+      if (
+        !lastAssistant ||
+        (!this.streamText && this.collectedProposals.length === 0 && !this.collectedBoardSetup)
+      ) {
         const errMsg = '模型未返回任何内容（请检查模型名称是否正确、账户是否有余额）'
+        this.emitEvent({ type: 'error', message: errMsg })
+        return { success: false, error: errMsg }
+      }
+
+      // 查过数据却没落到结论：模型把预算都花在工具调用上，正文只写了「我先看看…」这类过程语。
+      // 这种情况对用户等于没回答，直接提示重试比让他读一段自言自语更有用。
+      if (
+        this.streamText.trim().length < 40 &&
+        this.collectedProposals.length === 0 &&
+        !this.collectedBoardSetup
+      ) {
+        const errMsg = '模型只输出了过程性内容、没有给出结论。请重试，或把问题拆细后分次提问。'
         this.emitEvent({ type: 'error', message: errMsg })
         return { success: false, error: errMsg }
       }
@@ -962,14 +1270,16 @@ export class AgentService {
       this.emitEvent({
         type: 'done',
         fullText: this.streamText,
-        proposals: this.collectedProposals
+        proposals: this.collectedProposals,
+        boardSetup: this.collectedBoardSetup ?? undefined
       })
 
       return {
         success: true,
         content: this.streamText,
         thought: this.streamThought,
-        proposals: this.collectedProposals
+        proposals: this.collectedProposals,
+        boardSetup: this.collectedBoardSetup ?? undefined
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err)

@@ -1,23 +1,6 @@
 import React, { useEffect } from 'react'
 import { useStore } from 'zustand'
-import {
-  Undo2,
-  Redo2,
-  Download,
-  Upload,
-  Database,
-  RotateCcw,
-  Swords,
-  Sun,
-  Moon,
-  Save,
-  ArrowLeftRight,
-  Layers,
-  Eye,
-  EyeOff,
-  BookOpen,
-  SquareStack
-} from 'lucide-react'
+import { Database, Swords, Sun, Moon, Layers } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { MASTER_RULES, MasterRule, isExportableMatch } from '@shared/index'
@@ -38,8 +21,6 @@ export const Header: React.FC = () => {
     setTitle,
     loadState,
     resetDuel,
-    swapSides,
-    tacticalView,
     toggleTacticalView,
     openScreenplayWithStep,
     currentTurn,
@@ -49,10 +30,9 @@ export const Header: React.FC = () => {
     resetChain
   } = useDuelStore()
 
-  // temporal 经 useStore 包装成响应式订阅，按钮可用状态随历史变化实时更新
-  const { undo, redo, pastStates, futureStates } = useStore(useDuelStore.temporal)
-  const canUndo = pastStates.length > 0
-  const canRedo = futureStates.length > 0
+  // 撤销/重做仍需保留全局快捷键 (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z) 调用
+  // 对应的工具栏按钮已移除 (与菜单重复)
+  const { undo, redo } = useStore(useDuelStore.temporal)
 
   const { config, dbReady, selectYgoDir, toggleTheme } = useConfigStore()
   const isDark = config.theme !== 'light'
@@ -177,10 +157,11 @@ export const Header: React.FC = () => {
 
   return (
     <header className="border-b border-border bg-card select-none flex flex-col shrink-0">
-      {/* ============ 第一行：菜单栏 ============ */}
-      <div className="h-8 px-3 flex items-center justify-between border-b border-border/60">
-        <div className="flex items-center gap-1">
-          <div className="flex items-center gap-1.5 mr-2">
+      {/* ============ 第一行：菜单栏 (VSCode 风格标题栏) ============ */}
+      <div className="h-9 px-3 flex items-center justify-between border-b border-border/60 gap-2">
+        {/* 左侧：Logo + 菜单栏 */}
+        <div className="flex items-center gap-1 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 mr-2 shrink-0">
             <Swords className="w-4 h-4 text-blue-500 dark:text-blue-400" />
             <span className="text-[13px] font-semibold tracking-wide">YGO Duel Editor</span>
           </div>
@@ -193,9 +174,10 @@ export const Header: React.FC = () => {
             onExportLua={handleExportLua}
             onExportScreenplay={handleExportScreenplay}
           />
+        </div>
 
-          <Separator orientation="vertical" className="h-3.5 mx-2" />
-
+        {/* 右侧：工程信息 + 窗口控件 (导出状态 + 卡库连接 + 主题切换) */}
+        <div className="flex items-center gap-2 shrink-0">
           {/* 工程分类与标题 */}
           <div className="flex items-center gap-1.5">
             <button
@@ -215,17 +197,16 @@ export const Header: React.FC = () => {
               value={state.title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="未命名对局"
-              className="h-6 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
+              className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
               title="对局标题 (点击编辑，保存时可添加详细备忘)"
             />
           </div>
-        </div>
 
-        {/* 右侧：导出状态徽标 + 卡库连接状态 + 主题切换 */}
-        <div className="flex items-center gap-1.5">
+          <Separator orientation="vertical" className="h-5" />
+
           <ExportStatusBadge />
 
-          <Separator orientation="vertical" className="h-3.5" />
+          <Separator orientation="vertical" className="h-5" />
 
           <button
             type="button"
@@ -252,7 +233,7 @@ export const Header: React.FC = () => {
             <span>{dbConnected ? '卡库已连接' : '未加载卡库'}</span>
           </button>
 
-          <Separator orientation="vertical" className="h-3.5" />
+          <Separator orientation="vertical" className="h-5" />
 
           <Button
             variant="ghost"
@@ -266,10 +247,10 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* ============ 第二行：决斗工作台工具栏 ============ */}
-      <div className="h-10 px-3 bg-muted/30 flex items-center justify-between gap-3 text-xs">
-        {/* 左侧：规则与对局参数 */}
+      {/* ============ 第二行：决斗上下文工具栏 (规则、对阵、回合阶段) ============ */}
+      <div className="h-9 px-3 bg-muted/30 flex items-center text-xs">
         <div className="flex items-center gap-3">
+          {/* 主规则选择 */}
           <div className="flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-muted-foreground" />
             <Select
@@ -278,7 +259,7 @@ export const Header: React.FC = () => {
                 if (val !== null) setMasterRule(val as MasterRule)
               }}
             >
-              <SelectTrigger size="sm" className="w-28 h-6 text-xs bg-background/60">
+              <SelectTrigger size="sm" className="w-28 h-7 text-xs bg-background/60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -306,7 +287,7 @@ export const Header: React.FC = () => {
               size="xs"
               onClick={nextPhase}
               title="点击推进至下一阶段 (DP → SP → M1 → BP → M2 → EP)"
-              className="h-6 px-1.5 text-[11px] font-extrabold bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20"
+              className="h-7 px-1.5 text-[11px] font-extrabold bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20"
             >
               {currentPhase}
             </Button>
@@ -320,149 +301,6 @@ export const Header: React.FC = () => {
               </span>
             )}
           </div>
-        </div>
-
-        {/* 右侧：历史 / 场面操作 / 文件 */}
-        <div className="flex items-center gap-1.5">
-          <div className="flex items-center bg-background/60 border border-border rounded-md p-0.5">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => undo()}
-              disabled={!canUndo}
-              title="撤销 (Ctrl+Z)"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => redo()}
-              disabled={!canRedo}
-              title="重做 (Ctrl+Y)"
-            >
-              <Redo2 className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={swapSides}
-            title="翻转对阵：交换双方全部场上卡片、手牌及生命值"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeftRight className="w-3.5 h-3.5" />
-          </Button>
-
-          {/* 战术透视开关 */}
-          <Button
-            variant={tacticalView ? 'secondary' : 'ghost'}
-            size="xs"
-            onClick={toggleTacticalView}
-            title="战术透视 (Tab)：全局显示/隐藏所有卡片的指示物与攻守状态浮层"
-            className={cn(
-              'h-6 px-2 gap-1 text-[11px] font-medium transition-colors',
-              tacticalView
-                ? 'bg-primary/15 text-primary border border-primary/30'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {tacticalView ? (
-              <Eye className="w-3.5 h-3.5 text-primary" />
-            ) : (
-              <EyeOff className="w-3.5 h-3.5" />
-            )}
-            <span>透视</span>
-          </Button>
-
-          {/* 决斗台本与剧本工作台 */}
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => openScreenplayWithStep()}
-            title="决斗台本与剧本工作台 (Ctrl+Shift+S)：大屏沉浸式撰写剧情、角色台词与心理戏"
-            className="h-6 px-2 gap-1 text-[11px] font-semibold border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-amber-500" />
-            <span>台本</span>
-          </Button>
-
-          {/* 卡组编辑器独立窗口 */}
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => window.api.openDeckEditor()}
-            title="打开卡组编辑器 (独立窗口)"
-            className="h-6 px-2 gap-1 text-[11px] font-semibold border-border/80 text-foreground hover:bg-muted"
-          >
-            <SquareStack className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>卡组</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => {
-              if (confirm('确认清空当前对局场面？')) {
-                resetDuel()
-              }
-            }}
-            title="清空重置局面"
-            className="text-muted-foreground hover:text-destructive"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </Button>
-
-          <Separator orientation="vertical" className="h-4 mx-0.5" />
-
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={handleSaveProject}
-            title="保存工程文件 (Ctrl+S)"
-            className="h-6 bg-background/60"
-          >
-            <Save className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>保存</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={handleImportLua}
-            title="导入 ocgcore Lua 脚本 (Ctrl+I)"
-            className="h-6 bg-background/60"
-          >
-            <Upload className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>导入</span>
-          </Button>
-
-          {/* 核心动作导出：若人数不支持 ocgcore 导出则置灰禁用 */}
-          {(() => {
-            const canExport = isExportableMatch(state.matchConfig)
-            return (
-              <Button
-                size="xs"
-                onClick={handleExportLua}
-                disabled={!canExport}
-                title={
-                  canExport
-                    ? '导出符合 ocgcore 标准的 Lua 决斗脚本 (Ctrl+E)'
-                    : '当前人数配置仅用于剧情编排，ocgcore 仅支持 1v1 与 2v2 双打导出'
-                }
-                className={cn(
-                  'h-6 px-2.5 font-semibold transition-colors',
-                  canExport
-                    ? 'bg-blue-600 hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400 text-white'
-                    : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
-                )}
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>导出 Lua</span>
-              </Button>
-            )
-          })()}
         </div>
       </div>
 

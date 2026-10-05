@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent
+} from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   Plus,
   Check,
   Loader2,
@@ -11,7 +21,6 @@ import {
   Pencil,
   MoreHorizontal,
   AlertCircle,
-  Boxes,
   Image as ImageIcon
 } from 'lucide-react'
 import {
@@ -33,6 +42,7 @@ import { useAgentStore } from '../../stores/useAgentStore'
 import { Button } from '../ui/button'
 import { Switch } from '../ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { ProviderLogo } from './components/ProviderLogo'
 import { cn } from '../../lib/utils'
 
 export type AgentSettingsSection = 'model-settings' | 'chat'
@@ -101,8 +111,15 @@ interface ResolvedSelection {
 }
 
 export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ section }) => {
-  const { config, presets, loadPresets, upsertProvider, removeProvider, selectModel } =
-    useAgentStore()
+  const {
+    config,
+    presets,
+    loadPresets,
+    upsertProvider,
+    removeProvider,
+    reorderProviders,
+    selectModel
+  } = useAgentStore()
 
   const [selection, setSelection] = useState<string | null>(null)
   const [navSearch, setNavSearch] = useState('')
@@ -186,7 +203,9 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
     setSelection(`provider:${id}`)
   }
 
-  const deleteProvider = (providerId: string): void => {
+  // 删除自定义供应商：二次确认，避免误点丢失已配置的 API Key；删除后选中项顺延
+  const deleteProvider = (providerId: string, name: string): void => {
+    if (!confirm(`确认删除供应商「${name}」？\n该供应商下的 API Key 与模型列表将一并移除。`)) return
     const remainingCustom = customProviders.filter((p) => p.id !== providerId)
     removeProvider(providerId)
     const nextSelection = remainingCustom[0]
@@ -195,6 +214,18 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
         ? `preset:${presetProviders[0].preset.id}`
         : null
     setSelection(nextSelection)
+  }
+
+  // 自定义供应商拖拽排序：仅在按住一小段距离后才启动，避免与点击选中冲突
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 4 }
+    })
+  )
+
+  const handleCustomReorder = ({ active, over }: DragEndEvent): void => {
+    if (!over || active.id === over.id) return
+    reorderProviders(String(active.id), String(over.id))
   }
 
   return (
@@ -247,6 +278,8 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
                           active={effectiveSelection === key}
                           label={preset.name}
                           status={configured ? resolveProviderStatus(configured) : 'unavailable'}
+                          presetId={preset.id}
+                          badge={preset.badge}
                           onClick={() => setSelection(key)}
                         />
                       )
@@ -258,27 +291,41 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
                   <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
                     自定义供应商
                   </div>
-                  <div className="flex flex-col gap-0.5">
-                    {customProviders.map((provider) =>
-                      matchesQuery(provider.name, provider.baseUrl, provider.models) ? (
-                        <NavItem
-                          key={provider.id}
-                          active={effectiveSelection === `provider:${provider.id}`}
-                          label={provider.name}
-                          status={resolveProviderStatus(provider)}
-                          onClick={() => setSelection(`provider:${provider.id}`)}
-                        />
-                      ) : null
-                    )}
-                    <button
-                      type="button"
-                      onClick={openAddProvider}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleCustomReorder}
+                  >
+                    <SortableContext
+                      items={customProviders.map((p) => p.id)}
+                      strategy={verticalListSortingStrategy}
                     >
-                      <Plus className="w-3 h-3 shrink-0" />
-                      <span className="text-[11px] font-medium">新供应商</span>
-                    </button>
-                  </div>
+                      <div className="flex flex-col gap-0.5">
+                        {customProviders.map((provider) =>
+                          matchesQuery(provider.name, provider.baseUrl, provider.models) ? (
+                            <NavItem
+                              key={provider.id}
+                              active={effectiveSelection === `provider:${provider.id}`}
+                              label={provider.name}
+                              status={resolveProviderStatus(provider)}
+                              presetId={provider.presetId}
+                              sortable
+                              sortId={provider.id}
+                              onClick={() => setSelection(`provider:${provider.id}`)}
+                            />
+                          ) : null
+                        )}
+                        <button
+                          type="button"
+                          onClick={openAddProvider}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                        >
+                          <Plus className="w-3 h-3 shrink-0" />
+                          <span className="text-[11px] font-medium">新供应商</span>
+                        </button>
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 </div>
               </div>
             </div>
@@ -293,7 +340,7 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
                   activeProviderId={config.provider}
                   activeModelId={config.model}
                   onUpsert={upsertProvider}
-                  onRemove={() => deleteProvider(resolved.provider.id)}
+                  onRemove={() => deleteProvider(resolved.provider.id, resolved.provider.name)}
                   onSelectModel={selectModel}
                 />
               ) : (
@@ -315,23 +362,50 @@ interface NavItemProps {
   active: boolean
   label: string
   status: ProviderStatus
+  presetId?: string
+  badge?: string
+  /** 传入则该行可拖拽排序（用于自定义供应商） */
+  sortable?: boolean
+  /** 拖拽排序用的稳定唯一 id（供应商 id） */
+  sortId?: string
   onClick: () => void
 }
 
-function NavItem({ active, label, status, onClick }: NavItemProps): React.JSX.Element {
+function NavItem({
+  active,
+  label,
+  status,
+  presetId,
+  badge,
+  sortable,
+  sortId,
+  onClick
+}: NavItemProps): React.JSX.Element {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: sortId ?? label,
+    disabled: !sortable
+  })
+
   return (
     <button
       type="button"
+      ref={setNodeRef}
       onClick={onClick}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
-        'flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors',
+        'group/nav flex w-full items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors',
+        isDragging && 'z-10 opacity-60 shadow-lg ring-1 ring-primary/40',
+        sortable && 'cursor-grab active:cursor-grabbing',
         active
           ? 'bg-accent/70 text-foreground'
           : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
       )}
+      {...attributes}
+      {...listeners}
     >
-      <StatusDot status={status} />
+      <ProviderLogo presetId={presetId} badge={badge} className="w-3.5 h-3.5 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-[11px] font-medium">{label}</span>
+      <StatusDot status={status} />
     </button>
   )
 }
@@ -513,7 +587,7 @@ function ProviderDetailPanel({
                 : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
             )}
           >
-            {preset?.badge ?? <Boxes className="w-3.5 h-3.5" />}
+            <ProviderLogo presetId={provider.presetId} badge={preset?.badge} className="w-4 h-4" />
           </div>
           {renaming ? (
             <input

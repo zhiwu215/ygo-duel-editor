@@ -29,6 +29,18 @@ export interface CardSearchParams {
   atk?: number // 攻击力
   def?: number // 守备力
   /**
+   * 攻击力比较符 (参考 YGOPro 的 filter_atktype)：为空/'eq' 视为 '='
+   */
+  atkOp?: NumericCompareOp
+  /**
+   * 守备力比较符
+   */
+  defOp?: NumericCompareOp
+  /**
+   * 星级比较符 (参考 YGOPro 的 filter_lvtype)
+   */
+  levelOp?: NumericCompareOp
+  /**
    * 8位卡密精准匹配
    */
   code?: number // 8位卡密精准匹配
@@ -37,6 +49,11 @@ export interface CardSearchParams {
   limit?: number // 每次返回条数 (默认 50)
   offset?: number // 分页偏移量
 }
+
+/**
+ * 数值维度筛选的比较符 (对齐 YGOPro 的 filter_*type 语义)
+ */
+export type NumericCompareOp = 'eq' | 'gte' | 'lte'
 
 /**
  * 卡片检索返回结果

@@ -1,7 +1,14 @@
 import Database from 'better-sqlite3'
-import { CdbCard, CardSearchParams, CardSearchResult } from '@shared/index'
+import { CdbCard, CardSearchParams, CardSearchResult, NumericCompareOp } from '@shared/index'
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
+
+/** 数值比较符 → SQL 运算符 (仅白名单，避免把外部字符串直接拼进 SQL) */
+const COMPARATOR: Record<NumericCompareOp, string> = {
+  eq: '=',
+  gte: '>=',
+  lte: '<='
+}
 
 export class CdbService {
   private db: Database.Database | null = null
@@ -178,21 +185,22 @@ export class CdbService {
       args.push(params.race)
     }
 
-    // 等级/阶级/连接值过滤 (取低 8 位: d.level & 0xff)
+    // 等级/阶级/连接值过滤 (取低8 位: d.level & 0xff)
     if (params.level !== undefined && params.level > 0) {
-      baseWhere += ' AND (d.level & 255) = ?'
+      const lvOp = COMPARATOR[params.levelOp ?? 'eq']
+      baseWhere += ` AND (d.level & 255) ${lvOp} ?`
       args.push(params.level)
     }
 
-    // 攻击力过滤
+    // 攻击力过滤 (支持 = / >= / <=，对齐 YGOPro 的 filter_atktype)
     if (params.atk !== undefined && params.atk >= 0) {
-      baseWhere += ' AND d.atk = ?'
+      baseWhere += ` AND d.atk ${COMPARATOR[params.atkOp ?? 'eq']} ?`
       args.push(params.atk)
     }
 
     // 守备力过滤
     if (params.def !== undefined && params.def >= 0) {
-      baseWhere += ' AND d.def = ?'
+      baseWhere += ` AND d.def ${COMPARATOR[params.defOp ?? 'eq']} ?`
       args.push(params.def)
     }
 

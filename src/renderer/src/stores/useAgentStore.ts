@@ -1,10 +1,15 @@
 import { create } from 'zustand'
 import {
+  AGENT_BOARD_FACING_TO_POSITION,
+  AGENT_BOARD_ZONE_TO_LOCATION,
+  AgentBoardCardPlacement,
+  AgentBoardSetupProposal,
   AgentModelConfig,
   AgentProviderConfig,
   AgentProviderPreset,
   AgentStepProposal,
   AgentStreamEvent,
+  CdbCard,
   DuelPuzzleState,
   createProviderFromPreset,
   normalizeAgentApiFormat,
@@ -29,6 +34,10 @@ export interface AgentChatMessage {
   status?: string
   toolCalls?: AgentToolCallItem[]
   proposals?: AgentStepProposal[]
+  /** AI 复盘出的场面布局提案，待用户在预览卡中确认后才写入决斗场 */
+  boardSetup?: AgentBoardSetupProposal
+  /** 该条布局提案是否已被用户确认应用 */
+  boardSetupApplied?: boolean
   /** 该条消息引用过的卡片（仅用于在记录中还原「AI 当时看到了什么」，不拼进 content） */
   attachedCards?: { id: number; name: string }[]
   createdAt: number
@@ -69,6 +78,33 @@ interface AgentStoreState {
   /** 丢弃 AI 会话并重开（同时清空本地消息） */
   resetSession: () => Promise<void>
   applyProposalsToDuel: (proposals: AgentStepProposal[]) => void
+  /** 把预览卡中确认过的场面布局写入决斗场 */
+  applyBoardSetup: (setup: AgentBoardSetupProposal) => Promise<{ ok: boolean; error?: string }>
+  /** 把某条消息的布局提案标记为已应用（预览卡按钮态） */
+  markBoardSetupApplied: (messageId: string) => void
+  /** 丢弃某条消息的布局提案（用户点「放弃」） */
+  dismissBoardSetup: (messageId: string) => void
+}
+
+/**
+ * 模型没给表示形式时的区域惯例。
+ *
+ * 与 `useDuelStore.addCardToZone` 的默认值保持一致，避免同一次布局里
+ * 「显式填了的卡」和「没填的卡」表现规则不一致。
+ */
+function defaultFacingForZone(zone: AgentBoardCardPlacement['location']): number {
+  switch (zone) {
+    case 'SZONE':
+    case 'HAND':
+    case 'DECK':
+    case 'EXTRA':
+      return AGENT_BOARD_FACING_TO_POSITION.FACEDOWN
+    case 'GRAVE':
+    case 'REMOVED':
+      return AGENT_BOARD_FACING_TO_POSITION.FACEUP
+    default:
+      return AGENT_BOARD_FACING_TO_POSITION.FACEUP_ATTACK
+  }
 }
 
 const DEFAULT_CONFIG: AgentModelConfig = {
@@ -199,6 +235,12 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
               m.id === lastMsg.id ? { ...m, proposals: event.proposals } : m
             )
           })
+        } else if (event.type === 'board_setup_ready') {
+          set({
+            messages: messages.map((m) =>
+              m.id === lastMsg.id ? { ...m, boardSetup: event.setup, boardSetupApplied: false } : m
+            )
+          })
         } else if (event.type === 'done') {
           set({
             isGenerating: false,
@@ -208,6 +250,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
                     ...m,
                     content: event.fullText || m.content,
                     proposals: event.proposals || m.proposals,
+                    boardSetup: event.boardSetup || m.boardSetup,
                     status: undefined
                   }
                 : m
@@ -474,5 +517,90 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
         lpChange: p.lpChange
       })
     }
+  },
+
+  /**
+   * 把预览卡中确认过的场面布局写入决斗场
+   *
+   * 卡密 → CdbCard 的解析放在这里而不是主进程：`addCardToZone` 体系要的是
+   * 完整卡对象（卡名、攻防、卡图都靠它），而主进程那边的布局提案刻意只带卡密，
+   * 避免把整张卡库塞进事件载荷。渲染层已有 `getCardsByIds` 通道，直接复用。
+   */
+  applyBoardSetup: async (setup) => {
+    const placements: AgentBoardCardPlacement[] = setup.cards ?? []
+    if (placements.length === 0 && (setup.lp ?? []).length === 0) {
+      return { ok: false, error: '该布局提案没有任何可落位的内容' }
+    }
+
+    let dict: Record<number, CdbCard> = {}
+    const knownCodes = placements.filter((p) => !p.isUnknown).map((p) => p.code)
+    if (knownCodes.length > 0) {
+      try {
+        dict = await window.api.getCardsByIds(knownCodes)
+      } catch (err) {
+        console.error('[useAgentStore] applyBoardSetup 解析卡密失败:', err)
+        return { ok: false, error: '卡库查询失败，未能读取卡片数据' }
+      }
+    }
+
+    const resolved = placements
+      .map((p) => {
+        // 未知盖卡：没有卡面数据，构造一个只有 code:0 的空壳交给 store，
+        // 渲染层会按卡背显示。不走 getCardsByIds（查了也查不到）。
+        if (p.isUnknown) {
+          return {
+            card: { id: 0, name: p.cardName || '未知盖卡' } as CdbCard,
+            controller: p.side,
+            location: AGENT_BOARD_ZONE_TO_LOCATION[p.location],
+            sequence: p.sequence ?? 0,
+            position: p.position
+              ? AGENT_BOARD_FACING_TO_POSITION[p.position]
+              : defaultFacingForZone(p.location),
+            duelistName: p.duelistName
+          }
+        }
+        const card = dict[p.code]
+        if (!card) return null
+        return {
+          card,
+          controller: p.side,
+          location: AGENT_BOARD_ZONE_TO_LOCATION[p.location],
+          sequence: p.sequence ?? 0,
+          position: p.position
+            ? AGENT_BOARD_FACING_TO_POSITION[p.position]
+            : defaultFacingForZone(p.location),
+          duelistName: p.duelistName,
+          customAtk: p.customAtk,
+          customDef: p.customDef
+        }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+
+    if (placements.length > 0 && resolved.length === 0) {
+      return { ok: false, error: '提案中的卡密在当前卡库里都查不到，无法落位' }
+    }
+
+    useDuelStore.getState().applyBoardSetup({
+      lp: setup.lp ?? [],
+      cards: resolved,
+      clearExisting: setup.clearExisting
+    })
+    return { ok: true }
+  },
+
+  markBoardSetupApplied: (messageId) => {
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, boardSetupApplied: true } : m
+      )
+    }))
+  },
+
+  dismissBoardSetup: (messageId) => {
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, boardSetup: undefined } : m
+      )
+    }))
   }
 }))

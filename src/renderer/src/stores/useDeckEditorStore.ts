@@ -14,6 +14,8 @@ interface DeckEditorState {
 
   // 卡组库管理
   deckList: DeckData[]
+  /** 分组名列表（独立实体，可为空分组） */
+  deckGroups: string[]
   selectedGroup: string | null
   searchKeyword: string
   isLoadingLibrary: boolean
@@ -27,6 +29,14 @@ interface DeckEditorState {
   // 动作：卡组库
   setViewMode: (mode: 'library' | 'editor') => void
   fetchDeckList: () => Promise<void>
+  /** 新建分组；重名或空名时返回 false */
+  createGroup: (name: string) => Promise<boolean>
+  /** 重命名分组（同步组内卡组）；重名时返回 false */
+  renameGroup: (oldName: string, newName: string) => Promise<boolean>
+  /** 删除分组，组内卡组退回未分组 */
+  deleteGroup: (name: string) => Promise<boolean>
+  /** 把卡组移动到分组，空串表示移回未分组 */
+  assignDeckGroup: (deckId: string, group: string) => Promise<boolean>
   setSelectedGroup: (group: string | null) => void
   setSearchKeyword: (keyword: string) => void
   openDeck: (targetDeck: DeckData) => Promise<void>
@@ -72,6 +82,7 @@ const INITIAL_DECK: DeckData = {
 export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
   viewMode: 'library',
   deckList: [],
+  deckGroups: [],
   selectedGroup: null,
   searchKeyword: '',
   isLoadingLibrary: false,
@@ -88,13 +99,13 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
   fetchDeckList: async (): Promise<void> => {
     set({ isLoadingLibrary: true })
     try {
-      if (window.api?.getDeckList) {
-        const list = await window.api.getDeckList()
-        set({ deckList: list })
+      if (window.api?.getDeckLibrary) {
+        const library = await window.api.getDeckLibrary()
+        set({ deckList: library.decks, deckGroups: library.groups })
 
         // 收集所有卡组封面卡密，批量获取详情以显示封面卡图
         const coverCodes = new Set<number>()
-        for (const d of list) {
+        for (const d of library.decks) {
           if (d.coverCard) {
             coverCodes.add(d.coverCard)
           } else if (d.extra.length > 0) {
@@ -110,12 +121,50 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
             cardDetails: { ...prev.cardDetails, ...cardsMap }
           }))
         }
+      } else if (window.api?.getDeckList) {
+        set({ deckList: await window.api.getDeckList() })
       }
     } catch (err) {
       console.error('[DeckEditorStore] fetchDeckList error:', err)
     } finally {
       set({ isLoadingLibrary: false })
     }
+  },
+
+  createGroup: async (name) => {
+    const ok = await window.api.createDeckGroup(name)
+    // 无论成败都重新拉取：重名等失败路径下分组列表不该停留在旧快照
+    await get().fetchDeckList()
+    if (ok && !get().selectedGroup) {
+      set({ selectedGroup: name.trim() })
+    }
+    return ok
+  },
+
+  renameGroup: async (oldName, newName) => {
+    const ok = await window.api.renameDeckGroup(oldName, newName)
+    await get().fetchDeckList()
+    // 正看着这个分组时，选中项要跟着改名，否则筛选会突然失效
+    if (get().selectedGroup === oldName) set({ selectedGroup: newName.trim() })
+    return ok
+  },
+
+  deleteGroup: async (name) => {
+    const ok = await window.api.deleteDeckGroup(name)
+    await get().fetchDeckList()
+    if (get().selectedGroup === name) set({ selectedGroup: null })
+    return ok
+  },
+
+  assignDeckGroup: async (deckId, group) => {
+    const ok = await window.api.assignDeckGroup(deckId, group)
+    if (ok) {
+      // 只改本地 state，不整库重拉：拖拽归组是高频操作，走一趟磁盘 + 重新取卡图太重
+      set((prev) => ({
+        deckList: prev.deckList.map((d) => (d.id === deckId ? { ...d, group } : d))
+      }))
+    }
+    return ok
   },
 
   setSelectedGroup: (group): void => {

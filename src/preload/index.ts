@@ -7,6 +7,7 @@ import {
   AppConfig,
   DeckData,
   AgentStreamEvent,
+  ScreenplayDoc,
   SettingsSectionId
 } from '@shared/index'
 
@@ -23,6 +24,27 @@ const api: IpcApi = {
   importLuaFile: () => ipcRenderer.invoke('file:import-lua'),
   exportScreenplayFile: (state: DuelPuzzleState) =>
     ipcRenderer.invoke('file:export-screenplay-md', state),
+
+  // 台本资源库
+  getScreenplayList: () => ipcRenderer.invoke('library:screenplay-list'),
+  createScreenplay: (title: string) => ipcRenderer.invoke('library:screenplay-create', title),
+  saveScreenplay: (screenplay: ScreenplayDoc) =>
+    ipcRenderer.invoke('library:screenplay-save', screenplay),
+  loadScreenplay: (id: string) => ipcRenderer.invoke('library:screenplay-load', id),
+  deleteScreenplay: (id: string) => ipcRenderer.invoke('library:screenplay-delete', id),
+  duplicateScreenplay: (id: string) => ipcRenderer.invoke('library:screenplay-duplicate', id),
+  applyScreenplayToDuel: (id: string) => ipcRenderer.invoke('library:screenplay-apply', id),
+
+  // 小说资料库
+  getNovelList: () => ipcRenderer.invoke('library:novel-list'),
+  importNovelFile: () => ipcRenderer.invoke('library:novel-import'),
+  getNovelChapters: (novelId: string) =>
+    ipcRenderer.invoke('library:novel-chapters', novelId),
+  getNovelChapterContent: (novelId: string, chapterId: string) =>
+    ipcRenderer.invoke('library:novel-chapter-content', novelId, chapterId),
+  deleteNovel: (id: string) => ipcRenderer.invoke('library:novel-delete', id),
+  resplitNovel: (id: string) => ipcRenderer.invoke('library:novel-resplit', id),
+
   testRunOcgcore: () => ipcRenderer.invoke('ocgcore:test-run'),
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),

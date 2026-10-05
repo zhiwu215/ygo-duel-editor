@@ -1,6 +1,6 @@
-import { ipcMain, shell, BrowserWindow } from 'electron'
+import { ipcMain, shell, BrowserWindow, dialog } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import { CardSearchParams, DuelPuzzleState, AppConfig } from '@shared/index'
+import { CardSearchParams, DuelPuzzleState, AppConfig, ScreenplayDoc } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
 import { configService } from '../services/configService'
@@ -9,6 +9,7 @@ import { deckService } from '../services/deckService'
 import { ocgcoreService } from '../services/ocgcoreService'
 import { agentService } from '../services/agentService'
 import { settingsWindowService } from '../services/settingsWindowService'
+import { libraryService } from '../services/libraryService'
 
 export function registerAllIpcHandlers(): void {
   // CDB 数据库操作
@@ -40,6 +41,75 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('file:export-screenplay-md', async (_, state: DuelPuzzleState) => {
     return fileService.exportScreenplayFile(state)
+  })
+
+  // 台本资源库
+  ipcMain.handle('library:screenplay-list', async () => {
+    return libraryService.getScreenplayList()
+  })
+
+  ipcMain.handle('library:screenplay-create', async (_, title: string) => {
+    return libraryService.createScreenplay(title)
+  })
+
+  ipcMain.handle('library:screenplay-save', async (_, screenplay: ScreenplayDoc) => {
+    return libraryService.saveScreenplay(screenplay)
+  })
+
+  ipcMain.handle('library:screenplay-load', async (_, id: string) => {
+    return libraryService.loadScreenplay(id)
+  })
+
+  ipcMain.handle('library:screenplay-delete', async (_, id: string) => {
+    return libraryService.deleteScreenplay(id)
+  })
+
+  ipcMain.handle('library:screenplay-duplicate', async (_, id: string) => {
+    return libraryService.duplicateScreenplay(id)
+  })
+
+  ipcMain.handle('library:screenplay-apply', async (_, id: string) => {
+    const res = libraryService.loadScreenplay(id)
+    if (!res.success || !res.screenplay) {
+      return { success: false, error: '台本不存在' }
+    }
+    return { success: true, steps: res.screenplay.steps, title: res.screenplay.title }
+  })
+
+  // 小说资料库
+  ipcMain.handle('library:novel-list', async () => {
+    return libraryService.getNovelList()
+  })
+
+  ipcMain.handle('library:novel-import', async () => {
+    const picked = await dialog.showOpenDialog(BrowserWindow.getFocusedWindow()!, {
+      title: '导入小说资料',
+      properties: ['openFile'],
+      filters: [
+        { name: '文本小说', extensions: ['txt', 'md', 'epub'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    })
+    if (picked.canceled || picked.filePaths.length === 0) {
+      return { success: false }
+    }
+    return libraryService.importNovelFile(picked.filePaths)
+  })
+
+  ipcMain.handle('library:novel-chapters', async (_, novelId: string) => {
+    return libraryService.getNovelChapters(novelId)
+  })
+
+  ipcMain.handle('library:novel-chapter-content', async (_, novelId: string, chapterId: string) => {
+    return libraryService.getNovelChapterContent(novelId, chapterId)
+  })
+
+  ipcMain.handle('library:novel-delete', async (_, id: string) => {
+    return libraryService.deleteNovel(id)
+  })
+
+  ipcMain.handle('library:novel-resplit', async (_, id: string) => {
+    return libraryService.resplitNovel(id)
   })
 
   // 规则引擎校验与探针

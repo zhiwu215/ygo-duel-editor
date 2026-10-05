@@ -1,7 +1,7 @@
 import { CdbCard } from './card'
 import { DuelPuzzleState, DuelType } from './duel'
 import { DeckData, DeckLibrary } from './deck'
-import { DuelPhase, DuelActionType } from './story'
+import { DuelPhase, DuelActionType, DuelStep } from './story'
 
 /**
  * 卡片检索查询参数
@@ -198,6 +198,8 @@ export interface AgentStepProposal {
   description?: string
   /** 连锁层级序号 (如 C1 / C2) */
   chainIndex?: number
+  /** 转写来源的原文短句 (小说文本转写时保留，便于在提案卡中人工核对顺序；不进最终台本的数据面) */
+  sourceQuote?: string
   /** 动作导致的生命值数值变动 */
   lpChange?: {
     /** 发生生命值变动的玩家：0 = 我方，1 = 对方 */
@@ -317,6 +319,24 @@ export type AgentStreamEvent =
     }
 
 /**
+ * 随消息附加的小说素材定位器
+ *
+ * 只传 id 不传正文：正文由主进程在收到消息时从小说资料库读取并缓存，
+ * 模型经 read_novel_source 工具分段读取。整章动辄数万字，塞进 prompt
+ * 既挤占上下文，也会让多轮对话反复携带同一份内容。
+ */
+export interface AgentNovelSourceRef {
+  /** 小说 id（资料库文件名去扩展名） */
+  novelId: string
+  /** 章节 id（如 ch_3） */
+  chapterId: string
+  /** 展示用标题（小说名 · 章节名） */
+  title: string
+  /** 章节字数（渲染端 chip 展示用；主进程不消费） */
+  wordCount?: number
+}
+
+/**
  * 发送给 AI 的消息参数
  */
 export interface AgentSendMessageParams {
@@ -324,6 +344,8 @@ export interface AgentSendMessageParams {
   prompt: string
   /** 当前决斗场面的完整快照，传入后 AI 可感知双方场上卡片、手牌与生命值 */
   boardState?: DuelPuzzleState
+  /** 随消息附加的小说素材（文本对局转写用），主进程按需读取正文 */
+  novelSource?: AgentNovelSourceRef
   /** 临时覆盖的大模型调用配置 */
   configOverride?: Partial<AgentModelConfig>
 }
@@ -417,6 +439,81 @@ export interface DuelProjectMeta {
 export type SettingsSectionId = 'appearance' | 'paths' | 'model-settings' | 'chat'
 
 /**
+ * 台本文档的完整内容（落盘格式）
+ *
+ * 只存剧情编排相关：步骤序列 + 台词。**刻意不存盘面与卡组**——
+ * 台本是「剧情层」，盘面是「战场层」，同一份剧情可以配不同的卡组。
+ */
+export interface ScreenplayDoc {
+  id: string
+  title: string
+  synopsis?: string
+  tags?: string[]
+  /** 决斗步骤（含台词 / 内心独白 / 连锁序号） */
+  steps: DuelStep[]
+  updatedAt: number
+  /** 格式版本，便于将来迁移 */
+  version: string
+}
+
+/**
+ * 台本元数据 (台本资源库列表项)
+ *
+ * 与 `DuelProjectMeta` 的区别：那份描述的是**整局工程**（盘面 + 步骤 + 场景），
+ * 存成单个 `.ygoduel` 文件；台本只描述**剧情编排**（步骤 + 台词），
+ * 可以脱离工程独立存在，用于沉淀创作灵感、后续再挑合适的盘面来填。
+ */
+export interface ScreenplayMeta {
+  id: string // 台本唯一标识（文件名去扩展名）
+  filePath: string // 台本文件绝对路径
+  title: string // 台本标题
+  /** 一句话剧情概要 / 创作灵感来源 */
+  synopsis?: string
+  /** 标签（如 '暗游戏', '海马濑人', '剧场版'） */
+  tags?: string[]
+  stepCount: number // 步骤数量
+  updatedAt: number // 最后修改时间戳 (ms)
+  /** 台本内引用的卡密列表，供列表页展示「涉及卡片」 */
+  cardCodes?: number[]
+}
+
+/** 小说资料的处理进度 */
+export type NovelProgress = 'raw' | 'splitting' | 'split' | 'done'
+
+/**
+ * 小说资料元数据 (资料库列表项)
+ *
+ * 用于把网上下载的小说 / 同人文导入后按章节拆分，
+ * 再挑选章节段落喂给 AI 编排成决斗剧情。
+ */
+export interface NovelMeta {
+  id: string
+  filePath: string // 原始文件绝对路径
+  title: string
+  author?: string
+  /** 正文字数（由主进程统计） */
+  wordCount?: number
+  progress: NovelProgress
+  chapterCount?: number
+  updatedAt: number
+}
+
+/** 小说中的一个章节（拆分后的可选取单元） */
+export interface NovelChapter {
+  id: string
+  /** 所属小说 id */
+  novelId: string
+  /** 章节标题（取自原文标题行，缺失时用序号兜底） */
+  title: string
+  /** 章节序号，从 1 开始 */
+  index: number
+  /** 正文字数 */
+  wordCount: number
+  /** 章节正文（按需读取，列表页不返回） */
+  content?: string
+}
+
+/**
  * IPC 通道名称与接口契约
  */
 export interface IpcApi {
@@ -436,6 +533,33 @@ export interface IpcApi {
   exportScreenplayFile: (
     state: DuelPuzzleState
   ) => Promise<{ success: boolean; filePath?: string; error?: string }>
+
+  // 台本资源库（剧情编排独立于决斗工程存储）
+  getScreenplayList: () => Promise<ScreenplayMeta[]>
+  /** 新建空白台本，返回其 id */
+  createScreenplay: (title: string) => Promise<{ success: boolean; id?: string; error?: string }>
+  /** 保存台本内容；省略 id 则按 title 匹配已有台本 */
+  saveScreenplay: (screenplay: ScreenplayDoc) => Promise<{ success: boolean; error?: string }>
+  loadScreenplay: (id: string) => Promise<{ success: boolean; screenplay?: ScreenplayDoc }>
+  deleteScreenplay: (id: string) => Promise<{ success: boolean; error?: string }>
+  duplicateScreenplay: (id: string) => Promise<{ success: boolean; id?: string; error?: string }>
+  /** 把台本步骤套用到当前决斗场（不覆盖已有卡组与盘面设置） */
+  applyScreenplayToDuel: (id: string) => Promise<{ success: boolean; error?: string }>
+
+  // 小说资料库（导入 → 章节拆分 → 供 AI 编排）
+  getNovelList: () => Promise<NovelMeta[]>
+  /** 导入本地小说文件（txt / md / epub），自动按章节拆分 */
+  importNovelFile: () => Promise<{ success: boolean; novel?: NovelMeta; error?: string }>
+  /** 读取某本小说的章节列表（不含正文） */
+  getNovelChapters: (novelId: string) => Promise<NovelChapter[]>
+  /** 读取指定章节正文，供喂给 AI */
+  getNovelChapterContent: (
+    novelId: string,
+    chapterId: string
+  ) => Promise<{ success: boolean; content?: string; error?: string }>
+  deleteNovel: (id: string) => Promise<{ success: boolean; error?: string }>
+  /** 重新按章节拆分（原文有更新时） */
+  resplitNovel: (id: string) => Promise<{ success: boolean; novel?: NovelMeta; error?: string }>
 
   // 规则引擎校验与模拟
   testRunOcgcore: () => Promise<{

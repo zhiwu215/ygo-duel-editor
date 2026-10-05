@@ -63,40 +63,50 @@ export interface CdbSelectResult {
   error?: string
 }
 
-/**
- * AI 决斗顾问大模型配置
- */
+export type AgentApiFormat = 'openai-chat-completions' | 'anthropic-messages' | 'openai-responses'
+
+export interface AgentProviderModelConfig {
+  id: string
+  name?: string
+  supportsReasoning?: boolean
+  supportsVision?: boolean
+  contextWindow?: number
+  enabled: boolean
+  custom?: boolean
+}
+
+export interface AgentProviderConfig {
+  id: string
+  name: string
+  baseUrl: string
+  apiFormat?: AgentApiFormat
+  apiKey: string
+  enabled: boolean
+  presetId?: string
+  models: AgentProviderModelConfig[]
+}
+
 export interface AgentModelConfig {
+  providers?: AgentProviderConfig[]
   provider?: string
   baseUrl: string
   apiKey: string
-  /** 模型名称 */
   model: string
-  /** 自定义系统提示词 */
+  apiFormat?: AgentApiFormat
   systemPrompt?: string
-  /** 是否启用深度思考/推理模式 */
   enableReasoning?: boolean
-  /** 模型上下文窗口上限 (tokens)，用于 Pi 的 token 估算与自动压缩；缺省 131072 */
   contextWindow?: number
-  /** 单次回复最大输出 tokens；缺省 8192 */
   maxTokens?: number
 }
 
-/**
- * AI 提供商预设（设置页「常用提供商」区展示）
- *
- * 参考 OpenCode 设计：每个供应商携带一个常用模型集合，
- * 模型选择弹层按供应商分组、列出每个模型，用户在弹层里直接挑选。
- */
 export interface AgentProviderPreset {
-  /** 预设唯一 ID（如 'deepseek'） */
   id: string
-  /** 供应商显示名称 */
   name: string
-  /** 默认接口地址 */
   baseUrl: string
-  /** 该供应商下的常用模型列表 */
-  models: AgentModelInfo[]
+  apiFormat?: AgentApiFormat
+  apiKeyUrl?: string
+  description?: string
+  badge?: string
 }
 
 /**
@@ -203,18 +213,17 @@ export interface AgentSendMessageResult {
 }
 
 /**
- * AI 提供商下可用模型信息
+ * 从厂商 /v1/models 接口实时拉取的模型信息
  *
- * 同时用于：① 预设里的「常用模型」列表（带 name/supportsReasoning）；
- * ② 从厂商 /v1/models 接口实时拉取的模型（只有 id/ownedBy，name 由 UI 回退到 id）。
+ * 接口只保证返回 id，其余字段为可选补充；name 缺省时 UI 回退到 id。
  */
 export interface AgentModelInfo {
   id: string
   ownedBy?: string
-  /** 模型显示名（如「DeepSeek Chat (V3)」）；未提供时 UI 回退到 id */
   name?: string
-  /** 是否支持深度思考/推理模式（如 deepseek-reasoner、qwen3 思考模式） */
   supportsReasoning?: boolean
+  supportsVision?: boolean
+  contextWindow?: number
 }
 
 /**
@@ -360,6 +369,7 @@ export interface IpcApi {
   agentGetProviderPresets: () => Promise<AgentProviderPreset[]>
   /** 打开全局设置独立窗口 (VSCode 风格左下角入口) */
   openSettingsWindow: () => Promise<void>
+  openExternal: (url: string) => Promise<boolean>
   /** 订阅全局配置变更广播 (主题 / 路径 / AI 配置跨窗口同步)，返回退订函数 */
   onConfigUpdated: (callback: () => void) => () => void
   onAgentEvent: (callback: (event: AgentStreamEvent) => void) => () => void

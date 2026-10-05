@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { X, Save } from 'lucide-react'
 import { DuelType, DuelPuzzleState } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
@@ -37,19 +37,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
   const [localHint, setLocalHint] = useState(() => state.hint || '')
   const [localType, setLocalType] = useState<DuelType>(() => state.duelType || 'full')
   const [isSaving, setIsSaving] = useState(false)
-
-  const titleInputRef = useRef<HTMLInputElement>(null)
-
-  // 弹窗挂载时自动聚焦并全选标题文本
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (titleInputRef.current) {
-        titleInputRef.current.focus()
-        titleInputRef.current.select()
-      }
-    }, 50)
-    return () => clearTimeout(timer)
-  }, [])
 
   // 处理全局按键 (Esc 取消)
   useEffect(() => {
@@ -157,7 +144,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
           </label>
           <Input
             id="save-project-title"
-            ref={titleInputRef}
             type="text"
             value={localTitle}
             onChange={(e) => setLocalTitle(e.target.value)}

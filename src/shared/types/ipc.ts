@@ -47,6 +47,23 @@ export interface CardSearchResult {
 }
 
 /**
+ * cards.cdb 连接状态 (用于引导未加载数据库的新用户)
+ */
+export interface CdbStatusResult {
+  ready: boolean
+  path: string | null
+}
+
+/**
+ * 选择 cards.cdb 文件的结果 (失败时携带原因，供 UI 提示)
+ */
+export interface CdbSelectResult {
+  success: boolean
+  path?: string
+  error?: string
+}
+
+/**
  * AI 决斗顾问大模型配置
  */
 export interface AgentModelConfig {
@@ -67,18 +84,19 @@ export interface AgentModelConfig {
 
 /**
  * AI 提供商预设（设置页「常用提供商」区展示）
+ *
+ * 参考 OpenCode 设计：每个供应商携带一个常用模型集合，
+ * 模型选择弹层按供应商分组、列出每个模型，用户在弹层里直接挑选。
  */
 export interface AgentProviderPreset {
   /** 预设唯一 ID（如 'deepseek'） */
   id: string
-  /** 显示名称 */
+  /** 供应商显示名称 */
   name: string
   /** 默认接口地址 */
   baseUrl: string
-  /** 默认模型 */
-  model: string
-  /** 是否支持 reasoning 开关 */
-  supportsReasoning?: boolean
+  /** 该供应商下的常用模型列表 */
+  models: AgentModelInfo[]
 }
 
 /**
@@ -185,11 +203,18 @@ export interface AgentSendMessageResult {
 }
 
 /**
- * AI 提供商下可用模型信息（从厂商 /v1/models 接口实时拉取）
+ * AI 提供商下可用模型信息
+ *
+ * 同时用于：① 预设里的「常用模型」列表（带 name/supportsReasoning）；
+ * ② 从厂商 /v1/models 接口实时拉取的模型（只有 id/ownedBy，name 由 UI 回退到 id）。
  */
 export interface AgentModelInfo {
   id: string
   ownedBy?: string
+  /** 模型显示名（如「DeepSeek Chat (V3)」）；未提供时 UI 回退到 id */
+  name?: string
+  /** 是否支持深度思考/推理模式（如 deepseek-reasoner、qwen3 思考模式） */
+  supportsReasoning?: boolean
 }
 
 /**
@@ -249,10 +274,10 @@ export interface DuelProjectMeta {
  */
 export interface IpcApi {
   // CDB 数据库操作
-  selectCdbFile: () => Promise<string | null>
-  loadCdb: (path: string) => Promise<boolean>
+  selectYgoDirectory: () => Promise<CdbSelectResult>
   searchCards: (params: CardSearchParams) => Promise<CardSearchResult>
   getCardsByIds: (ids: number[]) => Promise<Record<number, CdbCard>>
+  getCdbStatus: () => Promise<CdbStatusResult>
 
   // 脚本导出与导入
   exportLuaFile: (
@@ -293,7 +318,6 @@ export interface IpcApi {
   // 用户设置
   getConfig: () => Promise<AppConfig>
   saveConfig: (config: Partial<AppConfig>) => Promise<boolean>
-  selectGameDirectory: () => Promise<string | null>
 
   // 本地卡图路径查询
   getCardImagePath: (code: number, small?: boolean) => Promise<string | null>

@@ -84,14 +84,26 @@ export class CdbService {
         return false
       }
 
-      // 关闭之前已打开的数据库
-      if (this.db) {
-        this.db.close()
-        this.db = null
+      const db = new Database(cdbPath, { readonly: true, fileMustExist: true })
+
+      // 校验是真正的卡牌数据库 (必须含 datas 与 texts 表)，避免选中任意 sqlite/其他文件
+      const probe = db
+        .prepare(
+          "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('datas','texts')"
+        )
+        .get() as { n: number } | undefined
+      if (!probe || probe.n < 2) {
+        db.close()
+        console.error(`[CdbService] Not a valid cards.cdb (missing datas/texts tables): ${cdbPath}`)
+        return false
       }
 
-      // 以只读模式连接，提升性能且不锁死游戏文件
-      this.db = new Database(cdbPath, { readonly: true, fileMustExist: true })
+      // 校验通过后才关闭旧连接，保证失败时旧数据库仍然可用
+      if (this.db) {
+        this.db.close()
+      }
+
+      this.db = db
       this.currentPath = cdbPath
       this.loadStringsConf(cdbPath)
       console.log(`[CdbService] Successfully connected to cards.cdb: ${cdbPath}`)

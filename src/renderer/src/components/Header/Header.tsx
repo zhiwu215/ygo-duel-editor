@@ -54,8 +54,9 @@ export const Header: React.FC = () => {
   const canUndo = pastStates.length > 0
   const canRedo = futureStates.length > 0
 
-  const { config, selectCdbFile, toggleTheme } = useConfigStore()
+  const { config, dbReady, selectYgoDir, toggleTheme } = useConfigStore()
   const isDark = config.theme !== 'light'
+  const dbConnected = dbReady === true || (dbReady === null && Boolean(config.cdbPath))
 
   // 保存工程对话框控制
   const [isSaveModalOpen, setIsSaveModalOpen] = React.useState(false)
@@ -228,22 +229,27 @@ export const Header: React.FC = () => {
 
           <button
             type="button"
-            onClick={selectCdbFile}
+            onClick={selectYgoDir}
             title={
-              config.cdbPath
-                ? `已连接卡库: ${config.cdbPath} (点击更换)`
-                : '未检测到 cards.cdb，点击加载卡片数据库'
+              config.gameDirectory
+                ? `YGO 主目录: ${config.gameDirectory} (点击更换)`
+                : '未设置 YGO 路径，点击选择游戏主目录'
             }
-            className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            className={cn(
+              'flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] transition-colors',
+              dbConnected
+                ? 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                : 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-semibold'
+            )}
           >
             <span
               className={cn(
                 'w-1.5 h-1.5 rounded-full shrink-0',
-                config.cdbPath ? 'bg-emerald-500' : 'bg-amber-500'
+                dbConnected ? 'bg-emerald-500' : 'bg-amber-500'
               )}
             />
             <Database className="w-3 h-3" />
-            <span>{config.cdbPath ? '卡库已连接' : '未加载卡库'}</span>
+            <span>{dbConnected ? '卡库已连接' : '未加载卡库'}</span>
           </button>
 
           <Separator orientation="vertical" className="h-3.5" />

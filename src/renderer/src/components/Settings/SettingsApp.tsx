@@ -6,7 +6,6 @@ import {
   Plug,
   Cpu,
   MessageSquareText,
-  Database,
   Folder,
   FolderKanban
 } from 'lucide-react'
@@ -47,7 +46,7 @@ const NAV_GROUPS: SettingsNavGroup[] = [
         id: 'paths',
         label: '路径与目录',
         icon: FolderOpen,
-        description: '卡片数据库、游戏目录与决斗档案保存位置'
+        description: 'YGO 主程序目录与决斗档案保存位置'
       }
     ]
   },
@@ -124,27 +123,22 @@ function AppearanceSection(): JSX.Element {
   )
 }
 
-/** 路径与目录分区：cards.cdb / 游戏目录 / 决斗档案目录 */
+/** 路径与目录分区：YGO 主程序目录 / 决斗档案目录 */
 function PathsSection(): JSX.Element {
-  const { config, selectCdbFile, selectGameDir, selectProjectsDir } = useConfigStore()
+  const { config, selectYgoDir, selectProjectsDir } = useConfigStore()
   return (
     <section className="rounded-xl border border-border bg-card/60">
       <SettingsRow
-        title="cards.cdb 卡片数据库"
-        description={config.cdbPath || '尚未加载，点击右侧按钮选择游戏目录下的 cards.cdb'}
+        title="YGO 主程序目录"
+        description={
+          config.gameDirectory
+            ? `${config.gameDirectory}${config.cdbPath ? ` (cards.cdb: ${config.cdbPath})` : ''}`
+            : '未设置 (指定后自动定位 cards.cdb 与本地卡图)'
+        }
       >
-        <Button size="xs" variant="outline" onClick={() => void selectCdbFile()} className="gap-1">
-          <Database className="w-3.5 h-3.5" />
-          <span>{config.cdbPath ? '更换...' : '加载...'}</span>
-        </Button>
-      </SettingsRow>
-      <SettingsRow
-        title="YGOPro 游戏目录 (本地卡图)"
-        description={config.gameDirectory || '未设置 (默认从 cards.cdb 所在位置自动检测)'}
-      >
-        <Button size="xs" variant="outline" onClick={() => void selectGameDir()} className="gap-1">
+        <Button size="xs" variant="outline" onClick={() => void selectYgoDir()} className="gap-1">
           <Folder className="w-3.5 h-3.5" />
-          <span>更换...</span>
+          <span>{config.gameDirectory ? '更换...' : '设置...'}</span>
         </Button>
       </SettingsRow>
       <SettingsRow

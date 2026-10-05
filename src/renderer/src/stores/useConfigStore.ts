@@ -5,9 +5,10 @@ import { useCardSearchStore } from './useCardSearchStore'
 interface ConfigStoreState {
   config: AppConfig
   isLoaded: boolean
+  dbReady: boolean | null
   loadConfig: () => Promise<void>
-  selectCdbFile: () => Promise<string | null>
-  selectGameDir: () => Promise<string | null>
+  refreshCdbStatus: () => Promise<void>
+  selectYgoDir: () => Promise<string | null>
   /** 选择决斗档案保存目录 */
   selectProjectsDir: () => Promise<string | null>
   setTheme: (theme: 'dark' | 'light') => Promise<void>
@@ -22,6 +23,18 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     theme: 'light'
   },
   isLoaded: false,
+  dbReady: null,
+
+  refreshCdbStatus: async () => {
+    try {
+      if (!window.api?.getCdbStatus) return
+      const status = await window.api.getCdbStatus()
+      set({ dbReady: status.ready })
+    } catch (err) {
+      console.error('[useConfigStore] refreshCdbStatus error:', err)
+      set({ dbReady: null })
+    }
+  },
 
   loadConfig: async () => {
     if (!configUpdatedSubscribed && window.api?.onConfigUpdated) {
@@ -35,6 +48,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       const theme = cfg.theme || 'light'
       document.documentElement.classList.toggle('dark', theme === 'dark')
       set({ config: { ...cfg, theme }, isLoaded: true })
+      await get().refreshCdbStatus()
     } catch (err) {
       console.error('[useConfigStore] loadConfig error:', err)
       set({ isLoaded: true })
@@ -53,32 +67,20 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     await get().setTheme(nextTheme)
   },
 
-  selectCdbFile: async () => {
+  selectYgoDir: async () => {
     try {
-      const selected = await window.api.selectCdbFile()
-      if (selected) {
+      const res = await window.api.selectYgoDirectory()
+      if (res.success && res.path) {
         await get().loadConfig()
-        // 选择数据库后立即刷新卡片搜索列表，立即可见卡片与本地卡图
         useCardSearchStore.getState().search({ limit: 40 })
+        return res.path
       }
-      return selected
-    } catch (err) {
-      console.error('[useConfigStore] selectCdbFile error:', err)
+      if (res.error) {
+        alert(`设置 YGO 路径失败：${res.error}`)
+      }
       return null
-    }
-  },
-
-  selectGameDir: async () => {
-    try {
-      const dir = await window.api.selectGameDirectory()
-      if (dir) {
-        await get().loadConfig()
-        // 游戏目录变更后重新检索以刷新卡图
-        useCardSearchStore.getState().search()
-      }
-      return dir
     } catch (err) {
-      console.error('[useConfigStore] selectGameDir error:', err)
+      console.error('[useConfigStore] selectYgoDir error:', err)
       return null
     }
   },

@@ -6,6 +6,7 @@ import { LeftSidebar } from './components/LeftSidebar/LeftSidebar'
 import { DuelScreenplayModal } from './components/StorySequencer/DuelScreenplayModal'
 import { DeckEditorApp } from './components/DeckEditor/DeckEditorApp'
 import { SettingsApp } from './components/Settings/SettingsApp'
+import { CdbSetupModal } from './components/CardSearch/CdbSetupModal'
 import { useConfigStore } from './stores/useConfigStore'
 
 export function App(): React.JSX.Element {
@@ -22,7 +23,12 @@ export function App(): React.JSX.Element {
   }
 
   if (isDeckEditor) {
-    return <DeckEditorApp />
+    return (
+      <>
+        <DeckEditorApp />
+        <CdbSetupModal />
+      </>
+    )
   }
 
   return (
@@ -44,6 +50,9 @@ export function App(): React.JSX.Element {
 
       {/* 决斗台本与剧本创作工作台全局弹窗 */}
       <DuelScreenplayModal />
+
+      {/* 数据库未加载时的全局引导弹窗 */}
+      <CdbSetupModal />
     </div>
   )
 }

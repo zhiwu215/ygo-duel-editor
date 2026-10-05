@@ -1,4 +1,5 @@
-import { ipcMain, shell } from 'electron'
+import { ipcMain, shell, BrowserWindow } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import { CardSearchParams, DuelPuzzleState, AppConfig } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
@@ -207,5 +208,32 @@ export function registerAllIpcHandlers(): void {
     if (!/^https?:\/\//i.test(target)) return false
     await shell.openExternal(target)
     return true
+  })
+
+  // 主窗口无边框 (frame: false) 后的自绘窗口控件
+  const resolveSenderWindow = (event: IpcMainInvokeEvent): BrowserWindow | null =>
+    BrowserWindow.fromWebContents(event.sender)
+
+  ipcMain.handle('window:minimize', (event) => {
+    resolveSenderWindow(event)?.minimize()
+  })
+
+  ipcMain.handle('window:toggle-maximize', (event) => {
+    const win = resolveSenderWindow(event)
+    if (!win) return false
+    if (win.isMaximized()) {
+      win.unmaximize()
+    } else {
+      win.maximize()
+    }
+    return win.isMaximized()
+  })
+
+  ipcMain.handle('window:close', (event) => {
+    resolveSenderWindow(event)?.close()
+  })
+
+  ipcMain.handle('window:is-maximized', (event) => {
+    return resolveSenderWindow(event)?.isMaximized() ?? false
   })
 }

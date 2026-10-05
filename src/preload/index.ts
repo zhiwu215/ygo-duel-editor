@@ -14,6 +14,7 @@ import {
 const api: IpcApi = {
   selectYgoDirectory: () => ipcRenderer.invoke('config:select-ygo-dir'),
   searchCards: (params: CardSearchParams) => ipcRenderer.invoke('cdb:search', params),
+  getCardSearchFilterOptions: () => ipcRenderer.invoke('cdb:search-filter-options'),
   getCardsByIds: (ids: number[]) => ipcRenderer.invoke('cdb:get-by-ids', ids),
   getCdbStatus: () => ipcRenderer.invoke('cdb:status'),
 

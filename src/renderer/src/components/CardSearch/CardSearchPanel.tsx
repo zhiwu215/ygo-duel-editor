@@ -28,8 +28,13 @@ export const CardSearchPanel: React.FC = () => {
     attribute,
     race,
     level,
+    scale,
+    effectCategoryMask,
+    cardPool,
     atk,
+    atkOp,
     def,
+    defOp,
     code,
     searchDesc,
     sortField,
@@ -54,7 +59,7 @@ export const CardSearchPanel: React.FC = () => {
   // 初始加载一次默认卡片
   useEffect(() => {
     search({ limit: 40 })
-  }, [])
+  }, [search])
 
   // 当进行全新检索时，重置滚动条位置到顶部
   useEffect(() => {
@@ -77,13 +82,32 @@ export const CardSearchPanel: React.FC = () => {
     if (attribute !== 0) count++
     if (race !== 0) count++
     if (level !== 0) count++
-    if (atk !== undefined) count++
-    if (def !== undefined) count++
+    if (scale !== undefined) count++
+    if (effectCategoryMask !== 0) count++
+    if (cardPool !== 'any') count++
+    if (atk !== undefined || atkOp === 'unknown') count++
+    if (def !== undefined || defOp === 'unknown') count++
     if (code !== undefined) count++
     if (!searchDesc) count++
     if (sortField !== 'id') count++
     return count
-  }, [type, subType, attribute, race, level, atk, def, code, searchDesc, sortField])
+  }, [
+    type,
+    subType,
+    attribute,
+    race,
+    level,
+    scale,
+    effectCategoryMask,
+    cardPool,
+    atk,
+    atkOp,
+    def,
+    defOp,
+    code,
+    searchDesc,
+    sortField
+  ])
 
   // 滚动到底部附近自动触发无限下滑加载更多卡片
   const handleScroll = (e: React.UIEvent<HTMLDivElement>): void => {
@@ -167,6 +191,9 @@ export const CardSearchPanel: React.FC = () => {
             )}
           </Button>
         </div>
+        <p className="mt-1.5 px-0.5 text-[10px] leading-tight text-muted-foreground/75">
+          支持空格同时匹配、引号短语、-排除、$仅卡名、@系列
+        </p>
       </form>
 
       {/* 结果统计与快捷筛选提示栏 */}

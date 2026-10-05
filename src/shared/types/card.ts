@@ -28,6 +28,11 @@ export const CardType = {
   SPELL: 0x2,
   TRAP: 0x4,
   NORMAL: 0x10,
+  /** 陷阱怪兽附加类型位 */
+  TRAP_MONSTER: 0x100,
+  SPIRIT: 0x200,
+  UNION: 0x400,
+  GEMINI: 0x800,
   EFFECT: 0x20,
   FUSION: 0x40,
   RITUAL: 0x80,
@@ -40,8 +45,10 @@ export const CardType = {
   FIELD: 0x80000,
   COUNTER: 0x100000,
   FLIP: 0x200000,
+  TOON: 0x400000,
   XYZ: 0x800000,
   PENDULUM: 0x1000000,
+  SPECIAL_SUMMON: 0x2000000,
   LINK: 0x4000000
 } as const
 

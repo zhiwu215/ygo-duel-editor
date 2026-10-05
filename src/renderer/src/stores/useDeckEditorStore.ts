@@ -181,12 +181,14 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
   },
 
   createNewDeck: (): void => {
+    const { selectedGroup } = get()
     set({
       deck: {
         id: `deck_${Date.now()}`,
         name: '新建卡组',
         description: '',
         tags: [],
+        group: selectedGroup || undefined,
         main: [],
         extra: [],
         side: []
@@ -378,6 +380,7 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
         name: '新建卡组',
         description: '',
         tags: [],
+        group: prev.deck.group,
         main: [],
         extra: [],
         side: []

@@ -665,6 +665,7 @@ export const DeckLibraryView: React.FC = () => {
             onMouseEnter={() => {
               if (contextMenu.deck.id) setMoveMenuDeckId(contextMenu.deck.id)
             }}
+            onMouseLeave={() => setMoveMenuDeckId(null)}
           >
             <Button
               variant="ghost"
@@ -677,7 +678,7 @@ export const DeckLibraryView: React.FC = () => {
             </Button>
 
             {moveMenuDeckId === contextMenu.deck.id && (
-              <div className="absolute left-full top-0 ml-1 z-[70] min-w-40 max-h-72 overflow-y-auto bg-popover/95 backdrop-blur-md border border-border rounded-lg shadow-2xl p-1 text-xs">
+              <div className="absolute left-full top-0 z-[70] min-w-40 max-h-72 overflow-y-auto bg-popover/95 backdrop-blur-md border border-border rounded-lg shadow-2xl p-1 text-xs">
                 <button
                   type="button"
                   onMouseDown={(e) => e.stopPropagation()}

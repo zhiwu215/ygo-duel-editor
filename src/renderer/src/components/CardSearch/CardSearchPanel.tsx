@@ -128,14 +128,14 @@ export const CardSearchPanel: React.FC = () => {
       {/* 顶部搜索输入与控制栏 */}
       <form onSubmit={handleSearchSubmit} className="p-2.5 border-b border-border/60 bg-muted/10">
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1 flex items-center">
+          <div className="relative flex-1 min-w-0 flex items-center">
             <Search className="w-4 h-4 text-muted-foreground absolute left-2.5 pointer-events-none" />
             <Input
               type="text"
               value={localKw}
               onChange={(e) => setLocalKw(e.target.value)}
               placeholder="搜索卡名、卡密或效果"
-              className="pl-8 pr-7 bg-secondary/80 focus:bg-background h-8 text-xs font-medium"
+              className={`pl-8 ${localKw ? 'pr-7' : 'pr-2.5'} bg-secondary/80 focus:bg-background h-8 text-xs font-medium`}
             />
             {localKw && (
               <button

@@ -131,10 +131,10 @@ export const CardContextMenu: React.FC = () => {
     duelActionItems.push({
       icon: <Zap className="w-3.5 h-3.5 text-amber-500" />,
       label: isFacedownST
-        ? `⚡ 翻开发动 (Chain ${currentChain + 1})`
+        ? `翻开发动 (Chain ${currentChain + 1})`
         : currentChain > 0
-          ? `⚡ 发动 (进入 Chain ${currentChain + 1})`
-          : '⚡ 发动卡片/效果 (Chain 1)',
+          ? `发动 (进入 Chain ${currentChain + 1})`
+          : '发动卡片/效果 (Chain 1)',
       action: act(() => executeActivateCard(card.instanceId))
     })
   }
@@ -143,7 +143,7 @@ export const CardContextMenu: React.FC = () => {
   if ((isHand || isMonsterZone || isSpellTrapZone) && currentChain > 0) {
     duelActionItems.push({
       icon: <Layers className="w-3.5 h-3.5 text-teal-400" />,
-      label: `⛓ 连锁响应 (Chain ${currentChain + 1})`,
+      label: `连锁响应 (Chain ${currentChain + 1})`,
       action: act(() => executeChainCard(card.instanceId))
     })
   }
@@ -152,7 +152,7 @@ export const CardContextMenu: React.FC = () => {
   if (isMonsterZone && card.position === CardPosition.FACEDOWN_DEFENSE) {
     duelActionItems.push({
       icon: <Sparkles className="w-3.5 h-3.5 text-yellow-400" />,
-      label: '☀️ 反转召唤 (表攻)',
+      label: '反转召唤 (表攻)',
       action: act(() => updateCardPosition(card.instanceId, CardPosition.FACEUP_ATTACK))
     })
   }
@@ -165,7 +165,7 @@ export const CardContextMenu: React.FC = () => {
   ) {
     duelActionItems.push({
       icon: <Swords className="w-3.5 h-3.5 text-rose-500" />,
-      label: '⚔ 声明攻击 (Attack)',
+      label: '声明攻击 (Attack)',
       action: act(() => executeAttackCard(card.instanceId))
     })
   }
@@ -176,24 +176,24 @@ export const CardContextMenu: React.FC = () => {
       duelActionItems.push(
         {
           icon: <Sparkles className="w-3.5 h-3.5 text-blue-400" />,
-          label: '✨ 通常召唤到前场',
+          label: '通常召唤到前场',
           action: act(() => executeNormalSummon(card.instanceId))
         },
         {
           icon: <Sparkles className="w-3.5 h-3.5 text-purple-400" />,
-          label: '🌟 特殊召唤到前场',
+          label: '特殊召唤到前场',
           action: act(() => executeSpecialSummon(card.instanceId))
         },
         {
           icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
-          label: '⬇ 里侧守备覆盖',
+          label: '里侧守备覆盖',
           action: act(() => executeSetCard(card.instanceId))
         }
       )
     } else {
       duelActionItems.push({
         icon: <RotateCw className="w-3.5 h-3.5 text-emerald-400" />,
-        label: '⬇ 覆盖到魔陷区',
+        label: '覆盖到魔陷区',
         action: act(() => executeSetCard(card.instanceId))
       })
     }
@@ -201,14 +201,14 @@ export const CardContextMenu: React.FC = () => {
     if (isMonster) {
       duelActionItems.push({
         icon: <Sparkles className="w-3.5 h-3.5 text-purple-400" />,
-        label: '🌟 特殊召唤到前场',
+        label: '特殊召唤到前场',
         action: act(() => executeSpecialSummon(card.instanceId))
       })
     }
   } else if (card.location === CardLocation.DECK) {
     duelActionItems.push({
       icon: <Layers className="w-3.5 h-3.5 text-amber-500" />,
-      label: '🎴 抽卡到手牌 (Draw)',
+      label: '抽卡到手牌 (Draw)',
       action: act(() => executeDrawCard(card.controller))
     })
   }

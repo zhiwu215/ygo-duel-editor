@@ -8,15 +8,23 @@ import type {
 
 export const DEFAULT_AGENT_API_FORMAT: AgentApiFormat = 'openai-chat-completions'
 
+/**
+ * API 协议展示名。格式对齐 ZCode：`名称 (路径)`，且**路径不带 `/v1` 前缀**
+ * —— 带 `/v1` 会让 Chat Completions 被读成「OpenAI 官方专属接口」。
+ *
+ * 这里刻意**不设**「OpenAI 兼容」选项：Chat Completions 本身就是 OpenAI 兼容协议，
+ * DeepSeek / 通义千问 / Kimi / Ollama 等走的都是它，多一个同名选项只会让人选错。
+ */
 export const AGENT_API_FORMAT_LABELS: Record<AgentApiFormat, string> = {
-  'openai-chat-completions': 'Chat Completions (/v1/chat/completions)',
   'anthropic-messages': 'Anthropic Messages (/v1/messages)',
-  'openai-responses': 'Responses (/v1/responses)'
+  'openai-chat-completions': 'Chat Completions (/chat/completions)',
+  'openai-responses': 'Responses (/responses)'
 }
 
+/** 下拉展示顺序，与 ZCode 的 PROVIDER_CONNECTION_API_FORMATS 保持一致 */
 export const AGENT_API_FORMAT_VALUES: AgentApiFormat[] = [
-  'openai-chat-completions',
   'anthropic-messages',
+  'openai-chat-completions',
   'openai-responses'
 ]
 
@@ -78,6 +86,11 @@ export interface AgentRuntimeConfig {
   enableReasoning: boolean
   contextWindow?: number
   maxTokens?: number
+  /** 是否接受图片输入（pi models.json 的 input 数组） */
+  supportsVision?: boolean
+  /** 以下两个开关只在显式开启时才写进 pi 的 compat，避免覆盖 Pi 的默认能力 */
+  supportsStructuredOutput?: boolean
+  supportsMidConversationSystem?: boolean
 }
 
 export function resolveActiveRuntime(
@@ -117,7 +130,11 @@ export function resolveActiveRuntime(
     apiFormat: normalizeAgentApiFormat(provider.apiFormat),
     enableReasoning,
     contextWindow: model?.contextWindow ?? config.contextWindow,
-    maxTokens: config.maxTokens
+    // 模型自带的上限优先，没配才回落到全局的「单次回复上限」
+    maxTokens: model?.maxTokens ?? config.maxTokens,
+    supportsVision: model?.supportsVision,
+    supportsStructuredOutput: model?.supportsStructuredOutput,
+    supportsMidConversationSystem: model?.supportsMidConversationSystem
   }
 }
 
@@ -132,7 +149,31 @@ function firstRunnableProvider(config: AgentModelConfig): AgentProviderConfig | 
 }
 
 export function isProviderReady(provider: AgentProviderConfig): boolean {
-  return Boolean(provider.enabled && provider.apiKey.trim() && hasEnabledModel(provider))
+  return Boolean(
+    provider.enabled &&
+    (provider.apiKey.trim() || isLocalEndpoint(provider.baseUrl)) &&
+    hasEnabledModel(provider)
+  )
+}
+
+/**
+ * 判断接口地址是否指向本机（Ollama / LM Studio 等本地推理服务），这类服务无需 API Key
+ * 解析失败时按远端处理，避免把畸形地址误当成本地端点而放行空密钥
+ */
+export function isLocalEndpoint(baseUrl?: string): boolean {
+  if (!baseUrl) return false
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase()
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host.endsWith('.local')
+    )
+  } catch {
+    return false
+  }
 }
 
 export function syncActiveFields(

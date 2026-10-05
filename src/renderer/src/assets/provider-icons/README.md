@@ -18,12 +18,15 @@
 
 ## 使用约定
 
-`ProviderLogo.tsx`（`src/renderer/src/components/Settings/components/`）通过 `presetId` 查表映射到具体文件，加载失败时依次回退：品牌图 → 预设的 `badge` 文字缩写 → 通用盒子图标。
+`ProviderLogo.tsx`（`src/renderer/src/components/Settings/components/`）通过 `presetId` 查表映射到具体文件；
+未登记品牌图或图片加载失败时，回退到通用盒子图标（`Boxes`），图标尺寸跟随传入的 `className`。
 
 **新增供应商预设时**，若需要品牌图：
 
 1. 从厂商官方 brand 页获取，放入本目录
 2. 在 `LOGO_ASSETS` 中登记键名（建议用预设 `id`，可用别名覆盖同品牌的不同预设）
 3. 在 `model-provider-logo-sources.json` 中补充一条来源记录
+4. 深色主题需要单独一版时用 `dark` 字段；官方只提供单色线稿、没有白色版本时用
+   `monochrome: true`，由 `ProviderLogo` 在深色主题下 CSS 反色渲染 —— **不要手工改图另存一份**
 
-若不提供品牌图也可正常工作，只是会显示 `badge` 文字。
+未登记品牌图也能正常工作，只是会显示通用盒子图标。

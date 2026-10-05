@@ -70,6 +70,26 @@ const DEFAULT_CONFIG: AgentModelConfig = {
   enableReasoning: false
 }
 
+/**
+ * 首次使用时预置的常用供应商。
+ * 只预置「空壳」（预设的 baseUrl + API 格式，没有 Key 和模型），
+ * 用户填上 API Key 才算配置完成；删掉后由 providersSeeded 兜住，不会再自动补回。
+ */
+const DEFAULT_PROVIDER_PRESET_IDS = ['deepseek', 'moonshot', 'dashscope']
+
+function seedDefaultProviders(
+  providers: AgentProviderConfig[],
+  presets: AgentProviderPreset[]
+): AgentProviderConfig[] {
+  const known = new Set(providers.map((p) => p.presetId ?? p.id))
+  const added = DEFAULT_PROVIDER_PRESET_IDS.flatMap((id) => {
+    if (known.has(id)) return []
+    const preset = presets.find((p) => p.id === id)
+    return preset ? [createProviderFromPreset(preset)] : []
+  })
+  return added.length > 0 ? [...providers, ...added] : providers
+}
+
 function buildProvidersFromLegacy(
   raw: AgentModelConfig,
   presets: AgentProviderPreset[]
@@ -235,15 +255,26 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       const presets = await get().loadPresets()
       const cfg = await window.api.getConfig()
       const raw = cfg.agentConfig
-      if (!raw) return
 
       const base = { ...DEFAULT_CONFIG, ...raw }
-      const providers =
+      let providers =
         base.providers && base.providers.length > 0
           ? base.providers
           : buildProvidersFromLegacy(base, presets)
 
-      const normalized = normalizeAgentConfig({ ...base, providers })
+      // 预置常用供应商：只在拿到预设列表后执行一次。
+      // 没有 providersSeeded 标记 = 老配置或全新安装，补上缺的那几家；
+      // 标记置位后就不再插手，用户删掉的不会自己回来。
+      const canSeed = presets.length > 0
+      if (canSeed && !base.providersSeeded) {
+        providers = seedDefaultProviders(providers, presets)
+      }
+
+      const normalized = normalizeAgentConfig({
+        ...base,
+        providers,
+        providersSeeded: base.providersSeeded || canSeed
+      })
       set({ config: normalized })
 
       // 自愈历史脏配置：迁移或清洗后与磁盘不一致时立即回写

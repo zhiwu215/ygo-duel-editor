@@ -17,7 +17,6 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  Search,
   Pencil,
   MoreHorizontal,
   AlertCircle,
@@ -35,6 +34,7 @@ import {
   DEFAULT_AGENT_API_FORMAT,
   cleanAgentApiKey,
   createProviderFromPreset,
+  isLocalEndpoint,
   isProviderReady,
   normalizeAgentApiFormat
 } from '@shared/index'
@@ -43,6 +43,8 @@ import { Button } from '../ui/button'
 import { Switch } from '../ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { ProviderLogo } from './components/ProviderLogo'
+import { ProviderTemplatePicker } from './components/ProviderTemplatePicker'
+import { ModelEditorModal } from './components/ModelEditorModal'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { cn } from '../../lib/utils'
 
@@ -108,7 +110,6 @@ function mergeFetchedModels(
 interface ResolvedSelection {
   provider: AgentProviderConfig
   preset: AgentProviderPreset | null
-  configured: boolean
 }
 
 export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ section }) => {
@@ -123,7 +124,8 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
   } = useAgentStore()
 
   const [selection, setSelection] = useState<string | null>(null)
-  const [navSearch, setNavSearch] = useState('')
+  /** 右侧面板是否处于「添加供应商」选择态 */
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
     if (presets.length === 0) void loadPresets()
@@ -131,58 +133,25 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
 
   const providers = useMemo(() => config.providers ?? [], [config.providers])
 
-  const presetProviders = useMemo(
-    () =>
-      presets.map((preset) => ({
-        preset,
-        configured: providers.find((p) => p.presetId === preset.id || p.id === preset.id) ?? null
-      })),
-    [presets, providers]
-  )
-
+  // 左列只列出已添加的供应商：内置品牌从「添加供应商」面板创建后才进入列表，
+  // 否则十来个预设会常驻左列，把用户自己建的供应商挤到看不见。
+  const presetProviders = useMemo(() => providers.filter((p) => Boolean(p.presetId)), [providers])
   const customProviders = useMemo(() => providers.filter((p) => !p.presetId), [providers])
 
-  const q = navSearch.trim().toLowerCase()
-  const matchesQuery = (name: string, baseUrl: string, models: { id: string }[]): boolean => {
-    if (!q) return true
-    return (
-      name.toLowerCase().includes(q) ||
-      baseUrl.toLowerCase().includes(q) ||
-      models.some((m) => m.id.toLowerCase().includes(q))
-    )
-  }
-
   const effectiveSelection = useMemo((): string | null => {
-    const isValid = Boolean(
-      selection &&
-      (selection.startsWith('provider:')
-        ? providers.some((p) => p.id === selection.slice('provider:'.length))
-        : presetProviders.some(
-            (x) => x.preset.id === selection.slice('preset:'.length) && !x.configured
-          ))
-    )
-    if (isValid) return selection
-    if (config.provider && providers.some((p) => p.id === config.provider)) {
-      return `provider:${config.provider}`
-    }
-    if (presetProviders.length > 0) return `preset:${presetProviders[0].preset.id}`
-    if (customProviders.length > 0) return `provider:${customProviders[0].id}`
-    return null
-  }, [selection, providers, presetProviders, customProviders, config.provider])
+    if (selection && providers.some((p) => p.id === selection)) return selection
+    if (config.provider && providers.some((p) => p.id === config.provider)) return config.provider
+    return providers[0]?.id ?? null
+  }, [selection, providers, config.provider])
 
   const resolved = useMemo((): ResolvedSelection | null => {
     if (!effectiveSelection) return null
-    if (effectiveSelection.startsWith('provider:')) {
-      const provider = providers.find((p) => p.id === effectiveSelection.slice('provider:'.length))
-      if (!provider) return null
-      const preset = provider.presetId
-        ? (presets.find((p) => p.id === provider.presetId) ?? null)
-        : null
-      return { provider, preset, configured: true }
-    }
-    const preset = presets.find((p) => p.id === effectiveSelection.slice('preset:'.length))
-    if (!preset) return null
-    return { provider: createProviderFromPreset(preset), preset, configured: false }
+    const provider = providers.find((p) => p.id === effectiveSelection)
+    if (!provider) return null
+    const preset = provider.presetId
+      ? (presets.find((p) => p.id === provider.presetId) ?? null)
+      : null
+    return { provider, preset }
   }, [effectiveSelection, providers, presets])
 
   const activeModelInfo = useMemo((): AgentProviderModelConfig | null => {
@@ -190,7 +159,7 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
     return provider?.models.find((m) => m.id === config.model) ?? null
   }, [providers, config.provider, config.model])
 
-  const openAddProvider = (): void => {
+  const createCustomProvider = (): void => {
     const id = `custom-${Date.now().toString(36)}`
     upsertProvider({
       id,
@@ -201,7 +170,22 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
       enabled: true,
       models: []
     })
-    setSelection(`provider:${id}`)
+    setSelection(id)
+    setPickerOpen(false)
+  }
+
+  // 从内置预设创建：重复选择同一品牌时不再新建，直接切到已有那个
+  const pickPreset = (preset: AgentProviderPreset): void => {
+    const existing = providers.find((p) => p.presetId === preset.id || p.id === preset.id)
+    if (existing) {
+      setSelection(existing.id)
+      setPickerOpen(false)
+      return
+    }
+    const provider = createProviderFromPreset(preset)
+    upsertProvider(provider)
+    setSelection(provider.id)
+    setPickerOpen(false)
   }
 
   // 删除自定义供应商：先弹自定义确认框，避免误点丢失已配置的 API Key
@@ -213,14 +197,9 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
 
   const confirmDelete = (): void => {
     if (!pendingDelete) return
-    const remainingCustom = customProviders.filter((p) => p.id !== pendingDelete.id)
+    const remaining = providers.filter((p) => p.id !== pendingDelete.id)
     removeProvider(pendingDelete.id)
-    const nextSelection = remainingCustom[0]
-      ? `provider:${remainingCustom[0].id}`
-      : presetProviders[0]
-        ? `preset:${presetProviders[0].preset.id}`
-        : null
-    setSelection(nextSelection)
+    setSelection(remaining[0]?.id ?? null)
     setPendingDelete(null)
   }
 
@@ -242,12 +221,12 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <p className="text-[11px] leading-5 text-muted-foreground pt-1">
-              管理自定义模型供应商，配置后可在聊天时选择使用。
+              管理模型供应商，配置 API Key 后可在背后灵对话中使用。
             </p>
             <Button
               size="xs"
               variant="outline"
-              onClick={openAddProvider}
+              onClick={() => setPickerOpen(true)}
               className="gap-1 shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -257,41 +236,30 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
 
           <div className="overflow-hidden rounded-xl border border-border bg-card flex h-[520px]">
             <div className="w-44 shrink-0 border-r border-border flex flex-col">
-              <div className="p-2 border-b border-border/60">
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-background">
-                  <Search className="w-3 h-3 text-muted-foreground shrink-0" />
-                  <input
-                    value={navSearch}
-                    onChange={(e) => setNavSearch(e.target.value)}
-                    placeholder="搜索供应商..."
-                    className="flex-1 min-w-0 bg-transparent text-[11px] outline-none placeholder:text-muted-foreground"
-                  />
-                </div>
-              </div>
-
               <div className="flex-1 overflow-y-auto p-2 space-y-3">
                 <div>
                   <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
                     常用提供商
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    {presetProviders.map(({ preset, configured }) => {
-                      if (!matchesQuery(preset.name, preset.baseUrl, configured?.models ?? [])) {
-                        return null
-                      }
-                      const key = configured ? `provider:${configured.id}` : `preset:${preset.id}`
-                      return (
-                        <NavItem
-                          key={key}
-                          active={effectiveSelection === key}
-                          label={preset.name}
-                          status={configured ? resolveProviderStatus(configured) : 'unavailable'}
-                          presetId={preset.id}
-                          badge={preset.badge}
-                          onClick={() => setSelection(key)}
-                        />
-                      )
-                    })}
+                    {presetProviders.length === 0 && (
+                      <p className="px-2 py-1 text-[10px] leading-4 text-muted-foreground/70">
+                        点右上角「添加供应商」从内置品牌中选择
+                      </p>
+                    )}
+                    {presetProviders.map((provider) => (
+                      <NavItem
+                        key={provider.id}
+                        active={!pickerOpen && effectiveSelection === provider.id}
+                        label={provider.name}
+                        status={resolveProviderStatus(provider)}
+                        presetId={provider.presetId}
+                        onClick={() => {
+                          setSelection(provider.id)
+                          setPickerOpen(false)
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
 
@@ -309,28 +277,26 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
                       strategy={verticalListSortingStrategy}
                     >
                       <div className="flex flex-col gap-0.5">
-                        {customProviders.map((provider) =>
-                          matchesQuery(provider.name, provider.baseUrl, provider.models) ? (
-                            <NavItem
-                              key={provider.id}
-                              active={effectiveSelection === `provider:${provider.id}`}
-                              label={provider.name}
-                              status={resolveProviderStatus(provider)}
-                              presetId={provider.presetId}
-                              sortable
-                              sortId={provider.id}
-                              onClick={() => setSelection(`provider:${provider.id}`)}
-                            />
-                          ) : null
+                        {customProviders.length === 0 && (
+                          <p className="px-2 py-1 text-[10px] leading-4 text-muted-foreground/70">
+                            还没有自定义供应商
+                          </p>
                         )}
-                        <button
-                          type="button"
-                          onClick={openAddProvider}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                        >
-                          <Plus className="w-3 h-3 shrink-0" />
-                          <span className="text-[11px] font-medium">新供应商</span>
-                        </button>
+                        {customProviders.map((provider) => (
+                          <NavItem
+                            key={provider.id}
+                            active={!pickerOpen && effectiveSelection === provider.id}
+                            label={provider.name}
+                            status={resolveProviderStatus(provider)}
+                            presetId={provider.presetId}
+                            sortable
+                            sortId={provider.id}
+                            onClick={() => {
+                              setSelection(provider.id)
+                              setPickerOpen(false)
+                            }}
+                          />
+                        ))}
                       </div>
                     </SortableContext>
                   </DndContext>
@@ -339,12 +305,18 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
             </div>
 
             <div className="flex-1 min-w-0 overflow-y-auto p-4">
-              {resolved ? (
+              {pickerOpen ? (
+                <ProviderTemplatePicker
+                  presets={presets}
+                  onBack={() => setPickerOpen(false)}
+                  onPick={pickPreset}
+                  onCreateCustom={createCustomProvider}
+                />
+              ) : resolved ? (
                 <ProviderDetailPanel
-                  key={`${resolved.provider.id}:${resolved.configured ? 'on' : 'off'}`}
+                  key={resolved.provider.id}
                   provider={resolved.provider}
                   preset={resolved.preset}
-                  configured={resolved.configured}
                   activeProviderId={config.provider}
                   activeModelId={config.model}
                   onUpsert={upsertProvider}
@@ -352,8 +324,11 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
                   onSelectModel={selectModel}
                 />
               ) : (
-                <div className="h-full flex items-center justify-center text-[11px] text-muted-foreground">
-                  从左侧选择一个供应商开始配置
+                <div className="h-full flex flex-col items-center justify-center gap-2 text-[11px] text-muted-foreground">
+                  <span>还没有添加任何供应商</span>
+                  <Button size="xs" variant="outline" onClick={() => setPickerOpen(true)}>
+                    添加供应商
+                  </Button>
                 </div>
               )}
             </div>
@@ -380,7 +355,6 @@ interface NavItemProps {
   label: string
   status: ProviderStatus
   presetId?: string
-  badge?: string
   /** 传入则该行可拖拽排序（用于自定义供应商） */
   sortable?: boolean
   /** 拖拽排序用的稳定唯一 id（供应商 id） */
@@ -393,7 +367,6 @@ function NavItem({
   label,
   status,
   presetId,
-  badge,
   sortable,
   sortId,
   onClick
@@ -420,7 +393,7 @@ function NavItem({
       {...attributes}
       {...listeners}
     >
-      <ProviderLogo presetId={presetId} badge={badge} className="w-3.5 h-3.5 shrink-0" />
+      <ProviderLogo presetId={presetId} className="w-4 h-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-[11px] font-medium">{label}</span>
       <StatusDot status={status} />
     </button>
@@ -430,7 +403,6 @@ function NavItem({
 interface ProviderDetailPanelProps {
   provider: AgentProviderConfig
   preset: AgentProviderPreset | null
-  configured: boolean
   activeProviderId?: string
   activeModelId: string
   onUpsert: (provider: AgentProviderConfig) => void
@@ -441,7 +413,6 @@ interface ProviderDetailPanelProps {
 function ProviderDetailPanel({
   provider,
   preset,
-  configured,
   activeProviderId,
   activeModelId,
   onUpsert,
@@ -456,7 +427,10 @@ function ProviderDetailPanel({
   const [menuOpen, setMenuOpen] = useState(false)
   const [keyError, setKeyError] = useState('')
   const [keyBusy, setKeyBusy] = useState(false)
-  const [addModelDraft, setAddModelDraft] = useState('')
+  const [modelModal, setModelModal] = useState<{
+    mode: 'add' | 'edit'
+    initial: AgentProviderModelConfig | null
+  } | null>(null)
   const [modelsBusy, setModelsBusy] = useState(false)
   const [modelsError, setModelsError] = useState('')
   const [testing, setTesting] = useState(false)
@@ -474,8 +448,9 @@ function ProviderDetailPanel({
   }, [menuOpen])
 
   const isCustom = !provider.presetId
-  const status = resolveProviderStatus(configured ? provider : { ...provider, enabled: true })
-  const canActivate = configured && provider.apiKey.trim().length > 0
+  const status = resolveProviderStatus(provider)
+  // 本地推理端点（Ollama 等）无需 API Key，与主进程的放行规则保持一致
+  const canActivate = provider.apiKey.trim().length > 0 || isLocalEndpoint(provider.baseUrl)
 
   const commit = (patch: Partial<AgentProviderConfig>, selectModelId?: string): void => {
     const next: AgentProviderConfig = { ...provider, ...patch }
@@ -538,12 +513,14 @@ function ProviderDetailPanel({
     commit({ models }, !enabled && wasActive ? models.find((m) => m.enabled)?.id : undefined)
   }
 
-  const addModel = (): void => {
-    const id = addModelDraft.trim()
-    if (!id) return
-    setAddModelDraft('')
-    if (provider.models.some((m) => m.id === id)) return
-    commit({ models: [...provider.models, { id, enabled: true, custom: true }] }, id)
+  // 模型的新增 / 编辑统一走弹窗（结构参照 ZCode），提交时按 id 决定插入还是覆盖
+  const submitModel = (model: AgentProviderModelConfig): void => {
+    const exists = provider.models.some((m) => m.id === model.id)
+    const models = exists
+      ? provider.models.map((m) => (m.id === model.id ? model : m))
+      : [...provider.models, model]
+    commit({ models }, model.id)
+    setModelModal(null)
   }
 
   const removeModel = (modelId: string): void => {
@@ -598,13 +575,13 @@ function ProviderDetailPanel({
         <div className="flex min-w-0 items-center gap-2">
           <div
             className={cn(
-              'w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0',
+              'w-7 h-7 rounded-md flex items-center justify-center shrink-0',
               status === 'ready'
                 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                 : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
             )}
           >
-            <ProviderLogo presetId={provider.presetId} badge={preset?.badge} className="w-4 h-4" />
+            <ProviderLogo presetId={provider.presetId} className="w-4 h-4" />
           </div>
           {renaming ? (
             <input
@@ -622,13 +599,7 @@ function ProviderDetailPanel({
               className="min-w-0 w-40 px-2 py-1 rounded border border-border bg-background text-xs font-semibold"
             />
           ) : (
-            <div className="min-w-0">
-              <div className="text-xs font-semibold truncate">{provider.name}</div>
-              <div className="text-[10px] text-muted-foreground truncate">
-                {preset?.description ?? (isCustom ? '自定义端点' : 'OpenAI 兼容接口')}
-                {!configured && ' · 未连接'}
-              </div>
-            </div>
+            <div className="min-w-0 text-xs font-semibold truncate">{provider.name}</div>
           )}
         </div>
 
@@ -639,17 +610,29 @@ function ProviderDetailPanel({
             aria-label={provider.enabled !== false ? '禁用供应商' : '启用供应商'}
           />
           {isCustom && (
-            <div className="relative" ref={menuRef}>
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                onClick={() => setMenuOpen((v) => !v)}
-                className="text-muted-foreground"
-              >
-                <MoreHorizontal className="w-3.5 h-3.5" />
-              </Button>
-              {menuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-28 bg-popover border border-border rounded-md shadow-lg z-50 overflow-hidden">
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => setRenaming(true)}
+              title="重命名"
+              className="text-muted-foreground"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          <div className="relative" ref={menuRef}>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => setMenuOpen((v) => !v)}
+              title="更多操作"
+              className="text-muted-foreground"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </Button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-28 bg-popover border border-border rounded-md shadow-lg z-50 overflow-hidden">
+                {isCustom && (
                   <button
                     type="button"
                     onClick={() => {
@@ -661,18 +644,18 @@ function ProviderDetailPanel({
                     <Pencil className="w-3 h-3" />
                     <span>重命名</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={onRemove}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-left text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>删除</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-left text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>{isCustom ? '删除' : '移除该供应商'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -696,12 +679,19 @@ function ProviderDetailPanel({
           value={normalizeAgentApiFormat(provider.apiFormat)}
           onValueChange={(val) => commit({ apiFormat: val as AgentApiFormat })}
         >
-          <SelectTrigger size="sm" className="w-full">
-            <SelectValue />
+          <SelectTrigger
+            size="sm"
+            className="w-full text-[11px] border-border bg-background dark:bg-background dark:hover:bg-background"
+          >
+            <SelectValue>
+              {(value) => AGENT_API_FORMAT_LABELS[normalizeAgentApiFormat(value as string)]}
+            </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          {/* 默认弹层宽度锁定为触发器宽度，全宽字段下拉时选项会被拉得很散、勾选标跑到最右；
+              这里改成按内容收缩（min-w 兜底），并在弹层内留 4px 内边距，避免选中态圆角贴边。 */}
+          <SelectContent align="start" className="w-auto min-w-44 p-1">
             {AGENT_API_FORMAT_VALUES.map((format) => (
-              <SelectItem key={format} value={format}>
+              <SelectItem key={format} value={format} className="text-[11px] py-1.5 pr-7 pl-2">
                 {AGENT_API_FORMAT_LABELS[format]}
               </SelectItem>
             ))}
@@ -723,25 +713,27 @@ function ProviderDetailPanel({
           )}
         </div>
         <div className="flex gap-1.5">
-          <input
-            type={showKey ? 'text' : 'password'}
-            value={keyDraft}
-            onChange={(e) => setKeyDraft(e.target.value)}
-            onBlur={() => void commitKey()}
-            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            placeholder="输入 API Key（仅保存在本地设备）"
-            spellCheck={false}
-            className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-border bg-background text-[11px] font-mono"
-          />
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={() => setShowKey((v) => !v)}
-            title={showKey ? '隐藏密钥' : '显示密钥'}
-            className="shrink-0"
-          >
-            {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-          </Button>
+          {/* 眼睛按钮浮在输入框内部（对齐 ZCode），不再单独占一格 */}
+          <div className="relative flex-1 min-w-0">
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+              onBlur={() => void commitKey()}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+              placeholder="输入 API Key"
+              spellCheck={false}
+              className="w-full px-2.5 py-1.5 pr-8 rounded-lg border border-border bg-background text-[11px] font-mono"
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey((v) => !v)}
+              title={showKey ? '隐藏密钥' : '显示密钥'}
+              className="absolute top-1/2 right-1 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+            >
+              {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
           <Button
             size="sm"
             variant="outline"
@@ -787,7 +779,12 @@ function ProviderDetailPanel({
               <RefreshCw className={cn('w-3 h-3', modelsBusy && 'animate-spin')} />
               <span>拉取模型</span>
             </Button>
-            <Button size="xs" variant="secondary" onClick={addModel} className="gap-1">
+            <Button
+              size="xs"
+              variant="secondary"
+              onClick={() => setModelModal({ mode: 'add', initial: null })}
+              className="gap-1"
+            >
               <Plus className="w-3 h-3" />
               <span>添加模型</span>
             </Button>
@@ -851,6 +848,15 @@ function ProviderDetailPanel({
                   <Button
                     size="icon-xs"
                     variant="ghost"
+                    onClick={() => setModelModal({ mode: 'edit', initial: model })}
+                    title="编辑模型配置"
+                    className="shrink-0 text-muted-foreground"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
                     onClick={() => removeModel(model.id)}
                     title="删除模型"
                     className="shrink-0 text-muted-foreground hover:text-destructive"
@@ -872,30 +878,20 @@ function ProviderDetailPanel({
             <span>暂无模型。填好 API Key 后点「拉取模型」从厂商接口获取，也可手动添加。</span>
           </div>
         )}
-
-        <div className="flex items-center gap-1.5 mt-2">
-          <input
-            type="text"
-            value={addModelDraft}
-            onChange={(e) => setAddModelDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.nativeEvent.isComposing) addModel()
-            }}
-            placeholder="输入模型 ID 后回车，如 deepseek-chat"
-            spellCheck={false}
-            className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-border bg-background text-[11px] font-mono"
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!addModelDraft.trim()}
-            onClick={addModel}
-            className="shrink-0"
-          >
-            添加
-          </Button>
-        </div>
       </div>
+
+      {modelModal && (
+        <ModelEditorModal
+          mode={modelModal.mode}
+          provider={provider}
+          initial={modelModal.initial}
+          existingIds={provider.models
+            .filter((m) => m.id !== modelModal.initial?.id)
+            .map((m) => m.id)}
+          onClose={() => setModelModal(null)}
+          onSubmit={submitModel}
+        />
+      )}
     </div>
   )
 }

@@ -119,6 +119,15 @@
       "sourceUrl": "https://avatars.githubusercontent.com/u/130314967?v=4",
       "sourceOwner": "xAI",
       "normalization": "Official GitHub organization avatar downsampled from 460x460 to 80x80 RGB."
+    },
+    {
+      "brand": "Ollama",
+      "file": "model-provider-ollama.png",
+      "providerIds": ["ollama"],
+      "sourceUrl": "https://ollama.com/public/ollama.png",
+      "sourceOwner": "Ollama",
+      "monochrome": true,
+      "normalization": "Byte-for-byte copy of the official 181x256 transparent black line-art mascot from the ollama.com homepage, retrieved 2026-10-05. The file is unmodified; dark theme inverts it via CSS (see ProviderLogo LOGO_ASSETS monochrome flag), because Ollama publishes no white variant and the site's apple-touch-icon has a baked-in white background."
     }
   ]
 }

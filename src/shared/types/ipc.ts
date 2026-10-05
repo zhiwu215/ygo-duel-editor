@@ -1,7 +1,7 @@
 import { CdbCard } from './card'
 import { DuelPuzzleState, DuelType } from './duel'
 import { DeckData, DeckLibrary } from './deck'
-import { DuelPhase, DuelActionType, DuelStep } from './story'
+import { DuelPhase, DuelActionType } from './story'
 
 /**
  * 卡片检索查询参数
@@ -198,6 +198,19 @@ export interface AgentStepProposal {
   description?: string
   /** 连锁层级序号 (如 C1 / C2) */
   chainIndex?: number
+  /**
+   * 涉及卡片的来源区域（ocgcore CardLocation 位掩码，可选）。
+   * 同一卡密出现多张时用于消歧；转写步骤一般给不出，可省略。
+   */
+  fromLocation?: number
+  /**
+   * 动作后卡片的目标区域（ocgcore CardLocation 位掩码，可选）。
+   * 缺省时由动作类型的常见语义推断（召唤→怪兽区、盖放→魔陷区、破坏→墓地等）；
+   * 主进程在把提案映射成落位数据前会统一归一到合法取值。
+   */
+  toLocation?: number
+  /** 动作后卡片的目标格子序号（可选，配合 toLocation 使用） */
+  toSequence?: number
   /** 转写来源的原文短句 (小说文本转写时保留，便于在提案卡中人工核对顺序；不进最终台本的数据面) */
   sourceQuote?: string
   /** 动作导致的生命值数值变动 */
@@ -268,6 +281,29 @@ export interface AgentBoardLpTarget {
 }
 
 /**
+ * 已解析出完整卡面的落位数据
+ *
+ * 渲染层把布局提案的卡密反查成 CdbCard 后的形态，作为 store 落盘入参。
+ * 主进程刻意只传卡密（避免整库塞进事件载荷），解析发生在渲染层。
+ */
+export interface ResolvedBoardPlacement {
+  card: CdbCard
+  controller: 0 | 1
+  /** ocgcore CardLocation 位掩码 */
+  location: number
+  /** 离散格子的目标序号；堆叠区传 0 由 store 按顺序追加 */
+  sequence: number
+  /** ocgcore CardPosition 位掩码 */
+  position: number
+  /** 多人模式下按名字把手牌/堆叠区归到具体决斗者 */
+  duelistName?: string
+  /** 命中该 id 时直接按 id 归属（优先于 duelistName） */
+  duelistId?: string
+  customAtk?: number
+  customDef?: number
+}
+
+/**
  * AI 复盘出的完整场面布局（待用户确认后才写入决斗场）
  */
 export interface AgentBoardSetupProposal {
@@ -319,21 +355,28 @@ export type AgentStreamEvent =
     }
 
 /**
- * 随消息附加的小说素材定位器
+ * 随消息附加的小说 / 文本素材，两种形态二选一：
  *
- * 只传 id 不传正文：正文由主进程在收到消息时从小说资料库读取并缓存，
- * 模型经 read_novel_source 工具分段读取。整章动辄数万字，塞进 prompt
- * 既挤占上下文，也会让多轮对话反复携带同一份内容。
+ * - **资料库章节**：填 novelId + chapterId，正文由主进程在收到消息时从
+ *   小说资料库读取并缓存，模型经 read_novel_source 工具分段读取 ——
+ *   正文不进 IPC 载荷，整章数万字也不挤占对话记录；
+ * - **直接文本**：填 content（拖入输入区的临时 txt/md，不入资料库），
+ *   正文随消息一次传输，有值时忽略 novelId / chapterId。
+ *
+ * 两种形态都不把正文直接塞进 prompt：既挤占上下文，也会让多轮对话
+ * 反复携带同一份内容；统一由模型经工具分段读取。
  */
 export interface AgentNovelSourceRef {
-  /** 小说 id（资料库文件名去扩展名） */
-  novelId: string
-  /** 章节 id（如 ch_3） */
-  chapterId: string
-  /** 展示用标题（小说名 · 章节名） */
+  /** 小说 id（资料库文件名去扩展名）；直接文本形态下缺省 */
+  novelId?: string
+  /** 章节 id（如 ch_3）；直接文本形态下缺省 */
+  chapterId?: string
+  /** 展示用标题（书名 · 章节名 / 文件名） */
   title: string
   /** 章节字数（渲染端 chip 展示用；主进程不消费） */
   wordCount?: number
+  /** 直接文本形态的正文（拖入文件时由渲染端读取） */
+  content?: string
 }
 
 /**
@@ -438,45 +481,6 @@ export interface DuelProjectMeta {
 
 export type SettingsSectionId = 'appearance' | 'paths' | 'model-settings' | 'chat'
 
-/**
- * 台本文档的完整内容（落盘格式）
- *
- * 只存剧情编排相关：步骤序列 + 台词。**刻意不存盘面与卡组**——
- * 台本是「剧情层」，盘面是「战场层」，同一份剧情可以配不同的卡组。
- */
-export interface ScreenplayDoc {
-  id: string
-  title: string
-  synopsis?: string
-  tags?: string[]
-  /** 决斗步骤（含台词 / 内心独白 / 连锁序号） */
-  steps: DuelStep[]
-  updatedAt: number
-  /** 格式版本，便于将来迁移 */
-  version: string
-}
-
-/**
- * 台本元数据 (台本资源库列表项)
- *
- * 与 `DuelProjectMeta` 的区别：那份描述的是**整局工程**（盘面 + 步骤 + 场景），
- * 存成单个 `.ygoduel` 文件；台本只描述**剧情编排**（步骤 + 台词），
- * 可以脱离工程独立存在，用于沉淀创作灵感、后续再挑合适的盘面来填。
- */
-export interface ScreenplayMeta {
-  id: string // 台本唯一标识（文件名去扩展名）
-  filePath: string // 台本文件绝对路径
-  title: string // 台本标题
-  /** 一句话剧情概要 / 创作灵感来源 */
-  synopsis?: string
-  /** 标签（如 '暗游戏', '海马濑人', '剧场版'） */
-  tags?: string[]
-  stepCount: number // 步骤数量
-  updatedAt: number // 最后修改时间戳 (ms)
-  /** 台本内引用的卡密列表，供列表页展示「涉及卡片」 */
-  cardCodes?: number[]
-}
-
 /** 小说资料的处理进度 */
 export type NovelProgress = 'raw' | 'splitting' | 'split' | 'done'
 
@@ -534,19 +538,17 @@ export interface IpcApi {
     state: DuelPuzzleState
   ) => Promise<{ success: boolean; filePath?: string; error?: string }>
 
-  // 台本资源库（剧情编排独立于决斗工程存储）
-  getScreenplayList: () => Promise<ScreenplayMeta[]>
-  /** 新建空白台本，返回其 id */
-  createScreenplay: (title: string) => Promise<{ success: boolean; id?: string; error?: string }>
-  /** 保存台本内容；省略 id 则按 title 匹配已有台本 */
-  saveScreenplay: (screenplay: ScreenplayDoc) => Promise<{ success: boolean; error?: string }>
-  loadScreenplay: (id: string) => Promise<{ success: boolean; screenplay?: ScreenplayDoc }>
-  deleteScreenplay: (id: string) => Promise<{ success: boolean; error?: string }>
-  duplicateScreenplay: (id: string) => Promise<{ success: boolean; id?: string; error?: string }>
-  /** 把台本步骤套用到当前决斗场（不覆盖已有卡组与盘面设置） */
-  applyScreenplayToDuel: (id: string) => Promise<{ success: boolean; error?: string }>
+  /**
+   * 直接存入工程库（不弹保存对话框）
+   *
+   * 用于「从小说提取对局」这类**程序化建档**场景：文件名按标题自动生成，
+   * 落进当前生效的工程目录，用户不必每次都点一次另存为。
+   */
+  saveProjectToLibrary: (
+    state: DuelPuzzleState
+  ) => Promise<{ success: boolean; filePath?: string; error?: string }>
 
-  // 小说资料库（导入 → 章节拆分 → 供 AI 编排）
+  // 小说素材（原料：导入 → 章节拆分 → 供 AI 编排成对局）
   getNovelList: () => Promise<NovelMeta[]>
   /** 导入本地小说文件（txt / md / epub），自动按章节拆分 */
   importNovelFile: () => Promise<{ success: boolean; novel?: NovelMeta; error?: string }>

@@ -20,6 +20,22 @@ import {
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 
+/**
+ * 合法化工程文件名：去掉 Windows 非法字符与结尾的点
+ *
+ * 对局标题常取自小说章节名或角色名，可能带 ` / : * ? " < > |`。
+ * 注意**保留中文**——工程名基本都是中文标题，转写成拼音反而更难认。
+ */
+function sanitizeProjectFileName(name: string): string {
+  const cleaned = name
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .replace(/^\.+/, '')
+    .replace(/[. ]+$/, '')
+    .trim()
+  return cleaned || '未命名对局'
+}
+
 export class FileService {
   private projectsDir: string
 
@@ -229,6 +245,38 @@ export class FileService {
     } catch (err) {
       console.error('[FileService] Save project failed:', err)
       return { success: false }
+    }
+  }
+
+  /**
+   * 直接存入工程库（不弹保存对话框）
+   *
+   * 与 `saveProjectFile` 的区别是**文件名自动决定**：同名则覆盖，不同名则新建。
+   * 用于「从小说提取对局」这类程序化建档 —— 背后灵刚转写完的对局不应该
+   * 还要用户再点一次另存为。
+   */
+  public saveProjectToLibrary(state: DuelPuzzleState): {
+    success: boolean
+    filePath?: string
+    error?: string
+  } {
+    try {
+      const dir = this.ensureProjectsDirectory()
+      const rawTitle = (state.title || '').trim() || '未命名对局'
+      const base = sanitizeProjectFileName(rawTitle)
+      let filePath = join(dir, `${base}.ygoduel`)
+      // 同名加序号，避免默默覆盖用户已有对局
+      let n = 2
+      while (existsSync(filePath)) {
+        filePath = join(dir, `${base}_${n}.ygoduel`)
+        n += 1
+      }
+      writeFileSync(filePath, JSON.stringify(state, null, 2), 'utf-8')
+      this.recordRecentProject(filePath)
+      return { success: true, filePath }
+    } catch (err) {
+      console.error('[FileService] Save project to library failed:', err)
+      return { success: false, error: err instanceof Error ? err.message : '存入工程库失败' }
     }
   }
 

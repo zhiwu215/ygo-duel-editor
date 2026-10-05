@@ -1,6 +1,6 @@
 import { ipcMain, shell, BrowserWindow, dialog } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import { CardSearchParams, DuelPuzzleState, AppConfig, ScreenplayDoc } from '@shared/index'
+import { CardSearchParams, DuelPuzzleState, AppConfig } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
 import { configService } from '../services/configService'
@@ -43,40 +43,11 @@ export function registerAllIpcHandlers(): void {
     return fileService.exportScreenplayFile(state)
   })
 
-  // 台本资源库
-  ipcMain.handle('library:screenplay-list', async () => {
-    return libraryService.getScreenplayList()
+  ipcMain.handle('file:save-to-library', async (_, state: DuelPuzzleState) => {
+    return fileService.saveProjectToLibrary(state)
   })
 
-  ipcMain.handle('library:screenplay-create', async (_, title: string) => {
-    return libraryService.createScreenplay(title)
-  })
-
-  ipcMain.handle('library:screenplay-save', async (_, screenplay: ScreenplayDoc) => {
-    return libraryService.saveScreenplay(screenplay)
-  })
-
-  ipcMain.handle('library:screenplay-load', async (_, id: string) => {
-    return libraryService.loadScreenplay(id)
-  })
-
-  ipcMain.handle('library:screenplay-delete', async (_, id: string) => {
-    return libraryService.deleteScreenplay(id)
-  })
-
-  ipcMain.handle('library:screenplay-duplicate', async (_, id: string) => {
-    return libraryService.duplicateScreenplay(id)
-  })
-
-  ipcMain.handle('library:screenplay-apply', async (_, id: string) => {
-    const res = libraryService.loadScreenplay(id)
-    if (!res.success || !res.screenplay) {
-      return { success: false, error: '台本不存在' }
-    }
-    return { success: true, steps: res.screenplay.steps, title: res.screenplay.title }
-  })
-
-  // 小说资料库
+  // 小说素材（AI 编排对局的原料）
   ipcMain.handle('library:novel-list', async () => {
     return libraryService.getNovelList()
   })

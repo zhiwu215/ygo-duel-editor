@@ -12,17 +12,12 @@ import { join } from 'path'
 import {
   NovelChapter,
   NovelMeta,
-  ScreenplayDoc,
-  ScreenplayMeta,
   countWords,
   extractEpubText,
   inferNovelTitle,
   splitNovelChapters
 } from '@shared/index'
-import { configService } from './configService'
 
-/** 台本文件扩展名 */
-const SCREENPLAY_EXT = '.yscript'
 /** 小说正文文件扩展名 */
 const NOVEL_EXTS = ['.txt', '.md', '.epub']
 
@@ -43,169 +38,34 @@ function sanitizeFileName(name: string): string {
 }
 
 /**
- * 资料库服务：台本（剧情编排）与小说资料（AI 编排素材）
+ * 小说素材服务：AI 编排决斗对局的**原料层**
  *
- * 两者都**独立于决斗工程**存储在userData 下：
- * - 台本放在 `screenplays/`，一个台本一个 `.yscript` JSON
- * - 小说放在 `novels/`（原文件）+ `novels/<id>.chapters.json`（拆分结果）
+ * 只存「还没变成对局」的东西：导入的原文（`novels/<id>.<ext>`）
+ * 与按章节拆分的结果（`novels/<id>.chapters.json`）。
  *
- * 为什么不塞进工程目录：台本是「创作灵感层」，可以脱离任何具体盘面存在；
- * 混进projects/ 会和 .ygoduel 工程文件混在一起，列表扫描与用户预期都会乱。
+ * **为什么小说独立于工程目录**：它是原始素材而非对局成品——一本书能拆出
+ * 多个章节、每章可生成多个不同对局，成品统一落进 `projects/*.ygoduel`。
+ * 曾经存在的「台本」层（`screenplays/*.yscript`）已删除：台本只存 steps，
+ * 而 steps 里的 instanceId / boardAfter / 格子序号都指向具体盘面，
+ * 脱离 .ygoduel 无法回放，属于把同一份数据存两遍。
  */
 export class LibraryService {
-  private screenplaysDir: string
   private novelsDir: string
 
   constructor() {
-    const base = app.getPath('userData')
-    this.screenplaysDir = join(base, 'screenplays')
-    this.novelsDir = join(base, 'novels')
+    this.novelsDir = join(app.getPath('userData'), 'novels')
     this.ensureDirs()
   }
 
   private ensureDirs(): void {
-    for (const dir of [this.screenplaysDir, this.novelsDir]) {
-      try {
-        if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-      } catch (err) {
-        console.error('[LibraryService] Failed to ensure dir:', dir, err)
-      }
-    }
-  }
-
-  private screenplaysRoot(): string {
-    const custom = configService.get().projectsDirectory
-    if (custom && existsSync(custom)) {
-      const dir = join(custom, 'screenplays')
-      try {
-        if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-      } catch (err) {
-        console.error('[LibraryService] Failed to ensure custom screenplays dir:', err)
-      }
-      return dir
-    }
-    this.ensureDirs()
-    return this.screenplaysDir
-  }
-
-  /* ------------------------------ 台本 ------------------------------ */
-
-  private screenplaysPath(id: string): string {
-    return join(this.screenplaysRoot(), `${sanitizeFileName(id)}${SCREENPLAY_EXT}`)
-  }
-
-  public getScreenplayList(): ScreenplayMeta[] {
-    const root = this.screenplaysRoot()
-    if (!existsSync(root)) return []
-    const metas: ScreenplayMeta[] = []
     try {
-      for (const file of readdirSync(root)) {
-        if (!file.endsWith(SCREENPLAY_EXT)) continue
-        const filePath = join(root, file)
-        const doc = this.readScreenplayDoc(filePath)
-        if (!doc) continue
-        metas.push({
-          id: doc.id,
-          filePath,
-          title: doc.title || doc.id,
-          synopsis: doc.synopsis,
-          tags: doc.tags,
-          stepCount: Array.isArray(doc.steps) ? doc.steps.length : 0,
-          updatedAt: doc.updatedAt || 0,
-          cardCodes: Array.from(
-            new Set((doc.steps || []).map((s) => s.cardCode).filter((c): c is number => Boolean(c)))
-          )
-        })
-      }
+      if (!existsSync(this.novelsDir)) mkdirSync(this.novelsDir, { recursive: true })
     } catch (err) {
-      console.error('[LibraryService] getScreenplayList error:', err)
-    }
-    return metas.sort((a, b) => b.updatedAt - a.updatedAt)
-  }
-
-  private readScreenplayDoc(filePath: string): ScreenplayDoc | null {
-    try {
-      if (!existsSync(filePath)) return null
-      const parsed = JSON.parse(readFileSync(filePath, 'utf-8')) as ScreenplayDoc
-      if (!parsed || typeof parsed !== 'object') return null
-      if (!Array.isArray(parsed.steps)) return null
-      return parsed
-    } catch (err) {
-      console.error('[LibraryService] readScreenplayDoc error:', filePath, err)
-      return null
+      console.error('[LibraryService] Failed to ensure dir:', this.novelsDir, err)
     }
   }
 
-  public createScreenplay(title: string): { success: boolean; id?: string; error?: string } {
-    const clean = title.trim()
-    if (!clean) return { success: false, error: '台本标题不能为空' }
-    const id = sanitizeFileName(clean)
-    const filePath = this.screenplaysPath(id)
-    if (existsSync(filePath)) return { success: false, error: '已存在同名台本' }
-
-    const doc: ScreenplayDoc = {
-      id,
-      title: clean,
-      synopsis: '',
-      tags: [],
-      steps: [],
-      updatedAt: Date.now(),
-      version: '1.0.0'
-    }
-    try {
-      writeFileSync(filePath, JSON.stringify(doc, null, 2), 'utf-8')
-      return { success: true, id }
-    } catch (err) {
-      console.error('[LibraryService] createScreenplay error:', err)
-      return { success: false, error: err instanceof Error ? err.message : '创建台本失败' }
-    }
-  }
-
-  public saveScreenplay(screenplay: ScreenplayDoc): { success: boolean; error?: string } {
-    const id = sanitizeFileName(screenplay.id || screenplay.title || '未命名')
-    const doc: ScreenplayDoc = {
-      ...screenplay,
-      id,
-      title: screenplay.title?.trim() || id,
-      steps: Array.isArray(screenplay.steps) ? screenplay.steps : [],
-      updatedAt: Date.now(),
-      version: screenplay.version || '1.0.0'
-    }
-    try {
-      writeFileSync(this.screenplaysPath(id), JSON.stringify(doc, null, 2), 'utf-8')
-      return { success: true }
-    } catch (err) {
-      console.error('[LibraryService] saveScreenplay error:', err)
-      return { success: false, error: err instanceof Error ? err.message : '保存台本失败' }
-    }
-  }
-
-  public loadScreenplay(id: string): { success: boolean; screenplay?: ScreenplayDoc } {
-    const doc = this.readScreenplayDoc(this.screenplaysPath(id))
-    if (!doc) return { success: false }
-    return { success: true, screenplay: doc }
-  }
-
-  public deleteScreenplay(id: string): { success: boolean; error?: string } {
-    const filePath = this.screenplaysPath(id)
-    try {
-      if (existsSync(filePath)) unlinkSync(filePath)
-      return { success: true }
-    } catch (err) {
-      console.error('[LibraryService] deleteScreenplay error:', err)
-      return { success: false, error: err instanceof Error ? err.message : '删除台本失败' }
-    }
-  }
-
-  public duplicateScreenplay(id: string): { success: boolean; id?: string; error?: string } {
-    const src = this.readScreenplayDoc(this.screenplaysPath(id))
-    if (!src) return { success: false, error: '台本不存在' }
-    // 加时间戳避免与「(副本)」在多次复制时重名
-    const newId = `${src.id}_副本${Date.now().toString(36).slice(-4)}`
-    return this.saveScreenplay({ ...src, id: newId, title: `${src.title} (副本)` })
-  }
-
-  /* ------------------------------ 小说资料 ------------------------------ */
+  /* ------------------------------ 小说素材 ------------------------------ */
 
   private novelId(filePath: string): string {
     return (

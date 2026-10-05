@@ -6,6 +6,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { WindowControls } from '../ui/window-controls'
+import { GroupNameModal } from './GroupNameModal'
 import { YdkPasteModal } from './YdkPasteModal'
 import {
   Layers,
@@ -13,6 +14,8 @@ import {
   FolderOpen,
   ClipboardPaste,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Folder,
   Search,
   Edit3,
@@ -20,7 +23,10 @@ import {
   Trash2,
   Download,
   Clock,
-  BookOpen
+  BookOpen,
+  FolderPlus,
+  FolderInput,
+  Inbox
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -30,13 +36,25 @@ interface DeckContextMenuState {
   deck: DeckData
 }
 
+/** 分组栏上的右键菜单目标：分组名，或空白处（group 为 null） */
+interface GroupMenuState {
+  x: number
+  y: number
+  group: string | null
+}
+
 export const DeckLibraryView: React.FC = () => {
   const {
     deckList,
+    deckGroups,
     selectedGroup,
     searchKeyword,
     cardDetails,
     fetchDeckList,
+    createGroup,
+    renameGroup,
+    deleteGroup,
+    assignDeckGroup,
     setSelectedGroup,
     setSearchKeyword,
     openDeck,
@@ -48,6 +66,13 @@ export const DeckLibraryView: React.FC = () => {
   } = useDeckEditorStore()
 
   const [contextMenu, setContextMenu] = useState<DeckContextMenuState | null>(null)
+  const [groupMenu, setGroupMenu] = useState<GroupMenuState | null>(null)
+  /** 展开「移动到分组」二级菜单的卡组 id */
+  const [moveMenuDeckId, setMoveMenuDeckId] = useState<string | null>(null)
+  /** 分组新建 / 重命名弹窗；`original` 为 null 表示新建 */
+  const [groupModal, setGroupModal] = useState<{ original: string | null } | null>(null)
+  /** 拖拽归组时高亮的目标分组 */
+  const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
   const [importMenuOpen, setImportMenuOpen] = useState<boolean>(false)
   const [showPasteModal, setShowPasteModal] = useState<boolean>(false)
 
@@ -57,7 +82,10 @@ export const DeckLibraryView: React.FC = () => {
 
   useEffect(() => {
     if (!contextMenu) return
-    const close = (): void => setContextMenu(null)
+    const close = (): void => {
+      setContextMenu(null)
+      setMoveMenuDeckId(null)
+    }
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') close()
     }
@@ -70,6 +98,22 @@ export const DeckLibraryView: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [contextMenu])
+
+  useEffect(() => {
+    if (!groupMenu) return
+    const close = (): void => setGroupMenu(null)
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') close()
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('resize', close)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [groupMenu])
 
   useEffect(() => {
     if (!importMenuOpen) return
@@ -87,34 +131,62 @@ export const DeckLibraryView: React.FC = () => {
     }
   }, [importMenuOpen])
 
-  const groups = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const d of deckList) {
-      const g = d.group?.trim() || '未分组'
-      map.set(g, (map.get(g) || 0) + 1)
-    }
-    return Array.from(map.entries())
-  }, [deckList])
+  const ungroupedCount = useMemo(() => deckList.filter((d) => !d.group?.trim()).length, [deckList])
 
-  const filteredDecks = useMemo(() => {
+  /** 分组 → 卡组数。以已保存的分组列表为准，空分组也占位显示 (0) */
+  const groupCounts = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const g of deckGroups) map.set(g, 0)
+    for (const d of deckList) {
+      const g = d.group?.trim()
+      if (g && map.has(g)) map.set(g, (map.get(g) || 0) + 1)
+    }
+    return map
+  }, [deckGroups, deckList])
+
+  /**
+   * 搜索命中的卡组（null = 未搜索）
+   *
+   * 搜索是**跨分组**的：用户在顶层搜「暗游戏」时应能看到各文件夹里的命中卡组，
+   * 否则「文件夹 + 未分组」的两层结构会让搜索显得像坏了。
+   */
+  const searchMatchedDecks = useMemo(() => {
+    const kw = searchKeyword.trim().toLowerCase()
+    if (!kw) return null
     return deckList.filter((deck) => {
-      if (selectedGroup) {
-        const g = deck.group?.trim() || '未分组'
-        if (g !== selectedGroup) return false
-      }
-      if (searchKeyword.trim()) {
-        const kw = searchKeyword.trim().toLowerCase()
-        const matchName = deck.name.toLowerCase().includes(kw)
-        const matchDesc = deck.description?.toLowerCase().includes(kw)
-        const matchGroup = deck.group?.toLowerCase().includes(kw)
-        const matchTag = deck.tags?.some((t) => t.toLowerCase().includes(kw))
-        if (!matchName && !matchDesc && !matchGroup && !matchTag) {
-          return false
-        }
-      }
-      return true
+      const matchName = deck.name.toLowerCase().includes(kw)
+      const matchDesc = deck.description?.toLowerCase().includes(kw)
+      const matchGroup = deck.group?.toLowerCase().includes(kw)
+      const matchTag = deck.tags?.some((t) => t.toLowerCase().includes(kw))
+      return Boolean(matchName || matchDesc || matchGroup || matchTag)
     })
-  }, [deckList, selectedGroup, searchKeyword])
+  }, [deckList, searchKeyword])
+
+  /**
+   * 当前视图要展示的卡组
+   *
+   * selectedGroup 为 null = 顶层（只放未分组的卡组，文件夹另行渲染）；
+   * 否则是该分组内部。group 字段对不上任何已存分组的卡组（分组被删等）也算未分组，
+   * 避免它们变成顶层也看不到的幽灵数据。
+   */
+  const visibleDecks = useMemo(() => {
+    const source = searchMatchedDecks ?? deckList
+    if (selectedGroup === null) return source.filter((d) => !d.group?.trim())
+    return source.filter((d) => d.group?.trim() === selectedGroup)
+  }, [deckList, selectedGroup, searchMatchedDecks])
+
+  /**
+   * 顶层要展示的文件夹。搜索时只留有命中的分组，否则会剩下一堆点进去是空的文件夹。
+   */
+  const visibleGroups = useMemo(() => {
+    if (!searchMatchedDecks) return deckGroups
+    const hit = new Set<string>()
+    for (const d of searchMatchedDecks) {
+      const g = d.group?.trim()
+      if (g) hit.add(g)
+    }
+    return deckGroups.filter((g) => hit.has(g))
+  }, [deckGroups, searchMatchedDecks])
 
   const getCoverCode = (deck: DeckData): number | undefined => {
     if (deck.coverCard) return deck.coverCard
@@ -151,8 +223,36 @@ export const DeckLibraryView: React.FC = () => {
     }
   }
 
+  const handleGroupContextMenu = (e: React.MouseEvent, group: string | null): void => {
+    // 拖拽归组进行中不弹菜单：用户正在拖，不是想点菜单
+    if (dragOverGroup !== null) return
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu(null)
+    setMoveMenuDeckId(null)
+    setGroupMenu({ x: e.clientX, y: e.clientY, group })
+  }
+
+  /** 打开分组命名弹窗；original 为 null 表示新建 */
+  const openGroupModal = (original: string | null): void => {
+    setContextMenu(null)
+    setGroupMenu(null)
+    setGroupModal({ original })
+  }
+
+  const handleDeleteGroup = async (name: string): Promise<void> => {
+    const count = groupCounts.get(name) ?? 0
+    const suffix =
+      count > 0 ? `\n该分组下的 ${count} 个卡组将退回「未分组」，卡组本身不会被删除。` : ''
+    if (confirm(`确认删除分组「${name}」？${suffix}`)) {
+      await deleteGroup(name)
+    }
+  }
+
   const menuX = contextMenu ? Math.min(contextMenu.x, window.innerWidth - 190) : 0
   const menuY = contextMenu ? Math.min(contextMenu.y, window.innerHeight - 180) : 0
+  const groupMenuX = groupMenu ? Math.min(groupMenu.x, window.innerWidth - 200) : 0
+  const groupMenuY = groupMenu ? Math.min(groupMenu.y, window.innerHeight - 160) : 0
 
   return (
     <div className="flex flex-col w-screen h-screen bg-background text-foreground select-none overflow-hidden font-sans">
@@ -248,56 +348,120 @@ export const DeckLibraryView: React.FC = () => {
         </div>
       </header>
 
-      <div className="px-6 py-2.5 bg-muted/20 border-b border-border/60 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
-        <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground shrink-0 mr-1">
-          <Folder className="w-3.5 h-3.5" />
-          <span>分组:</span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setSelectedGroup(null)}
-          className={cn(
-            'px-2.5 py-1 rounded-md text-xs font-medium transition-all shrink-0 cursor-pointer',
-            selectedGroup === null
-              ? 'bg-primary text-primary-foreground font-bold shadow-xs'
-              : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
-        >
-          全部 ({deckList.length})
-        </button>
-
-        {groups.map(([group, count]) => {
-          const isActive = selectedGroup === group
-          return (
+      <main
+        onContextMenu={(e) => {
+          // 空白处右键 → 新建分组入口（点卡组时由卡组自己的 onContextMenu 拦下）
+          if ((e.target as HTMLElement).closest('[data-deck-card]')) return
+          e.preventDefault()
+          setContextMenu(null)
+          setGroupMenu({ x: e.clientX, y: e.clientY, group: null })
+        }}
+        className="flex-1 overflow-y-auto p-6 min-h-0 bg-background/50"
+      >
+        {/* 面包屑：分组内才显示「全部 / 分组名」，顶层只有「全部」 */}
+        {selectedGroup !== null && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-4">
             <button
-              key={group}
               type="button"
-              onClick={() => setSelectedGroup(isActive ? null : group)}
-              className={cn(
-                'px-2.5 py-1 rounded-md text-xs font-medium transition-all shrink-0 cursor-pointer flex items-center gap-1',
-                isActive
-                  ? 'bg-primary text-primary-foreground font-bold shadow-xs'
-                  : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
+              onClick={() => setSelectedGroup(null)}
+              className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
             >
-              <span className="max-w-40 truncate">{group}</span>
-              <span className="text-[10px] opacity-75 font-mono">({count})</span>
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>全部</span>
             </button>
-          )
-        })}
-      </div>
+            <ChevronRight className="w-3 h-3 opacity-50" />
+            <span className="font-semibold text-foreground flex items-center gap-1 min-w-0">
+              <Folder className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{selectedGroup}</span>
+            </span>
+          </div>
+        )}
 
-      <main className="flex-1 overflow-y-auto p-6 min-h-0 bg-background/50">
-        {filteredDecks.length > 0 ? (
+        {/* 顶层：先文件夹区，再未分组卡组区（类百度网盘） */}
+        {selectedGroup === null && visibleGroups.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-2.5">
+              <Folder className="w-3.5 h-3.5" />
+              <span>分组</span>
+              <span className="font-mono text-[10px] opacity-70">({visibleGroups.length})</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+              {visibleGroups.map((group) => {
+                const count = groupCounts.get(group) ?? 0
+                const isDropTarget = dragOverGroup === group
+                return (
+                  <div
+                    key={group}
+                    data-deck-folder
+                    onClick={() => setSelectedGroup(group)}
+                    onContextMenu={(e) => handleGroupContextMenu(e, group)}
+                    onDragOver={(e) => {
+                      if (!e.dataTransfer.types.includes('text/deck-id')) return
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      if (dragOverGroup !== group) setDragOverGroup(group)
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                      if (dragOverGroup === group) setDragOverGroup(null)
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setDragOverGroup(null)
+                      const deckId = e.dataTransfer.getData('text/deck-id')
+                      if (deckId) void assignDeckGroup(deckId, group)
+                    }}
+                    className={cn(
+                      'group cursor-pointer rounded-lg border border-border/70 bg-card/60 hover:border-primary/60 hover:bg-card transition-all duration-150 px-3 py-2.5 flex items-center gap-2.5 min-w-0',
+                      isDropTarget &&
+                        'ring-2 ring-primary border-primary bg-primary/10 scale-[1.02]'
+                    )}
+                  >
+                    <Folder
+                      className={cn(
+                        'w-9 h-9 shrink-0 transition-colors',
+                        isDropTarget ? 'text-primary' : 'text-amber-500/80'
+                      )}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold text-foreground truncate">{group}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">
+                        {count} 个卡组
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 分组内 / 顶层未分组卡组的标题 */}
+        {selectedGroup === null && visibleDecks.length > 0 && ungroupedCount > 0 && (
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-2.5">
+            <Inbox className="w-3.5 h-3.5" />
+            <span>未分组</span>
+            <span className="font-mono text-[10px] opacity-70">({ungroupedCount})</span>
+          </div>
+        )}
+
+        {visibleDecks.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredDecks.map((deck) => {
+            {visibleDecks.map((deck) => {
               const coverCode = getCoverCode(deck)
               const coverCard = coverCode ? cardDetails[coverCode] : undefined
 
               return (
                 <div
                   key={deck.id || deck.name}
+                  data-deck-card
+                  draggable
+                  onDragStart={(e) => {
+                    // 载荷只放实例 id：分组栏据此判断是否接受拖入
+                    e.dataTransfer.setData('text/deck-id', deck.id || '')
+                    e.dataTransfer.effectAllowed = 'move'
+                  }}
                   onClick={() => void openDeck(deck)}
                   onContextMenu={(e) => handleContextMenu(e, deck)}
                   className="group relative flex flex-col rounded-xl bg-card border border-border/70 hover:border-primary/60 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden cursor-pointer"
@@ -389,11 +553,19 @@ export const DeckLibraryView: React.FC = () => {
               <BookOpen className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">没有找到匹配的卡组</p>
+              <p className="text-sm font-semibold text-foreground">
+                {searchKeyword
+                  ? '没有找到匹配的卡组'
+                  : selectedGroup
+                    ? '该分组内还没有卡组'
+                    : '还没有卡组'}
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {searchKeyword || selectedGroup
-                  ? '尝试切换分组或清除搜索关键词'
-                  : '暂无卡组，点击上方按钮新建或导入 YDK 卡组'}
+                {searchKeyword
+                  ? '尝试清除搜索关键词'
+                  : selectedGroup
+                    ? '把卡组拖进来，或在卡组右键菜单里选择「移动到分组」'
+                    : '点击上方按钮新建或导入 YDK 卡组；右键空白处可新建分组'}
               </p>
             </div>
             <div className="flex items-center gap-2 mt-2">
@@ -407,7 +579,18 @@ export const DeckLibraryView: React.FC = () => {
                   }}
                   className="h-8 text-xs"
                 >
-                  清除所有筛选
+                  {searchKeyword ? '清除搜索' : '返回全部'}
+                </Button>
+              )}
+              {selectedGroup === null && !searchKeyword && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openGroupModal(null)}
+                  className="h-8 text-xs gap-1.5"
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  <span>新建分组</span>
                 </Button>
               )}
               <Button
@@ -476,6 +659,79 @@ export const DeckLibraryView: React.FC = () => {
 
           <Separator className="my-1" />
 
+          {/* 移动到分组：hover 展开二级菜单，列出全部分组 + 未分组 */}
+          <div
+            className="relative"
+            onMouseEnter={() => {
+              if (contextMenu.deck.id) setMoveMenuDeckId(contextMenu.deck.id)
+            }}
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
+            >
+              <FolderInput className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>移动到分组</span>
+              <ChevronRight className="w-3 h-3 ml-auto opacity-60" />
+            </Button>
+
+            {moveMenuDeckId === contextMenu.deck.id && (
+              <div className="absolute left-full top-0 ml-1 z-[70] min-w-40 max-h-72 overflow-y-auto bg-popover/95 backdrop-blur-md border border-border rounded-lg shadow-2xl p-1 text-xs">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => {
+                    const id = contextMenu.deck.id
+                    setContextMenu(null)
+                    setMoveMenuDeckId(null)
+                    if (id) void assignDeckGroup(id, '')
+                  }}
+                  className={cn(
+                    'w-full px-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
+                    !contextMenu.deck.group?.trim()
+                      ? 'bg-primary/15 text-primary font-semibold'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                  )}
+                >
+                  <Inbox className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">未分组</span>
+                </button>
+
+                {deckGroups.map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      const id = contextMenu.deck.id
+                      setContextMenu(null)
+                      setMoveMenuDeckId(null)
+                      if (id) void assignDeckGroup(id, g)
+                    }}
+                    className={cn(
+                      'w-full px-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
+                      contextMenu.deck.group === g
+                        ? 'bg-primary/15 text-primary font-semibold'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    )}
+                  >
+                    <Folder className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{g}</span>
+                  </button>
+                ))}
+
+                {deckGroups.length === 0 && (
+                  <p className="px-2 py-1.5 text-[10px] text-muted-foreground/70 leading-relaxed">
+                    还没有分组。右键空白处可新建。
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <Separator className="my-1" />
+
           <Button
             variant="ghost"
             size="sm"
@@ -485,10 +741,92 @@ export const DeckLibraryView: React.FC = () => {
             }}
             className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 className="w-3.5 h-3.5 text-destructive" />
             <span>删除卡组</span>
           </Button>
         </div>
+      )}
+
+      {/* 分组菜单：空白处为「新建分组」，分组标签上为「重命名 / 删除」 */}
+      {groupMenu && (
+        <div
+          style={{ left: groupMenuX, top: groupMenuY }}
+          className="fixed z-[65] min-w-48 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1 text-xs animate-in fade-in zoom-in-95 duration-75 select-none"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {groupMenu.group === null ? (
+            <>
+              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1">
+                新建分组
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => openGroupModal(null)}
+                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>新建分组</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={createNewDeck}
+                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>新建卡组</span>
+              </Button>
+            </>
+          ) : (
+            <>
+              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44">
+                {groupMenu.group}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // 闭包里 TS 无法再做窄化，先取出再判空
+                  const name = groupMenu.group
+                  if (name === null) return
+                  openGroupModal(name)
+                }}
+                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>重命名分组</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const name = groupMenu.group
+                  setGroupMenu(null)
+                  if (name) void handleDeleteGroup(name)
+                }}
+                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                <span>删除分组</span>
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {groupModal && (
+        <GroupNameModal
+          initialName={groupModal.original}
+          existingGroups={deckGroups}
+          onClose={() => setGroupModal(null)}
+          onConfirm={async (name) =>
+            groupModal.original === null
+              ? await createGroup(name)
+              : await renameGroup(groupModal.original, name)
+          }
+        />
       )}
 
       {showPasteModal && (

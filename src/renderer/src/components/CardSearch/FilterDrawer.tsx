@@ -1,12 +1,5 @@
 import React from 'react'
-import {
-  SlidersHorizontal,
-  RotateCcw,
-  ChevronRight,
-  ArrowDownUp,
-  CheckSquare,
-  Square
-} from 'lucide-react'
+import { SlidersHorizontal, RotateCcw, ArrowDownUp, CheckSquare, Square } from 'lucide-react'
 import { CardType, CardAttribute, ATTRIBUTE_NAMES, CardRace, RACE_NAMES } from '@shared/index'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { Button } from '../ui/button'
@@ -71,8 +64,7 @@ export const FilterDrawer: React.FC = () => {
     sortField,
     sortOrder,
     setFilters,
-    resetFilters,
-    toggleFilterOpen
+    resetFilters
   } = useCardSearchStore()
 
   // 根据当前主种类动态获得子种类列表
@@ -100,15 +92,6 @@ export const FilterDrawer: React.FC = () => {
           >
             <RotateCcw className="w-3 h-3" />
             <span>重置</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={toggleFilterOpen}
-            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-            title="收起筛选栏"
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>

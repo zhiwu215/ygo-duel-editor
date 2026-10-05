@@ -50,6 +50,7 @@ interface AgentStoreState {
   loadPresets: () => Promise<AgentProviderPreset[]>
   upsertProvider: (provider: AgentProviderConfig) => void
   removeProvider: (providerId: string) => void
+  reorderProviders: (fromId: string, toId: string) => void
   selectModel: (providerId: string, modelId: string) => void
   sendMessage: (prompt: string, boardState?: DuelPuzzleState) => Promise<void>
   abort: () => Promise<void>
@@ -285,6 +286,20 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       providers: nextProviders,
       provider: config.provider === providerId ? undefined : config.provider
     })
+    set({ config: next })
+    void get().saveConfig()
+  },
+
+  reorderProviders: (fromId: string, toId: string) => {
+    const { config } = get()
+    const providers = config.providers ?? []
+    const fromIndex = providers.findIndex((p) => p.id === fromId)
+    const toIndex = providers.findIndex((p) => p.id === toId)
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return
+    const nextProviders = [...providers]
+    const [moved] = nextProviders.splice(fromIndex, 1)
+    nextProviders.splice(toIndex, 0, moved)
+    const next = syncActiveFields({ ...config, providers: nextProviders })
     set({ config: next })
     void get().saveConfig()
   },

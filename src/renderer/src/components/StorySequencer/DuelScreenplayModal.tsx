@@ -62,6 +62,7 @@ export const DuelScreenplayModal: React.FC = () => {
   // 模式切换: 'editor' (分步撰写工作台) | 'document' (完整台本文档排版预览)
   const [viewMode, setViewMode] = useState<'editor' | 'document'>('editor')
   const [copiedFullScript, setCopiedFullScript] = useState<boolean>(false)
+  const [savedToArchive, setSavedToArchive] = useState<boolean>(false)
 
   // 确保有当前选中的步骤 ID
   const activeStep = steps.find((s) => s.id === selectedStepId) || steps[0]
@@ -192,6 +193,28 @@ export const DuelScreenplayModal: React.FC = () => {
     }
   }
 
+  /**
+   * 存入对局档案
+   *
+   * 走 `saveProjectToLibrary` 而非`saveProjectFile`：后者会弹另存为对话框，
+   * 而这条路径的典型场景是「AI刚从小说转写完一份台本」，用户不该再点一次
+   * 文件对话框。文件名按标题自动生成，同名加序号，不覆盖已有对局。
+   */
+  const handleSaveToArchive = async (): Promise<void> => {
+    if (!window.api?.saveProjectToLibrary) return
+    if ((state.steps || []).length === 0) {
+      alert('还没有任何步骤，先编排或让 AI 转写后再存入档案。')
+      return
+    }
+    const res = await window.api.saveProjectToLibrary(state)
+    if (res.success && res.filePath) {
+      setSavedToArchive(true)
+      setTimeout(() => setSavedToArchive(false), 2500)
+    } else {
+      alert(`存入档案失败: ${res.error || '未知错误'}`)
+    }
+  }
+
   return (
     <div
       onMouseDown={(e) => e.stopPropagation()}
@@ -255,6 +278,27 @@ export const DuelScreenplayModal: React.FC = () => {
                 <>
                   <Copy className="w-3.5 h-3.5 text-muted-foreground" />
                   <span>复制台本</span>
+                </>
+              )}
+            </Button>
+
+            {/* 存入对局档案（不弹另存为，文件名按标题自动生成） */}
+            <Button
+              variant={savedToArchive ? 'outline' : 'secondary'}
+              size="sm"
+              onClick={() => void handleSaveToArchive()}
+              className="h-7 text-xs font-semibold gap-1.5"
+              title="把当前盘面与步骤存入对局档案，之后可从左侧「决斗档案」重新载入"
+            >
+              {savedToArchive ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  <span className="text-emerald-500 font-bold">已存入档案</span>
+                </>
+              ) : (
+                <>
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>存入档案</span>
                 </>
               )}
             </Button>
@@ -391,6 +435,13 @@ export const DuelScreenplayModal: React.FC = () => {
                             <div className="text-[11px] text-muted-foreground/80 pl-1 flex items-center gap-1">
                               <Lightbulb className="w-3 h-3 text-muted-foreground shrink-0" />
                               <span>战术备忘：{s.description}</span>
+                            </div>
+                          )}
+
+                          {s.sourceQuote && (
+                            <div className="text-[10px] text-muted-foreground/70 italic pl-1 flex items-center gap-1">
+                              <FileText className="w-3 h-3 shrink-0" />
+                              <span>原文：「{s.sourceQuote}」</span>
                             </div>
                           )}
                         </div>
@@ -636,7 +687,6 @@ export const DuelScreenplayModal: React.FC = () => {
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <label className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
                         <span>说话角色 (Speaker)</span>
                       </label>
                       <span className="text-[11px] text-muted-foreground">
@@ -649,7 +699,6 @@ export const DuelScreenplayModal: React.FC = () => {
                         type="text"
                         value={activeStep.speaker || ''}
                         onChange={(e) => updateStep(activeStep.id, { speaker: e.target.value })}
-                        placeholder="输入角色名，例如：凯撒亮、游城十代、海马濑人"
                         className="h-8 text-xs font-medium max-w-sm"
                       />
                     </div>
@@ -678,7 +727,6 @@ export const DuelScreenplayModal: React.FC = () => {
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <label className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
                         <span>角色台词 / 召唤口播 / 决斗战吼</span>
                       </label>
                       <span className="text-[11px] text-muted-foreground font-mono">
@@ -690,37 +738,32 @@ export const DuelScreenplayModal: React.FC = () => {
                       rows={5}
                       value={activeStep.dialogue || ''}
                       onChange={(e) => updateStep(activeStep.id, { dialogue: e.target.value })}
-                      placeholder="在此畅快编写人物台词、召唤台本或攻宣战吼，例如：&#10;「在这瞬间，我发动速攻魔法卡！将场上的怪兽作为祭品，特殊召唤电子龙！」"
-                      className="w-full rounded-xl border border-border/80 bg-background/80 p-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-all font-serif leading-relaxed placeholder:font-sans placeholder:text-muted-foreground/60"
+                      className="w-full rounded-xl border border-border/80 bg-background/80 p-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-all font-serif leading-relaxed"
                     />
                   </div>
 
                   {/* 2.2.4 心理活动与内心戏 (Inner Thoughts) */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-bold text-xs text-sky-400 flex items-center gap-1.5">
-                      <BrainCircuit className="w-3.5 h-3.5" />
+                    <label className="font-bold text-xs text-foreground">
                       <span>内心独白 / 心理戏 (可选)</span>
                     </label>
                     <textarea
                       rows={2}
                       value={activeStep.innerThoughts || ''}
                       onChange={(e) => updateStep(activeStep.id, { innerThoughts: e.target.value })}
-                      placeholder="（输入角色的心声或冷汗，例如：（这家伙……第一回合就做出了这样的场面吗……绝对不能让他继续攻过来！））"
-                      className="w-full rounded-lg border border-border/70 bg-background/60 p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-400 focus:border-sky-400 transition-all italic leading-relaxed placeholder:text-muted-foreground/50"
+                      className="w-full rounded-lg border border-border/70 bg-background/60 p-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-400 focus:border-sky-400 transition-all italic leading-relaxed"
                     />
                   </div>
 
                   {/* 2.2.5 战术解说与额外批注 */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-bold text-xs text-muted-foreground flex items-center gap-1.5">
-                      <Lightbulb className="w-3.5 h-3.5 text-muted-foreground" />
+                    <label className="font-bold text-xs text-foreground">
                       <span>战术解说 / 备忘说明 (可选)</span>
                     </label>
                     <Input
                       type="text"
                       value={activeStep.description || ''}
                       onChange={(e) => updateStep(activeStep.id, { description: e.target.value })}
-                      placeholder="备忘此步操作的战术意图，例如：诱骗对方发动神圣防护罩、预留融合素材等"
                       className="h-8 text-xs"
                     />
                   </div>
@@ -735,7 +778,7 @@ export const DuelScreenplayModal: React.FC = () => {
                           deleteStep(activeStep.id)
                         }
                       }}
-                      className="text-muted-foreground hover:text-destructive text-xs gap-1"
+                      className="text-destructive/90 bg-destructive/5 hover:text-destructive hover:bg-destructive/10 text-xs gap-1"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>删除当前步骤</span>

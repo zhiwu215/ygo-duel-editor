@@ -65,7 +65,8 @@ export function BehindSpiritPanel(): JSX.Element {
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [openProviderKey, setOpenProviderKey] = useState<string | null>(null)
 
-  const chatEndRef = useRef<HTMLDivElement>(null)
+  const chatScrollRef = useRef<HTMLDivElement>(null)
+  const shouldAutoScrollRef = useRef(true)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const modelMenuRef = useRef<HTMLDivElement>(null)
   //浮层通过 Portal 渲染到 body，需自行记录触发器位置；宽度固定不跟随触发器（参考 ZCode）
@@ -93,8 +94,19 @@ export function BehindSpiritPanel(): JSX.Element {
   }, [modelMenuOpen])
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const chat = chatScrollRef.current
+    if (!chat || !shouldAutoScrollRef.current) return
+
+    chat.scrollTo({
+      top: chat.scrollHeight,
+      behavior: isGenerating ? 'auto' : 'smooth'
+    })
   }, [messages, isGenerating])
+
+  const handleChatScroll = (event: React.UIEvent<HTMLDivElement>): void => {
+    const chat = event.currentTarget
+    shouldAutoScrollRef.current = chat.scrollHeight - chat.scrollTop - chat.clientHeight <= 64
+  }
 
   const providers = useMemo(() => config.providers ?? [], [config.providers])
   const activeProvider = useMemo(
@@ -159,6 +171,7 @@ export function BehindSpiritPanel(): JSX.Element {
 
   const handleSend = (): void => {
     if ((!inputPrompt.trim() && attachedCards.length === 0) || isGenerating) return
+    shouldAutoScrollRef.current = true
     // 对话记录只存用户原始输入；引用卡片的上下文仅在发给模型时拼接
     sendMessage(
       inputPrompt.trim(),
@@ -254,7 +267,11 @@ export function BehindSpiritPanel(): JSX.Element {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 bg-background/50">
-        <div className="flex-1 overflow-y-auto p-3 space-y-3 select-text">
+        <div
+          ref={chatScrollRef}
+          onScroll={handleChatScroll}
+          className="flex-1 overflow-y-auto p-3 space-y-3 select-text"
+        >
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground select-none">
               <div className="p-3 rounded-2xl bg-muted text-muted-foreground mb-3 border border-border shadow-xs">
@@ -408,7 +425,6 @@ export function BehindSpiritPanel(): JSX.Element {
               </div>
             ))
           )}
-          <div ref={chatEndRef} />
         </div>
 
         <div className="p-2.5 border-t border-border bg-card/80 flex flex-col gap-2 shrink-0">

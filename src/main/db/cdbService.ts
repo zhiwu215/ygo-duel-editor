@@ -1,29 +1,99 @@
 import Database from 'better-sqlite3'
-import { CdbCard, CardSearchParams, CardSearchResult, NumericCompareOp } from '@shared/index'
+import {
+  CdbCard,
+  CardType,
+  CardSearchFilterOptions,
+  CardSearchParams,
+  CardSearchResult,
+  NumericCompareOp
+} from '@shared/index'
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 
 /** 数值比较符 → SQL 运算符 (仅白名单，避免把外部字符串直接拼进 SQL) */
-const COMPARATOR: Record<NumericCompareOp, string> = {
+const COMPARATOR: Record<Exclude<NumericCompareOp, 'unknown'>, string> = {
   eq: '=',
+  gt: '>',
   gte: '>=',
+  lt: '<',
   lte: '<='
+}
+
+interface SearchToken {
+  text: string
+  mode: 'any' | 'name' | 'set'
+  excluded: boolean
+}
+
+/** 解析 YGOPro 风格的空格分词、引号短语、排除词、$卡名限定与@系列限定。 */
+function parseSearchTokens(input: string): SearchToken[] {
+  const tokens: SearchToken[] = []
+  let index = 0
+
+  while (index < input.length) {
+    while (/\s/.test(input[index] ?? '')) index++
+    if (index >= input.length) break
+
+    let excluded = false
+    if (input[index] === '-') {
+      excluded = true
+      index++
+    }
+
+    let mode: SearchToken['mode'] = 'any'
+    if (input[index] === '$') {
+      mode = 'name'
+      index++
+    } else if (input[index] === '@') {
+      mode = 'set'
+      index++
+    }
+
+    let text = ''
+    if (input[index] === '"') {
+      index++
+      const end = input.indexOf('"', index)
+      if (end === -1) {
+        text = input.slice(index)
+        index = input.length
+      } else {
+        text = input.slice(index, end)
+        index = end + 1
+      }
+    } else {
+      const start = index
+      while (index < input.length && !/\s/.test(input[index])) index++
+      text = input.slice(start, index)
+    }
+
+    if (text.trim()) tokens.push({ text: text.trim(), mode, excluded })
+  }
+
+  return tokens
 }
 
 export class CdbService {
   private db: Database.Database | null = null
   private currentPath: string | null = null
   private setnameMap: Map<number, string> = new Map()
+  private systemStringMap: Map<number, string> = new Map()
 
   /**
    * 从 cards.cdb 同级目录或子目录加载 strings.conf 中的系列名称定义
    */
   private loadStringsConf(cdbPath: string): void {
     this.setnameMap.clear()
+    this.systemStringMap.clear()
     const dir = path.dirname(cdbPath)
+    const searchDirs = [dir]
+    if (path.basename(dir).toLocaleLowerCase() === 'expansions') searchDirs.push(path.dirname(dir))
     const candidatePaths = [
-      path.join(dir, 'strings.conf'),
-      path.join(dir, 'expansions', 'strings.conf')
+      ...new Set(
+        searchDirs.flatMap((searchDir) => [
+          path.join(searchDir, 'strings.conf'),
+          path.join(searchDir, 'expansions', 'strings.conf')
+        ])
+      )
     ]
 
     for (const p of candidatePaths) {
@@ -32,18 +102,25 @@ export class CdbService {
           const content = readFileSync(p, 'utf-8')
           const lines = content.split(/\r?\n/)
           for (const line of lines) {
-            if (!line.startsWith('!setname')) continue
-            // 格式形如: !setname 0x22 朱罗纪\tジュラック 或 !setname 0x11d 禁忌的
-            const match = line.match(/^!setname\s+(0x[0-9a-fA-F]+|\d+)\s+([^\t\r\n]+)/)
-            if (match) {
-              const code = parseInt(match[1], 16)
-              const name = match[2].trim()
-              if (!isNaN(code) && name) {
-                this.setnameMap.set(code, name)
-              }
+            // !setname 记录系列名；!system 1100–1131 是游戏内效果分类标签。
+            const setnameMatch = line.match(/^!setname\s+(0x[0-9a-fA-F]+|\d+)\s+([^\t\r\n]+)/)
+            if (setnameMatch) {
+              // strings.conf 的 setname 编号按十六进制解析，即使没有 0x 前缀。
+              const code = parseInt(setnameMatch[1].replace(/^0x/i, ''), 16)
+              const name = setnameMatch[2].trim()
+              if (!isNaN(code) && name) this.setnameMap.set(code, name)
+            }
+
+            const systemMatch = line.match(/^!system\s+(\d+)\s+([^\t\r\n]+)/)
+            if (systemMatch) {
+              const id = Number(systemMatch[1])
+              const label = systemMatch[2].trim()
+              if (id >= 1100 && id < 1132 && label) this.systemStringMap.set(id, label)
             }
           }
-          console.log(`[CdbService] Loaded ${this.setnameMap.size} setnames from ${p}`)
+          console.log(
+            `[CdbService] Loaded ${this.setnameMap.size} setnames and ${this.systemStringMap.size} effect labels from ${p}`
+          )
         } catch (err) {
           console.error(`[CdbService] Failed to parse ${p}:`, err)
         }
@@ -79,6 +156,21 @@ export class CdbService {
       val = val >> 16n
     }
     return names
+  }
+
+  /** 按游戏 strings.conf 的系列名规则解析可匹配的 setcode。 */
+  private getSetcodesForKeyword(keyword: string): number[] {
+    const normalized = keyword.toLocaleLowerCase()
+    const codes: number[] = []
+    for (const [code, rawName] of this.setnameMap) {
+      const names = rawName.split('|').map((name) => name.trim())
+      const matched = names.some((name) => {
+        const candidate = name.toLocaleLowerCase()
+        return normalized.length < 2 ? candidate === normalized : candidate.includes(normalized)
+      })
+      if (matched) codes.push(code)
+    }
+    return codes
   }
 
   /**
@@ -125,12 +217,21 @@ export class CdbService {
     return this.currentPath
   }
 
+  public getSearchFilterOptions(): CardSearchFilterOptions {
+    const effectCategories: CardSearchFilterOptions['effectCategories'] = []
+    for (let index = 0; index < 32; index++) {
+      const label = this.systemStringMap.get(1100 + index)
+      if (label) effectCategories.push({ mask: 2 ** index, label })
+    }
+    return { effectCategories }
+  }
+
   public isReady(): boolean {
     return this.db !== null
   }
 
   /**
-   * 多条件检索卡片 (支持全文/卡名、种类、细分类型、属性、种族、星级、攻防、卡密、排序)
+   * 多条件检索卡片；筛选逻辑沿用 YGOPro 的 CDB 位掩码与关键词语法。
    */
   public search(params: CardSearchParams): CardSearchResult {
     if (!this.db) return { cards: [], total: 0 }
@@ -138,19 +239,47 @@ export class CdbService {
     let baseWhere = ' FROM datas d JOIN texts t ON d.id = t.id WHERE 1=1'
     const args: (string | number)[] = []
 
-    // 关键词搜索 (卡名、效果描述、或者精确卡密)
+    const getSetcodeClause = (codes: number[]): string => {
+      const exactCodes = [...new Set(codes)]
+      const baseCodes = [...new Set(codes.map((code) => code & 0xfff))]
+      const parts: string[] = []
+      for (const shift of [0, 16, 32, 48]) {
+        const exactMarks = exactCodes.map(() => '?').join(',')
+        const baseMarks = baseCodes.map(() => '?').join(',')
+        parts.push(
+          `(((d.setcode >> ${shift}) & 65535) IN (${exactMarks}) OR ((d.setcode >> ${shift}) & 4095) IN (${baseMarks}))`
+        )
+        args.push(...exactCodes, ...baseCodes)
+      }
+      return `(${parts.join(' OR ')})`
+    }
+
+    // 关键词支持空格 AND、引号短语、-排除词、$卡名限定、@系列限定。
     if (params.keyword && params.keyword.trim().length > 0) {
-      const kw = params.keyword.trim()
-      if (/^\d+$/.test(kw)) {
+      const keyword = params.keyword.trim()
+      if (/^\d+$/.test(keyword)) {
         baseWhere += ' AND (d.id = ? OR t.name LIKE ?)'
-        args.push(parseInt(kw, 10), `%${kw}%`)
+        args.push(parseInt(keyword, 10), `%${keyword}%`)
       } else {
-        if (params.searchDesc !== false) {
-          baseWhere += ' AND (t.name LIKE ? OR t.desc LIKE ?)'
-          args.push(`%${kw}%`, `%${kw}%`)
-        } else {
-          baseWhere += ' AND t.name LIKE ?'
-          args.push(`%${kw}%`)
+        for (const token of parseSearchTokens(keyword)) {
+          const clauses: string[] = []
+          const like = `%${token.text}%`
+          if (token.mode !== 'set') {
+            clauses.push('t.name LIKE ?')
+            args.push(like)
+          }
+          if (token.mode === 'any' && params.searchDesc !== false) {
+            clauses.push('t.desc LIKE ?')
+            args.push(like)
+          }
+          if (token.mode !== 'name') {
+            const setcodes = this.getSetcodesForKeyword(token.text)
+            if (setcodes.length > 0) clauses.push(getSetcodeClause(setcodes))
+            else if (token.mode === 'set') clauses.push('0=1')
+          }
+          if (clauses.length === 0) continue
+          const match = `(${clauses.join(' OR ')})`
+          baseWhere += token.excluded ? ` AND NOT ${match}` : ` AND ${match}`
         }
       }
     }
@@ -167,51 +296,75 @@ export class CdbService {
       args.push(params.type)
     }
 
-    // 细分种类过滤 (如 Fusion / Synchro / Quickplay / Continuous 等)
+    // YGOPro 对怪兽按位包含匹配，对魔法/陷阱按完整类型值精确匹配。
     if (params.subType !== undefined && params.subType !== 0) {
-      baseWhere += ' AND (d.type & ?) != 0'
-      args.push(params.subType)
+      if (params.type === CardType.SPELL || params.type === CardType.TRAP) {
+        baseWhere += ' AND d.type = ?'
+        args.push(params.subType)
+      } else {
+        baseWhere += ' AND (d.type & ?) = ?'
+        args.push(params.subType, params.subType)
+      }
     }
 
-    // 属性过滤
     if (params.attribute !== undefined && params.attribute !== 0) {
       baseWhere += ' AND (d.attribute & ?) != 0'
       args.push(params.attribute)
     }
-
-    // 种族过滤
     if (params.race !== undefined && params.race !== 0) {
       baseWhere += ' AND (d.race & ?) != 0'
       args.push(params.race)
     }
 
-    // 等级/阶级/连接值过滤 (取低8 位: d.level & 0xff)
+    const addNumericFilter = (
+      column: string,
+      value: number | undefined,
+      op: NumericCompareOp | undefined,
+      allowUnknown = false
+    ): void => {
+      const compare = op ?? 'eq'
+      if (compare === 'unknown') {
+        if (allowUnknown) baseWhere += ` AND ${column} = -2`
+        return
+      }
+      if (value === undefined || value < 0) return
+      if (compare === 'lt' || compare === 'lte') baseWhere += ` AND ${column} >= 0`
+      baseWhere += ` AND ${column} ${COMPARATOR[compare]} ?`
+      args.push(value)
+    }
+
     if (params.level !== undefined && params.level > 0) {
-      const lvOp = COMPARATOR[params.levelOp ?? 'eq']
-      baseWhere += ` AND (d.level & 255) ${lvOp} ?`
-      args.push(params.level)
+      addNumericFilter('(d.level & 255)', params.level, params.levelOp)
     }
 
-    // 攻击力过滤 (支持 = / >= / <=，对齐 YGOPro 的 filter_atktype)
-    if (params.atk !== undefined && params.atk >= 0) {
-      baseWhere += ` AND d.atk ${COMPARATOR[params.atkOp ?? 'eq']} ?`
-      args.push(params.atk)
+    if (params.scale !== undefined) {
+      baseWhere += ' AND (d.type & ?) != 0'
+      args.push(CardType.PENDULUM)
+      addNumericFilter('((d.level >> 24) & 255)', params.scale, params.scaleOp)
     }
 
-    // 守备力过滤
-    if (params.def !== undefined && params.def >= 0) {
-      baseWhere += ` AND d.def ${COMPARATOR[params.defOp ?? 'eq']} ?`
-      args.push(params.def)
+    addNumericFilter('d.atk', params.atk, params.atkOp, true)
+    if (params.def !== undefined || params.defOp === 'unknown') {
+      // Link 怪兽没有守备力；对齐 YGOPro，DEF 条件不匹配 Link 怪兽。
+      baseWhere += ' AND (d.type & ?) = 0'
+      args.push(CardType.LINK)
     }
+    addNumericFilter('d.def', params.def, params.defOp, true)
+
+    if (params.effectCategoryMask !== undefined && params.effectCategoryMask > 0) {
+      baseWhere += ' AND (d.category & ?) != 0'
+      args.push(params.effectCategoryMask)
+    }
+
+    if (params.cardPool === 'ocg') baseWhere += ' AND (d.ot & 1) != 0'
+    else if (params.cardPool === 'tcg') baseWhere += ' AND (d.ot & 2) != 0'
+    else if (params.cardPool === 'both') baseWhere += ' AND (d.ot & 3) = 3'
 
     try {
-      // 1. 获取符合条件的总数
       const countSql = `SELECT count(*) as total` + baseWhere
-      const countStmt = this.db.prepare(countSql)
-      const countRow = countStmt.get(...args) as { total: number } | undefined
+      const countRow = this.db.prepare(countSql).get(...args) as { total: number } | undefined
       const total = countRow?.total ?? 0
 
-      // 2. 排序规则
       let orderBy = 'd.id'
       if (params.sortField === 'atk') orderBy = 'd.atk'
       else if (params.sortField === 'def') orderBy = 'd.def'
@@ -219,21 +372,20 @@ export class CdbService {
       else if (params.sortField === 'name') orderBy = 't.name'
 
       const orderDir = params.sortOrder === 'ASC' ? 'ASC' : 'DESC'
-
-      // 3. 分页查询记录
       const dataSql = `
-        SELECT 
+        SELECT
           d.id, d.ot, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, d.category,
           t.name, t.desc
         ${baseWhere}
         ORDER BY ${orderBy} ${orderDir} LIMIT ? OFFSET ?
       `
-      const dataStmt = this.db.prepare(dataSql)
-      const rows = dataStmt.all(...args, params.limit || 50, params.offset || 0) as CdbCard[]
+      const rows = this.db
+        .prepare(dataSql)
+        .all(...args, params.limit || 50, params.offset || 0) as CdbCard[]
       for (const card of rows) {
         if (card.setcode) {
-          const sn = this.getSetnames(card.setcode)
-          if (sn.length > 0) card.setnames = sn
+          const setnames = this.getSetnames(card.setcode)
+          if (setnames.length > 0) card.setnames = setnames
         }
       }
 

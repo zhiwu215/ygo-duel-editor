@@ -6,6 +6,8 @@ import {
   ATTRIBUTE_NAMES,
   CardRace,
   RACE_NAMES,
+  CardPoolFilter,
+  CardSearchFilterOptions,
   NumericCompareOp
 } from '@shared/index'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
@@ -23,46 +25,58 @@ const MAIN_TYPES = [
   { label: '陷阱卡', value: CardType.TRAP }
 ]
 
-/** 怪兽卡细分种类选项 */
+/** 使用 YGOPro 的细分类型值：怪兽按位包含筛选，魔法/陷阱按完整类型精确匹配。 */
 const MONSTER_SUB_TYPES = [
   { label: '全部子类', value: 0 },
-  { label: '通常', value: CardType.NORMAL },
-  { label: '效果', value: CardType.EFFECT },
-  { label: '融合', value: CardType.FUSION },
-  { label: '仪式', value: CardType.RITUAL },
-  { label: '同调', value: CardType.SYNCHRO },
-  { label: '超量', value: CardType.XYZ },
-  { label: '灵摆', value: CardType.PENDULUM },
-  { label: '连接', value: CardType.LINK },
-  { label: '调整', value: CardType.TUNER },
-  { label: '翻转', value: CardType.FLIP },
-  { label: '衍生物', value: CardType.TOKEN }
+  { label: '通常怪兽', value: CardType.MONSTER | CardType.NORMAL },
+  { label: '效果怪兽', value: CardType.MONSTER | CardType.EFFECT },
+  { label: '融合怪兽', value: CardType.MONSTER | CardType.FUSION },
+  { label: '仪式怪兽', value: CardType.MONSTER | CardType.RITUAL },
+  { label: '同调怪兽', value: CardType.MONSTER | CardType.SYNCHRO },
+  { label: '超量怪兽', value: CardType.MONSTER | CardType.XYZ },
+  { label: '灵摆怪兽', value: CardType.MONSTER | CardType.PENDULUM },
+  { label: '连接怪兽', value: CardType.MONSTER | CardType.LINK },
+  { label: '特殊召唤怪兽', value: CardType.MONSTER | CardType.SPECIAL_SUMMON },
+  { label: '调整', value: CardType.MONSTER | CardType.TUNER },
+  { label: '通常调整', value: CardType.MONSTER | CardType.NORMAL | CardType.TUNER },
+  { label: '通常灵摆', value: CardType.MONSTER | CardType.NORMAL | CardType.PENDULUM },
+  { label: '同调调整', value: CardType.MONSTER | CardType.SYNCHRO | CardType.TUNER },
+  { label: '灵摆调整', value: CardType.MONSTER | CardType.PENDULUM | CardType.TUNER },
+  { label: '灵摆效果怪兽', value: CardType.MONSTER | CardType.PENDULUM | CardType.EFFECT },
+  { label: '翻转怪兽', value: CardType.MONSTER | CardType.FLIP },
+  { label: '灵摆翻转怪兽', value: CardType.MONSTER | CardType.PENDULUM | CardType.FLIP },
+  { label: '灵魂怪兽', value: CardType.MONSTER | CardType.SPIRIT },
+  { label: '同盟怪兽', value: CardType.MONSTER | CardType.UNION },
+  { label: '二重怪兽', value: CardType.MONSTER | CardType.GEMINI },
+  { label: '卡通怪兽', value: CardType.MONSTER | CardType.TOON },
+  { label: '衍生物', value: CardType.MONSTER | CardType.TOKEN }
 ]
 
-/** 魔法卡细分种类选项 */
 const SPELL_SUB_TYPES = [
   { label: '全部魔法', value: 0 },
-  { label: '通常魔法', value: CardType.NORMAL },
-  { label: '速攻魔法', value: CardType.QUICKPLAY },
-  { label: '永续魔法', value: CardType.CONTINUOUS },
-  { label: '装备魔法', value: CardType.EQUIP },
-  { label: '场地魔法', value: CardType.FIELD },
-  { label: '仪式魔法', value: CardType.RITUAL }
+  { label: '通常魔法', value: CardType.SPELL },
+  { label: '速攻魔法', value: CardType.SPELL | CardType.QUICKPLAY },
+  { label: '永续魔法', value: CardType.SPELL | CardType.CONTINUOUS },
+  { label: '装备魔法', value: CardType.SPELL | CardType.EQUIP },
+  { label: '场地魔法', value: CardType.SPELL | CardType.FIELD },
+  { label: '仪式魔法', value: CardType.SPELL | CardType.RITUAL }
 ]
 
-/** 陷阱卡细分种类选项 */
 const TRAP_SUB_TYPES = [
   { label: '全部陷阱', value: 0 },
-  { label: '通常陷阱', value: CardType.NORMAL },
-  { label: '永续陷阱', value: CardType.CONTINUOUS },
-  { label: '反击陷阱', value: CardType.COUNTER }
+  { label: '通常陷阱', value: CardType.TRAP },
+  { label: '永续陷阱', value: CardType.TRAP | CardType.CONTINUOUS },
+  { label: '反击陷阱', value: CardType.TRAP | CardType.COUNTER }
 ]
 
-/** 数值比较符选项 (对齐 YGOPro 的 filter_*type) */
+/** 数值比较符选项 (包含严格不等式与未知值语义)。 */
 const OP_OPTIONS: Array<{ value: NumericCompareOp; label: string; prefix: string }> = [
   { value: 'eq', label: '等于', prefix: '=' },
+  { value: 'gt', label: '大于', prefix: '>' },
   { value: 'gte', label: '大于等于', prefix: '≥' },
-  { value: 'lte', label: '小于等于', prefix: '≤' }
+  { value: 'lt', label: '小于', prefix: '<' },
+  { value: 'lte', label: '小于等于', prefix: '≤' },
+  { value: 'unknown', label: '未知 (?)', prefix: '?' }
 ]
 
 interface FilterFieldProps {
@@ -87,6 +101,7 @@ interface CompareRowProps {
   onOpChange: (op: NumericCompareOp) => void
   onValueChange: (value: number | undefined) => void
   mono?: boolean
+  allowUnknown?: boolean
 }
 
 /**
@@ -100,9 +115,13 @@ const CompareRow: React.FC<CompareRowProps> = ({
   placeholder,
   onOpChange,
   onValueChange,
-  mono
+  mono,
+  allowUnknown = false
 }) => {
-  const current = OP_OPTIONS.find((o) => o.value === op) ?? OP_OPTIONS[0]
+  const options = allowUnknown
+    ? OP_OPTIONS
+    : OP_OPTIONS.filter((option) => option.value !== 'unknown')
+  const current = options.find((option) => option.value === op) ?? OP_OPTIONS[0]
   return (
     <div className="space-y-1">
       <div className="text-[10px] font-medium text-muted-foreground/90">{label}</div>
@@ -112,7 +131,7 @@ const CompareRow: React.FC<CompareRowProps> = ({
             <SelectValue>{current.prefix}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {OP_OPTIONS.map((o) => (
+            {options.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
               </SelectItem>
@@ -122,8 +141,9 @@ const CompareRow: React.FC<CompareRowProps> = ({
 
         <Input
           type="number"
-          placeholder={placeholder}
-          value={value !== undefined ? value : ''}
+          placeholder={op === 'unknown' ? '未知 (?)' : placeholder}
+          disabled={op === 'unknown'}
+          value={op === 'unknown' ? '' : value !== undefined ? value : ''}
           onChange={(e) => {
             const val = e.target.value.trim()
             onValueChange(val === '' ? undefined : parseInt(val, 10))
@@ -143,6 +163,10 @@ export const FilterDrawer: React.FC = () => {
     race,
     level,
     levelOp,
+    scale,
+    scaleOp,
+    effectCategoryMask,
+    cardPool,
     atk,
     atkOp,
     def,
@@ -154,6 +178,22 @@ export const FilterDrawer: React.FC = () => {
     setFilters,
     resetFilters
   } = useCardSearchStore()
+  const [filterOptions, setFilterOptions] = React.useState<CardSearchFilterOptions>({
+    effectCategories: []
+  })
+
+  React.useEffect(() => {
+    let isActive = true
+    window.api
+      .getCardSearchFilterOptions()
+      .then((options) => {
+        if (isActive) setFilterOptions(options)
+      })
+      .catch((error) => console.error('[FilterDrawer] Failed to load filter labels:', error))
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   // 根据当前主种类动态获得子种类列表
   const currentSubTypes = React.useMemo(() => {
@@ -161,17 +201,6 @@ export const FilterDrawer: React.FC = () => {
     if (type === CardType.TRAP) return TRAP_SUB_TYPES
     return MONSTER_SUB_TYPES
   }, [type])
-
-  // 统计已启用的筛选条件数量，用于顶部提示
-  const activeCount =
-    (type !== 0 ? 1 : 0) +
-    (subType !== 0 ? 1 : 0) +
-    (attribute !== 0 ? 1 : 0) +
-    (race !== 0 ? 1 : 0) +
-    (level !== 0 ? 1 : 0) +
-    (atk !== undefined ? 1 : 0) +
-    (def !== undefined ? 1 : 0) +
-    (code !== undefined ? 1 : 0)
 
   const typeLabel = MAIN_TYPES.find((t) => t.value === type)?.label ?? '全部种类'
   const subTypeLabel = currentSubTypes.find((s) => s.value === subType)?.label ?? '全部子类'
@@ -181,6 +210,17 @@ export const FilterDrawer: React.FC = () => {
     { id: '按卡密', atk: '按攻击力', def: '按守备力', level: '按等级', name: '按卡名' }[
       sortField
     ] ?? '按卡密'
+  const cardPoolLabel =
+    ({ any: '全部卡池', ocg: 'OCG', tcg: 'TCG', both: 'OCG + TCG' } as const)[cardPool] ??
+    '全部卡池'
+
+  const toggleEffectCategory = (mask: number): void => {
+    const nextMask =
+      (effectCategoryMask & mask) !== 0
+        ? (effectCategoryMask & ~mask) >>> 0
+        : (effectCategoryMask | mask) >>> 0
+    setFilters({ effectCategoryMask: nextMask })
+  }
 
   return (
     <div className="w-64 h-full flex flex-col bg-card/75 border-l border-border/60 shrink-0 select-none overflow-hidden animate-in slide-in-from-right-2 duration-200">
@@ -189,11 +229,6 @@ export const FilterDrawer: React.FC = () => {
         <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground min-w-0">
           <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
           <span className="truncate">筛选条件</span>
-          {activeCount > 0 && (
-            <span className="shrink-0 min-w-4 h-4 px-1 rounded-full bg-primary/15 text-primary text-[10px] font-mono font-bold flex items-center justify-center">
-              {activeCount}
-            </span>
-          )}
         </div>
         <Button
           variant="ghost"
@@ -245,6 +280,23 @@ export const FilterDrawer: React.FC = () => {
                   {st.label}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+
+        <FilterField label="赛区卡池">
+          <Select
+            value={cardPool}
+            onValueChange={(value) => setFilters({ cardPool: (value || 'any') as CardPoolFilter })}
+          >
+            <SelectTrigger size="sm" className="w-full h-7 text-xs">
+              <SelectValue>{cardPoolLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">全部卡池</SelectItem>
+              <SelectItem value="ocg">OCG 可用</SelectItem>
+              <SelectItem value="tcg">TCG 可用</SelectItem>
+              <SelectItem value="both">OCG 与 TCG 均可用</SelectItem>
             </SelectContent>
           </Select>
         </FilterField>
@@ -302,6 +354,15 @@ export const FilterDrawer: React.FC = () => {
           onValueChange={(val) => setFilters({ level: val ?? 0 })}
         />
 
+        <CompareRow
+          label="灵摆刻度（左侧）"
+          op={scaleOp}
+          value={scale}
+          placeholder="如 8"
+          onOpChange={(op) => setFilters({ scaleOp: op })}
+          onValueChange={(val) => setFilters({ scale: val })}
+        />
+
         <Separator className="opacity-40" />
 
         {/* 攻防：各带条件 */}
@@ -312,6 +373,7 @@ export const FilterDrawer: React.FC = () => {
           placeholder="如 3000"
           onOpChange={(op) => setFilters({ atkOp: op })}
           onValueChange={(val) => setFilters({ atk: val })}
+          allowUnknown
         />
 
         <CompareRow
@@ -321,6 +383,7 @@ export const FilterDrawer: React.FC = () => {
           placeholder="如 2000"
           onOpChange={(op) => setFilters({ defOp: op })}
           onValueChange={(val) => setFilters({ def: val })}
+          allowUnknown
         />
 
         <FilterField label="卡密">
@@ -378,6 +441,41 @@ export const FilterDrawer: React.FC = () => {
             </Select>
           </div>
         </FilterField>
+
+        <details className="rounded-md border border-border/50 px-2 py-1.5">
+          <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground hover:text-foreground">
+            效果分类{effectCategoryMask !== 0 ? '（已启用）' : ''}
+          </summary>
+          {filterOptions.effectCategories.length > 0 ? (
+            <div className="mt-2 grid max-h-40 grid-cols-2 gap-1 overflow-y-auto">
+              {filterOptions.effectCategories.map((category) => {
+                const selected = (effectCategoryMask & category.mask) !== 0
+                return (
+                  <button
+                    key={category.mask}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleEffectCategory(category.mask)}
+                    className={cn(
+                      'truncate rounded px-1.5 py-1 text-left text-[10px] transition-colors',
+                      selected
+                        ? 'bg-primary/15 text-primary'
+                        : 'bg-muted/30 text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                    )}
+                    title={category.label}
+                  >
+                    {category.label}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+              当前卡库未提供分类名称。将游戏目录中的 strings.conf 放在 cards.cdb 同目录或 expansions
+              子目录后重载卡库。
+            </p>
+          )}
+        </details>
 
         {/* 描述检索开关 */}
         <button

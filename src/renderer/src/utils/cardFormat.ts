@@ -20,6 +20,11 @@ export function formatCardTypeLine(card: CdbCard): string {
     if (card.type & CardType.TUNER) parts.push('调整')
     if (card.type & CardType.FLIP) parts.push('反转')
     if (card.type & CardType.EFFECT) parts.push('效果')
+    if (card.type & CardType.SPIRIT) parts.push('灵魂')
+    if (card.type & CardType.UNION) parts.push('同盟')
+    if (card.type & CardType.GEMINI) parts.push('二重')
+    if (card.type & CardType.TOON) parts.push('卡通')
+    if (card.type & CardType.SPECIAL_SUMMON) parts.push('特殊召唤')
     if (card.type & CardType.TOKEN) parts.push('衍生物')
 
     const raceName = RACE_NAMES[card.race] || '未知'

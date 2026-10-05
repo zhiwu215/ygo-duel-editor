@@ -17,15 +17,21 @@ export interface CardSearchParams {
    */
   type?: number // 主种类掩码 (Monster / Spell / Trap)
   /**
-   * 细分种类掩码 (Fusion / Synchro / Quickplay 等)
+   * 细分种类完整掩码，包含主种类位 (如 MONSTER | FUSION)
    */
-  subType?: number // 细分种类掩码 (Fusion / Synchro / Quickplay 等)
+  subType?: number
+  /** 效果分类位掩码；选中多个分类时按任一分类命中 */
+  effectCategoryMask?: number
+  /** 卡池赛区：OCG、TCG、两者均可，或不限制 */
+  cardPool?: CardPoolFilter
   /**
    * 种族掩码
    */
   race?: number // 种族掩码
   attribute?: number // 属性掩码
   level?: number // 星级 / Rank / Link
+  scale?: number // 灵摆刻度（左侧刻度）
+  scaleOp?: NumericCompareOp // 灵摆刻度比较符
   atk?: number // 攻击力
   def?: number // 守备力
   /**
@@ -53,7 +59,13 @@ export interface CardSearchParams {
 /**
  * 数值维度筛选的比较符 (对齐 YGOPro 的 filter_*type 语义)
  */
-export type NumericCompareOp = 'eq' | 'gte' | 'lte'
+export type NumericCompareOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'unknown'
+
+export type CardPoolFilter = 'any' | 'ocg' | 'tcg' | 'both'
+
+export interface CardSearchFilterOptions {
+  effectCategories: Array<{ mask: number; label: string }>
+}
 
 /**
  * 卡片检索返回结果
@@ -323,6 +335,7 @@ export interface IpcApi {
   // CDB 数据库操作
   selectYgoDirectory: () => Promise<CdbSelectResult>
   searchCards: (params: CardSearchParams) => Promise<CardSearchResult>
+  getCardSearchFilterOptions: () => Promise<CardSearchFilterOptions>
   getCardsByIds: (ids: number[]) => Promise<Record<number, CdbCard>>
   getCdbStatus: () => Promise<CdbStatusResult>
 

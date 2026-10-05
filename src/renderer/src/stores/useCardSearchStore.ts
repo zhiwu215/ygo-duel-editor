@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CdbCard, CardSearchParams, NumericCompareOp } from '@shared/index'
+import { CdbCard, CardPoolFilter, CardSearchParams, NumericCompareOp } from '@shared/index'
 
 const PAGE_SIZE = 40
 
@@ -12,6 +12,10 @@ export interface CardSearchFilters {
   race: number // 种族掩码
   level: number // 等级 / Rank / Link
   levelOp: NumericCompareOp // 星级比较符
+  scale: number | undefined // 左侧灵摆刻度
+  scaleOp: NumericCompareOp // 灵摆刻度比较符
+  effectCategoryMask: number // 效果分类位掩码
+  cardPool: CardPoolFilter // OCG / TCG 卡池
   atk: number | undefined // 攻击力
   atkOp: NumericCompareOp // 攻击力比较符
   def: number | undefined // 守备力
@@ -30,6 +34,10 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
   race: 0,
   level: 0,
   levelOp: 'eq',
+  scale: undefined,
+  scaleOp: 'eq',
+  effectCategoryMask: 0,
+  cardPool: 'any',
   atk: undefined,
   atkOp: 'eq',
   def: undefined,
@@ -107,6 +115,13 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
       race: customParams.race !== undefined ? customParams.race : state.race,
       level: customParams.level !== undefined ? customParams.level : state.level,
       levelOp: customParams.levelOp !== undefined ? customParams.levelOp : state.levelOp,
+      scale: customParams.scale !== undefined ? customParams.scale : state.scale,
+      scaleOp: customParams.scaleOp !== undefined ? customParams.scaleOp : state.scaleOp,
+      effectCategoryMask:
+        customParams.effectCategoryMask !== undefined
+          ? customParams.effectCategoryMask
+          : state.effectCategoryMask,
+      cardPool: customParams.cardPool !== undefined ? customParams.cardPool : state.cardPool,
       atk: customParams.atk !== undefined ? customParams.atk : state.atk,
       atkOp: customParams.atkOp !== undefined ? customParams.atkOp : state.atkOp,
       def: customParams.def !== undefined ? customParams.def : state.def,
@@ -154,6 +169,10 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
         race: state.race,
         level: state.level,
         levelOp: state.levelOp,
+        scale: state.scale,
+        scaleOp: state.scaleOp,
+        effectCategoryMask: state.effectCategoryMask,
+        cardPool: state.cardPool,
         atk: state.atk,
         atkOp: state.atkOp,
         def: state.def,

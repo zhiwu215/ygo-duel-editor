@@ -16,6 +16,8 @@ export function registerAllIpcHandlers(): void {
     return cdbService.search(params)
   })
 
+  ipcMain.handle('cdb:search-filter-options', () => cdbService.getSearchFilterOptions())
+
   ipcMain.handle('cdb:get-by-ids', async (_, ids: number[]) => {
     return cdbService.getCardsByIds(ids)
   })

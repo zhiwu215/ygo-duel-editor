@@ -11,10 +11,10 @@ import {
 
 // 实现类型完备的 IPC 桥接层
 const api: IpcApi = {
-  selectCdbFile: () => ipcRenderer.invoke('cdb:select-file'),
-  loadCdb: (path: string) => ipcRenderer.invoke('cdb:load', path),
+  selectYgoDirectory: () => ipcRenderer.invoke('config:select-ygo-dir'),
   searchCards: (params: CardSearchParams) => ipcRenderer.invoke('cdb:search', params),
   getCardsByIds: (ids: number[]) => ipcRenderer.invoke('cdb:get-by-ids', ids),
+  getCdbStatus: () => ipcRenderer.invoke('cdb:status'),
 
   exportLuaFile: (state: DuelPuzzleState, targetPath?: string) =>
     ipcRenderer.invoke('file:export-lua', state, targetPath),
@@ -40,7 +40,6 @@ const api: IpcApi = {
 
   getConfig: () => ipcRenderer.invoke('config:get'),
   saveConfig: (cfg: Partial<AppConfig>) => ipcRenderer.invoke('config:save', cfg),
-  selectGameDirectory: () => ipcRenderer.invoke('config:select-game-dir'),
 
   getCardImagePath: (code: number, small?: boolean) =>
     ipcRenderer.invoke('image:get-path', code, small),

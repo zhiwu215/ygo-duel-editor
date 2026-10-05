@@ -146,16 +146,12 @@ export class FileService {
     }
   }
   /**
-   * 打开选择 cards.cdb 文件对话框
+   * 选择 YGO 游戏根目录 (内含 ygopro.exe 与 cards.cdb)
    */
-  public async selectCdbFile(window?: BrowserWindow): Promise<string | null> {
+  public async selectGameDirectory(window?: BrowserWindow): Promise<string | null> {
     const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-      title: '选择游戏王 cards.cdb 数据库文件',
-      filters: [
-        { name: 'YGOPro Database', extensions: ['cdb'] },
-        { name: 'All Files', extensions: ['*'] }
-      ],
-      properties: ['openFile']
+      title: '选择 YGO 游戏主目录 (即 ygopro.exe 所在的文件夹，选择后自动读取其中的 cards.cdb)',
+      properties: ['openDirectory']
     })
 
     if (res.canceled || res.filePaths.length === 0) {
@@ -166,19 +162,16 @@ export class FileService {
   }
 
   /**
-   * 选择游戏根目录 (如 EDOPro / MDPro3)
+   * 在 YGO 根目录下定位 cards.cdb (根目录或 expansions 子目录)
    */
-  public async selectGameDirectory(window?: BrowserWindow): Promise<string | null> {
-    const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-      title: '选择游戏客户端安装根目录 (如 EDOPro / MDPro3)',
-      properties: ['openDirectory']
-    })
-
-    if (res.canceled || res.filePaths.length === 0) {
-      return null
+  public locateCardsCdb(gameDir: string): string | null {
+    const candidates = [join(gameDir, 'cards.cdb'), join(gameDir, 'expansions', 'cards.cdb')]
+    for (const p of candidates) {
+      if (existsSync(p)) {
+        return p
+      }
     }
-
-    return res.filePaths[0]
+    return null
   }
 
   /**

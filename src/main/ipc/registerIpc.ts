@@ -11,40 +11,19 @@ import { settingsWindowService } from '../services/settingsWindowService'
 
 export function registerAllIpcHandlers(): void {
   // CDB 数据库操作
-  ipcMain.handle('cdb:select-file', async () => {
-    const selected = await fileService.selectCdbFile()
-    if (selected) {
-      const ok = cdbService.open(selected)
-      if (ok) {
-        const detectedGameDir = imageService.detectGameDirectory(selected)
-        configService.save({
-          cdbPath: selected,
-          ...(detectedGameDir ? { gameDirectory: detectedGameDir } : {})
-        })
-      }
-      return selected
-    }
-    return null
-  })
-
-  ipcMain.handle('cdb:load', async (_, path: string) => {
-    const ok = cdbService.open(path)
-    if (ok) {
-      const detectedGameDir = imageService.detectGameDirectory(path)
-      configService.save({
-        cdbPath: path,
-        ...(detectedGameDir ? { gameDirectory: detectedGameDir } : {})
-      })
-    }
-    return ok
-  })
-
   ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
     return cdbService.search(params)
   })
 
   ipcMain.handle('cdb:get-by-ids', async (_, ids: number[]) => {
     return cdbService.getCardsByIds(ids)
+  })
+
+  ipcMain.handle('cdb:status', () => {
+    return {
+      ready: cdbService.isReady(),
+      path: cdbService.getCurrentPath()
+    }
   })
 
   // Lua 脚本导入导出
@@ -129,12 +108,24 @@ export function registerAllIpcHandlers(): void {
     return configService.save(partial)
   })
 
-  ipcMain.handle('config:select-game-dir', async () => {
+  ipcMain.handle('config:select-ygo-dir', async () => {
     const dir = await fileService.selectGameDirectory()
-    if (dir) {
-      configService.save({ gameDirectory: dir })
+    if (!dir) {
+      return { success: false }
     }
-    return dir
+    const cdbPath = fileService.locateCardsCdb(dir)
+    if (!cdbPath) {
+      return {
+        success: false,
+        error: '未在该目录下找到 cards.cdb，请确认选择的是 YGOPro 等游戏的主目录'
+      }
+    }
+    const ok = cdbService.open(cdbPath)
+    if (!ok) {
+      return { success: false, error: 'cards.cdb 加载失败，文件可能已损坏' }
+    }
+    configService.save({ gameDirectory: dir, cdbPath })
+    return { success: true, path: dir }
   })
 
   // 本地卡图路径查询

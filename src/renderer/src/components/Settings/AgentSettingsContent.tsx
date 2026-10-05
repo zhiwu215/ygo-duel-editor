@@ -11,7 +11,7 @@ import {
   Pencil,
   MoreHorizontal,
   AlertCircle,
-  Sparkles,
+  Boxes,
   Image as ImageIcon
 } from 'lucide-react'
 import {
@@ -513,7 +513,7 @@ function ProviderDetailPanel({
                 : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
             )}
           >
-            {preset?.badge ?? <Sparkles className="w-3.5 h-3.5" />}
+            {preset?.badge ?? <Boxes className="w-3.5 h-3.5" />}
           </div>
           {renaming ? (
             <input

@@ -448,7 +448,6 @@ function ProviderDetailPanel({
   }, [menuOpen])
 
   const isCustom = !provider.presetId
-  const status = resolveProviderStatus(provider)
   // 本地推理端点（Ollama 等）无需 API Key，与主进程的放行规则保持一致
   const canActivate = provider.apiKey.trim().length > 0 || isLocalEndpoint(provider.baseUrl)
 
@@ -573,16 +572,7 @@ function ProviderDetailPanel({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <div
-            className={cn(
-              'w-7 h-7 rounded-md flex items-center justify-center shrink-0',
-              status === 'ready'
-                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-            )}
-          >
-            <ProviderLogo presetId={provider.presetId} className="w-4 h-4" />
-          </div>
+          <ProviderLogo presetId={provider.presetId} className="w-5 h-5 shrink-0" />
           {renaming ? (
             <input
               autoFocus
@@ -599,7 +589,10 @@ function ProviderDetailPanel({
               className="min-w-0 w-40 px-2 py-1 rounded border border-border bg-background text-xs font-semibold"
             />
           ) : (
-            <div className="min-w-0 text-xs font-semibold truncate">{provider.name}</div>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <StatusDot status={resolveProviderStatus(provider)} />
+              <div className="text-xs font-semibold truncate">{provider.name}</div>
+            </div>
           )}
         </div>
 

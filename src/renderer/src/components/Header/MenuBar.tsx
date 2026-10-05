@@ -13,9 +13,11 @@ import {
   Keyboard,
   Info,
   Coffee,
-  BookOpen,
   FileText,
-  FolderKanban
+  FolderKanban,
+  BookOpen,
+  SquareStack,
+  Check
 } from 'lucide-react'
 import wechatQr from '../../REMOVED'
 import alipayQr from '../../REMOVED'
@@ -39,6 +41,8 @@ interface MenuItemDef {
   action?: () => void
   disabled?: boolean
   separator?: boolean
+  /** 勾选态：用于「查看」菜单中的开关项 (如战术透视) */
+  checked?: boolean
 }
 
 interface MenuDef {
@@ -48,9 +52,11 @@ interface MenuDef {
 }
 
 /**
- * 桌面风格下拉菜单栏（文件 / 编辑 / 剧情/台本 / 帮助）。
+ * 桌面风格下拉菜单栏（文件 / 编辑 / 查看 / 帮助）。
  * 纯菜单 UI 组件：文件类命令由 Header 通过 props 注入，避免两处重复实现。
  * 全局设置入口不在菜单栏：统一收在活动栏左下角 (VSCode 风格) 的独立设置窗口。
+ * 「查看」菜单承载视图/工具类快捷入口 (战术透视 / 台本工作台 / 卡组编辑器)，
+ * 这些操作不在「文件」「编辑」菜单中重复出现。
  */
 export const MenuBar: React.FC<MenuBarProps> = ({
   onNew,
@@ -66,7 +72,14 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   const [showSupportDialog, setShowSupportDialog] = useState(false)
   const menuBarRef = useRef<HTMLDivElement>(null)
 
-  const { resetDuel, swapSides, openScreenplayWithStep, setActiveLeftTab } = useDuelStore()
+  const {
+    resetDuel,
+    swapSides,
+    setActiveLeftTab,
+    tacticalView,
+    toggleTacticalView,
+    openScreenplayWithStep
+  } = useDuelStore()
   // temporal 经 useStore 包装成响应式订阅，撤销/重做可用状态随历史变化实时更新
   const { undo, redo, pastStates, futureStates } = useStore(useDuelStore.temporal)
   const canUndo = pastStates.length > 0
@@ -176,14 +189,26 @@ export const MenuBar: React.FC<MenuBarProps> = ({
       ]
     },
     {
-      id: 'story',
-      label: '剧情/台本',
+      id: 'view',
+      label: '查看',
       items: [
+        {
+          label: '战术透视',
+          shortcut: 'Tab',
+          checked: tacticalView,
+          action: () => toggleTacticalView()
+        },
+        { label: '', separator: true },
         {
           label: '决斗台本与剧本工作台...',
           icon: BookOpen,
           shortcut: 'Ctrl+Shift+S',
           action: () => openScreenplayWithStep()
+        },
+        {
+          label: '卡组编辑器',
+          icon: SquareStack,
+          action: () => window.api.openDeckEditor()
         }
       ]
     },
@@ -255,7 +280,13 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                         className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted text-left transition-colors disabled:opacity-40 disabled:pointer-events-none"
                       >
                         <div className="flex items-center gap-2">
-                          {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}
+                          {item.checked !== undefined ? (
+                            <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                              {item.checked && <Check className="w-3.5 h-3.5 text-primary" />}
+                            </span>
+                          ) : (
+                            Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                          )}
                           <span>{item.label}</span>
                         </div>
                         {item.shortcut && (

@@ -226,7 +226,7 @@ export function BehindSpiritPanel(): JSX.Element {
                 <div
                   className={`rounded-lg p-2.5 max-w-[95%] min-w-0 text-xs leading-relaxed break-words ${
                     msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground font-medium'
+                      ? 'bg-muted text-foreground font-medium'
                       : 'bg-card border border-border/80 text-foreground shadow-xs'
                   }`}
                 >

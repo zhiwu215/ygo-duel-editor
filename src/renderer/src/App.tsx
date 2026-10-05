@@ -12,7 +12,7 @@ import { useConfigStore } from './stores/useConfigStore'
 export function App(): React.JSX.Element {
   const { loadConfig } = useConfigStore()
   const isDeckEditor = window.location.hash === '#deck-editor'
-  const isSettingsWindow = window.location.hash === '#settings'
+  const isSettingsWindow = window.location.hash.startsWith('#settings')
 
   useEffect(() => {
     loadConfig()

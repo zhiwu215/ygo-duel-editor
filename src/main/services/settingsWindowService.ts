@@ -1,6 +1,7 @@
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
+import { SettingsSectionId } from '@shared/index'
 import icon from '../../../resources/icon.png?asset'
 
 /**
@@ -13,14 +14,15 @@ import icon from '../../../resources/icon.png?asset'
 class SettingsWindowService {
   private settingsWindow: BrowserWindow | null = null
 
-  /** 打开或聚焦设置独立窗口 */
-  public openSettingsWindow(): void {
+  /** 打开或聚焦设置独立窗口，并定位到指定分区 */
+  public openSettingsWindow(section: SettingsSectionId = 'appearance'): void {
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       if (this.settingsWindow.isMinimized()) {
         this.settingsWindow.restore()
       }
       this.settingsWindow.show()
       this.settingsWindow.focus()
+      this.settingsWindow.webContents.send('settings:navigate', section)
       return
     }
 
@@ -55,10 +57,10 @@ class SettingsWindowService {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.settingsWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#settings`)
+      this.settingsWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#settings/${section}`)
     } else {
       this.settingsWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        hash: 'settings'
+        hash: `settings/${section}`
       })
     }
   }

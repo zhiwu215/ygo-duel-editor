@@ -44,6 +44,14 @@ const LOCATION_META: Record<number, LocationMeta> = {
  * - 右键菜单 / 更多按钮：支持移至手牌、送去墓地、除外、回到卡组、删除及灵摆表侧切换。
  */
 export const PileListModal: React.FC = () => {
+  const { target } = usePileListStore()
+
+  if (!target) return null
+
+  return <PileListContent key={`${target.controller}_${target.location}`} />
+}
+
+const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
   const openContextMenu = useContextMenuStore((s) => s.openMenu)
   const {
@@ -66,7 +74,7 @@ export const PileListModal: React.FC = () => {
   } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // 监听 Esc 键关闭弹窗并在关闭时清理卡片悬停状态
+  // 监听 Esc 键关闭弹窗
   useEffect(() => {
     if (!target) return
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -80,6 +88,18 @@ export const PileListModal: React.FC = () => {
       setHoveredInstanceId(null)
     }
   }, [target, closePile, setHoveredInstanceId])
+
+  // 兜底：拖拽在窗口外结束时浏览器可能不派发 dragend 到元素上，
+  // 统一用 capture 阶段的原生 dragend 清理，避免插入点高亮卡死。
+  useEffect(() => {
+    if (!target) return
+    const handleDragEnd = (): void => {
+      setDraggingIndex(null)
+      setDragOverInfo(null)
+    }
+    window.addEventListener('dragend', handleDragEnd, true)
+    return () => window.removeEventListener('dragend', handleDragEnd, true)
+  }, [target])
 
   // 当前区域的卡片列表（按 sequence 升序排序）
   const pileCards = useMemo(() => {
@@ -449,9 +469,15 @@ export const PileListModal: React.FC = () => {
                             e.dataTransfer.effectAllowed = 'copyMove'
                             // 拖拽启动后微延迟关闭弹窗，使做场者能直观看到下方的决斗盘格子
                             setTimeout(() => {
+                              setDraggingIndex(null)
+                              setDragOverInfo(null)
                               closePile()
                             }, 60)
                           }
+                        }}
+                        onDragEnd={() => {
+                          setDraggingIndex(null)
+                          setDragOverInfo(null)
                         }}
                         className="relative w-32 h-[186px] rounded overflow-hidden shadow border border-border/80 bg-black/30 cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-transform duration-150"
                       >

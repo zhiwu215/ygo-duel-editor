@@ -11,7 +11,6 @@ import {
   Sliders,
   Layers,
   Bot,
-  BookOpen,
   Loader2
 } from 'lucide-react'
 import { useAgentStore } from '../../stores/useAgentStore'
@@ -32,7 +31,7 @@ export function BehindSpiritPanel(): JSX.Element {
     applyProposalsToDuel
   } = useAgentStore()
 
-  const { state: currentBoardState, setActiveLeftTab } = useDuelStore()
+  const { state: currentBoardState } = useDuelStore()
 
   const [inputPrompt, setInputPrompt] = useState('')
   const [appliedMessageId, setAppliedMessageId] = useState<string | null>(null)
@@ -76,7 +75,6 @@ export function BehindSpiritPanel(): JSX.Element {
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-card/40">
-      {/* 顶栏 Header */}
       <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
         <div className="flex items-center gap-1.5 min-w-0">
           <h2 className="text-xs font-bold text-foreground">背后灵</h2>
@@ -96,20 +94,10 @@ export function BehindSpiritPanel(): JSX.Element {
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setActiveLeftTab('card')}
-            title="切回卡片详情"
-            className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
 
-      {/* 主体内容 */}
       <div className="flex-1 flex flex-col min-h-0 bg-background/50">
-        {/* 消息历史滚动区 */}
         <div className="flex-1 overflow-y-auto p-3 space-y-3 select-text">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground select-none">
@@ -141,7 +129,6 @@ export function BehindSpiritPanel(): JSX.Element {
                   <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
                 </div>
 
-                {/* 消息正文气泡 */}
                 <div
                   className={`rounded-lg p-2.5 max-w-[95%] text-xs leading-relaxed ${
                     msg.role === 'user'
@@ -149,7 +136,6 @@ export function BehindSpiritPanel(): JSX.Element {
                       : 'bg-card border border-border/80 text-foreground shadow-xs'
                   }`}
                 >
-                  {/* 思考过程折叠区 */}
                   {msg.thought && (
                     <div className="mb-2 border-b border-border/40 pb-2">
                       <button
@@ -173,7 +159,6 @@ export function BehindSpiritPanel(): JSX.Element {
                     </div>
                   )}
 
-                  {/* 工具调用动态列表 */}
                   {msg.toolCalls && msg.toolCalls.length > 0 && (
                     <div className="mb-2 space-y-1">
                       {msg.toolCalls.map((t) => (
@@ -193,7 +178,6 @@ export function BehindSpiritPanel(): JSX.Element {
                     </div>
                   )}
 
-                  {/* 过程状态提示（自动重试 / 超时中断 / 会话重置） */}
                   {msg.status && (
                     <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-amber-600 dark:text-amber-400">
                       <Loader2 className="w-3 h-3 animate-spin shrink-0" />
@@ -201,17 +185,14 @@ export function BehindSpiritPanel(): JSX.Element {
                     </div>
                   )}
 
-                  {/* 内容文字 */}
                   <div className="whitespace-pre-wrap">{msg.content}</div>
 
-                  {/* 生成中的脉冲指示 */}
                   {isGenerating &&
                     msg.role === 'assistant' &&
                     msg === messages[messages.length - 1] && (
                       <span className="inline-block w-1.5 h-3 ml-1 bg-amber-500 animate-pulse" />
                     )}
 
-                  {/* 战术步骤提案卡片组 */}
                   {msg.proposals && msg.proposals.length > 0 && (
                     <div className="mt-3 pt-2.5 border-t border-border/60 space-y-2">
                       <div className="flex items-center justify-between gap-1">
@@ -253,7 +234,6 @@ export function BehindSpiritPanel(): JSX.Element {
           <div ref={chatEndRef} />
         </div>
 
-        {/* 底部输入框 */}
         <div className="p-2.5 border-t border-border bg-card/80 flex flex-col gap-2 shrink-0">
           <textarea
             value={inputPrompt}

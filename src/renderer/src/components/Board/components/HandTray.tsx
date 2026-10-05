@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { Plus, Check, Edit2 } from 'lucide-react'
 import { CardLocation, CdbCard, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
@@ -6,7 +6,6 @@ import { DuelistHandStrip } from './DuelistHandStrip'
 import { ZoneSlot } from '../ZoneSlot'
 import { TurnOrderBadge } from './TurnOrderBadge'
 import { LpInput } from './LpInput'
-import { Badge } from '../../ui/badge'
 import { cn } from '../../../lib/utils'
 import { getDropPosOverride } from '../../../utils/zoneDrop'
 
@@ -263,7 +262,68 @@ const MultiHandTray: React.FC<{
 }> = ({ duelists, controller, teamHandCards, totalCount }) => {
   const { state, expandedDuelistId, setExpandedDuelistId, toggleSharedLp, setPlayerLp } =
     useDuelStore()
-  const isOpponent = controller === 1
+  const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
+  const setActiveDuelistId = useDuelStore((s) => s.setActiveDuelistId)
+  const updateDuelist = useDuelStore((s) => s.updateDuelist)
+  const rowScrollRef = useRef<HTMLDivElement>(null)
+
+  // 顶栏名字芯片右键重命名
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState<string>('')
+
+  // 拥挤判定：排布行实际横向溢出（而非写死人数阈值）。
+  // 溢出时关闭各栏内部滚动 —— 滚轮只用于左右滑动查看不同决斗者；
+  // 双击某栏展开占满整行后，该栏宽度足够，内部滚动依旧可用。
+  const [isCrowded, setIsCrowded] = useState(false)
+  useLayoutEffect(() => {
+    const el = rowScrollRef.current
+    if (!el) return
+    const measure = (): void => {
+      setIsCrowded(el.scrollWidth > el.clientWidth + 1)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    for (const child of Array.from(el.children)) ro.observe(child)
+    return () => ro.disconnect()
+  }, [duelists.length])
+
+  const commitRename = (): void => {
+    if (!renamingId) return
+    const trimmed = renameDraft.trim()
+    if (trimmed) updateDuelist(renamingId, { name: trimmed })
+    setRenamingId(null)
+  }
+
+  // 人数过多时排布行横向溢出，点击顶栏名字芯片需把对应手牌带滚动到可视范围内
+  const stripRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const scrollStripIntoView = (duelistId: string): void => {
+    const row = rowScrollRef.current
+    const strip = stripRefs.current.get(duelistId)
+    if (!row || !strip) return
+    // 以排布行左侧为基准换算目标 scrollLeft；已在可视范围内则不打扰用户
+    const target = strip.offsetLeft - row.offsetLeft
+    const maxScroll = row.scrollWidth - row.clientWidth
+    if (maxScroll <= 0) return
+    const clamped = Math.max(0, Math.min(target, maxScroll))
+    if (row.scrollLeft === clamped) return
+    row.scrollTo({ left: clamped, behavior: 'smooth' })
+  }
+
+  // 人数多时外层出现横向滚动条，但系统滚轮是纵向 deltaY，必须手动转成横向位移，
+  // 否则该滚动条滚不动（内层手牌槽另有自己的 wheel 处理，两者互不干扰）。
+  useEffect(() => {
+    const el = rowScrollRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent): void => {
+      if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
+        e.preventDefault()
+        el.scrollLeft += e.deltaY
+      }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   const activeExpandedDuelist = duelists.find((d) => d.id === expandedDuelistId)
   const isSharedLp = Boolean(state.matchConfig?.sharedLp)
@@ -271,22 +331,55 @@ const MultiHandTray: React.FC<{
   return (
     <div className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1">
       {/* 顶部阵营状态栏 */}
-      <div className="flex items-center gap-2 text-xs px-1 h-5">
-        <span
-          className={cn(
-            'font-bold tracking-wide text-xs',
-            isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
-          )}
-        >
-          {isOpponent ? '对方手牌区' : '我方手牌区'}
-        </span>
+      <div className="flex items-center gap-1.5 text-xs px-1 h-5">
+        {/* 各位决斗者名字：左键切换棋盘显示谁的卡组，右键重命名。
+            名字本身已含阵营前缀（我方 1 / 对方 1），只需用阵营色区分，不再额外写「我方 / 对方」 */}
+        {duelists.map((d) =>
+          renamingId === d.id ? (
+            <input
+              key={d.id}
+              type="text"
+              value={renameDraft}
+              autoFocus
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') setRenamingId(null)
+              }}
+              className="h-[18px] w-20 px-1 text-[10px] rounded border border-primary bg-background outline-none"
+            />
+          ) : (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => {
+                setActiveDuelistId(d.id)
+                scrollStripIntoView(d.id)
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setRenamingId(d.id)
+                setRenameDraft(d.name)
+              }}
+              title={`左键查看 ${d.name} 的卡组 · 右键重命名`}
+              className={cn(
+                'px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
+                d.team === 1
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-blue-600 dark:text-blue-400',
+                activeDuelistId === d.id
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-muted/40 border-border hover:bg-muted'
+              )}
+            >
+              {d.name}
+            </button>
+          )
+        )}
 
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-medium">
-          {duelists.length} 位决斗者
-        </Badge>
-
-        <span className="text-[11px] text-muted-foreground font-mono">
-          全队共 {teamHandCards.length} 张手牌
+        <span className="text-[11px] text-muted-foreground font-mono ml-1">
+          共 {teamHandCards.length} 张
         </span>
 
         {/* 多人时提供队伍共用 LP 开关 */}
@@ -322,7 +415,10 @@ const MultiHandTray: React.FC<{
       </div>
 
       {/* 决斗者手牌带排布行 (横向并排，永远单行不换行，支持单人展开独占) */}
-      <div className="w-full flex items-center gap-1.5 overflow-x-auto overflow-y-hidden select-none">
+      <div
+        ref={rowScrollRef}
+        className="w-full flex items-center gap-1.5 overflow-x-auto overflow-y-hidden select-none"
+      >
         {duelists.map((duelist) => {
           const duelistCards = teamHandCards.filter((c) => {
             if (c.duelistId) return c.duelistId === duelist.id
@@ -344,6 +440,11 @@ const MultiHandTray: React.FC<{
               isExpanded={isExpanded}
               isCollapsed={isCollapsed}
               isOnlyOne={false}
+              crowded={isCrowded}
+              ref={(el) => {
+                if (el) stripRefs.current.set(duelist.id, el)
+                else stripRefs.current.delete(duelist.id)
+              }}
               onExpand={() => setExpandedDuelistId(duelist.id)}
               onCollapse={() => setExpandedDuelistId(null)}
             />

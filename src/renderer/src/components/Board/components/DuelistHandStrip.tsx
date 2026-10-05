@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Crown, Plus, Check, Edit2 } from 'lucide-react'
+import { Crown, Plus } from 'lucide-react'
 import { CardLocation, CdbCard, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { ZoneSlot } from '../ZoneSlot'
@@ -16,8 +16,22 @@ interface DuelistHandStripProps {
   isExpanded: boolean
   isCollapsed: boolean
   isOnlyOne: boolean
+  /** 排布行已横向溢出（人数过多）：关闭本栏内部滚动，滚轮一律用于左右滑动查看各人 */
+  crowded: boolean
+  /** 供父级定位该栏（人数过多时点击名字芯片滚动到对应手牌带） */
+  ref?: React.Ref<HTMLDivElement>
   onExpand: () => void
   onCollapse: () => void
+}
+
+/** 合并多个 ref 到同一个元素（内部 stripRef + 父级传入的定位 ref） */
+function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>): React.RefCallback<T> {
+  return (node: T | null): void => {
+    for (const ref of refs) {
+      if (typeof ref === 'function') ref(node)
+      else if (ref) (ref as React.MutableRefObject<T | null>).current = node
+    }
+  }
 }
 
 export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
@@ -28,18 +42,24 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   isExpanded,
   isCollapsed,
   isOnlyOne,
+  crowded,
+  ref,
   onExpand,
   onCollapse
 }) => {
   const { addCardToZone, moveCard, updateDuelist } = useDuelStore()
   const isSharedLp = Boolean(useDuelStore((s) => s.state.matchConfig?.sharedLp))
+  const isActiveViewer = useDuelStore((s) => s.activeDuelistId === duelist.id)
+  const setActiveDuelistId = useDuelStore((s) => s.setActiveDuelistId)
 
   const isOpponent = controller === 1
 
-  // 名字行内编辑 (null 表示未处于编辑态)
-  const [editingName, setEditingName] = useState<string | null>(null)
-  const isEditingName = editingName !== null
-  const nameInput = editingName ?? duelist.name
+  // 切换「棋盘堆叠区当前显示谁的卡组」的三种触发（均为主动操作，非悬停）：
+  //   ① 点击本栏外框（头部信息条空白处）② 点击本栏手牌 ③ 向本栏拖入/拖来卡片。
+  // 仅查看归属，不会改动任何卡牌数据。
+  const focusAsViewer = (): void => {
+    if (!isActiveViewer) setActiveDuelistId(duelist.id)
+  }
 
   // 拖拽高亮与悬停展开计时器
   const [isDragOver, setIsDragOver] = useState(false)
@@ -47,21 +67,31 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   const stripRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // 监听原生非被动 wheel 事件，彻底拦截纵向滚动，纯化为手牌横向左右平移
+  // 监听原生非被动 wheel 事件，把纵向滚轮转成本栏手牌的横向平移。
+  // 三种情形不拦截，让滚轮冒泡给上层「决斗者手牌带排布行」去左右滑动查看各人：
+  //   ① 本栏手牌槽已滚到尽头；
+  //   ② 拥挤且未展开（排布行横向溢出，滚轮一律用于切换查看不同决斗者）。
+  // 拥挤但已双击展开的栏位宽度足够，仍保留本栏内部滚动。
   useEffect(() => {
     const el = stripRef.current
     if (!el) return
     const onWheel = (e: WheelEvent): void => {
-      if (e.deltaY !== 0) {
-        e.preventDefault()
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollLeft += e.deltaY
-        }
+      if (e.deltaY === 0) return
+      if (crowded && !isExpanded) return
+      const box = scrollContainerRef.current
+      if (!box) return
+      const maxScroll = box.scrollWidth - box.clientWidth
+      if (maxScroll <= 0) return
+      e.preventDefault()
+      const next = box.scrollLeft + e.deltaY
+      if (next <= 0 || next >= maxScroll) {
+        e.stopPropagation()
       }
+      box.scrollLeft = next
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
-  }, [isCollapsed])
+  }, [isCollapsed, crowded, isExpanded])
 
   // 全局拖拽结束重置状态：避免卡片释放于子槽位或拖拽取消时导致 isDragOver 常驻
   useEffect(() => {
@@ -108,6 +138,8 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(false)
+    // 向该决斗者手牌拖入卡片即视为选定他，棋盘卡组区同步切换
+    focusAsViewer()
     if (hoverExpandTimerRef.current) {
       clearTimeout(hoverExpandTimerRef.current)
       hoverExpandTimerRef.current = null
@@ -143,20 +175,10 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     }
   }
 
-  const handleSaveName = (): void => {
-    if (editingName !== null) {
-      const trimmed = editingName.trim()
-      if (trimmed && trimmed !== duelist.name) {
-        updateDuelist(duelist.id, { name: trimmed })
-      }
-      setEditingName(null)
-    }
-  }
-
   // 双击手牌区顶部信息条即可展开/收起（替代原先的独立「展开」按钮，少一个图标更好点）
-  // 命中输入框 / 下拉框 / 按钮等交互元素时直接放行，避免与 LP 编辑、顺位选择、改名冲突
+  // 命中输入框 / 下拉框 / 按钮等交互元素时直接放行，避免与 LP 编辑、顺位选择冲突
   const handleHeaderDoubleClick = (e: React.MouseEvent<HTMLDivElement>): void => {
-    if (isOnlyOne || isEditingName) return
+    if (isOnlyOne) return
     const target = e.target as HTMLElement | null
     if (target?.closest('input, select, textarea, button, a, [data-no-expand]')) return
     if (isExpanded) {
@@ -174,14 +196,19 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     const isFirst = currentOrder === 1
     return (
       <div
-        onClick={onExpand}
+        ref={ref}
+        onClick={() => {
+          focusAsViewer()
+          onExpand()
+        }}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         title={`点击展开 ${duelist.name} 的全部手牌（${cards.length} 张，行动顺位：第 ${currentOrder} 位）`}
         className={cn(
-          'w-9 shrink-0 h-[136px] rounded border transition-all cursor-pointer select-none flex flex-col items-center justify-between py-1 px-0.5',
+          'w-9 shrink-0 h-[136px] rounded border-2 transition-all cursor-pointer select-none flex flex-col items-center justify-between py-1 px-0.5',
+          isActiveViewer && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
           isDragOver
             ? isOpponent
               ? 'border-red-500 ring-2 ring-red-500/30 bg-red-500/10'
@@ -236,11 +263,12 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   // ==========================================
   return (
     <div
-      ref={stripRef}
+      ref={mergeRefs(ref, stripRef)}
       onDragEnter={() => setIsDragOver(true)}
       onDragLeave={() => setIsDragOver(false)}
       className={cn(
-        'flex-1 min-w-[180px] h-[136px] rounded border flex flex-col p-1 transition-all gap-0.5 relative',
+        'flex-1 min-w-[180px] h-[136px] rounded border-2 flex flex-col p-1 transition-all gap-0.5 relative',
+        isActiveViewer && 'ring-1 ring-primary/60',
         isExpanded
           ? isOpponent
             ? 'border-red-500/60 bg-red-500/5 shadow-sm'
@@ -254,65 +282,27 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
             : 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10')
       )}
     >
-      {/* 头部信息条：名字、LP、顺位选择；双击本行即可展开/收起全部手牌 */}
+      {/* 头部信息条：手牌张数、LP、顺位选择；单击切换查看归属，双击展开/收起 */}
       <div
         onDoubleClick={handleHeaderDoubleClick}
+        onClick={(e) => {
+          const target = e.target as HTMLElement | null
+          if (target?.closest('input, select, textarea, button, a, [data-no-expand]')) return
+          focusAsViewer()
+        }}
         title={
-          isOnlyOne ? undefined : isExpanded ? '双击收起为并排展示' : '双击展开占满整行展示全部手牌'
+          isActiveViewer
+            ? isOnlyOne
+              ? `正在查看 ${duelist.name} 的卡组`
+              : `正在查看 ${duelist.name} 的卡组 · 双击收起为并排展示`
+            : isOnlyOne
+              ? `点击切换：棋盘卡组区显示 ${duelist.name} 的`
+              : `点击切换查看 ${duelist.name} 的卡组 · 双击展开占满整行`
         }
-        className="flex items-center justify-between text-xs px-0.5 shrink-0 gap-1 h-5"
+        className="flex items-center justify-between text-xs px-0.5 shrink-0 gap-1 h-5 cursor-pointer"
       >
         <div className="flex items-center gap-1 min-w-0">
-          <span
-            className={cn(
-              'w-2 h-2 rounded-full shrink-0',
-              isOpponent ? 'bg-red-500' : 'bg-blue-500'
-            )}
-          />
-
-          {/* 名字行内编辑 */}
-          {isEditingName ? (
-            <div className="flex items-center gap-1" data-no-expand>
-              <input
-                type="text"
-                value={nameInput}
-                onChange={(e) => setEditingName(e.target.value)}
-                onBlur={handleSaveName}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveName()
-                  if (e.key === 'Escape') setEditingName(null)
-                }}
-                autoFocus
-                className="h-4.5 w-20 px-1 text-[11px] rounded border border-primary bg-background focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleSaveName}
-                className="p-0.5 text-muted-foreground hover:text-foreground"
-              >
-                <Check className="w-3 h-3 text-emerald-500" />
-              </button>
-            </div>
-          ) : (
-            <div
-              onClick={() => setEditingName(duelist.name)}
-              title="点击修改角色名称"
-              data-no-expand
-              className="flex items-center gap-0.5 group cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded truncate"
-            >
-              <span
-                className={cn(
-                  'font-bold text-[11px] truncate max-w-[90px]',
-                  isOpponent ? 'text-red-500 dark:text-red-400' : 'text-blue-500 dark:text-blue-400'
-                )}
-              >
-                {duelist.name}
-              </span>
-              <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
-            </div>
-          )}
-
-          {/* 手牌张数 */}
+          {/* 手牌张数（角色名统一在顶栏名字芯片展示，本栏不再重复） */}
           <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
             ({cards.length})
           </span>
@@ -340,13 +330,16 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         </div>
       </div>
 
-      {/* 手牌卡片排布横向滚动槽位 (永远不换行) */}
+      {/* 手牌卡片排布横向滚动槽位 (永远不换行)；点击（含点手牌本体）即切换查看归属 */}
       <div
         ref={scrollContainerRef}
+        onClick={focusAsViewer}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         className={cn(
-          'flex-1 w-full px-1 py-1 rounded border border-dashed flex items-center gap-1 overflow-x-auto overflow-y-hidden transition-colors',
+          'flex-1 w-full px-1 py-1 rounded border border-dashed flex items-center gap-1 overflow-x-auto overflow-y-hidden transition-colors cursor-pointer',
+          // 拥挤模式下隐藏本栏滚动条：横向滚动只保留「排布行」那一层，避免两条并存
+          crowded && !isExpanded && 'scrollbar-none',
           isDragOver
             ? isOpponent
               ? 'border-red-500 ring-2 ring-red-500/20 bg-red-500/10'

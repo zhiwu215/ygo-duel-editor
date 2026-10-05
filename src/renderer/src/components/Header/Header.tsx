@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useStore } from 'zustand'
-import { Database, Swords, Sun, Moon, Layers } from 'lucide-react'
+import { Layers, Minus, Square, Copy, X } from 'lucide-react'
+import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useConfigStore } from '../../stores/useConfigStore'
 import { MASTER_RULES, MasterRule, isExportableMatch } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -34,9 +34,19 @@ export const Header: React.FC = () => {
   // 对应的工具栏按钮已移除 (与菜单重复)
   const { undo, redo } = useStore(useDuelStore.temporal)
 
-  const { config, dbReady, selectYgoDir, toggleTheme } = useConfigStore()
-  const isDark = config.theme !== 'light'
-  const dbConnected = dbReady === true || (dbReady === null && Boolean(config.cdbPath))
+  // 无边框窗口的标题栏由本组件自绘：跟踪最大化状态以切换还原/最大化图标
+  const [isMaximized, setIsMaximized] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (!window.api?.windowIsMaximized) return
+    void window.api.windowIsMaximized().then(setIsMaximized)
+    if (!window.api?.onWindowMaximizedChange) return
+    return window.api.onWindowMaximizedChange(setIsMaximized)
+  }, [])
+
+  const handleToggleMaximize = React.useCallback((): void => {
+    void window.api?.windowToggleMaximize?.()
+  }, [])
 
   // 保存工程对话框控制
   const [isSaveModalOpen, setIsSaveModalOpen] = React.useState(false)
@@ -157,27 +167,39 @@ export const Header: React.FC = () => {
 
   return (
     <header className="border-b border-border bg-card select-none flex flex-col shrink-0">
-      {/* ============ 第一行：菜单栏 (VSCode 风格标题栏) ============ */}
-      <div className="h-9 px-3 flex items-center justify-between border-b border-border/60 gap-2">
-        {/* 左侧：Logo + 菜单栏 */}
-        <div className="flex items-center gap-1 min-w-0 flex-1">
+      {/* ============ 第一行：菜单栏 (VSCode 风格标题栏 + 无边框窗口自绘控件) ============ */}
+      {/* 整行设为 drag 区（可拖动窗口）；内部交互元素标no-drag。
+          官方规则：no-drag 只对 drag 元素的后代生效，因此必须是嵌套关系，不能靠同级覆盖。 */}
+      <div className="h-9 pl-3 pr-3 flex items-center justify-between border-b border-border/60 gap-2 [-webkit-app-region:drag]">
+        {/* 左侧：Logo + 菜单栏（Logo 区域也可拖动窗口，故不设 no-drag；仅菜单按钮需no-drag） */}
+        <div className="flex items-center gap-1 min-w-0">
           <div className="flex items-center gap-1.5 mr-2 shrink-0">
-            <Swords className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+            <img
+              src={appIcon}
+              alt=""
+              className="w-4 h-4 rounded-[3px] object-cover"
+              draggable={false}
+            />
             <span className="text-[13px] font-semibold tracking-wide">YGO Duel Editor</span>
           </div>
 
-          <MenuBar
-            onNew={handleNew}
-            onOpenProject={handleOpenProject}
-            onSaveProject={handleSaveProject}
-            onImportLua={handleImportLua}
-            onExportLua={handleExportLua}
-            onExportScreenplay={handleExportScreenplay}
-          />
+          <div className="[-webkit-app-region:no-drag]">
+            <MenuBar
+              onNew={handleNew}
+              onOpenProject={handleOpenProject}
+              onSaveProject={handleSaveProject}
+              onImportLua={handleImportLua}
+              onExportLua={handleExportLua}
+              onExportScreenplay={handleExportScreenplay}
+            />
+          </div>
         </div>
 
-        {/* 右侧：工程信息 + 窗口控件 (导出状态 + 卡库连接 + 主题切换) */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* 中间弹性空白：作为主要拖拽握把 */}
+        <div className="flex-1 h-full" />
+
+        {/* 右侧：工程信息 + 导出状态 + 自绘窗口控件 */}
+        <div className="flex items-center gap-2 shrink-0 [-webkit-app-region:no-drag]">
           {/* 工程分类与标题 */}
           <div className="flex items-center gap-1.5">
             <button
@@ -206,44 +228,39 @@ export const Header: React.FC = () => {
 
           <ExportStatusBadge />
 
-          <Separator orientation="vertical" className="h-5" />
+          <Separator orientation="vertical" className="h-4" />
 
-          <button
-            type="button"
-            onClick={selectYgoDir}
-            title={
-              config.gameDirectory
-                ? `YGO 主目录: ${config.gameDirectory} (点击更换)`
-                : '未设置 YGO 路径，点击选择游戏主目录'
-            }
-            className={cn(
-              'flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] transition-colors',
-              dbConnected
-                ? 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                : 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-semibold'
-            )}
-          >
-            <span
-              className={cn(
-                'w-1.5 h-1.5 rounded-full shrink-0',
-                dbConnected ? 'bg-emerald-500' : 'bg-amber-500'
+          {/* 自绘窗口控件：最小化 / 最大化 / 关闭 */}
+          <div className="-mr-3 ml-1 flex items-center">
+            <button
+              type="button"
+              onClick={() => void window.api?.windowMinimize?.()}
+              title="最小化"
+              className="w-9 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleMaximize}
+              title={isMaximized ? '向下还原' : '最大化'}
+              className="w-9 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
+            >
+              {isMaximized ? (
+                <Copy className="w-2.5 h-2.5 -scale-x-100" />
+              ) : (
+                <Square className="w-2.5 h-2.5" />
               )}
-            />
-            <Database className="w-3 h-3" />
-            <span>{dbConnected ? '卡库已连接' : '未加载卡库'}</span>
-          </button>
-
-          <Separator orientation="vertical" className="h-5" />
-
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={toggleTheme}
-            title={isDark ? '切换至浅色模式' : '切换至深色模式'}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-          </Button>
+            </button>
+            <button
+              type="button"
+              onClick={() => void window.api?.windowClose?.()}
+              title="关闭"
+              className="w-10 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-red-600 hover:text-white transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

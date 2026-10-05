@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, JSX } from 'react'
+import React, { useState, useEffect, useRef, useMemo, JSX } from 'react'
 import {
   Send,
   Square,
@@ -6,18 +6,28 @@ import {
   ChevronDown,
   ChevronRight,
   BrainCircuit,
-  Wrench,
-  Check,
   Sliders,
+  Check,
+  Cog,
   Layers,
   Bot,
   Loader2
 } from 'lucide-react'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { AgentStepProposal } from '@shared/index'
+import { AgentProviderModelConfig, AgentStepProposal, isProviderReady } from '@shared/index'
 import { AiProposalCard } from './AiProposalCard'
 import { Button } from '../ui/button'
+import { cn } from '../../lib/utils'
+
+const MANAGE_KEY = 'action:manage'
+
+interface MenuProvider {
+  id: string
+  name: string
+  ready: boolean
+  models: AgentProviderModelConfig[]
+}
 
 export function BehindSpiritPanel(): JSX.Element {
   const {
@@ -25,6 +35,7 @@ export function BehindSpiritPanel(): JSX.Element {
     config,
     messages,
     loadConfig,
+    selectModel,
     resetSession,
     sendMessage,
     abort,
@@ -37,15 +48,87 @@ export function BehindSpiritPanel(): JSX.Element {
   const [appliedMessageId, setAppliedMessageId] = useState<string | null>(null)
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
 
+  const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const [openProviderKey, setOpenProviderKey] = useState<string | null>(null)
+
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    loadConfig()
+    void loadConfig()
   }, [loadConfig])
+
+  useEffect(() => {
+    if (!modelMenuOpen) return
+    const handler = (e: MouseEvent): void => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        setModelMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [modelMenuOpen])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isGenerating])
+
+  const providers = useMemo(() => config.providers ?? [], [config.providers])
+  const activeProvider = useMemo(
+    () => providers.find((p) => p.id === config.provider) ?? null,
+    [providers, config.provider]
+  )
+  const activeModel = useMemo(
+    () => activeProvider?.models.find((m) => m.id === config.model) ?? null,
+    [activeProvider, config.model]
+  )
+
+  const chipLabel = activeProvider
+    ? `${activeProvider.name}/${activeModel?.name ?? config.model}`
+    : config.model || '未配置模型'
+
+  const menuProviders = useMemo(
+    (): MenuProvider[] =>
+      providers
+        .filter((p) => p.enabled !== false && p.models.some((m) => m.enabled))
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          ready: isProviderReady(p),
+          models: p.models.filter((m) => m.enabled)
+        })),
+    [providers]
+  )
+
+  const activeMenuKey = useMemo(() => {
+    const provider = menuProviders.find((p) => p.id === config.provider)
+    return provider ? provider.id : (menuProviders[0]?.id ?? MANAGE_KEY)
+  }, [menuProviders, config.provider])
+
+  const openProviderModels = useMemo(
+    () => menuProviders.find((p) => p.id === openProviderKey)?.models ?? [],
+    [menuProviders, openProviderKey]
+  )
+
+  const openMenu = (): void => {
+    setOpenProviderKey(activeMenuKey)
+    setModelMenuOpen(true)
+  }
+
+  const closeMenu = (): void => {
+    setModelMenuOpen(false)
+    setOpenProviderKey(null)
+  }
+
+  const pickModel = (providerId: string, modelId: string): void => {
+    selectModel(providerId, modelId)
+    closeMenu()
+  }
+
+  const openManage = (): void => {
+    closeMenu()
+    void window.api.openSettingsWindow()
+  }
 
   const handleSend = (): void => {
     if (!inputPrompt.trim() || isGenerating) return
@@ -78,9 +161,6 @@ export function BehindSpiritPanel(): JSX.Element {
       <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
         <div className="flex items-center gap-1.5 min-w-0">
           <h2 className="text-xs font-bold text-foreground">背后灵</h2>
-          <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-neutral-200/80 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 truncate max-w-[110px]">
-            {config.model || '未配置'}
-          </span>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
@@ -107,8 +187,8 @@ export function BehindSpiritPanel(): JSX.Element {
               <h3 className="text-xs font-bold text-foreground">我是您的决斗创作者背后灵</h3>
               {!config.apiKey && (
                 <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-                  尚未连接模型提供商：点击窗口左下角的「设置」，
-                  在独立设置窗中连接提供商并选用模型。
+                  尚未连接模型提供商：点击窗口左下角的「设置」补全 Key，
+                  或在下方工具栏直接切换已配好的提供商与模型。
                 </p>
               )}
             </div>
@@ -166,7 +246,7 @@ export function BehindSpiritPanel(): JSX.Element {
                           key={t.id}
                           className="flex items-center gap-1.5 px-2 py-1 rounded bg-neutral-200/50 dark:bg-neutral-800/60 font-mono text-[10px] text-neutral-600 dark:text-neutral-300"
                         >
-                          <Wrench className="w-3 h-3 text-amber-500 shrink-0" />
+                          <Sliders className="w-3 h-3 text-amber-500 shrink-0" />
                           <span className="font-bold">{t.toolName}</span>
                           {t.resultSummary && (
                             <span className="text-muted-foreground truncate">
@@ -244,30 +324,147 @@ export function BehindSpiritPanel(): JSX.Element {
             className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-500 leading-relaxed"
           />
 
-          <div className="flex items-center justify-end">
-            <div className="flex items-center gap-1.5">
-              {isGenerating ? (
-                <Button
-                  size="xs"
-                  variant="destructive"
-                  onClick={abort}
-                  className="h-7 px-3 text-xs gap-1 font-semibold"
+          <div className="flex items-center justify-between gap-1.5" ref={toolbarRef}>
+            <div className="flex items-center gap-1 min-w-0">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => (modelMenuOpen ? closeMenu() : openMenu())}
+                  className={cn(
+                    'h-6 px-1.5 rounded flex items-center gap-1 text-[11px] transition-colors max-w-[200px]',
+                    modelMenuOpen
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  )}
                 >
-                  <Square className="w-3 h-3 fill-current" />
-                  <span>中断</span>
-                </Button>
-              ) : (
-                <Button
-                  size="xs"
-                  onClick={handleSend}
-                  disabled={!inputPrompt.trim()}
-                  className="h-7 px-3 text-xs gap-1 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold shadow-xs"
-                >
-                  <Send className="w-3 h-3" />
-                  <span>发送</span>
-                </Button>
-              )}
+                  <span
+                    className={cn(
+                      'w-1.5 h-1.5 rounded-full shrink-0',
+                      activeProvider && isProviderReady(activeProvider)
+                        ? 'bg-emerald-500'
+                        : 'bg-amber-500'
+                    )}
+                  />
+                  <span className="font-medium truncate">{chipLabel}</span>
+                  <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
+                </button>
+
+                {modelMenuOpen && (
+                  <div className="absolute bottom-full left-0 mb-1 flex items-start z-50">
+                    <div className="w-52 bg-popover border border-border rounded-md overflow-hidden shadow-lg py-1">
+                      {menuProviders.length === 0 ? (
+                        <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
+                          尚未配置可用模型，去「管理模型」连接供应商并拉取
+                        </div>
+                      ) : (
+                        menuProviders.map((provider) => {
+                          const isCurrent = provider.id === config.provider
+                          const open = openProviderKey === provider.id
+                          return (
+                            <button
+                              key={provider.id}
+                              type="button"
+                              onMouseEnter={() => setOpenProviderKey(provider.id)}
+                              onClick={() => setOpenProviderKey(provider.id)}
+                              className={cn(
+                                'w-full px-2.5 py-1.5 flex items-center gap-2 text-left transition-colors',
+                                open && 'bg-muted/60'
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  'w-1.5 h-1.5 rounded-full shrink-0',
+                                  provider.ready ? 'bg-emerald-500' : 'bg-amber-500'
+                                )}
+                              />
+                              <span className="flex-1 min-w-0 truncate text-[11px] font-medium">
+                                {provider.name}
+                              </span>
+                              {isCurrent && <Check className="w-3 h-3 text-amber-500 shrink-0" />}
+                              <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
+                            </button>
+                          )
+                        })
+                      )}
+
+                      <div className="my-1 border-t border-border" />
+                      <button
+                        type="button"
+                        onMouseEnter={() => setOpenProviderKey(MANAGE_KEY)}
+                        onClick={openManage}
+                        className={cn(
+                          'w-full px-2.5 py-1.5 flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors',
+                          openProviderKey === MANAGE_KEY && 'bg-muted/60'
+                        )}
+                      >
+                        <Cog className="w-3 h-3 shrink-0" />
+                        <span className="flex-1 text-left">管理模型</span>
+                      </button>
+                    </div>
+
+                    {openProviderKey && openProviderKey !== MANAGE_KEY && (
+                      <div className="ml-0.5 w-52 max-h-72 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1">
+                        {openProviderModels.length === 0 ? (
+                          <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
+                            该供应商暂无可用模型，去「管理模型」拉取后即可选用
+                          </div>
+                        ) : (
+                          openProviderModels.map((model) => {
+                            const isCurrent =
+                              openProviderKey === config.provider && config.model === model.id
+                            return (
+                              <button
+                                key={model.id}
+                                type="button"
+                                onClick={() => pickModel(openProviderKey, model.id)}
+                                className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left hover:bg-muted/60 transition-colors"
+                              >
+                                <span className="flex-1 min-w-0">
+                                  <span className="block text-[11px] font-medium truncate">
+                                    {model.name ?? model.id}
+                                  </span>
+                                  <span className="block font-mono text-[10px] text-muted-foreground truncate">
+                                    {model.id}
+                                  </span>
+                                </span>
+                                {model.supportsReasoning && (
+                                  <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/30 shrink-0">
+                                    推理
+                                  </span>
+                                )}
+                                {isCurrent && <Check className="w-3 h-3 text-amber-500 shrink-0" />}
+                              </button>
+                            )
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {isGenerating ? (
+              <Button
+                size="xs"
+                variant="destructive"
+                onClick={abort}
+                className="h-7 px-3 text-xs gap-1 font-semibold"
+              >
+                <Square className="w-3 h-3 fill-current" />
+                <span>中断</span>
+              </Button>
+            ) : (
+              <Button
+                size="xs"
+                onClick={handleSend}
+                disabled={!inputPrompt.trim()}
+                className="h-7 px-3 text-xs gap-1 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold shadow-xs"
+              >
+                <Send className="w-3 h-3" />
+                <span>发送</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>

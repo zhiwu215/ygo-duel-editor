@@ -463,7 +463,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               </button>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed text-center">
-              如果 YGO Duel Editor 对你有帮助，欢迎请作者喝杯咖啡 ☕
+              如果 YGO Duel Editor 对你有帮助，欢迎请作者喝杯咖啡
             </p>
             <div className="flex items-start justify-center gap-6">
               {[
@@ -480,11 +480,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                   <span className="text-[11px] text-muted-foreground">{label}</span>
                 </div>
               ))}
-            </div>
-            <div className="flex justify-center pt-1">
-              <Button size="sm" onClick={() => setShowSupportDialog(false)}>
-                关闭
-              </Button>
             </div>
           </div>
         </div>

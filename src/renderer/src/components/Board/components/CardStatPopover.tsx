@@ -51,8 +51,7 @@ const OP_BUTTONS: {
   {
     op: '=',
     label: '= 改',
-    activeClass:
-      'bg-slate-700 text-white dark:bg-slate-300 dark:text-slate-900 border-transparent shadow-sm'
+    activeClass: 'border-border bg-background text-foreground'
   },
   {
     op: 'inf',

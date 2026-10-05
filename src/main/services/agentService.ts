@@ -47,48 +47,33 @@ function isLocalEndpoint(baseUrl: string): boolean {
   }
 }
 
-/** AI 提供商预设：设置页「常用提供商」区数据源 */
 const PROVIDER_PRESETS: AgentProviderPreset[] = [
   {
     id: 'deepseek',
-    name: 'DeepSeek 官方',
+    name: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/v1',
-    model: 'deepseek-chat',
-    supportsReasoning: true
+    apiFormat: 'openai-chat-completions',
+    apiKeyUrl: 'https://platform.deepseek.com/api_keys',
+    description: '深度求索官方接口，OpenAI 兼容',
+    badge: 'DS'
   },
   {
     id: 'dashscope',
-    name: '通义千问 (DashScope)',
+    name: '通义千问',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    model: 'qwen-plus',
-    supportsReasoning: true
-  },
-  {
-    id: 'siliconflow',
-    name: 'SiliconFlow (硅基流动)',
-    baseUrl: 'https://api.siliconflow.cn/v1',
-    model: 'deepseek-ai/DeepSeek-V3',
-    supportsReasoning: true
+    apiFormat: 'openai-chat-completions',
+    apiKeyUrl: 'https://bailian.console.aliyun.com/?apiKey=1',
+    description: '阿里云百炼 DashScope 兼容模式',
+    badge: 'QW'
   },
   {
     id: 'moonshot',
     name: 'Kimi (月之暗面)',
     baseUrl: 'https://api.moonshot.cn/v1',
-    model: 'moonshot-v1-8k'
-  },
-  {
-    id: 'zhipu',
-    name: '智谱 GLM',
-    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    model: 'glm-4-flash',
-    supportsReasoning: true
-  },
-  { id: 'openai', name: 'OpenAI 兼容', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-  {
-    id: 'ollama',
-    name: 'Ollama 本地服务',
-    baseUrl: 'http://localhost:11434/v1',
-    model: 'qwen2.5:7b'
+    apiFormat: 'openai-chat-completions',
+    apiKeyUrl: 'https://platform.moonshot.cn/console/api-keys',
+    description: 'Moonshot 长上下文与工具调用',
+    badge: 'KM'
   }
 ]
 
@@ -197,6 +182,7 @@ const Type = {
 }
 import {
   AgentModelConfig,
+  AgentModelInfo,
   AgentProviderPreset,
   AgentSendMessageParams,
   AgentSendMessageResult,
@@ -205,7 +191,10 @@ import {
   DuelPuzzleState,
   DuelPhase,
   DuelActionType,
-  CardLocation
+  CardLocation,
+  cleanAgentApiKey,
+  resolveActiveRuntime,
+  toPiApiType
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
@@ -276,7 +265,7 @@ export class AgentService {
   public async fetchModels(
     baseUrl: string,
     apiKey: string
-  ): Promise<{ success: boolean; models?: { id: string; ownedBy?: string }[]; error?: string }> {
+  ): Promise<{ success: boolean; models?: AgentModelInfo[]; error?: string }> {
     const trimmed = baseUrl.trim().replace(/\/+$/, '')
     if (!trimmed) {
       return { success: false, error: '接口地址不能为空' }
@@ -361,6 +350,7 @@ export class AgentService {
       cfg.baseUrl,
       cfg.apiKey,
       cfg.model,
+      cfg.apiFormat,
       cfg.enableReasoning,
       cfg.contextWindow,
       cfg.maxTokens,
@@ -379,16 +369,13 @@ export class AgentService {
     mkdirSync(agentDir, { recursive: true })
     const modelsPath = path.join(agentDir, 'models.json')
 
-    const cleanApiKey = (cfg.apiKey || '')
-      .trim()
-      .replace(/^["']|["']$/g, '')
-      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    const cleanApiKey = cleanAgentApiKey(cfg.apiKey)
 
     const modelsConfig = {
       providers: {
         [cfg.provider || 'custom-openai']: {
           baseUrl: cfg.baseUrl,
-          api: 'openai-completions',
+          api: toPiApiType(cfg.apiFormat),
           // Pi 的 models.json schema 要求 apiKey 至少 1 字符；本地服务（Ollama 等）
           // 无需密钥时必须整个省略该字段，否则整份配置校验失败、提供商全部不可用
           ...(cleanApiKey ? { apiKey: cleanApiKey } : {}),
@@ -487,19 +474,22 @@ export class AgentService {
 
     // 3. 读取大模型配置
     const appConfig = configService.get()
+    const merged = {
+      ...(appConfig.agentConfig ?? { baseUrl: '', apiKey: '', model: '' }),
+      ...(params.configOverride ?? {})
+    } as AgentModelConfig
+    const runtime = resolveActiveRuntime(merged)
     const cfg: AgentModelConfig = {
-      baseUrl:
-        params.configOverride?.baseUrl ||
-        appConfig.agentConfig?.baseUrl ||
-        'https://api.deepseek.com/v1',
-      apiKey: (params.configOverride?.apiKey || appConfig.agentConfig?.apiKey || '').trim(),
-      model: params.configOverride?.model || appConfig.agentConfig?.model || 'deepseek-chat',
-      provider:
-        params.configOverride?.provider || appConfig.agentConfig?.provider || 'custom-openai',
-      systemPrompt:
-        params.configOverride?.systemPrompt || appConfig.agentConfig?.systemPrompt || '',
-      enableReasoning:
-        params.configOverride?.enableReasoning ?? appConfig.agentConfig?.enableReasoning ?? false
+      providers: merged.providers,
+      provider: runtime.providerId,
+      baseUrl: runtime.baseUrl || 'https://api.deepseek.com/v1',
+      apiKey: runtime.apiKey,
+      model: runtime.model || 'deepseek-chat',
+      apiFormat: runtime.apiFormat,
+      systemPrompt: merged.systemPrompt || '',
+      enableReasoning: runtime.enableReasoning,
+      contextWindow: runtime.contextWindow,
+      maxTokens: runtime.maxTokens
     }
 
     if (!cfg.apiKey && !isLocalEndpoint(cfg.baseUrl)) {

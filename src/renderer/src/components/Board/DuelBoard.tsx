@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { CardLocation, MASTER_RULES, FieldCard } from '@shared/index'
@@ -12,6 +12,85 @@ import { CardStatPopover } from './components/CardStatPopover'
 export const DuelBoard: React.FC = () => {
   const { state } = useDuelStore()
   const ruleInfo = MASTER_RULES[state.masterRule]
+
+  // —— 决斗盘自适应缩放 ——
+  // 决斗盘内部是固定像素网格（怪兽/魔陷格 92px、侧翼堆叠区 64px），其自然宽度（MR1/2/4/5 约
+  // 690px、MR3 约 900px）可能超出容器，导致内部固定宽度的行溢出网格框、与上下手牌托盘宽度
+  // 不一致而错位。这里把「上下手牌托盘 + 对战台网格」作为一个整体做等比缩放：
+  //   · 空间充足 → 按 contain 规则放大以填满可用空间；
+  //   · 空间不足 → 保持原始尺寸（scale 下限 1）不缩小，由容器滚动条承担溢出。
+  // 任何情况下托盘与网格宽度都严格相等，错位问题不复存在。
+  // 缩放用 CSS `zoom` 而非 `transform: scale()`：zoom 会真实改变布局尺寸，父容器看到的即
+  // 缩放后的大小，因此不会残留「布局仍按原尺寸占位」造成的多余留白；且 zoom 下 offsetWidth
+  // 仍返回未缩放的布局尺寸，测量天然稳定，不会与自身缩放形成反馈回路。
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const boardRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+  const [naturalW, setNaturalW] = useState(0)
+  const metricsRef = useRef({ scale: 1, w: 0 })
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current
+    const wrapper = wrapperRef.current
+    const board = boardRef.current
+    if (!viewport || !wrapper || !board) return
+
+    let frame = 0
+
+    const measure = (): void => {
+      // 决斗盘网格自然宽度：w-max 布局宽度，不受 zoom 与容器宽度影响
+      const boardW = board.offsetWidth
+      if (boardW <= 0) return
+
+      if (boardW !== metricsRef.current.w) {
+        metricsRef.current.w = boardW
+        setNaturalW(boardW)
+      }
+
+      // 「上下手牌托盘 + 对战台网格」整体自然高度（未缩放布局高度）
+      const wrapperH = wrapper.offsetHeight
+
+      // 可用空间 = 容器内容区尺寸（已排除内边距与滚动条）
+      const style = window.getComputedStyle(viewport)
+      const availW =
+        viewport.clientWidth -
+        (parseFloat(style.paddingLeft) || 0) -
+        (parseFloat(style.paddingRight) || 0)
+      const availH =
+        viewport.clientHeight -
+        (parseFloat(style.paddingTop) || 0) -
+        (parseFloat(style.paddingBottom) || 0)
+
+      // 只在「空间充足」时按 contain 规则等比放大以填满可用空间；空间不足时**绝不缩小**
+      // （scale 下限锁定为 1），溢出交给容器的横向/纵向滚动条承担 —— 保证卡片与文字始终
+      // 保持设计尺寸与清晰度。各留 1px 余量，避免放大到临界值时挤出滚动条来回抖动。
+      const ratioW = availW > 1 ? (availW - 1) / boardW : 1
+      const ratioH = availH > 1 && wrapperH > 0 ? (availH - 1) / wrapperH : 1
+      const next = Math.max(1, Math.min(ratioW, ratioH))
+
+      if (Math.abs(next - metricsRef.current.scale) > 0.001) {
+        metricsRef.current.scale = next
+        setScale(next)
+      }
+    }
+
+    // 用 rAF 延后测量，避免 ResizeObserver 回调内同步改尺寸触发循环告警
+    const schedule = (): void => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(measure)
+    }
+
+    measure()
+    const observer = new ResizeObserver(schedule)
+    observer.observe(viewport)
+    observer.observe(wrapper)
+    observer.observe(board)
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [])
 
   // 全局快捷键：Del / Delete 键直接删除当前鼠标指向或选中的卡片
   useEffect(() => {
@@ -81,13 +160,29 @@ export const DuelBoard: React.FC = () => {
       />
 
       {/* 核心滚动与排布容器：整体战场形成紧凑舒适、垂直居中的一体化决斗盘台面 */}
-      <div className="w-full h-full overflow-y-auto overflow-x-hidden p-2 sm:p-3 flex flex-col items-center relative z-10 min-h-0">
-        <div className="w-full max-w-5xl flex flex-col items-center gap-2.5 my-auto shrink-0">
+      <div
+        ref={viewportRef}
+        className="w-full h-full overflow-auto p-2 sm:p-3 flex flex-col items-center relative z-10 min-h-0"
+      >
+        {/* 决斗盘整体（上下手牌托盘 + 对战台网格）作为同一缩放单元，宽度严格对齐。
+            m-auto 而非仅 my-auto：宽度不足时 auto 边距归零使内容贴起始边，横向滚动条才能
+            完整覆盖整个台面（否则 items-center 会造成左右对称溢出、左侧永远滚不到）。 */}
+        <div
+          ref={wrapperRef}
+          className="flex flex-col items-center gap-2.5 m-auto shrink-0"
+          style={{
+            width: naturalW > 0 ? naturalW : undefined,
+            zoom: String(scale)
+          }}
+        >
           {/* 顶部：对方手牌托盘 */}
           <HandTray controller={1} />
 
           {/* 核心对战台网格 (标准 YGOPro 5 行对称矩阵布局) */}
-          <div className="relative z-10 w-full py-2 px-3 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col items-center justify-center gap-1 shrink-0">
+          <div
+            ref={boardRef}
+            className="relative z-10 w-max py-2 px-3 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col items-center justify-center gap-1 shrink-0"
+          >
             {/* ============================================================== */}
             {/* 对方对战区域 (Opponent Sector) */}
             {/* 包含 MR3 左右独立灵摆区（垂直居中）、左翼卡组/墓地、中央对战区 5x2、右翼额外/场地 */}
@@ -287,10 +382,8 @@ export const DuelBoard: React.FC = () => {
                 />
               </div>
 
-              {/* MR3 占位对齐（保持与外侧灵摆区等宽） */}
-              {ruleInfo.hasIndependentPZones && (
-                <div className="w-[104px] h-[104px] ml-3 shrink-0" />
-              )}
+              {/* MR3 占位对齐（保持与外侧灵摆区等宽等高：均为 92px 方格） */}
+              {ruleInfo.hasIndependentPZones && <div className="w-[92px] h-[92px] ml-3 shrink-0" />}
             </div>
 
             {/* ============================================================== */}

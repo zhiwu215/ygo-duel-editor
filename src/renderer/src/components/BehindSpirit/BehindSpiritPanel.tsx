@@ -16,6 +16,7 @@ import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { AgentProviderModelConfig, AgentStepProposal, isProviderReady } from '@shared/index'
 import { AiProposalCard } from './AiProposalCard'
+import { MarkdownContent } from './MarkdownContent'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
@@ -259,7 +260,11 @@ export function BehindSpiritPanel(): JSX.Element {
                     </div>
                   )}
 
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  {msg.role === 'user' ? (
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  ) : (
+                    <MarkdownContent content={msg.content} />
+                  )}
 
                   {isGenerating &&
                     msg.role === 'assistant' &&

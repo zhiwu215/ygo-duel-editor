@@ -8,6 +8,12 @@ import { TurnOrderBadge } from './TurnOrderBadge'
 import { LpInput } from './LpInput'
 import { cn } from '../../../lib/utils'
 import { getDropPosOverride } from '../../../utils/zoneDrop'
+import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
+
+interface HandInsertionPosition {
+  targetInstanceId: string | null
+  side: 'before' | 'after'
+}
 
 interface HandTrayProps {
   controller: 0 | 1
@@ -23,7 +29,7 @@ const SingleHandTray: React.FC<{
   cards: FieldCard[]
   totalCount: number
 }> = ({ duelist, controller, cards, totalCount }) => {
-  const { addCardToZone, moveCard, updateDuelist } = useDuelStore()
+  const { addCardToZone, moveCard, reorderHandCards, updateDuelist } = useDuelStore()
   const isOpponent = controller === 1
 
   // 名字行内编辑
@@ -33,7 +39,10 @@ const SingleHandTray: React.FC<{
 
   // 拖拽高亮与横向滚轮
   const [isDragOver, setIsDragOver] = useState(false)
-  const dragCounterRef = useRef(0)
+  const [draggedHandCardId, setDraggedHandCardId] = useState<string | null>(null)
+  const [handInsertionPosition, setHandInsertionPosition] = useState<HandInsertionPosition | null>(
+    null
+  )
   const trayRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -53,11 +62,12 @@ const SingleHandTray: React.FC<{
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
-  // 全局拖拽结束重置状态：避免卡片释放于子槽位 (stopPropagation) 或拖拽取消时导致托盘的 isDragOver 状态常驻为 true
+  // 全局拖拽结束重置状态，避免拖拽取消或子槽位截断 drop 后残留空位。
   useEffect(() => {
     const handleGlobalDragEnd = (): void => {
-      dragCounterRef.current = 0
       setIsDragOver(false)
+      setDraggedHandCardId(null)
+      setHandInsertionPosition(null)
     }
     window.addEventListener('dragend', handleGlobalDragEnd)
     window.addEventListener('drop', handleGlobalDragEnd)
@@ -67,39 +77,111 @@ const SingleHandTray: React.FC<{
     }
   }, [])
 
+  const handleDragStartCapture = (e: React.DragEvent<HTMLDivElement>): void => {
+    const cardElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-instance-id]')
+    setDraggedHandCardId(cardElement?.dataset.handInstanceId ?? null)
+  }
+
   const handleDragEnter = (e: React.DragEvent): void => {
     e.preventDefault()
-    dragCounterRef.current++
-    if (!isDragOver) setIsDragOver(true)
-  }
-
-  const handleDragOver = (e: React.DragEvent): void => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
-    if (!isDragOver) setIsDragOver(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent): void => {
-    e.preventDefault()
-    dragCounterRef.current--
-    if (dragCounterRef.current <= 0) {
-      dragCounterRef.current = 0
+    if (e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) {
       setIsDragOver(false)
+      return
     }
+    if (!isDragOver) setIsDragOver(true)
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    if (e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) {
+      e.dataTransfer.dropEffect = 'move'
+      setIsDragOver(false)
+      const gapElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-gap-side]')
+      if (gapElement) {
+        const targetInstanceId = gapElement.dataset.handGapTarget || null
+        const side = gapElement.dataset.handGapSide as HandInsertionPosition['side']
+        setHandInsertionPosition((current) =>
+          current?.targetInstanceId === targetInstanceId && current.side === side
+            ? current
+            : { targetInstanceId, side }
+        )
+        return
+      }
+      const cardElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-instance-id]')
+      const targetInstanceId = cardElement?.dataset.handInstanceId ?? null
+      if (targetInstanceId === draggedHandCardId) {
+        setHandInsertionPosition(null)
+        return
+      }
+      const rect = cardElement?.getBoundingClientRect()
+      const side = rect && e.clientX >= rect.left + rect.width / 2 ? 'after' : 'before'
+      setHandInsertionPosition((current) =>
+        current?.targetInstanceId === targetInstanceId && current.side === side
+          ? current
+          : { targetInstanceId, side }
+      )
+      return
+    }
+    e.dataTransfer.dropEffect = 'copy'
+    setHandInsertionPosition(null)
+    if (!isDragOver) setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
+    setIsDragOver(false)
+    setHandInsertionPosition(null)
+  }
+
+  const getInsertionIndex = (position: HandInsertionPosition | null): number => {
+    if (!position?.targetInstanceId) return cards.length
+    const targetIndex = cards.findIndex((card) => card.instanceId === position.targetInstanceId)
+    return targetIndex < 0 ? cards.length : targetIndex + (position.side === 'after' ? 1 : 0)
   }
 
   const handleDrop = (e: React.DragEvent): void => {
     e.preventDefault()
     e.stopPropagation()
-    dragCounterRef.current = 0
     setIsDragOver(false)
+    const gapElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-gap-side]')
+    const insertionPosition = gapElement
+      ? {
+          targetInstanceId: gapElement.dataset.handGapTarget || null,
+          side: gapElement.dataset.handGapSide as HandInsertionPosition['side']
+        }
+      : handInsertionPosition
+    setHandInsertionPosition(null)
+    setDraggedHandCardId(null)
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
       if (movedInstanceId) {
+        const movingCard = useDuelStore
+          .getState()
+          .state.cards.find((card) => card.instanceId === movedInstanceId)
+        if (
+          e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE) &&
+          movingCard?.controller === controller &&
+          movingCard.location === CardLocation.HAND &&
+          (movingCard.duelistId ?? duelist.id) === duelist.id
+        ) {
+          const targetInstanceId =
+            insertionPosition?.targetInstanceId ?? cards[cards.length - 1]?.instanceId ?? null
+          if (targetInstanceId) {
+            reorderHandCards(
+              controller,
+              duelist.id,
+              movedInstanceId,
+              targetInstanceId,
+              insertionPosition?.targetInstanceId ? insertionPosition.side === 'after' : true
+            )
+          }
+          return
+        }
         moveCard(
           movedInstanceId,
           CardLocation.HAND,
-          cards.length,
+          getInsertionIndex(insertionPosition),
           controller,
           getDropPosOverride(CardLocation.HAND, e.ctrlKey),
           duelist.id
@@ -114,7 +196,7 @@ const SingleHandTray: React.FC<{
         droppedCard,
         controller,
         CardLocation.HAND,
-        cards.length,
+        getInsertionIndex(insertionPosition),
         getDropPosOverride(CardLocation.HAND, e.ctrlKey),
         duelist.id
       )
@@ -207,6 +289,7 @@ const SingleHandTray: React.FC<{
       {/* 手牌横向排布流 (固定紧凑高度，保证无纵向溢出) */}
       <div
         ref={scrollContainerRef}
+        onDragStartCapture={handleDragStartCapture}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -222,18 +305,55 @@ const SingleHandTray: React.FC<{
               : 'border-blue-500/25 hover:border-blue-500/50 bg-muted/20 dark:bg-black/20'
         )}
       >
-        {cards.map((c, idx) => (
-          <div key={c.instanceId} className="shrink-0">
-            <ZoneSlot
-              label={`${duelist.name} ${idx + 1}`}
-              controller={controller}
-              location={CardLocation.HAND}
-              sequence={c.sequence}
-              card={c}
-              duelistId={duelist.id}
-            />
-          </div>
-        ))}
+        {cards.map((c, idx) => {
+          const isGapBefore =
+            draggedHandCardId !== c.instanceId &&
+            handInsertionPosition?.targetInstanceId === c.instanceId &&
+            handInsertionPosition.side === 'before'
+          const isGapAfter =
+            draggedHandCardId !== c.instanceId &&
+            handInsertionPosition?.targetInstanceId === c.instanceId &&
+            handInsertionPosition.side === 'after'
+
+          return (
+            <React.Fragment key={c.instanceId}>
+              {isGapBefore && (
+                <div
+                  aria-hidden="true"
+                  data-hand-gap-side="before"
+                  data-hand-gap-target={c.instanceId}
+                  className="w-[64px] h-[92px] shrink-0"
+                />
+              )}
+              <div className="shrink-0" data-hand-instance-id={c.instanceId}>
+                <ZoneSlot
+                  label={`${duelist.name} ${idx + 1}`}
+                  controller={controller}
+                  location={CardLocation.HAND}
+                  sequence={c.sequence}
+                  card={c}
+                  duelistId={duelist.id}
+                />
+              </div>
+              {isGapAfter && (
+                <div
+                  aria-hidden="true"
+                  data-hand-gap-side="after"
+                  data-hand-gap-target={c.instanceId}
+                  className="w-[64px] h-[92px] shrink-0"
+                />
+              )}
+            </React.Fragment>
+          )
+        })}
+        {handInsertionPosition?.targetInstanceId === null && (
+          <div
+            aria-hidden="true"
+            data-hand-gap-side="after"
+            data-hand-gap-target=""
+            className="w-[64px] h-[92px] shrink-0"
+          />
+        )}
 
         {cards.length === 0 && (
           <div
@@ -476,9 +596,9 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller }) => {
         ]
 
   // 本阵营全部手牌
-  const teamHandCards = state.cards.filter(
-    (c) => c.controller === controller && c.location === CardLocation.HAND
-  )
+  const teamHandCards = state.cards
+    .filter((c) => c.controller === controller && c.location === CardLocation.HAND)
+    .sort((a, b) => a.sequence - b.sequence)
 
   if (duelists.length === 1) {
     return (

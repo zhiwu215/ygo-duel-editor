@@ -5,7 +5,7 @@ import { useDropHintStore } from '../../stores/useDropHintStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
-import { CardItem } from './CardItem'
+import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -178,6 +178,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     addCardToZone,
     setSelectedCardId,
     moveCard,
+    reorderHandCards,
     addOverlayMaterial,
     overlayOnTop,
     removeCard,
@@ -209,11 +210,17 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   // 处理拖拽进入
   const handleDragOver = (e: React.DragEvent): void => {
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
+    const isHandReorder = e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)
+    e.dataTransfer.dropEffect = e.dataTransfer.types.includes('text/instanceId') ? 'move' : 'copy'
+    if (isHandReorder && location === CardLocation.HAND) {
+      setIsOver(false)
+      return
+    }
     if (!isOver) setIsOver(true)
   }
 
-  const handleDragLeave = (): void => {
+  const handleDragLeave = (e: React.DragEvent): void => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return
     setIsOver(false)
   }
 
@@ -227,6 +234,34 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     try {
       /** 鼠标拖动的卡片 */
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
+
+      // 手牌内部拖到另一张牌上时，按鼠标落点一侧直接重排，而不是转成跨区域移动。
+      if (location === CardLocation.HAND && card && movedInstanceId) {
+        const duelState = useDuelStore.getState().state
+        const movingCard = duelState.cards.find((item) => item.instanceId === movedInstanceId)
+        const teamDuelists = (duelState.duelists || []).filter(
+          (duelist) => duelist.team === controller
+        )
+        const fallbackDuelistId = teamDuelists[0]?.id ?? `duelist_${controller}_0`
+        const targetDuelistId = duelistId ?? card.duelistId ?? fallbackDuelistId
+        const movingDuelistId = movingCard?.duelistId ?? fallbackDuelistId
+
+        if (
+          movingCard?.location === CardLocation.HAND &&
+          movingCard.controller === controller &&
+          movingDuelistId === targetDuelistId
+        ) {
+          const rect = e.currentTarget.getBoundingClientRect()
+          reorderHandCards(
+            controller,
+            targetDuelistId,
+            movedInstanceId,
+            card.instanceId,
+            e.clientX >= rect.left + rect.width / 2
+          )
+          return
+        }
+      }
 
       // Alt 键拖入已有怪兽格：进行超量叠放（超量怪兽置顶，素材垫在下方）
       if (card && location === CardLocation.MZONE && e.altKey) {
@@ -281,10 +316,15 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         }
       }
       if (movedInstanceId) {
+        const targetRect = e.currentTarget.getBoundingClientRect()
+        const insertAfterTarget =
+          location === CardLocation.HAND &&
+          Boolean(card) &&
+          e.clientX >= targetRect.left + targetRect.width / 2
         moveCard(
           movedInstanceId,
           location,
-          sequence,
+          sequence + (insertAfterTarget ? 1 : 0),
           controller,
           posOverride,
           duelistId || card?.duelistId

@@ -242,7 +242,16 @@ interface DuelStoreState {
     controller: 0 | 1,
     location: number,
     fromIndex: number,
-    toIndex: number
+    toIndex: number,
+    duelistId?: string
+  ) => void
+  /** 在同一位决斗者的手牌中，将一张卡插入另一张卡的前方或后方 */
+  reorderHandCards: (
+    controller: 0 | 1,
+    duelistId: string,
+    movingInstanceId: string,
+    targetInstanceId: string,
+    insertAfter: boolean
   ) => void
 
   // 实战属性与指示物操作
@@ -1931,10 +1940,15 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         })),
 
-      reorderPileCards: (controller, location, fromIndex, toIndex) =>
+      reorderPileCards: (controller, location, fromIndex, toIndex, duelistId) =>
         set((prev) => {
           const pile = prev.state.cards
-            .filter((c) => c.controller === controller && c.location === location)
+            .filter(
+              (card) =>
+                card.controller === controller &&
+                card.location === location &&
+                (!duelistId || card.duelistId === duelistId)
+            )
             .sort((a, b) => a.sequence - b.sequence)
 
           if (
@@ -1964,6 +1978,47 @@ export const useDuelStore = create<DuelStoreState>()(
                   return { ...c, sequence: seqMap.get(c.instanceId)! }
                 }
                 return c
+              })
+            }
+          }
+        }),
+
+      reorderHandCards: (controller, duelistId, movingInstanceId, targetInstanceId, insertAfter) =>
+        set((prev) => {
+          if (movingInstanceId === targetInstanceId) return prev
+
+          const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
+          const fallbackDuelistId = teamDuelists[0]?.id ?? `duelist_${controller}_0`
+          const belongsToDuelist = (card: FieldCard): boolean =>
+            card.duelistId === duelistId || (!card.duelistId && fallbackDuelistId === duelistId)
+          const hand = prev.state.cards
+            .filter(
+              (card) =>
+                card.controller === controller &&
+                card.location === CardLocation.HAND &&
+                belongsToDuelist(card)
+            )
+            .sort((a, b) => a.sequence - b.sequence)
+          const fromIndex = hand.findIndex((card) => card.instanceId === movingInstanceId)
+          const targetIndex = hand.findIndex((card) => card.instanceId === targetInstanceId)
+          if (fromIndex < 0 || targetIndex < 0) return prev
+
+          const reordered = [...hand]
+          const [movingCard] = reordered.splice(fromIndex, 1)
+          const adjustedTargetIndex = reordered.findIndex(
+            (card) => card.instanceId === targetInstanceId
+          )
+          const insertIndex = adjustedTargetIndex + (insertAfter ? 1 : 0)
+          reordered.splice(insertIndex, 0, movingCard)
+
+          const sequenceById = new Map<string, number>()
+          reordered.forEach((card, index) => sequenceById.set(card.instanceId, index))
+          return {
+            state: {
+              ...prev.state,
+              cards: prev.state.cards.map((card) => {
+                const sequence = sequenceById.get(card.instanceId)
+                return sequence === undefined ? card : { ...card, sequence }
               })
             }
           }

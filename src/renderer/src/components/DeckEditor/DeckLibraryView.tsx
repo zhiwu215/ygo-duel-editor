@@ -4,8 +4,8 @@ import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Badge } from '../ui/badge'
 import { Separator } from '../ui/separator'
+import { WindowControls } from '../ui/window-controls'
 import { YdkPasteModal } from './YdkPasteModal'
 import {
   Layers,
@@ -156,29 +156,21 @@ export const DeckLibraryView: React.FC = () => {
 
   return (
     <div className="flex flex-col w-screen h-screen bg-background text-foreground select-none overflow-hidden font-sans">
-      <header className="h-14 px-6 border-b border-border bg-card/80 backdrop-blur-md flex items-center justify-between shrink-0">
+      {/* 顶部标题行同时充当无边框窗口的标题栏：整行可拖动窗口，交互元素标 no-drag */}
+      <header className="h-14 px-6 border-b border-border bg-card/80 backdrop-blur-md flex items-center justify-between shrink-0 [-webkit-app-region:drag]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs">
             <Layers className="w-5 h-5" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-foreground">卡组资产库</h1>
-              <Badge variant="secondary" className="text-[11px] font-mono px-1.5 py-0 h-4.5">
-                {deckList.length}
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">决斗推演、同人剧情编排与 Combo 展开资产</p>
-          </div>
+          <h1 className="text-base font-bold tracking-tight text-foreground">卡组</h1>
         </div>
 
-        <div className="relative w-80 max-w-sm">
+        <div className="relative w-80 max-w-sm [-webkit-app-region:no-drag]">
           <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
-            placeholder="搜索卡组名称、剧情描述或标签..."
             className="pl-8.5 h-8 text-xs bg-muted/40 border-border/80 focus-visible:ring-1"
           />
           {searchKeyword && (
@@ -192,7 +184,7 @@ export const DeckLibraryView: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 [-webkit-app-region:no-drag]">
           <div className="relative">
             <Button
               variant="outline"
@@ -250,6 +242,9 @@ export const DeckLibraryView: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>新建卡组</span>
           </Button>
+
+          {/* 无边框窗口自绘控件 (用 -mr-6 抵消 header 的 px-6，使按钮贴齐窗口右缘) */}
+          <WindowControls className="-mr-6 ml-1" />
         </div>
       </header>
 

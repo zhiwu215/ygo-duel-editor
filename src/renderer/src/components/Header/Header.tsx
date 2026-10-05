@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { useStore } from 'zustand'
-import { Layers, Minus, Square, Copy, X } from 'lucide-react'
+import { Layers } from 'lucide-react'
 import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { MASTER_RULES, MasterRule, isExportableMatch } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
+import { WindowControls } from '../ui/window-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
@@ -33,20 +34,6 @@ export const Header: React.FC = () => {
   // 撤销/重做仍需保留全局快捷键 (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z) 调用
   // 对应的工具栏按钮已移除 (与菜单重复)
   const { undo, redo } = useStore(useDuelStore.temporal)
-
-  // 无边框窗口的标题栏由本组件自绘：跟踪最大化状态以切换还原/最大化图标
-  const [isMaximized, setIsMaximized] = useState<boolean>(false)
-
-  useEffect(() => {
-    if (!window.api?.windowIsMaximized) return
-    void window.api.windowIsMaximized().then(setIsMaximized)
-    if (!window.api?.onWindowMaximizedChange) return
-    return window.api.onWindowMaximizedChange(setIsMaximized)
-  }, [])
-
-  const handleToggleMaximize = React.useCallback((): void => {
-    void window.api?.windowToggleMaximize?.()
-  }, [])
 
   // 保存工程对话框控制
   const [isSaveModalOpen, setIsSaveModalOpen] = React.useState(false)
@@ -231,36 +218,7 @@ export const Header: React.FC = () => {
           <Separator orientation="vertical" className="h-4" />
 
           {/* 自绘窗口控件：最小化 / 最大化 / 关闭 */}
-          <div className="-mr-3 ml-1 flex items-center">
-            <button
-              type="button"
-              onClick={() => void window.api?.windowMinimize?.()}
-              title="最小化"
-              className="w-9 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <Minus className="w-3 h-3" />
-            </button>
-            <button
-              type="button"
-              onClick={handleToggleMaximize}
-              title={isMaximized ? '向下还原' : '最大化'}
-              className="w-9 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
-            >
-              {isMaximized ? (
-                <Copy className="w-2.5 h-2.5 -scale-x-100" />
-              ) : (
-                <Square className="w-2.5 h-2.5" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => void window.api?.windowClose?.()}
-              title="关闭"
-              className="w-10 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-red-600 hover:text-white transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <WindowControls className="-mr-3 ml-1" />
         </div>
       </div>
 

@@ -44,16 +44,6 @@ function createWindow(): void {
   // 彻底移除系统默认的原生菜单栏，避免用户按下 Alt 键时触发 Windows 原生的 File/Edit/View 工具栏
   mainWindow.removeMenu()
 
-  // 无边框窗口的标题栏由渲染层自绘（见 Header.tsx），双击标题栏区域时
-  // Windows 不会替我们处理最大化，需要把状态广播回去让按钮图标跟着变
-  const broadcastMaximized = (): void => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('window:maximized-changed', mainWindow.isMaximized())
-    }
-  }
-  mainWindow.on('maximize', broadcastMaximized)
-  mainWindow.on('unmaximize', broadcastMaximized)
-
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })
@@ -76,6 +66,17 @@ app.whenReady().then(() => {
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+
+    // 无边框窗口 (frame: false) 的标题栏由渲染层自绘（见 WindowControls.tsx）：双击拖拽区
+    // 时 Windows 会替我们最大化/还原，需要把状态广播回该窗口让按钮图标跟着变。
+    // 这里对所有窗口统一挂载，主窗口与卡组编辑器窗口都能拿到最新状态。
+    const broadcastMaximized = (): void => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('window:maximized-changed', window.isMaximized())
+      }
+    }
+    window.on('maximize', broadcastMaximized)
+    window.on('unmaximize', broadcastMaximized)
   })
 
   // 1. 注册所有业务 IPC 处理器

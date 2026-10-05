@@ -10,6 +10,7 @@ import { DeckApplyModal } from './DeckApplyModal'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
+import { WindowControls } from '../ui/window-controls'
 import {
   ArrowLeft,
   Folder,
@@ -115,10 +116,10 @@ export const DeckEditorApp: React.FC = () => {
 
   return (
     <div className="flex flex-col w-screen h-screen bg-background text-foreground select-none overflow-hidden font-sans">
-      {/* 1. 顶部操作工具栏 (无 emoji，纯 Lucide 矢量图标) */}
-      <header className="h-11 px-3 border-b border-border bg-card flex items-center justify-between shrink-0">
+      {/* 1. 顶部操作工具栏 (无 emoji，纯 Lucide 矢量图标)；整行兼作无边框窗口的标题栏 */}
+      <header className="h-11 px-3 border-b border-border bg-card flex items-center justify-between shrink-0 [-webkit-app-region:drag]">
         {/* 左侧：返回卡组库与卡组名称 */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 [-webkit-app-region:no-drag]">
           <Button
             variant="ghost"
             size="xs"
@@ -149,7 +150,7 @@ export const DeckEditorApp: React.FC = () => {
         </div>
 
         {/* 右侧：动作按钮组 */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 [-webkit-app-region:no-drag]">
           <Button
             variant="default"
             size="xs"
@@ -233,6 +234,9 @@ export const DeckEditorApp: React.FC = () => {
           >
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
+
+          {/* 无边框窗口自绘控件 (用 -mr-3 抵消 header 的 px-3，使按钮贴齐窗口右缘) */}
+          <WindowControls className="-mr-3 ml-0.5" />
         </div>
       </header>
 

@@ -200,6 +200,9 @@ export class DeckService {
       minHeight: 700,
       show: false,
       autoHideMenuBar: true,
+      // 与主窗口 / 设置窗一致：无边框，标题栏由渲染层自绘
+      // (卡组库 header 与编辑台工具栏兼作标题栏，见 WindowControls.tsx)
+      frame: false,
       title: '卡组编辑器 - YGO Duel Editor',
       icon,
       webPreferences: {

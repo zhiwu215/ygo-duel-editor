@@ -130,37 +130,37 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           action: onNew
         },
         {
-          label: '打开工程 (.ygoduel)',
+          label: '打开工程',
           icon: FolderOpen,
           shortcut: 'Ctrl+O',
           action: onOpenProject
         },
         {
-          label: '决斗档案库 (整局/残局/Combo)',
+          label: '决斗档案库',
           icon: FolderKanban,
           action: () => setActiveLeftTab('archives')
         },
         {
-          label: '保存工程 (.ygoduel)',
+          label: '保存工程',
           icon: Save,
           shortcut: 'Ctrl+S',
           action: onSaveProject
         },
         { label: '', separator: true },
         {
-          label: '导入 Lua 脚本 (.lua)',
+          label: '导入 Lua 脚本',
           icon: Upload,
           shortcut: 'Ctrl+I',
           action: onImportLua
         },
         {
-          label: '导出 Lua 脚本 (.lua)',
+          label: '导出 Lua 脚本',
           icon: Download,
           shortcut: 'Ctrl+E',
           action: onExportLua
         },
         {
-          label: '导出同人剧本台本 (.md)',
+          label: '导出同人剧本台本',
           icon: FileText,
           action: onExportScreenplay
         }
@@ -186,7 +186,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
         },
         { label: '', separator: true },
         {
-          label: '翻转双方场地 (对阵互换)',
+          label: '翻转双方场地',
           icon: ArrowLeftRight,
           action: () => swapSides()
         },

@@ -212,9 +212,8 @@ export const MenuBar: React.FC<MenuBarProps> = ({
         },
         { label: '', separator: true },
         {
-          label: '决斗台本与剧本工作台...',
+          label: '决斗台本',
           icon: BookOpen,
-          shortcut: 'Ctrl+Shift+S',
           action: () => openScreenplayWithStep()
         },
         {

@@ -446,7 +446,7 @@ export const DuelScreenplayModal: React.FC = () => {
                     return (
                       <div key={s.id} className="flex flex-col gap-1">
                         {isFirstInTurn && (
-                          <div className="flex items-center justify-between px-2 py-1 rounded bg-blue-950/40 border border-blue-500/20 text-[11px] font-bold text-blue-300 mt-1">
+                          <div className="flex items-center justify-between px-2 py-1 rounded bg-muted/50 border border-border/70 text-[11px] font-bold text-foreground mt-1">
                             <span>第 {s.turn} 回合</span>
                             <span className="text-[10px] font-normal text-muted-foreground">
                               {s.turnPlayer === 0 ? '我方回合' : '对方回合'}

@@ -93,7 +93,7 @@ export const ACTION_TYPE_COLORS: Record<
   DRAW: { bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30' },
   SEARCH: { bg: 'bg-indigo-500/15', text: 'text-indigo-400', border: 'border-indigo-500/30' },
   SALVAGE: { bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30' },
-  NORMAL_SUMMON: { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
+  NORMAL_SUMMON: { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border' },
   SPECIAL_SUMMON: {
     bg: 'bg-emerald-500/15',
     text: 'text-emerald-400',

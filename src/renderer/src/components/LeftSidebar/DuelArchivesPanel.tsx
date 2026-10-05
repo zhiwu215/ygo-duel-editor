@@ -150,9 +150,6 @@ export const DuelArchivesPanel: React.FC = () => {
       <div className="h-10 px-3 border-b border-border/80 flex items-center justify-between shrink-0 bg-muted/20">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-semibold text-foreground tracking-wide">决斗档案</span>
-          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-muted text-muted-foreground font-mono">
-            {projects.length}
-          </span>
         </div>
       </div>
 

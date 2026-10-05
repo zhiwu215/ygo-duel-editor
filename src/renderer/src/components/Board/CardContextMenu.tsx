@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
@@ -59,6 +59,18 @@ export const CardContextMenu: React.FC = () => {
   const currentPileTarget = usePileListStore((s) => s.target)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
+
+  useLayoutEffect(() => {
+    if (!menu) return
+    const el = menuRef.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    setMenuPos({
+      x: Math.max(8, Math.min(menu.x, window.innerWidth - width - 12)),
+      y: Math.max(8, Math.min(menu.y, window.innerHeight - height - 12))
+    })
+  }, [menu])
 
   useEffect(() => {
     if (!menu) return
@@ -346,12 +358,6 @@ export const CardContextMenu: React.FC = () => {
       : [])
   ]
 
-  // 防止菜单超出屏幕右侧或下侧
-  const menuWidth = 205
-  const menuHeight = 360
-  const adjustedX = Math.min(x, window.innerWidth - menuWidth - 12)
-  const adjustedY = Math.min(y, window.innerHeight - menuHeight - 12)
-
   const renderGroup = (items: MenuItemConfig[]): React.JSX.Element[] =>
     items.map((item, idx) => (
       <Button
@@ -374,7 +380,7 @@ export const CardContextMenu: React.FC = () => {
   return (
     <div
       ref={menuRef}
-      style={{ left: adjustedX, top: adjustedY }}
+      style={{ left: menuPos.x, top: menuPos.y }}
       className="fixed z-[60] min-w-48 max-w-56 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
       onClick={(e) => e.stopPropagation()}
     >

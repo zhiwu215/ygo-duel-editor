@@ -11,11 +11,20 @@ import {
   Check,
   Layers,
   Bot,
-  Loader2
+  Loader2,
+  X,
+  Paperclip
 } from 'lucide-react'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { AgentProviderModelConfig, AgentStepProposal, isProviderReady } from '@shared/index'
+import {
+  AgentProviderModelConfig,
+  AgentStepProposal,
+  isProviderReady,
+  CdbCard,
+  CardUtils
+} from '@shared/index'
+import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { AiProposalCard } from './AiProposalCard'
 import { MarkdownContent } from './MarkdownContent'
 import { Button } from '../ui/button'
@@ -48,6 +57,10 @@ export function BehindSpiritPanel(): JSX.Element {
   const [inputPrompt, setInputPrompt] = useState('')
   const [appliedMessageId, setAppliedMessageId] = useState<string | null>(null)
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
+
+  // 从卡片检索面板拖入的卡片引用：随消息一起发给 AI，避免用户手打卡名
+  const [attachedCards, setAttachedCards] = useState<CdbCard[]>([])
+  const [isCardDragOver, setIsCardDragOver] = useState(false)
 
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [openProviderKey, setOpenProviderKey] = useState<string | null>(null)
@@ -145,9 +158,16 @@ export function BehindSpiritPanel(): JSX.Element {
   }
 
   const handleSend = (): void => {
-    if (!inputPrompt.trim() || isGenerating) return
-    sendMessage(inputPrompt, currentBoardState)
+    if ((!inputPrompt.trim() && attachedCards.length === 0) || isGenerating) return
+    // 对话记录只存用户原始输入；引用卡片的上下文仅在发给模型时拼接
+    sendMessage(
+      inputPrompt.trim(),
+      currentBoardState,
+      buildPromptWithCards(inputPrompt.trim(), attachedCards),
+      attachedCards.map((c) => ({ id: c.id, name: c.name }))
+    )
     setInputPrompt('')
+    setAttachedCards([])
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -155,6 +175,48 @@ export function BehindSpiritPanel(): JSX.Element {
       e.preventDefault()
       handleSend()
     }
+  }
+
+  /**
+   * 把引用的卡片拼成结构化上下文附在消息前。
+   * 只给 AI 提供事实数据（卡名/卡密/攻防/效果原文），不替用户下结论。
+   */
+  const buildPromptWithCards = (prompt: string, cards: CdbCard[]): string => {
+    if (cards.length === 0) return prompt
+    const blocks = cards.map((c) => {
+      const typeLabel = CardUtils.getCardTypeLabel(c.type)
+      const isSpellOrTrap = CardUtils.isSpell(c.type) || CardUtils.isTrap(c.type)
+      const stats = isSpellOrTrap
+        ? ''
+        : ` 攻${c.atk} / 防${c.def}${CardUtils.isLink(c.type) ? '' : ` / ${CardUtils.getStarLevel(c.level, c.type)}星`}`
+      return [
+        `【${c.name}】(${typeLabel}${stats})`,
+        `卡密: ${c.id}`,
+        c.desc ? `效果: ${c.desc}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n')
+    })
+    return `【我参考的卡片】\n${blocks.join('\n\n')}\n\n【我的问题】\n${prompt}`
+  }
+
+  // 从卡片检索面板拖入卡片：去重后加入引用列表
+  const handleCardDrop = (e: React.DragEvent): void => {
+    e.preventDefault()
+    setIsCardDragOver(false)
+    const raw = e.dataTransfer.getData('application/json')
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as CdbCard
+      if (typeof parsed?.id !== 'number' || !parsed.name) return
+      setAttachedCards((prev) => (prev.some((c) => c.id === parsed.id) ? prev : [...prev, parsed]))
+    } catch {
+      // 非卡片数据（如从别处拖入的文本）忽略
+    }
+  }
+
+  const removeAttachedCard = (cardId: number): void => {
+    setAttachedCards((prev) => prev.filter((c) => c.id !== cardId))
   }
 
   const handleApplySteps = (proposals: AgentStepProposal[], messageId: string): void => {
@@ -279,6 +341,21 @@ export function BehindSpiritPanel(): JSX.Element {
                     </div>
                   )}
 
+                  {msg.attachedCards && msg.attachedCards.length > 0 && (
+                    <div className="mb-1.5 flex flex-wrap items-center gap-1">
+                      <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
+                      {msg.attachedCards.map((c) => (
+                        <span
+                          key={c.id}
+                          title={`卡密 ${c.id}`}
+                          className="rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                        >
+                          {c.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   {msg.role === 'user' ? (
                     <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                       {msg.content}
@@ -335,14 +412,73 @@ export function BehindSpiritPanel(): JSX.Element {
         </div>
 
         <div className="p-2.5 border-t border-border bg-card/80 flex flex-col gap-2 shrink-0">
-          <textarea
-            value={inputPrompt}
-            onChange={(e) => setInputPrompt(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
-            rows={2}
-            className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
-          />
+          {/* 拖入卡片的落点：包住输入框 + 引用区，拖入时整块高亮提示可松手 */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'copy'
+              setIsCardDragOver(true)
+            }}
+            onDragLeave={(e) => {
+              // 仅当指针真正离开整块区域时才取消高亮，避免经过内部子元素误判
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsCardDragOver(false)
+            }}
+            onDrop={handleCardDrop}
+            className={cn(
+              'flex flex-col gap-2 rounded-md transition-colors',
+              isCardDragOver && 'bg-primary/5 ring-1 ring-primary/30'
+            )}
+          >
+            {attachedCards.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {attachedCards.map((c) => (
+                  <div
+                    key={c.id}
+                    className="group flex items-center gap-1.5 rounded border border-border bg-muted/60 pl-1.5 pr-1 py-1 max-w-full"
+                  >
+                    <img
+                      src={getCardImageUrl(c.id, true)}
+                      alt={c.name}
+                      className="w-6 h-8 object-cover rounded-sm shrink-0 border border-border/60"
+                      onError={(e) => {
+                        const el = e.currentTarget
+                        if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
+                      }}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium leading-tight truncate max-w-32">
+                        {c.name}
+                      </p>
+                      <p className="text-[9px] text-muted-foreground font-mono leading-tight">
+                        {CardUtils.getCardTypeLabel(c.type)} · {c.id}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachedCard(c.id)}
+                      title="移除这张卡片"
+                      className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <textarea
+              value={inputPrompt}
+              onChange={(e) => setInputPrompt(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                attachedCards.length > 0
+                  ? '已引用卡片，直接提问即可...'
+                  : '输入消息... (Enter 发送, Shift+Enter 换行)，也可从右侧卡片检索拖入卡片'
+              }
+              rows={2}
+              className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
+            />
+          </div>
 
           <div className="flex items-center justify-between gap-1.5" ref={toolbarRef}>
             <div className="flex items-center gap-1 min-w-0 flex-1">
@@ -386,7 +522,7 @@ export function BehindSpiritPanel(): JSX.Element {
               <Button
                 size="xs"
                 onClick={handleSend}
-                disabled={!inputPrompt.trim()}
+                disabled={!inputPrompt.trim() && attachedCards.length === 0}
                 className="h-7 shrink-0 px-3 text-xs gap-1 font-semibold shadow-xs"
               >
                 <Send className="w-3 h-3" />

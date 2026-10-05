@@ -7,6 +7,7 @@ import { imageService } from '../services/imageService'
 import { deckService } from '../services/deckService'
 import { ocgcoreService } from '../services/ocgcoreService'
 import { agentService } from '../services/agentService'
+import { settingsWindowService } from '../services/settingsWindowService'
 
 export function registerAllIpcHandlers(): void {
   // CDB 数据库操作
@@ -146,6 +147,11 @@ export function registerAllIpcHandlers(): void {
     deckService.openDeckEditorWindow()
   })
 
+  // 全局设置独立窗口 (VSCode 风格左下角入口)
+  ipcMain.handle('window:open-settings', async () => {
+    settingsWindowService.openSettingsWindow()
+  })
+
   ipcMain.handle('deck:get-list', async () => {
     return deckService.getDeckList()
   })
@@ -190,5 +196,17 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('agent:abort', async () => {
     return agentService.abort()
+  })
+
+  ipcMain.handle('agent:reset-session', async () => {
+    return agentService.resetSession()
+  })
+
+  ipcMain.handle('agent:fetch-models', async (_, params) => {
+    return agentService.fetchModels(String(params?.baseUrl ?? ''), String(params?.apiKey ?? ''))
+  })
+
+  ipcMain.handle('agent:get-provider-presets', async () => {
+    return agentService.getProviderPresets()
   })
 }

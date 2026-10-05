@@ -72,9 +72,6 @@ export const CardDetailPanel: React.FC = () => {
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none">
           <HelpCircle className="w-10 h-10 text-muted-foreground/30 mb-3" />
           <p className="font-medium text-foreground/80">尚未选择卡片</p>
-          <p className="text-[11px] text-muted-foreground/60 mt-1 leading-relaxed">
-            点击或悬停在卡片搜索列表、或者场上的卡片上，即可在此处查阅超高清卡图与详细效果说明。
-          </p>
         </div>
       </div>
     )

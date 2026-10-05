@@ -3,13 +3,11 @@ import { X, Palette, FolderOpen, Plug, MessageSquareText, Folder, FolderKanban }
 import type { LucideIcon } from 'lucide-react'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useAgentStore } from '../../stores/useAgentStore'
-import { AgentSettingsContent, AgentSettingsSection } from './AgentSettingsContent'
+import { AgentSettingsContent } from './AgentSettingsContent'
+import { SettingsSectionId } from '@shared/index'
 import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { cn } from '../../lib/utils'
-
-/** 设置窗全部分区：常规 (外观 / 路径) + AI 顾问 (提供商 / 模型 / 对话) */
-type SettingsSectionId = 'appearance' | 'paths' | AgentSettingsSection
 
 interface SettingsNavItem {
   id: SettingsSectionId
@@ -61,6 +59,9 @@ const NAV_GROUPS: SettingsNavGroup[] = [
 ]
 
 const ALL_ITEMS: SettingsNavItem[] = NAV_GROUPS.flatMap((g) => g.items)
+
+const isSettingsSectionId = (value: string | undefined): value is SettingsSectionId =>
+  value !== undefined && ALL_ITEMS.some((item) => item.id === value)
 
 interface SettingsRowProps {
   title: string
@@ -149,8 +150,15 @@ function PathsSection(): JSX.Element {
  * 参照 VSCode / OpenCode：左侧分区导航 + 右侧内容，改动即时生效
  */
 export function SettingsApp(): JSX.Element {
-  const [section, setSection] = useState<SettingsSectionId>('appearance')
+  const [section, setSection] = useState<SettingsSectionId>(() => {
+    const requested = window.location.hash.split('/')[1]
+    return isSettingsSectionId(requested) ? requested : 'appearance'
+  })
   const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    return window.api.onSettingsNavigate((next) => setSection(next))
+  }, [])
 
   // 设置窗独立于主窗口启动，需自行等待双 store 配置加载完成再渲染内容
   useEffect(() => {

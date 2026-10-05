@@ -6,7 +6,8 @@ import {
   DuelPuzzleState,
   AppConfig,
   DeckData,
-  AgentStreamEvent
+  AgentStreamEvent,
+  SettingsSectionId
 } from '@shared/index'
 
 // 实现类型完备的 IPC 桥接层
@@ -81,7 +82,14 @@ const api: IpcApi = {
   agentResetSession: () => ipcRenderer.invoke('agent:reset-session'),
   agentFetchModels: (params) => ipcRenderer.invoke('agent:fetch-models', params),
   agentGetProviderPresets: () => ipcRenderer.invoke('agent:get-provider-presets'),
-  openSettingsWindow: () => ipcRenderer.invoke('window:open-settings'),
+  openSettingsWindow: (section) => ipcRenderer.invoke('window:open-settings', section),
+  onSettingsNavigate: (callback) => {
+    const handler = (_: unknown, section: SettingsSectionId): void => callback(section)
+    ipcRenderer.on('settings:navigate', handler)
+    return () => {
+      ipcRenderer.removeListener('settings:navigate', handler)
+    }
+  },
   openExternal: (url: string) => ipcRenderer.invoke('app:open-external', url),
   onConfigUpdated: (callback) => {
     const handler = (): void => callback()

@@ -278,6 +278,8 @@ export interface DuelProjectMeta {
   updatedAt: number // 最后修改时间戳 (ms)
 }
 
+export type SettingsSectionId = 'appearance' | 'paths' | 'model-settings' | 'chat'
+
 /**
  * IPC 通道名称与接口契约
  */
@@ -367,8 +369,8 @@ export interface IpcApi {
   agentFetchModels: (params: AgentFetchModelsParams) => Promise<AgentFetchModelsResult>
   /** AI 提供商预设列表（静态，设置页「常用提供商」区） */
   agentGetProviderPresets: () => Promise<AgentProviderPreset[]>
-  /** 打开全局设置独立窗口 (VSCode 风格左下角入口) */
-  openSettingsWindow: () => Promise<void>
+  openSettingsWindow: (section?: SettingsSectionId) => Promise<void>
+  onSettingsNavigate: (callback: (section: SettingsSectionId) => void) => () => void
   openExternal: (url: string) => Promise<boolean>
   /** 订阅全局配置变更广播 (主题 / 路径 / AI 配置跨窗口同步)，返回退订函数 */
   onConfigUpdated: (callback: () => void) => () => void

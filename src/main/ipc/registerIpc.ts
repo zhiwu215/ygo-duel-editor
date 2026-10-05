@@ -138,9 +138,9 @@ export function registerAllIpcHandlers(): void {
     deckService.openDeckEditorWindow()
   })
 
-  // 全局设置独立窗口 (VSCode 风格左下角入口)
-  ipcMain.handle('window:open-settings', async () => {
-    settingsWindowService.openSettingsWindow()
+  // 全局设置独立窗口，可指定进入后停留的分区
+  ipcMain.handle('window:open-settings', async (_, section) => {
+    settingsWindowService.openSettingsWindow(section)
   })
 
   ipcMain.handle('deck:get-list', async () => {

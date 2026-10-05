@@ -55,12 +55,12 @@ interface DuelStoreState {
   tacticalView: boolean
 
   // 左侧栏模态 (VSCode 风格活动栏与多模态面板)
-  activeLeftTab: 'archives' | 'card' | 'agent'
+  activeLeftTab: 'archives' | 'library' | 'card' | 'agent'
   isLeftOpen: boolean
   leftWidth: number
-  setActiveLeftTab: (tab: 'archives' | 'card' | 'agent') => void
+  setActiveLeftTab: (tab: 'archives' | 'library' | 'card' | 'agent') => void
   setLeftOpen: (open: boolean) => void
-  toggleLeftTab: (tab: 'archives' | 'card' | 'agent') => void
+  toggleLeftTab: (tab: 'archives' | 'library' | 'card' | 'agent') => void
   setLeftWidth: (width: number) => void
   loadProjectAndStart: (state: DuelPuzzleState) => void
 

@@ -29,6 +29,16 @@ export const DeckSwitcherModal: React.FC = () => {
 const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) => {
   const closeDeckSwitcher = useDeckSwitcherStore((s) => s.closeDeckSwitcher)
   const applyDeckToPlayer = useDuelStore((s) => s.applyDeckToPlayer)
+  const duelists = useDuelStore((s) => s.state.duelists)
+  const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
+
+  // 多人对局时每位决斗者拥有独立卡组，装入目标必须是「某个人」而不是整个阵营。
+  // 取值与 store 的 applyDeckToPlayer 写入端同口径：当前查看的决斗者（须同阵营）
+  // → 该阵营首位。未选中时也显式解析出这个人，让徽标显示真实名字而非笼统的「我方」。
+  const teamDuelists = (duelists || []).filter((d) => d.team === controller)
+  const targetDuelist =
+    teamDuelists.find((d) => d.id === activeDuelistId) || teamDuelists[0] || null
+  const isTeamScope = teamDuelists.length <= 1
 
   const [decks, setDecks] = useState<DeckData[]>([])
   // 初值 true：挂载即取一次卡组库，取回前显示加载中（由 promise 收尾置 false）。
@@ -75,11 +85,11 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
   }, [decks, query])
 
   const handleApply = (deck: DeckData): void => {
-    applyDeckToPlayer(controller, deck, drawCount)
+    applyDeckToPlayer(controller, deck, drawCount, targetDuelist?.id)
     closeDeckSwitcher()
   }
 
-  const ctrlLabel = controller === 0 ? '我方' : '对方'
+  const ctrlLabel = targetDuelist ? targetDuelist.name : controller === 0 ? '我方' : '对方'
 
   return (
     <div
@@ -106,6 +116,11 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
               {ctrlLabel}主卡组
             </span>
           </div>
+          <p className="text-[11px] text-muted-foreground text-right">
+            {isTeamScope
+              ? '将替换该阵营的整副卡组'
+              : `将装入「${targetDuelist?.name}」的卡组，同阵营其他人的卡组不受影响`}
+          </p>
 
           <button
             type="button"

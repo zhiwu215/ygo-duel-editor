@@ -56,6 +56,7 @@ const PileListContent: React.FC = () => {
   const openContextMenu = useContextMenuStore((s) => s.openMenu)
   const {
     state,
+    activeDuelistId,
     setHoveredCard,
     setHoveredInstanceId,
     setSelectedCardId,
@@ -104,10 +105,22 @@ const PileListContent: React.FC = () => {
   // 当前区域的卡片列表（按 sequence 升序排序）
   const pileCards = useMemo(() => {
     if (!target) return []
+    // 与棋盘口径保持一致：多人时堆叠区按「当前查看的决斗者」收窄，
+    // 否则列表里会混进同阵营其他人的牌，且拖拽排序会作用到别人的牌上。
+    const ownerScope =
+      target &&
+      state.duelists?.find((d) => d.id === activeDuelistId && d.team === target.controller)
+        ? activeDuelistId
+        : null
     return state.cards
-      .filter((c) => c.controller === target.controller && c.location === target.location)
+      .filter(
+        (c) =>
+          c.controller === target.controller &&
+          c.location === target.location &&
+          (ownerScope ? c.duelistId === ownerScope : true)
+      )
       .sort((a, b) => a.sequence - b.sequence)
-  }, [state.cards, target])
+  }, [state.cards, state.duelists, activeDuelistId, target])
 
   // 搜索过滤后的卡片
   const filteredCards = useMemo(() => {
@@ -128,7 +141,10 @@ const PileListContent: React.FC = () => {
     icon: Layers
   }
   const IconComponent = meta.icon
-  const ctrlLabel = target.controller === 0 ? '我方' : '对方'
+  // 多人时标题带上决斗者名字，避免两人同名卡组「我方主卡组」分不清
+  const ownerDuelist =
+    state.duelists?.find((d) => d.id === activeDuelistId && d.team === target.controller) || null
+  const ctrlLabel = ownerDuelist ? ownerDuelist.name : target.controller === 0 ? '我方' : '对方'
   const title = `${ctrlLabel}${meta.name}`
 
   const handleScrollLeft = (): void => {

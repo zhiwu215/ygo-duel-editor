@@ -134,7 +134,7 @@ export const DuelBoard: React.FC = () => {
       location === CardLocation.EXTRA ||
       location === CardLocation.REMOVED
     ) {
-      // 仅当「当前查看的决斗者」属于本阵营时才按duelistId 收窄；
+      // 仅当「当前查看的决斗者」属于本阵营时才按 duelistId 收窄；
       // 查看对方玩家时，我方/另一侧的堆叠区保持阵营全量，不会被一起过滤掉。
       const ownerScope =
         activeDuelist && activeDuelist.team === controller ? activeDuelist.id : null

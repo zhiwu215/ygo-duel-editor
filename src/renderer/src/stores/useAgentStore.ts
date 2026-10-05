@@ -1,9 +1,15 @@
 import { create } from 'zustand'
 import {
   AgentModelConfig,
+  AgentProviderConfig,
+  AgentProviderPreset,
   AgentStepProposal,
   AgentStreamEvent,
-  DuelPuzzleState
+  DuelPuzzleState,
+  createProviderFromPreset,
+  normalizeAgentApiFormat,
+  normalizeAgentConfig,
+  syncActiveFields
 } from '@shared/index'
 import { useDuelStore } from './useDuelStore'
 
@@ -30,6 +36,7 @@ interface AgentStoreState {
   isOpen: boolean
   isGenerating: boolean
   config: AgentModelConfig
+  presets: AgentProviderPreset[]
   messages: AgentChatMessage[]
   cleanupListener: (() => void) | null
   width: number
@@ -40,6 +47,10 @@ interface AgentStoreState {
   updateConfig: (patch: Partial<AgentModelConfig>) => void
   loadConfig: () => Promise<void>
   saveConfig: () => Promise<boolean>
+  loadPresets: () => Promise<AgentProviderPreset[]>
+  upsertProvider: (provider: AgentProviderConfig) => void
+  removeProvider: (providerId: string) => void
+  selectModel: (providerId: string, modelId: string) => void
   sendMessage: (prompt: string, boardState?: DuelPuzzleState) => Promise<void>
   abort: () => Promise<void>
   /** 丢弃 AI 会话并重开（同时清空本地消息） */
@@ -48,12 +59,48 @@ interface AgentStoreState {
 }
 
 const DEFAULT_CONFIG: AgentModelConfig = {
-  provider: 'custom-openai',
-  baseUrl: 'https://api.deepseek.com/v1',
+  providers: [],
+  provider: '',
+  baseUrl: '',
   apiKey: '',
-  model: 'deepseek-chat',
+  model: '',
+  apiFormat: 'openai-chat-completions',
   systemPrompt: '',
   enableReasoning: false
+}
+
+function buildProvidersFromLegacy(
+  raw: AgentModelConfig,
+  presets: AgentProviderPreset[]
+): AgentProviderConfig[] {
+  const baseUrl = (raw.baseUrl || '').trim()
+  if (!baseUrl) return []
+  const preset =
+    presets.find((p) => p.baseUrl === baseUrl) ?? presets.find((p) => p.id === raw.provider)
+  const model = (raw.model || '').trim()
+
+  if (preset) {
+    const provider = createProviderFromPreset(preset)
+    provider.apiKey = raw.apiKey || ''
+    provider.baseUrl = baseUrl
+    provider.enabled = true
+    if (model && !provider.models.some((m) => m.id === model)) {
+      provider.models.push({ id: model, enabled: true, custom: true })
+    }
+    return [provider]
+  }
+
+  return [
+    {
+      id: raw.provider || `custom-${Date.now().toString(36)}`,
+      name: raw.provider === 'custom-openai' ? '自定义供应商' : raw.provider || '自定义供应商',
+      baseUrl,
+      apiFormat: normalizeAgentApiFormat(raw.apiFormat),
+      apiKey: raw.apiKey || '',
+      enabled: true,
+      models: model ? [{ id: model, enabled: true, custom: true }] : []
+    }
+  ]
 }
 
 /** 跨窗口配置广播只订阅一次（设置窗口改配置后，主窗口会话面板同步刷新） */
@@ -64,6 +111,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
   width: 440,
   isGenerating: false,
   config: { ...DEFAULT_CONFIG },
+  presets: [],
   messages: [],
   cleanupListener: null,
 
@@ -162,6 +210,18 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
     set((state) => ({ config: { ...state.config, ...patch } }))
   },
 
+  loadPresets: async () => {
+    try {
+      if (!window.api?.agentGetProviderPresets) return get().presets
+      const presets = await window.api.agentGetProviderPresets()
+      set({ presets })
+      return presets
+    } catch (err) {
+      console.error('[useAgentStore] loadPresets failed:', err)
+      return get().presets
+    }
+  },
+
   loadConfig: async () => {
     if (!window.api?.getConfig) return
     if (!configUpdatedSubscribed && window.api.onConfigUpdated) {
@@ -171,31 +231,23 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       })
     }
     try {
+      const presets = await get().loadPresets()
       const cfg = await window.api.getConfig()
-      if (cfg.agentConfig) {
-        const merged = { ...DEFAULT_CONFIG, ...cfg.agentConfig }
-        // 清洗复制粘贴混入的空白字符、两端多余引号与不可见字符：这些会导致厂商直接 401
-        const cleanKey = (merged.apiKey || '')
-          .trim()
-          .replace(/^["']|["']$/g, '')
-          .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      const raw = cfg.agentConfig
+      if (!raw) return
 
-        const sanitized: AgentModelConfig = {
-          ...merged,
-          baseUrl: (merged.baseUrl || '').trim(),
-          apiKey: cleanKey,
-          model: (merged.model || '').trim()
-        }
-        set({ config: sanitized })
-        // 自愈历史脏配置：检测到空白残留或格式自动修正时立即回写清洗后的值
-        const raw = cfg.agentConfig
-        if (
-          sanitized.apiKey !== (raw.apiKey || '') ||
-          sanitized.baseUrl !== (raw.baseUrl || '') ||
-          sanitized.model !== (raw.model || '')
-        ) {
-          void get().saveConfig()
-        }
+      const base = { ...DEFAULT_CONFIG, ...raw }
+      const providers =
+        base.providers && base.providers.length > 0
+          ? base.providers
+          : buildProvidersFromLegacy(base, presets)
+
+      const normalized = normalizeAgentConfig({ ...base, providers })
+      set({ config: normalized })
+
+      // 自愈历史脏配置：迁移或清洗后与磁盘不一致时立即回写
+      if (JSON.stringify(normalized) !== JSON.stringify(raw)) {
+        void get().saveConfig()
       }
     } catch (err) {
       console.error('[useAgentStore] loadConfig failed:', err)
@@ -211,6 +263,37 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       console.error('[useAgentStore] saveConfig failed:', err)
       return false
     }
+  },
+
+  upsertProvider: (provider) => {
+    const { config } = get()
+    const providers = config.providers ?? []
+    const exists = providers.some((p) => p.id === provider.id)
+    const nextProviders = exists
+      ? providers.map((p) => (p.id === provider.id ? provider : p))
+      : [...providers, provider]
+    const next = syncActiveFields({ ...config, providers: nextProviders })
+    set({ config: next })
+    void get().saveConfig()
+  },
+
+  removeProvider: (providerId) => {
+    const { config } = get()
+    const nextProviders = (config.providers ?? []).filter((p) => p.id !== providerId)
+    const next = syncActiveFields({
+      ...config,
+      providers: nextProviders,
+      provider: config.provider === providerId ? undefined : config.provider
+    })
+    set({ config: next })
+    void get().saveConfig()
+  },
+
+  selectModel: (providerId, modelId) => {
+    const { config } = get()
+    const next = syncActiveFields(config, { providerId, modelId })
+    set({ config: next })
+    void get().saveConfig()
   },
 
   sendMessage: async (prompt, boardState) => {

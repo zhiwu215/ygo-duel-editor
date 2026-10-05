@@ -251,7 +251,7 @@ export const DeckEditorApp: React.FC = () => {
             type="text"
             value={deck.description || ''}
             onChange={(e) => setDeckDescription(e.target.value)}
-            placeholder="输入卡组描述、同人剧情背景或 Combo 做场要点..."
+            placeholder="描述"
             className="h-6.5 text-[11.5px] bg-background/60 border-border/60 flex-1 min-w-0"
           />
         </div>

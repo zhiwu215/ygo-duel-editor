@@ -51,7 +51,13 @@ const components: Components = {
     )
   },
   p({ children }) {
-    return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>
+    // break-words + break-all：AI 回包里常见无空格的长串（JSON 错误、URL、堆栈），
+    // 仅 break-words 无法打断，会横向溢出气泡。
+    return (
+      <p className="mb-2 last:mb-0 leading-relaxed break-words [overflow-wrap:anywhere]">
+        {children}
+      </p>
+    )
   },
   ul({ children }) {
     return <ul className="list-disc list-inside mb-2 last:mb-0 space-y-0.5">{children}</ul>
@@ -94,10 +100,16 @@ const components: Components = {
     const match = /language-(\w+)/.exec(className || '')
     const isBlock = className && match
     if (isBlock) {
-      return <code className={`${className} font-mono text-[10px] block`}>{children}</code>
+      return (
+        <code
+          className={`${className} font-mono text-[10px] block break-words [overflow-wrap:anywhere]`}
+        >
+          {children}
+        </code>
+      )
     }
     return (
-      <code className="font-mono text-[10px] px-1 py-0.5 rounded bg-muted text-foreground">
+      <code className="font-mono text-[10px] px-1 py-0.5 rounded bg-muted text-foreground break-words [overflow-wrap:anywhere]">
         {children}
       </code>
     )

@@ -10,7 +10,6 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Badge } from '../ui/badge'
 import {
   BookOpen,
   Film,
@@ -200,27 +199,12 @@ export const DuelScreenplayModal: React.FC = () => {
     >
       <div className="w-[1100px] max-w-[96vw] h-[88vh] bg-card text-card-foreground border border-border/80 shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
         {/* 1. 顶栏：工作台标题、双视图切换与快速导出 */}
-        <div className="px-5 py-3 border-b border-border/70 bg-muted/25 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500">
-              <BookOpen className="w-5 h-5" />
+        <div className="px-5 py-2.5 border-b border-border/70 bg-card flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
+              <BookOpen className="w-4 h-4" />
             </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm text-foreground tracking-wide">
-                  决斗台本与剧本创作工作台
-                </span>
-                <Badge
-                  variant="outline"
-                  className="text-[10px] border-amber-500/40 text-amber-500 bg-amber-500/10"
-                >
-                  对局叙事联动
-                </Badge>
-              </div>
-              <span className="text-[11px] text-muted-foreground mt-0.5">
-                深度关联对局回合与每一步操作 · 沉浸式撰写人物台词、内心戏与战术解说
-              </span>
-            </div>
+            <span className="font-bold text-sm text-foreground tracking-wide">决斗台本</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -230,10 +214,10 @@ export const DuelScreenplayModal: React.FC = () => {
                 type="button"
                 onClick={() => setViewMode('editor')}
                 className={cn(
-                  'px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5',
+                  'px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5',
                   viewMode === 'editor'
-                    ? 'bg-amber-500 text-neutral-950 font-bold shadow-xs'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-foreground/85 text-background font-semibold shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 )}
               >
                 <Film className="w-3.5 h-3.5" />
@@ -243,10 +227,10 @@ export const DuelScreenplayModal: React.FC = () => {
                 type="button"
                 onClick={() => setViewMode('document')}
                 className={cn(
-                  'px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5',
+                  'px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5',
                   viewMode === 'document'
-                    ? 'bg-amber-500 text-neutral-950 font-bold shadow-xs'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-foreground/85 text-background font-semibold shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 )}
               >
                 <FileText className="w-3.5 h-3.5" />
@@ -423,15 +407,15 @@ export const DuelScreenplayModal: React.FC = () => {
             {/* 2.1 左侧：回合与动作步骤大纲 (Timeline Outline) */}
             <div className="w-[340px] h-full border-r border-border/70 bg-muted/15 flex flex-col shrink-0 overflow-hidden">
               <div className="p-2.5 border-b border-border/60 bg-muted/20 flex items-center justify-between shrink-0">
-                <span className="font-bold text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Film className="w-3.5 h-3.5 text-amber-500" />
+                <span className="font-semibold text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Film className="w-3.5 h-3.5" />
                   <span>对局动作大纲 ({steps.length})</span>
                 </span>
                 <Button
                   size="xs"
                   variant="outline"
                   onClick={handleInsertAfterCurrent}
-                  className="h-6 text-[11px] gap-1 font-semibold border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+                  className="h-6 text-[11px] gap-1 font-medium"
                 >
                   <Plus className="w-3 h-3" />
                   <span>加动作</span>
@@ -480,7 +464,7 @@ export const DuelScreenplayModal: React.FC = () => {
                           className={cn(
                             'p-2 rounded-lg border transition-all cursor-pointer flex items-center gap-2 select-none',
                             isSelected
-                              ? 'border-amber-400 bg-amber-500/10 shadow-sm ring-1 ring-amber-400/40'
+                              ? 'border-primary/50 bg-primary/8 shadow-sm ring-1 ring-primary/25'
                               : 'border-border/60 bg-card/60 hover:bg-muted/40 hover:border-border'
                           )}
                         >
@@ -639,7 +623,7 @@ export const DuelScreenplayModal: React.FC = () => {
                         size="sm"
                         disabled={activeStepIndex >= steps.length - 1}
                         onClick={() => setSelectedStepId(steps[activeStepIndex + 1].id)}
-                        className="h-8 px-2.5 text-xs font-bold gap-1 bg-amber-500 hover:bg-amber-400 text-neutral-950"
+                        className="h-8 px-2.5 text-xs font-semibold gap-1"
                         title="下一动作步骤 (快捷键 Ctrl + ↓ 或 Ctrl + Enter)"
                       >
                         <span>下一步</span>
@@ -651,8 +635,8 @@ export const DuelScreenplayModal: React.FC = () => {
                   {/* 2.2.2 角色说话人与预设选择 */}
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                      <label className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-amber-500" />
+                      <label className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-muted-foreground" />
                         <span>说话角色 (Speaker)</span>
                       </label>
                       <span className="text-[11px] text-muted-foreground">
@@ -666,7 +650,7 @@ export const DuelScreenplayModal: React.FC = () => {
                         value={activeStep.speaker || ''}
                         onChange={(e) => updateStep(activeStep.id, { speaker: e.target.value })}
                         placeholder="输入角色名，例如：凯撒亮、游城十代、海马濑人"
-                        className="h-8 text-xs font-bold text-amber-500 dark:text-amber-400 max-w-sm"
+                        className="h-8 text-xs font-medium max-w-sm"
                       />
                     </div>
 
@@ -680,7 +664,7 @@ export const DuelScreenplayModal: React.FC = () => {
                           className={cn(
                             'text-[11px] px-2 py-0.5 rounded-full border transition-all font-medium',
                             activeStep.speaker === name
-                              ? 'bg-amber-500 text-neutral-950 border-amber-500 font-bold'
+                              ? 'bg-foreground/85 text-background border-foreground/85 font-semibold'
                               : 'bg-background hover:bg-muted border-border text-muted-foreground hover:text-foreground'
                           )}
                         >
@@ -693,8 +677,8 @@ export const DuelScreenplayModal: React.FC = () => {
                   {/* 2.2.3 角色台词正文 (宽敞多行自适应文本框) */}
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                      <label className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <label className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500/70" />
                         <span>角色台词 / 召唤口播 / 决斗战吼</span>
                       </label>
                       <span className="text-[11px] text-muted-foreground font-mono">
@@ -772,16 +756,18 @@ export const DuelScreenplayModal: React.FC = () => {
                 </>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center p-8 text-center text-muted-foreground text-xs">
-                  <BookOpen className="w-12 h-12 text-muted-foreground/30 mb-3" />
-                  <p className="font-bold text-sm text-foreground/80">未选择动作步骤</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1 max-w-sm leading-relaxed">
-                    在左侧大纲中点击任意对局动作，即可在此尽情撰写该操作对应的人物台词与剧情对白。
+                  <div className="w-10 h-10 rounded-lg bg-muted/50 border border-border/60 flex items-center justify-center mb-2.5">
+                    <BookOpen className="w-5 h-5 text-muted-foreground/60" />
+                  </div>
+                  <p className="font-semibold text-sm text-foreground/85">未选择动作步骤</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">
+                    在左侧选中动作后撰写对应台本
                   </p>
                   <Button
                     variant="default"
                     size="sm"
                     onClick={handleInsertAfterCurrent}
-                    className="mt-4 gap-1.5 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold"
+                    className="mt-4 gap-1.5 font-semibold"
                   >
                     <Plus className="w-4 h-4" />
                     <span>添加第一步动作与台本</span>

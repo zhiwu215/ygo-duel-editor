@@ -134,7 +134,7 @@ export const CardSearchPanel: React.FC = () => {
               type="text"
               value={localKw}
               onChange={(e) => setLocalKw(e.target.value)}
-              placeholder="搜索卡名、密码或效果..."
+              placeholder="搜索卡名、卡密或效果"
               className="pl-8 pr-7 bg-secondary/80 focus:bg-background h-8 text-xs font-medium"
             />
             {localKw && (

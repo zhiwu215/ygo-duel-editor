@@ -210,6 +210,84 @@ export interface AgentStepProposal {
 }
 
 /**
+ * AI 场面布局提案中单张牌的落位描述
+ *
+ * 区域与表示形式一律用**字符串枚举**而非 ocgcore 数字常量：
+ * 模型填 `MZONE` / `FACEUP_DEFENSE` 的正确率远高于让它自己算 0x04 / 0x4，
+ * 主进程收到后再映射成 CardLocation / CardPosition。
+ */
+export interface AgentBoardCardPlacement {
+  /** 8 位卡密；`isUnknown` 为 true 时固定为 0 */
+  code: number
+  /** 卡名快照，仅用于预览展示与人工核对 */
+  cardName?: string
+  /**
+   * 是否是「知道有这张卡、但不知道是哪张」的盖卡。
+   * 用户说「魔陷区有一张盖卡」但没给卡名时置 true：`code` 记 0 不查卡库，
+   * 渲染层显示为无卡名的卡背。
+   */
+  isUnknown?: boolean
+  /** 归属阵营：0 = 我方，1 = 对方 */
+  side: 0 | 1
+  /** 目标区域 */
+  location: AgentBoardZone
+  /** 格子序号：怪兽区/魔陷区 0~4；手牌等堆叠区传 0 由主进程按顺序追加 */
+  sequence: number
+  /** 表示形式；缺省时按区域惯例（魔陷区与手牌默认盖放，怪兽区默认表攻） */
+  position?: AgentBoardCardFacing
+  /**
+   * 目标决斗者名（如「韩诺」）；手牌与堆叠区必填，否则多人模式下会挂到
+   * 当前查看的决斗者名下。传空时按 side 落到该阵营首位。
+   */
+  duelistName?: string
+  /**
+   * 覆盖显示攻击力。用于「特拉戈迪亚攻击力上升手牌数量 X600 → 3600」
+   * 这类动态攻防：卡库里该卡atk 是 -1/?，不覆盖就显示不出真实数值。
+   */
+  customAtk?: number
+  /** 覆盖显示守备力 */
+  customDef?: number
+}
+
+/** AI 可指定的落位区域（不含超量素材与场地魔法专属区，那两处由 UI 操作更合适） */
+export type AgentBoardZone = 'MZONE' | 'SZONE' | 'HAND' | 'GRAVE' | 'DECK' | 'EXTRA' | 'REMOVED'
+
+/** AI 可指定的表示形式 */
+export type AgentBoardCardFacing = 'FACEUP_ATTACK' | 'FACEUP_DEFENSE' | 'FACEDOWN' | 'FACEUP'
+
+/** 单方生命值设定 */
+export interface AgentBoardLpTarget {
+  /** 阵营：0 = 我方，1 = 对方 */
+  side: 0 | 1
+  /** 目标生命值 */
+  lp: number
+  /** 多人模式下指定决斗者名；缺省时按 side 落到该阵营首位（或共享 LP 时全阵营） */
+  duelistName?: string
+}
+
+/**
+ * AI 复盘出的完整场面布局（待用户确认后才写入决斗场）
+ */
+export interface AgentBoardSetupProposal {
+  /** 局面摘要，说明这个布局是什么场合 */
+  summary: string
+  /**
+   * 是否先清空现有盘面再落位。
+   * 「复盘一个全新场面」必须为 true，否则会在原卡片上叠加摆放。
+   */
+  clearExisting: boolean
+  /** 生命值设定；不需要改动的一方可以不传 */
+  lp: AgentBoardLpTarget[]
+  /** 卡片落位列表 */
+  cards: AgentBoardCardPlacement[]
+  /**
+   * 布局合法性问题（卡密查不到、格子序号越界等）。
+   * 空数组代表全部通过；非空时预览卡片会高亮提示，但不阻止用户应用。
+   */
+  warnings: string[]
+}
+
+/**
  * AI 流式推送事件
  */
 export type AgentStreamEvent =
@@ -223,12 +301,20 @@ export type AgentStreamEvent =
   | { type: 'tool_call_end'; id: string; toolName: string; resultSummary: string }
   /** AI 构思好的决斗推演步骤与角色台词提案已就绪 */
   | { type: 'proposals_ready'; proposals: AgentStepProposal[] }
+  /** AI 复盘出的场面布局已就绪，等待用户确认后写入决斗场 */
+  | { type: 'board_setup_ready'; setup: AgentBoardSetupProposal }
   /** 过程状态提示（自动重试、超时中断、会话重置等非正文信息） */
   | { type: 'status'; message: string }
   /** 生成过程中发生异常或被用户手动中断 */
   | { type: 'error'; message: string }
   /** 全流程生成结束，返回完整文本与最终步骤提案 */
-  | { type: 'done'; fullText: string; proposals: AgentStepProposal[] }
+  | {
+      type: 'done'
+      fullText: string
+      proposals: AgentStepProposal[]
+      /** 本轮提交的场面布局提案（若有） */
+      boardSetup?: AgentBoardSetupProposal
+    }
 
 /**
  * 发送给 AI 的消息参数
@@ -254,6 +340,8 @@ export interface AgentSendMessageResult {
   thought?: string
   /** AI 生成的结构化决斗推演步骤列表，可一键导入对局 */
   proposals?: AgentStepProposal[]
+  /** AI 复盘出的场面布局提案，待用户在预览卡中确认 */
+  boardSetup?: AgentBoardSetupProposal
   /** 失败时的错误信息说明 */
   error?: string
 }

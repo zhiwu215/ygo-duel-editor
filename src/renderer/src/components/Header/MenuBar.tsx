@@ -18,12 +18,12 @@ import {
   BookOpen,
   SquareStack,
   Check,
-  Copy
+  Copy,
+  X
 } from 'lucide-react'
 import wechatQr from '../../REMOVED'
 import alipayQr from '../../REMOVED'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
 interface MenuBarProps {
@@ -327,9 +327,10 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               <button
                 type="button"
                 onClick={() => setShowShortcutsDialog(false)}
-                className="text-muted-foreground hover:text-foreground text-xs px-1.5 py-0.5 rounded hover:bg-muted"
+                title="关闭"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
             <div className="space-y-1 text-xs">
@@ -390,11 +391,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 <span>切换表里侧 / 攻守表示 / 编辑超量素材 / 查看列表</span>
               </div>
             </div>
-            <div className="flex justify-end pt-1">
-              <Button size="sm" onClick={() => setShowShortcutsDialog(false)}>
-                关闭
-              </Button>
-            </div>
           </div>
         </div>
       )}
@@ -402,7 +398,16 @@ export const MenuBar: React.FC<MenuBarProps> = ({
       {/* 关于弹窗 */}
       {showAboutDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-sm w-full p-5 space-y-3 animate-in fade-in">
+          <div className="relative bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-sm w-full p-5 space-y-3 animate-in fade-in">
+            <button
+              type="button"
+              onClick={() => setShowAboutDialog(false)}
+              title="关闭"
+              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
             <div className="text-center space-y-1">
               <div className="w-10 h-10 rounded-md bg-muted border border-border flex items-center justify-center mx-auto">
                 <Info className="w-5 h-5 text-muted-foreground" />
@@ -455,11 +460,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 </div>
               ))}
             </div>
-            <div className="flex justify-center pt-1">
-              <Button size="sm" onClick={() => setShowAboutDialog(false)}>
-                关闭
-              </Button>
-            </div>
           </div>
         </div>
       )}
@@ -476,9 +476,10 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               <button
                 type="button"
                 onClick={() => setShowSupportDialog(false)}
-                className="text-muted-foreground hover:text-foreground text-xs px-1.5 py-0.5 rounded hover:bg-muted"
+                title="关闭"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed text-center">

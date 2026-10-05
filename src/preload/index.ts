@@ -49,6 +49,12 @@ const api: IpcApi = {
   // 卡组编辑器独立窗口与卡组文件
   openDeckEditor: () => ipcRenderer.invoke('window:open-deck-editor'),
   getDeckList: () => ipcRenderer.invoke('deck:get-list'),
+  /** 读取完整卡组库（分组为独立实体，含空分组） */
+  getDeckLibrary: () => ipcRenderer.invoke('deck:get-library'),
+  createDeckGroup: (name) => ipcRenderer.invoke('deck:create-group', name),
+  renameDeckGroup: (oldName, newName) => ipcRenderer.invoke('deck:rename-group', oldName, newName),
+  deleteDeckGroup: (name) => ipcRenderer.invoke('deck:delete-group', name),
+  assignDeckGroup: (deckId, group) => ipcRenderer.invoke('deck:assign-group', deckId, group),
   saveDeckToLibrary: (deck) => ipcRenderer.invoke('deck:save-to-library', deck),
   deleteDeckFromLibrary: (id) => ipcRenderer.invoke('deck:delete-from-library', id),
   duplicateDeckInLibrary: (id) => ipcRenderer.invoke('deck:duplicate-in-library', id),

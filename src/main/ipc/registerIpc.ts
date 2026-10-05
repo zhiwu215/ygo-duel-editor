@@ -150,6 +150,26 @@ export function registerAllIpcHandlers(): void {
     return deckService.getDeckList()
   })
 
+  ipcMain.handle('deck:get-library', async () => {
+    return deckService.getLibrary()
+  })
+
+  ipcMain.handle('deck:create-group', async (_, name: string) => {
+    return deckService.createGroup(name)
+  })
+
+  ipcMain.handle('deck:rename-group', async (_, oldName: string, newName: string) => {
+    return deckService.renameGroup(oldName, newName)
+  })
+
+  ipcMain.handle('deck:delete-group', async (_, name: string) => {
+    return deckService.deleteGroup(name)
+  })
+
+  ipcMain.handle('deck:assign-group', async (_, deckId: string, group: string) => {
+    return deckService.assignDeckToGroup(deckId, group)
+  })
+
   ipcMain.handle('deck:save-to-library', async (_, deck) => {
     return deckService.saveDeckToLibrary(deck)
   })

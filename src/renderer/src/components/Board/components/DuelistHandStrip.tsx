@@ -54,9 +54,13 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
 
   const isOpponent = controller === 1
 
-  // 切换「棋盘堆叠区当前显示谁的卡组」的三种触发（均为主动操作，非悬停）：
-  //   ① 点击本栏外框（头部信息条空白处）② 点击本栏手牌 ③ 向本栏拖入/拖来卡片。
+  // 切换「棋盘堆叠区当前显示谁的卡组」的触发（均为主动操作，非悬停）：
+  //   ① 点击本栏外框（头部信息条空白处）② 点击本栏手牌
+  //   ③ 按下本栏手牌开始拖动 ④ 向本栏拖入卡片。
+  // ③ 必须独立于 ④：拖动可能落到场上任意区域而非本栏，只在 onDrop 里切换会丢归属。
   // 仅查看归属，不会改动任何卡牌数据。
+  // 注意：② ③ 必须靠 capture 阶段监听——CardItem 在自己的 onClick 里 stopPropagation，
+  // 冒泡阶段的处理器收不到卡面事件。
   const focusAsViewer = (): void => {
     if (!isActiveViewer) setActiveDuelistId(duelist.id)
   }
@@ -330,10 +334,15 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         </div>
       </div>
 
-      {/* 手牌卡片排布横向滚动槽位 (永远不换行)；点击（含点手牌本体）即切换查看归属 */}
+      {/* 手牌卡片排布横向滚动槽位 (永远不换行)。
+          onClickCapture：点卡面即切换查看归属。必须用 capture——格内 CardItem 的
+            onClick 会 stopPropagation，挂在冒泡阶段点卡面永远不触发。
+          onDragStartCapture：按下手牌开始拖动即视为选定他。拖动可能落到场上任何区域
+            （而不是本栏），若只在 onDrop 里切换，拖到场上时就丢了归属信息。 */}
       <div
         ref={scrollContainerRef}
-        onClick={focusAsViewer}
+        onClickCapture={focusAsViewer}
+        onDragStartCapture={focusAsViewer}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         className={cn(

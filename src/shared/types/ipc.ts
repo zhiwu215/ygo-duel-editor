@@ -59,6 +59,43 @@ export interface AgentModelConfig {
   systemPrompt?: string
   /** 是否启用深度思考/推理模式 */
   enableReasoning?: boolean
+  /** 模型上下文窗口上限 (tokens)，用于 Pi 的 token 估算与自动压缩；缺省 131072 */
+  contextWindow?: number
+  /** 单次回复最大输出 tokens；缺省 8192 */
+  maxTokens?: number
+}
+
+/**
+ * AI 提供商预设（设置页「常用提供商」区展示）
+ */
+export interface AgentProviderPreset {
+  /** 预设唯一 ID（如 'deepseek'） */
+  id: string
+  /** 显示名称 */
+  name: string
+  /** 默认接口地址 */
+  baseUrl: string
+  /** 默认模型 */
+  model: string
+  /** 是否支持 reasoning 开关 */
+  supportsReasoning?: boolean
+}
+
+/**
+ * AI 提供商连接信息（设置页「已连接」区展示）
+ */
+export interface AgentProviderConnection {
+  /** 提供商 ID（预设 id 或 'custom'） */
+  id: string
+  /** 显示名称 */
+  name: string
+  baseUrl: string
+  /** 连接来源：预设预设 / 自定义 */
+  kind: 'preset' | 'custom'
+  /** 是否已配置 API Key（已连接的判定条件） */
+  hasApiKey: boolean
+  /** 当前选用的模型 */
+  model?: string
 }
 
 /**
@@ -112,6 +149,8 @@ export type AgentStreamEvent =
   | { type: 'tool_call_end'; id: string; toolName: string; resultSummary: string }
   /** AI 构思好的决斗推演步骤与角色台词提案已就绪 */
   | { type: 'proposals_ready'; proposals: AgentStepProposal[] }
+  /** 过程状态提示（自动重试、超时中断、会话重置等非正文信息） */
+  | { type: 'status'; message: string }
   /** 生成过程中发生异常或被用户手动中断 */
   | { type: 'error'; message: string }
   /** 全流程生成结束，返回完整文本与最终步骤提案 */
@@ -142,6 +181,31 @@ export interface AgentSendMessageResult {
   /** AI 生成的结构化决斗推演步骤列表，可一键导入对局 */
   proposals?: AgentStepProposal[]
   /** 失败时的错误信息说明 */
+  error?: string
+}
+
+/**
+ * AI 提供商下可用模型信息（从厂商 /v1/models 接口实时拉取）
+ */
+export interface AgentModelInfo {
+  id: string
+  ownedBy?: string
+}
+
+/**
+ * 透传到厂商的模型列表请求参数
+ */
+export interface AgentFetchModelsParams {
+  baseUrl: string
+  apiKey: string
+}
+
+/**
+ * 模型列表拉取结果
+ */
+export interface AgentFetchModelsResult {
+  success: boolean
+  models?: AgentModelInfo[]
   error?: string
 }
 
@@ -264,5 +328,15 @@ export interface IpcApi {
   // AI 决斗编排与剧本顾问
   agentSendMessage: (params: AgentSendMessageParams) => Promise<AgentSendMessageResult>
   agentAbort: () => Promise<boolean>
+  /** 丢弃当前 AI 会话并新建（切换模型配置或用户主动重开对话时调用） */
+  agentResetSession: () => Promise<boolean>
+  /** 从厂商 /v1/models 拉取可用模型列表（主进程代理请求，避免 CORS） */
+  agentFetchModels: (params: AgentFetchModelsParams) => Promise<AgentFetchModelsResult>
+  /** AI 提供商预设列表（静态，设置页「常用提供商」区） */
+  agentGetProviderPresets: () => Promise<AgentProviderPreset[]>
+  /** 打开全局设置独立窗口 (VSCode 风格左下角入口) */
+  openSettingsWindow: () => Promise<void>
+  /** 订阅全局配置变更广播 (主题 / 路径 / AI 配置跨窗口同步)，返回退订函数 */
+  onConfigUpdated: (callback: () => void) => () => void
   onAgentEvent: (callback: (event: AgentStreamEvent) => void) => () => void
 }

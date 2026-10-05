@@ -5,15 +5,21 @@ import { DuelBoard } from './components/Board/DuelBoard'
 import { LeftSidebar } from './components/LeftSidebar/LeftSidebar'
 import { DuelScreenplayModal } from './components/StorySequencer/DuelScreenplayModal'
 import { DeckEditorApp } from './components/DeckEditor/DeckEditorApp'
+import { SettingsApp } from './components/Settings/SettingsApp'
 import { useConfigStore } from './stores/useConfigStore'
 
 export function App(): React.JSX.Element {
   const { loadConfig } = useConfigStore()
   const isDeckEditor = window.location.hash === '#deck-editor'
+  const isSettingsWindow = window.location.hash === '#settings'
 
   useEffect(() => {
     loadConfig()
   }, [loadConfig])
+
+  if (isSettingsWindow) {
+    return <SettingsApp />
+  }
 
   if (isDeckEditor) {
     return <DeckEditorApp />

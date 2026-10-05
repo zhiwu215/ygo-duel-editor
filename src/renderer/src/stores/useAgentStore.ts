@@ -19,6 +19,8 @@ export interface AgentChatMessage {
   role: 'user' | 'assistant'
   content: string
   thought?: string
+  /** 过程状态提示（重试、超时、会话重置等非正文信息） */
+  status?: string
   toolCalls?: AgentToolCallItem[]
   proposals?: AgentStepProposal[]
   createdAt: number
@@ -26,7 +28,6 @@ export interface AgentChatMessage {
 
 interface AgentStoreState {
   isOpen: boolean
-  activeTab: 'chat' | 'settings'
   isGenerating: boolean
   config: AgentModelConfig
   messages: AgentChatMessage[]
@@ -36,13 +37,13 @@ interface AgentStoreState {
   // Actions
   setOpen: (open: boolean) => void
   setWidth: (width: number) => void
-  setActiveTab: (tab: 'chat' | 'settings') => void
   updateConfig: (patch: Partial<AgentModelConfig>) => void
   loadConfig: () => Promise<void>
   saveConfig: () => Promise<boolean>
-  clearMessages: () => void
   sendMessage: (prompt: string, boardState?: DuelPuzzleState) => Promise<void>
   abort: () => Promise<void>
+  /** 丢弃 AI 会话并重开（同时清空本地消息） */
+  resetSession: () => Promise<void>
   applyProposalsToDuel: (proposals: AgentStepProposal[]) => void
 }
 
@@ -55,10 +56,12 @@ const DEFAULT_CONFIG: AgentModelConfig = {
   enableReasoning: false
 }
 
+/** 跨窗口配置广播只订阅一次（设置窗口改配置后，主窗口会话面板同步刷新） */
+let configUpdatedSubscribed = false
+
 export const useAgentStore = create<AgentStoreState>((set, get) => ({
   isOpen: false,
   width: 440,
-  activeTab: 'chat',
   isGenerating: false,
   config: { ...DEFAULT_CONFIG },
   messages: [],
@@ -84,6 +87,12 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
           set({
             messages: messages.map((m) =>
               m.id === lastMsg.id ? { ...m, thought: (m.thought || '') + event.delta } : m
+            )
+          })
+        } else if (event.type === 'status') {
+          set({
+            messages: messages.map((m) =>
+              m.id === lastMsg.id ? { ...m, status: event.message } : m
             )
           })
         } else if (event.type === 'tool_call_start') {
@@ -117,7 +126,8 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
                 ? {
                     ...m,
                     content: event.fullText || m.content,
-                    proposals: event.proposals || m.proposals
+                    proposals: event.proposals || m.proposals,
+                    status: undefined
                   }
                 : m
             )
@@ -129,6 +139,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
               m.id === lastMsg.id
                 ? {
                     ...m,
+                    status: undefined,
                     content: m.content
                       ? `${m.content}\n\n[发生错误: ${event.message}]`
                       : `[请求失败: ${event.message}]`
@@ -147,18 +158,44 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
     set({ width: Math.max(340, Math.min(width, 700)) })
   },
 
-  setActiveTab: (activeTab) => set({ activeTab }),
-
   updateConfig: (patch) => {
     set((state) => ({ config: { ...state.config, ...patch } }))
   },
 
   loadConfig: async () => {
     if (!window.api?.getConfig) return
+    if (!configUpdatedSubscribed && window.api.onConfigUpdated) {
+      configUpdatedSubscribed = true
+      window.api.onConfigUpdated(() => {
+        void get().loadConfig()
+      })
+    }
     try {
       const cfg = await window.api.getConfig()
       if (cfg.agentConfig) {
-        set({ config: { ...DEFAULT_CONFIG, ...cfg.agentConfig } })
+        const merged = { ...DEFAULT_CONFIG, ...cfg.agentConfig }
+        // 清洗复制粘贴混入的空白字符、两端多余引号与不可见字符：这些会导致厂商直接 401
+        const cleanKey = (merged.apiKey || '')
+          .trim()
+          .replace(/^["']|["']$/g, '')
+          .replace(/[\u200B-\u200D\uFEFF]/g, '')
+
+        const sanitized: AgentModelConfig = {
+          ...merged,
+          baseUrl: (merged.baseUrl || '').trim(),
+          apiKey: cleanKey,
+          model: (merged.model || '').trim()
+        }
+        set({ config: sanitized })
+        // 自愈历史脏配置：检测到空白残留或格式自动修正时立即回写清洗后的值
+        const raw = cfg.agentConfig
+        if (
+          sanitized.apiKey !== (raw.apiKey || '') ||
+          sanitized.baseUrl !== (raw.baseUrl || '') ||
+          sanitized.model !== (raw.model || '')
+        ) {
+          void get().saveConfig()
+        }
       }
     } catch (err) {
       console.error('[useAgentStore] loadConfig failed:', err)
@@ -175,8 +212,6 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       return false
     }
   },
-
-  clearMessages: () => set({ messages: [] }),
 
   sendMessage: async (prompt, boardState) => {
     if (!prompt.trim() || get().isGenerating) return
@@ -261,6 +296,15 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       await window.api.agentAbort()
     }
     set({ isGenerating: false })
+  },
+
+  resetSession: async () => {
+    try {
+      await window.api?.agentResetSession?.()
+    } catch (err) {
+      console.error('[useAgentStore] resetSession failed:', err)
+    }
+    set({ messages: [], isGenerating: false })
   },
 
   applyProposalsToDuel: (proposals) => {

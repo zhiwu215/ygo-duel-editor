@@ -14,6 +14,9 @@ interface ConfigStoreState {
   toggleTheme: () => Promise<void>
 }
 
+/** 跨窗口配置广播只订阅一次（设置窗口改主题/路径后，其余窗口即时生效） */
+let configUpdatedSubscribed = false
+
 export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   config: {
     theme: 'light'
@@ -21,6 +24,12 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   isLoaded: false,
 
   loadConfig: async () => {
+    if (!configUpdatedSubscribed && window.api?.onConfigUpdated) {
+      configUpdatedSubscribed = true
+      window.api.onConfigUpdated(() => {
+        void get().loadConfig()
+      })
+    }
     try {
       const cfg = await window.api.getConfig()
       const theme = cfg.theme || 'light'

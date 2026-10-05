@@ -514,7 +514,7 @@ export function BehindSpiritPanel(): JSX.Element {
               placeholder={
                 attachedCards.length > 0
                   ? '已引用卡片，直接提问即可...'
-                  : '输入消息... (Enter 发送, Shift+Enter 换行)，也可从右侧卡片检索拖入卡片'
+                  : '输入消息...（enter发送，shift+enter换行）'
               }
               rows={2}
               className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"

@@ -70,7 +70,7 @@ const components: Components = {
   },
   blockquote({ children }) {
     return (
-      <blockquote className="border-l-2 border-amber-500/60 pl-2.5 py-0.5 my-2 text-muted-foreground italic bg-amber-500/5 rounded-r">
+      <blockquote className="border-l-2 border-border pl-2.5 py-0.5 my-2 text-muted-foreground italic bg-muted/40 rounded-r">
         {children}
       </blockquote>
     )

@@ -176,7 +176,7 @@ export function BehindSpiritPanel(): JSX.Element {
         <div className="flex-1 overflow-y-auto p-3 space-y-3 select-text">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground select-none">
-              <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-500 mb-3 border border-amber-500/20 shadow-xs">
+              <div className="p-3 rounded-2xl bg-muted text-muted-foreground mb-3 border border-border shadow-xs">
                 <Bot className="w-7 h-7" />
               </div>
               <h3 className="text-xs font-bold text-foreground">我是您的决斗创作者背后灵</h3>
@@ -199,7 +199,7 @@ export function BehindSpiritPanel(): JSX.Element {
                   {msg.role === 'user' ? (
                     <span>创作者</span>
                   ) : (
-                    <span className="font-bold text-amber-600 dark:text-amber-400">背后灵</span>
+                    <span className="font-bold text-foreground">背后灵</span>
                   )}
                   <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
                 </div>
@@ -207,7 +207,7 @@ export function BehindSpiritPanel(): JSX.Element {
                 <div
                   className={`rounded-lg p-2.5 max-w-[95%] text-xs leading-relaxed ${
                     msg.role === 'user'
-                      ? 'bg-amber-500 text-neutral-950 font-medium'
+                      ? 'bg-primary text-primary-foreground font-medium'
                       : 'bg-card border border-border/80 text-foreground shadow-xs'
                   }`}
                 >
@@ -216,7 +216,7 @@ export function BehindSpiritPanel(): JSX.Element {
                       <button
                         type="button"
                         onClick={() => toggleThought(msg.id)}
-                        className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-semibold hover:underline"
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground font-semibold hover:text-foreground hover:underline"
                       >
                         <BrainCircuit className="w-3.5 h-3.5" />
                         <span>{expandedThoughts[msg.id] ? '收起思考过程' : '展开深度思考链'}</span>
@@ -241,7 +241,7 @@ export function BehindSpiritPanel(): JSX.Element {
                           key={t.id}
                           className="flex items-center gap-1.5 px-2 py-1 rounded bg-neutral-200/50 dark:bg-neutral-800/60 font-mono text-[10px] text-neutral-600 dark:text-neutral-300"
                         >
-                          <Sliders className="w-3 h-3 text-amber-500 shrink-0" />
+                          <Sliders className="w-3 h-3 text-muted-foreground shrink-0" />
                           <span className="font-bold">{t.toolName}</span>
                           {t.resultSummary && (
                             <span className="text-muted-foreground truncate">
@@ -254,7 +254,7 @@ export function BehindSpiritPanel(): JSX.Element {
                   )}
 
                   {msg.status && (
-                    <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-amber-600 dark:text-amber-400">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
                       <Loader2 className="w-3 h-3 animate-spin shrink-0" />
                       <span>{msg.status}</span>
                     </div>
@@ -269,13 +269,13 @@ export function BehindSpiritPanel(): JSX.Element {
                   {isGenerating &&
                     msg.role === 'assistant' &&
                     msg === messages[messages.length - 1] && (
-                      <span className="inline-block w-1.5 h-3 ml-1 bg-amber-500 animate-pulse" />
+                      <span className="inline-block w-1.5 h-3 ml-1 bg-foreground animate-pulse" />
                     )}
 
                   {msg.proposals && msg.proposals.length > 0 && (
                     <div className="mt-3 pt-2.5 border-t border-border/60 space-y-2">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <span className="font-bold text-foreground flex items-center gap-1">
                           <Sliders className="w-3.5 h-3.5" />
                           <span>生成战术步骤提案 ({msg.proposals.length})</span>
                         </span>
@@ -283,7 +283,7 @@ export function BehindSpiritPanel(): JSX.Element {
                         <Button
                           size="xs"
                           onClick={() => handleApplySteps(msg.proposals!, msg.id)}
-                          className="h-6 text-[10px] gap-1 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold"
+                          className="h-6 text-[10px] gap-1 font-bold"
                         >
                           {appliedMessageId === msg.id ? (
                             <>
@@ -320,7 +320,7 @@ export function BehindSpiritPanel(): JSX.Element {
             onKeyDown={handleKeyDown}
             placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
             rows={2}
-            className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-500 leading-relaxed"
+            className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
           />
 
           <div className="flex items-center justify-between gap-1.5" ref={toolbarRef}>
@@ -341,7 +341,7 @@ export function BehindSpiritPanel(): JSX.Element {
                       'w-1.5 h-1.5 rounded-full shrink-0',
                       activeProvider && isProviderReady(activeProvider)
                         ? 'bg-emerald-500'
-                        : 'bg-amber-500'
+                        : 'bg-muted-foreground'
                     )}
                   />
                   <span className="font-medium truncate">{chipLabel}</span>
@@ -373,13 +373,13 @@ export function BehindSpiritPanel(): JSX.Element {
                               <span
                                 className={cn(
                                   'w-1.5 h-1.5 rounded-full shrink-0',
-                                  provider.ready ? 'bg-emerald-500' : 'bg-amber-500'
+                                  provider.ready ? 'bg-emerald-500' : 'bg-muted-foreground'
                                 )}
                               />
                               <span className="flex-1 min-w-0 truncate text-[11px] font-medium">
                                 {provider.name}
                               </span>
-                              {isCurrent && <Check className="w-3 h-3 text-amber-500 shrink-0" />}
+                              {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
                               <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
                             </button>
                           )
@@ -426,11 +426,13 @@ export function BehindSpiritPanel(): JSX.Element {
                                   </span>
                                 </span>
                                 {model.supportsReasoning && (
-                                  <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/30 shrink-0">
+                                  <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
                                     推理
                                   </span>
                                 )}
-                                {isCurrent && <Check className="w-3 h-3 text-amber-500 shrink-0" />}
+                                {isCurrent && (
+                                  <Check className="w-3 h-3 text-foreground shrink-0" />
+                                )}
                               </button>
                             )
                           })
@@ -457,7 +459,7 @@ export function BehindSpiritPanel(): JSX.Element {
                 size="xs"
                 onClick={handleSend}
                 disabled={!inputPrompt.trim()}
-                className="h-7 px-3 text-xs gap-1 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold shadow-xs"
+                className="h-7 px-3 text-xs gap-1 font-semibold shadow-xs"
               >
                 <Send className="w-3 h-3" />
                 <span>发送</span>

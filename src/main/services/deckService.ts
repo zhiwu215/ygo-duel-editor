@@ -7,72 +7,11 @@ import { DeckData, parseYdk, generateYdk } from '@shared/index'
 import icon from '../../../resources/icon.png?asset'
 import { configService } from './configService'
 
-const PRESET_DECKS: DeckData[] = [
-  {
-    id: 'deck_preset_story_darkness',
-    name: '【同人剧情】主角暗黑神力觉醒·20额外真红眼',
-    description:
-      '同人剧场版剧情终章决斗：主角在绝境关头突破极限，决斗盘涌现暗黑神力，获得统御 20 张超模额外卡组的同人专属特权！',
-    coverCard: 74677422,
-    tags: ['同人剧情', '主角神力', '20张额外'],
-    main: [
-      74677422, 74677422, 74677422, 93717133, 93717133, 93717133, 44887817, 44887817, 44887817,
-      36261276, 36261276, 14558127, 14558127, 14558127, 24224830, 24224830, 24224830, 72302403,
-      72302403, 72302403, 12580477, 12580477, 66362965, 66362965, 66362965, 41426818, 41426818,
-      27551, 27551, 55144522, 55144522, 9411399, 9411399, 18144506, 18144506, 18144506, 23434538,
-      23434538, 70368879, 70368879
-    ],
-    extra: [
-      88241506, 45349196, 66970002, 90660762, 85289965, 21250202, 60800381, 74997493, 2403771,
-      38342335, 41999284, 88177324, 73580471, 99267150, 4280258, 65305468, 2857636, 86066372,
-      38814408, 14812471
-    ],
-    side: [14558127, 44887817, 93717133, 72302403, 70368879],
-    updatedAt: 1728000000000
-  },
-  {
-    id: 'deck_preset_combo_standard',
-    name: '【Combo教学】百夫长骑士·单卡标准做场演示',
-    description:
-      'Combo 展开讲解与做场推演：特异特勒单卡动，检索石像，做场赤霄+鲜花+重骑士加速同调压制教学。',
-    coverCard: 66970002,
-    tags: ['Combo教学', '做场演示', '展开教学'],
-    main: [
-      14558127, 14558127, 14558127, 24224830, 24224830, 24224830, 72302403, 72302403, 72302403,
-      12580477, 12580477, 12580477, 66362965, 66362965, 41426818, 41426818, 55144522, 55144522,
-      9411399, 9411399, 18144506, 18144506, 18144506, 23434538, 23434538, 70368879, 70368879,
-      36261276, 36261276, 93717133, 93717133, 93717133, 44887817, 44887817, 44887817, 74677422,
-      74677422, 74677422, 27551, 27551
-    ],
-    extra: [
-      66970002, 90660762, 85289965, 21250202, 60800381, 74997493, 2403771, 38342335, 41999284,
-      88177324, 73580471, 99267150, 4280258, 65305468, 2857636
-    ],
-    side: [14558127, 44887817, 93717133],
-    updatedAt: 1728000000000
-  },
-  {
-    id: 'deck_preset_puzzle_breakthrough',
-    name: '【残局特化】突破神之阵·绝境逆转解场特化',
-    description:
-      '残局推演专用：对局终盘仅剩 100 生命值，针对高打点全抗场面，利用特异魔陷与墓地触发连锁完成不可思议的逆转。',
-    coverCard: 88241506,
-    tags: ['残局特化', '解场推演', '绝境逆转'],
-    main: [
-      14558127, 14558127, 24224830, 24224830, 72302403, 72302403, 12580477, 12580477, 66362965,
-      66362965, 41426818, 41426818, 55144522, 55144522, 9411399, 9411399, 18144506, 18144506,
-      23434538, 23434538, 70368879, 70368879, 36261276, 36261276, 93717133, 93717133, 44887817,
-      44887817, 74677422, 74677422, 27551, 27551, 88241506, 45349196, 66970002, 90660762, 85289965,
-      21250202, 60800381, 74997493
-    ],
-    extra: [
-      88241506, 45349196, 66970002, 90660762, 85289965, 21250202, 60800381, 74997493, 2403771,
-      38342335, 41999284, 88177324
-    ],
-    side: [14558127, 44887817],
-    updatedAt: 1728000000000
-  }
-]
+const LEGACY_PRESET_DECK_IDS = new Set([
+  'deck_preset_story_darkness',
+  'deck_preset_combo_standard',
+  'deck_preset_puzzle_breakthrough'
+])
 
 export class DeckService {
   private deckWindow: BrowserWindow | null = null
@@ -80,33 +19,28 @@ export class DeckService {
 
   constructor() {
     this.libraryFilePath = join(app.getPath('userData'), 'ygo_duel_editor_decks.json')
-    this.ensureLibraryFile()
   }
 
   /**
-   * 初始化卡组资产库文件 (若不存在则注入示例卡组)
-   */
-  private ensureLibraryFile(): void {
-    try {
-      if (!existsSync(this.libraryFilePath)) {
-        writeFileSync(this.libraryFilePath, JSON.stringify(PRESET_DECKS, null, 2), 'utf-8')
-      }
-    } catch (err) {
-      console.error('[DeckService] Failed to initialize library file:', err)
-    }
-  }
-
-  /**
-   * 读取所有已保存的卡组列表
+   * 读取所有已保存的卡组列表，并清除旧版本注入的示例卡组
    */
   public getDeckList(): DeckData[] {
     try {
-      this.ensureLibraryFile()
-      if (existsSync(this.libraryFilePath)) {
-        const raw = readFileSync(this.libraryFilePath, 'utf-8')
-        const list = JSON.parse(raw) as DeckData[]
-        return Array.isArray(list) ? list : []
+      if (!existsSync(this.libraryFilePath)) return []
+
+      const raw = readFileSync(this.libraryFilePath, 'utf-8')
+      const list = JSON.parse(raw) as DeckData[]
+      if (!Array.isArray(list)) return []
+
+      const userDecks = list.filter((deck) => !deck.id || !LEGACY_PRESET_DECK_IDS.has(deck.id))
+      if (userDecks.length !== list.length) {
+        try {
+          writeFileSync(this.libraryFilePath, JSON.stringify(userDecks, null, 2), 'utf-8')
+        } catch (err) {
+          console.error('[DeckService] Failed to remove legacy preset decks:', err)
+        }
       }
+      return userDecks
     } catch (err) {
       console.error('[DeckService] getDeckList error:', err)
     }

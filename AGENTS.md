@@ -127,6 +127,7 @@ src/
     ├── types/                  #   card.ts / duel.ts / rules.ts / ipc.ts / story.ts
     ├── constants/              #   locations.ts / positions.ts（ocgcore 位掩码）
     └── engine/                 #   luaGenerator.ts / luaParser.ts（Lua 双向引擎）
+                                #   agentModel.ts（模型供应商配置解析与归一化）
 ```
 
 **新代码放在哪里**（不确定时按此路由，动笔前先看同域文件）：
@@ -169,6 +170,13 @@ src/
 
 - `FieldCard` — 场上一张卡的运行时状态：`instanceId`（场上唯一）、`code`（卡密）、`card?`（检索到的 CdbCard 缓存，可缺省）、`controller` / `owner`、`location` + `sequence`（区域 + 格子序号）、`position`、`overlayMaterials`（超量素材存**卡密数组**）、counters / customAtk / customDef。
 - `DuelPuzzleState` — 整个决斗局面快照：`version`（数据迁移用，必须随结构变更递增）、`title` / `hint`、`masterRule`、`players`（`lp/maxHand/startHand`）、`turnPlayer`、`firstTurnAttack`、`cards[]`。空局面用工厂函数 `createInitialDuelState(masterRule = 5)` 创建，不要手写对象字面量。
+
+### 7.5 模型供应商配置（AI 顾问）
+
+- `AgentModelConfig.providers[]`（`AgentProviderConfig`）是**唯一事实来源**，扁平的 `provider/baseUrl/apiKey/model` 是由它派生的快照，仅供主进程直接消费；改动供应商后必须经 `syncActiveFields()` 重算派生字段。
+- **供应商预设（`PROVIDER_PRESETS`）只描述连接信息**（`baseUrl` / `apiFormat` / `apiKeyUrl` / `description` / `badge`），**坚决不内置模型清单**——模型版本迭代极快，硬编码必然过期。模型只能来自两条路径：用户在设置页点「拉取模型」走 `agent:fetch-models`（主进程代理请求厂商 `/v1/models`，规避 CORS），或手动「添加模型」。
+- 上述两条路径写入的模型必须标 `custom: true`；`normalizeAgentConfig()` 会清掉 `custom !== true` 的条目，用于自动清除历史版本内置模型的残留。
+- OpenAI 兼容的 `/v1/models` 只返回 `id`，因此模型名/上下文窗口/推理标记都可能是空的，UI 必须允许缺省（回退展示 id），不要为了补齐这些字段去维护本地表。
 
 ---
 

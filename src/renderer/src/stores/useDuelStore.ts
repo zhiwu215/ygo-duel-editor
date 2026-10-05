@@ -1897,7 +1897,10 @@ export const useDuelStore = create<DuelStoreState>()(
               owner: player,
               location: CardLocation.HAND,
               sequence: i,
-              position: CardPosition.FACEUP_ATTACK,
+              // 这就是普通的起手抽卡，与 executeDrawCard 保持一致用里侧：
+              // 手牌里侧 = 未公开。若用 FACEUP_ATTACK，CardItem 的 isPublicHand 会成立，
+              // 5 张起手会被打上「公开」角标。
+              position: CardPosition.FACEDOWN,
               overlayMaterials: []
             })
           }

@@ -157,6 +157,32 @@ interface DuelStoreState {
     duelistId?: string
   ) => void
   /**
+   * 整体写入一份场面布局（AI 复盘 / 批量导入共用）
+   *
+   * 与逐条调用 `addCardToZone` 的区别是**单次 set**：布局天然是一次性动作，
+   * 逐条调用会让中途状态被 temporal 记录成一串撤销步骤，且堆叠区序号要在
+   * 同一次计算里连续分配。这里先算好所有卡再一次性落盘。
+   *
+   * @param params.lp 生命值设定；`duelistName` 命中该阵营决斗者时只改那一位
+   * @param params.cards 已解析出 CdbCard 的落位列表，顺序即堆叠区顺序
+   * @param params.clearExisting 是否先清空盘面
+   */
+  applyBoardSetup: (params: {
+    lp: Array<{ side: 0 | 1; lp: number; duelistName?: string }>
+    cards: Array<{
+      card: CdbCard
+      controller: 0 | 1
+      location: number
+      sequence: number
+      position: number
+      duelistName?: string
+      duelistId?: string
+      customAtk?: number
+      customDef?: number
+    }>
+    clearExisting: boolean
+  }) => void
+  /**
    * 移动场上或手牌中的卡片至目标区域与槽位
    *
    * **参数说明：**
@@ -1216,6 +1242,138 @@ export const useDuelStore = create<DuelStoreState>()(
             },
             selectedCardId: newCard.instanceId,
             hoveredCard: card
+          }
+        }),
+
+      applyBoardSetup: ({ lp, cards, clearExisting }) =>
+        set((prev) => {
+          const baseDuelists =
+            prev.state.duelists && prev.state.duelists.length > 0
+              ? prev.state.duelists
+              : createDefaultDuelists(
+                  prev.state.matchConfig?.team0Count ?? 1,
+                  prev.state.matchConfig?.team1Count ?? 1
+                )
+
+          // 生命值：指定了决斗者名就只改那一位；共享 LP 或该阵营仅一位时全阵营同步
+          const sharedLp = Boolean(prev.state.matchConfig?.sharedLp)
+          const nextLpBySide = new Map<0 | 1, number>()
+          lp.forEach((t) => {
+            const v = Math.max(0, Math.trunc(t.lp))
+            nextLpBySide.set(t.side, v)
+          })
+          const duelists = baseDuelists.map((d) => {
+            if (!nextLpBySide.has(d.team)) return d
+            const v = nextLpBySide.get(d.team)!
+            const sameTeam = baseDuelists.filter((x) => x.team === d.team)
+            return sharedLp || sameTeam.length <= 1 ? { ...d, lp: v } : d
+          })
+          // 逐个决斗者单独指定时覆盖上一轮按阵营算出的值
+          lp.forEach((t) => {
+            if (!t.duelistName) return
+            const idx = duelists.findIndex((d) => d.name === t.duelistName)
+            if (idx >= 0) {
+              duelists[idx] = { ...duelists[idx], lp: Math.max(0, Math.trunc(t.lp)) }
+            }
+          })
+          const players: [PlayerState, PlayerState] = [
+            nextLpBySide.has(0)
+              ? { ...prev.state.players[0], lp: nextLpBySide.get(0)! }
+              : prev.state.players[0],
+            nextLpBySide.has(1)
+              ? { ...prev.state.players[1], lp: nextLpBySide.get(1)! }
+              : prev.state.players[1]
+          ]
+
+          let workingCards = clearExisting ? [] : [...prev.state.cards]
+          const created: FieldCard[] = []
+          const unresolvedDuelists: string[] = []
+
+          cards.forEach((c) => {
+            const location = c.location
+            const isPileZone =
+              location === CardLocation.HAND ||
+              location === CardLocation.GRAVE ||
+              location === CardLocation.DECK ||
+              location === CardLocation.EXTRA ||
+              location === CardLocation.REMOVED
+            const isOwnerScopedZone = isPileZone
+
+            let duelistId = c.duelistId
+            if (!duelistId && c.duelistName) {
+              const hit = baseDuelists.find((d) => d.name === c.duelistName)
+              if (hit) duelistId = hit.id
+              else unresolvedDuelists.push(c.duelistName)
+            }
+            if (isOwnerScopedZone && !duelistId) {
+              const teamDuelists = baseDuelists.filter((d) => d.team === c.controller)
+              duelistId =
+                teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ||
+                teamDuelists[0]?.id ||
+                (c.controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
+            }
+
+            const newCard: FieldCard = {
+              instanceId: `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+              code: c.card.id,
+              card: c.card,
+              controller: c.controller,
+              owner: c.controller,
+              location,
+              sequence: 0,
+              position: c.position,
+              overlayMaterials: [],
+              duelistId: isOwnerScopedZone ? duelistId : undefined,
+              customAtk: c.customAtk,
+              customDef: c.customDef
+            }
+
+            if (isPileZone) {
+              const pileSize = workingCards.filter(
+                (x) =>
+                  x.controller === c.controller &&
+                  x.location === location &&
+                  (!isOwnerScopedZone || x.duelistId === newCard.duelistId)
+              ).length
+              newCard.sequence = pileSize
+              workingCards.push(newCard)
+            } else {
+              // 离散格子：同格旧卡被覆盖（与 addCardToZone 行为一致）
+              workingCards = workingCards.filter(
+                (x) =>
+                  !(
+                    x.controller === c.controller &&
+                    x.location === location &&
+                    x.sequence === c.sequence
+                  )
+              )
+              newCard.sequence = c.sequence
+              workingCards.push(newCard)
+            }
+            created.push(newCard)
+          })
+
+          if (unresolvedDuelists.length > 0) {
+            console.warn(
+              '[useDuelStore] applyBoardSetup 未找到决斗者，已回落到阵营首位:',
+              unresolvedDuelists.join(', ')
+            )
+          }
+
+          return {
+            state: {
+              ...prev.state,
+              players,
+              duelists,
+              cards: workingCards,
+              // 布局即新的开局基线：清空盘面时必须把初始快照也清掉，
+              // 否则「上一步 / 下一步」复位会回到 AI 落位前的旧场面。
+              initialBoardSnapshot: clearExisting
+                ? createLightweightSnapshot(workingCards)
+                : prev.state.initialBoardSnapshot
+            },
+            selectedCardId: created.length > 0 ? created[created.length - 1].instanceId : null,
+            hoveredCard: created.length > 0 ? created[created.length - 1].card : null
           }
         }),
 

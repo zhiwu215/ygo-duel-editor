@@ -262,7 +262,7 @@ export const Header: React.FC = () => {
               size="xs"
               onClick={nextPhase}
               title="点击推进至下一阶段 (DP → SP → M1 → BP → M2 → EP)"
-              className="h-7 px-1.5 text-[11px] font-extrabold bg-amber-500/10 border-amber-500/30 text-amber-500 hover:bg-amber-500/20"
+              className="h-7 px-1.5 text-[11px] font-extrabold bg-muted border-border text-foreground hover:bg-muted/80"
             >
               {currentPhase}
             </Button>

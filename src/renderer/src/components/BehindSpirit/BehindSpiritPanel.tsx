@@ -8,7 +8,6 @@ import {
   BrainCircuit,
   Sliders,
   Check,
-  Cog,
   Layers,
   Bot,
   Loader2
@@ -100,18 +99,13 @@ export function BehindSpiritPanel(): JSX.Element {
     [providers]
   )
 
-  const activeMenuKey = useMemo(() => {
-    const provider = menuProviders.find((p) => p.id === config.provider)
-    return provider ? provider.id : (menuProviders[0]?.id ?? MANAGE_KEY)
-  }, [menuProviders, config.provider])
-
   const openProviderModels = useMemo(
     () => menuProviders.find((p) => p.id === openProviderKey)?.models ?? [],
     [menuProviders, openProviderKey]
   )
 
   const openMenu = (): void => {
-    setOpenProviderKey(activeMenuKey)
+    setOpenProviderKey(null)
     setModelMenuOpen(true)
   }
 
@@ -127,7 +121,7 @@ export function BehindSpiritPanel(): JSX.Element {
 
   const openManage = (): void => {
     closeMenu()
-    void window.api.openSettingsWindow()
+    void window.api.openSettingsWindow('model-settings')
   }
 
   const handleSend = (): void => {
@@ -397,7 +391,6 @@ export function BehindSpiritPanel(): JSX.Element {
                           openProviderKey === MANAGE_KEY && 'bg-muted/60'
                         )}
                       >
-                        <Cog className="w-3 h-3 shrink-0" />
                         <span className="flex-1 text-left">管理模型</span>
                       </button>
                     </div>

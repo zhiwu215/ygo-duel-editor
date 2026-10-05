@@ -7,7 +7,7 @@ interface DeckEditorState {
 
   // 卡组库管理
   deckList: DeckData[]
-  selectedTag: string | null
+  selectedGroup: string | null
   searchKeyword: string
   isLoadingLibrary: boolean
 
@@ -20,7 +20,7 @@ interface DeckEditorState {
   // 动作：卡组库
   setViewMode: (mode: 'library' | 'editor') => void
   fetchDeckList: () => Promise<void>
-  setSelectedTag: (tag: string | null) => void
+  setSelectedGroup: (group: string | null) => void
   setSearchKeyword: (keyword: string) => void
   openDeck: (targetDeck: DeckData) => Promise<void>
   createNewDeck: () => void
@@ -35,6 +35,7 @@ interface DeckEditorState {
   setDeckName: (name: string) => void
   setDeckDescription: (desc: string) => void
   setDeckTags: (tags: string[]) => void
+  setDeckGroup: (group: string) => void
   addDeckTag: (tag: string) => void
   removeDeckTag: (tag: string) => void
   setDeckCover: (cardId: number | undefined) => void
@@ -63,7 +64,7 @@ const INITIAL_DECK: DeckData = {
 export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
   viewMode: 'library',
   deckList: [],
-  selectedTag: null,
+  selectedGroup: null,
   searchKeyword: '',
   isLoadingLibrary: false,
 
@@ -109,8 +110,8 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
     }
   },
 
-  setSelectedTag: (tag): void => {
-    set({ selectedTag: tag })
+  setSelectedGroup: (group): void => {
+    set({ selectedGroup: group })
   },
 
   setSearchKeyword: (keyword): void => {
@@ -233,6 +234,11 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
     const { deck } = get()
     const currentTags = deck.tags || []
     set({ deck: { ...deck, tags: currentTags.filter((t) => t !== tagToRemove) } })
+  },
+
+  setDeckGroup: (group): void => {
+    const trimmed = group.trim()
+    set((prev) => ({ deck: { ...prev.deck, group: trimmed || undefined } }))
   },
 
   setDeckCover: (cardId): void => {

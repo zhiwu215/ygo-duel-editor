@@ -12,6 +12,7 @@ export interface DeckData {
   description?: string // 卡组描述 / 剧情背景 / 展开思路说明
   coverCard?: number // 封面王牌怪兽卡密 (若未指定则自动取额外第一张或主卡组第一张)
   tags?: string[] // 分类 / Tag 标签 (如 '同人剧情', 'Combo教学', '残局特化')
+  group?: string // 所属剧情分组 (如某本同人作品名，用于卡组库分组归类)
   main: number[] // 主卡组卡密数组 (自由容量，无强制限制)
   extra: number[] // 额外卡组卡密数组 (自由容量，无强制限制，允许 >15 张剧情特权额外)
   side: number[] // 副卡组卡密数组 (自由容量，无强制限制)
@@ -80,6 +81,12 @@ export function parseYdk(content: string, defaultName = '新建卡组'): DeckDat
       continue
     }
 
+    if (line.startsWith('#group:')) {
+      const group = line.replace('#group:', '').trim()
+      if (group) deck.group = group
+      continue
+    }
+
     if (line === '#main') {
       section = 'main'
       continue
@@ -128,6 +135,9 @@ export function generateYdk(deck: DeckData): string {
   }
   if (deck.tags && deck.tags.length > 0) {
     lines.push(`#tags:${deck.tags.join(',')}`)
+  }
+  if (deck.group) {
+    lines.push(`#group:${deck.group}`)
   }
 
   lines.push(`#main`)

@@ -13,6 +13,7 @@ import { Separator } from '../ui/separator'
 import {
   ArrowLeft,
   FolderOpen,
+  Folder,
   Save,
   ArrowUpDown,
   Dices,
@@ -36,6 +37,7 @@ export const DeckEditorApp: React.FC = () => {
     setSelectedCard,
     setDeckName,
     setDeckDescription,
+    setDeckGroup,
     addDeckTag,
     removeDeckTag,
     setDeckCover,
@@ -263,6 +265,20 @@ export const DeckEditorApp: React.FC = () => {
             onChange={(e) => setDeckDescription(e.target.value)}
             placeholder="输入卡组描述、同人剧情背景或 Combo 做场要点..."
             className="h-6.5 text-[11.5px] bg-background/60 border-border/60 flex-1 min-w-0"
+          />
+        </div>
+
+        <Separator orientation="vertical" className="h-4" />
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Folder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <Input
+            type="text"
+            value={deck.group || ''}
+            onChange={(e) => setDeckGroup(e.target.value)}
+            placeholder="剧情分组"
+            className="h-6.5 w-28 text-[11.5px] bg-background/60 border-border/60"
+            title="所属剧情分组 (如作品名)，用于卡组库分组归类"
           />
         </div>
 

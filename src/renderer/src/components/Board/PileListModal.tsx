@@ -540,14 +540,49 @@ const PileListContent: React.FC = () => {
                           }
                           e.dataTransfer.setData('text/instanceId', card.instanceId)
                           e.dataTransfer.effectAllowed = 'copyMove'
-                          const cardRect = e.currentTarget.getBoundingClientRect()
-                          // 直接以真实卡片作为原生拖拽预览，避免临时克隆节点在 Electron
-                          // 捕获拖拽图像前被移除，导致拖拽被中断或预览停在原位。
-                          e.dataTransfer.setDragImage(
-                            e.currentTarget,
-                            e.clientX - cardRect.left,
-                            e.clientY - cardRect.top
-                          )
+                          const sourceImage = e.currentTarget.querySelector('img')
+                          if (sourceImage?.complete && sourceImage.naturalWidth > 0) {
+                            // 列表卡片包含标题、操作栏，直接作为拖拽预览会远大于场上卡片；
+                            // 用 64×92 的卡面画布作为原生预览，尺寸与牌堆中的场上卡片一致。
+                            const preview = document.createElement('canvas')
+                            preview.width = 64
+                            preview.height = 92
+                            preview.style.cssText =
+                              'position:fixed;left:0;top:0;opacity:0.01;pointer-events:none'
+                            const context = preview.getContext('2d')
+                            if (context) {
+                              context.drawImage(sourceImage, 0, 0, preview.width, preview.height)
+                              document.body.appendChild(preview)
+
+                              // Electron/Chromium 无法从未挂载 DOM 的 canvas 捕获拖拽图；
+                              // 节点保留到 dragend，弹窗提前卸载时用定时器兜底清理。
+                              const cleanupPreview = (): void => {
+                                preview.remove()
+                                document.removeEventListener('dragend', cleanupPreview, true)
+                                window.clearTimeout(cleanupTimer)
+                              }
+                              document.addEventListener('dragend', cleanupPreview, true)
+                              const cleanupTimer = window.setTimeout(cleanupPreview, 30_000)
+
+                              e.dataTransfer.setDragImage(
+                                preview,
+                                preview.width / 2,
+                                preview.height / 2
+                              )
+                            } else {
+                              e.dataTransfer.setDragImage(
+                                sourceImage,
+                                sourceImage.width / 2,
+                                sourceImage.height / 2
+                              )
+                            }
+                          } else if (sourceImage) {
+                            e.dataTransfer.setDragImage(
+                              sourceImage,
+                              sourceImage.width / 2,
+                              sourceImage.height / 2
+                            )
+                          }
                           // 等原生拖拽启动并捕获预览后再隐藏源卡片，保留原位空槽反馈。
                           window.requestAnimationFrame(() => setDraggingIndex(originalIndex))
                           // 记录列表矩形，供 dragover 判断指针是否已越出列表框

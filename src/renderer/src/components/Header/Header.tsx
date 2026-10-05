@@ -12,7 +12,6 @@ import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
 import { ExportStatusBadge } from './components/ExportStatusBadge'
 import { SaveProjectModal } from './components/SaveProjectModal'
-import { cn } from '../../lib/utils'
 
 export const Header: React.FC = () => {
   const {
@@ -187,28 +186,14 @@ export const Header: React.FC = () => {
         {/* 右侧：工程信息 + 导出状态 + 自绘窗口控件 */}
         <div className="flex items-center gap-2 shrink-0 [-webkit-app-region:no-drag]">
           {/* 工程分类与标题 */}
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setIsSaveModalOpen(true)}
-              title="点击配置工程分类与备忘注释"
-              className={cn(
-                'px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider transition-colors select-none',
-                'bg-muted/80 text-muted-foreground hover:text-foreground hover:bg-muted border border-border/80'
-              )}
-            >
-              {state.duelType === 'combo' ? 'COMBO' : state.duelType === 'puzzle' ? '残局' : '整局'}
-            </button>
-
-            <Input
-              type="text"
-              value={state.title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="未命名对局"
-              className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
-              title="对局标题 (点击编辑，保存时可添加详细备忘)"
-            />
-          </div>
+          <Input
+            type="text"
+            value={state.title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="未命名对局"
+            className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
+            title="对局标题（保存时可配置工程分类和注释）"
+          />
 
           <Separator orientation="vertical" className="h-5" />
 

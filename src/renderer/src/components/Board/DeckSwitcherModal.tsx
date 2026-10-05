@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { DeckData } from '@shared/index'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useConfigStore } from '../../stores/useConfigStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { ArrowLeftRight, X, Search, Layers } from 'lucide-react'
 import { Button } from '../ui/button'
@@ -34,9 +35,10 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
   // 不在 effect 体内同步 setState，避免触发 cascading renders。
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [query, setQuery] = useState<string>('')
-  // 载入时是否顺带模拟起手抽牌。默认「手牌无」：切换卡组多发生在剧情中途，
-  // 起手抽 5 只在「配置开局」那一次使用。
-  const [drawCount, setDrawCount] = useState<0 | 5>(0)
+  // 「载入手牌」的选择记忆在全局配置里 (AppConfig.deckLoadDrawCount)，
+  // 关掉软件重启后仍保持上次的选择。未设置过时按「无」处理。
+  const drawCount: 0 | 5 = useConfigStore((s) => (s.config.deckLoadDrawCount === 5 ? 5 : 0))
+  const setDeckLoadDrawCount = useConfigStore((s) => s.setDeckLoadDrawCount)
 
   useEffect(() => {
     let cancelled = false
@@ -124,7 +126,7 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
                 <button
                   key={n}
                   type="button"
-                  onClick={() => setDrawCount(n)}
+                  onClick={() => void setDeckLoadDrawCount(n)}
                   className={cn(
                     'px-2.5 py-0.5 text-[11px] transition-colors cursor-pointer',
                     drawCount === n
@@ -202,11 +204,8 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
           )}
         </div>
 
-        {/* 底部说明 */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
-          <p className="text-[11px] text-muted-foreground leading-none">
-            选中一副卡组后，会清空{ctrlLabel}现有主卡组与额外卡组并整体替换（可用 Ctrl+Z 撤销）。
-          </p>
+        {/* 底部操作栏 */}
+        <div className="flex items-center justify-end px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
           <Button size="sm" onClick={closeDeckSwitcher} className="px-5 h-7 text-xs">
             取消
           </Button>

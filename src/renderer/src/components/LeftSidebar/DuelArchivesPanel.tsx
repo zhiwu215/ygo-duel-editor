@@ -191,7 +191,7 @@ export const DuelArchivesPanel: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="检索对局名称、战术要点或注释..."
+            placeholder="支持搜索名称或注释"
             className="h-7 pl-7 pr-2 text-xs bg-background/60"
           />
         </div>
@@ -294,7 +294,6 @@ export const DuelArchivesPanel: React.FC = () => {
                 <div className="flex items-center justify-between text-[10px] text-muted-foreground/75 mt-2 pt-1.5 border-t border-border/40">
                   <div className="flex items-center gap-2">
                     <span className="font-mono">MR{item.masterRule}</span>
-                    <span>{item.cardCount} 张卡</span>
                     {item.stepCount && item.stepCount > 0 ? <span>{item.stepCount} 步</span> : null}
                   </div>
 

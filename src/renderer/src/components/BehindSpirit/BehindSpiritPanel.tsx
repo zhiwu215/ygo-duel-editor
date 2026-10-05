@@ -350,7 +350,7 @@ export function BehindSpiritPanel(): JSX.Element {
                 </button>
 
                 {modelMenuOpen && (
-                  <div className="absolute bottom-full left-0 mb-1 flex items-start z-50">
+                  <div className="absolute bottom-full left-0 mb-1 z-50">
                     <div className="w-52 bg-popover border border-border rounded-md overflow-hidden shadow-lg py-1">
                       {menuProviders.length === 0 ? (
                         <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
@@ -403,7 +403,7 @@ export function BehindSpiritPanel(): JSX.Element {
                     </div>
 
                     {openProviderKey && openProviderKey !== MANAGE_KEY && (
-                      <div className="ml-0.5 w-52 max-h-72 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1">
+                      <div className="absolute bottom-0 left-full ml-0.5 w-52 max-h-72 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1">
                         {openProviderModels.length === 0 ? (
                           <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
                             该供应商暂无可用模型，去「管理模型」拉取后即可选用

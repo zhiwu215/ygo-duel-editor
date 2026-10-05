@@ -1,5 +1,5 @@
 import React, { JSX } from 'react'
-import { BookOpen, Bot, FolderKanban, Settings2 } from 'lucide-react'
+import { BookOpen, Bot, FolderKanban, Settings } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { CardDetailPanel } from '../CardDetail/CardDetailPanel'
@@ -141,7 +141,7 @@ export function LeftSidebar(): JSX.Element {
             title="设置 (打开全局设置窗口：外观、路径与目录、背后灵)"
             className="w-9 h-9 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-all"
           >
-            <Settings2 className="w-[18px] h-[18px]" />
+            <Settings className="w-[18px] h-[18px]" />
           </button>
         </div>
       </div>

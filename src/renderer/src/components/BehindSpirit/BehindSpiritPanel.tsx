@@ -27,6 +27,7 @@ import {
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { AiProposalCard } from './AiProposalCard'
 import { MarkdownContent } from './MarkdownContent'
+import { ToolCallList } from './ToolCallList'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
@@ -333,22 +334,7 @@ export function BehindSpiritPanel(): JSX.Element {
                   )}
 
                   {msg.toolCalls && msg.toolCalls.length > 0 && (
-                    <div className="mb-2 space-y-1">
-                      {msg.toolCalls.map((t) => (
-                        <div
-                          key={t.id}
-                          className="flex items-center gap-1.5 px-2 py-1 rounded bg-neutral-200/50 dark:bg-neutral-800/60 font-mono text-[10px] text-neutral-600 dark:text-neutral-300"
-                        >
-                          <Sliders className="w-3 h-3 text-muted-foreground shrink-0" />
-                          <span className="font-bold">{t.toolName}</span>
-                          {t.resultSummary && (
-                            <span className="text-muted-foreground truncate">
-                              ➔ {t.resultSummary}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                    <ToolCallList calls={msg.toolCalls} isGenerating={isGenerating} />
                   )}
 
                   {msg.status && (

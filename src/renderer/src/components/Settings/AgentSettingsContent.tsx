@@ -43,6 +43,7 @@ import { Button } from '../ui/button'
 import { Switch } from '../ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { ProviderLogo } from './components/ProviderLogo'
+import { ConfirmDialog } from './components/ConfirmDialog'
 import { cn } from '../../lib/utils'
 
 export type AgentSettingsSection = 'model-settings' | 'chat'
@@ -203,17 +204,24 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
     setSelection(`provider:${id}`)
   }
 
-  // 删除自定义供应商：二次确认，避免误点丢失已配置的 API Key；删除后选中项顺延
-  const deleteProvider = (providerId: string, name: string): void => {
-    if (!confirm(`确认删除供应商「${name}」？\n该供应商下的 API Key 与模型列表将一并移除。`)) return
-    const remainingCustom = customProviders.filter((p) => p.id !== providerId)
-    removeProvider(providerId)
+  // 删除自定义供应商：先弹自定义确认框，避免误点丢失已配置的 API Key
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
+
+  const requestDelete = (providerId: string, name: string): void => {
+    setPendingDelete({ id: providerId, name })
+  }
+
+  const confirmDelete = (): void => {
+    if (!pendingDelete) return
+    const remainingCustom = customProviders.filter((p) => p.id !== pendingDelete.id)
+    removeProvider(pendingDelete.id)
     const nextSelection = remainingCustom[0]
       ? `provider:${remainingCustom[0].id}`
       : presetProviders[0]
         ? `preset:${presetProviders[0].preset.id}`
         : null
     setSelection(nextSelection)
+    setPendingDelete(null)
   }
 
   // 自定义供应商拖拽排序：仅在按住一小段距离后才启动，避免与点击选中冲突
@@ -340,7 +348,7 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
                   activeProviderId={config.provider}
                   activeModelId={config.model}
                   onUpsert={upsertProvider}
-                  onRemove={() => deleteProvider(resolved.provider.id, resolved.provider.name)}
+                  onRemove={() => requestDelete(resolved.provider.id, resolved.provider.name)}
                   onSelectModel={selectModel}
                 />
               ) : (
@@ -354,6 +362,15 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
       )}
 
       {section === 'chat' && <ChatSection config={config} activeModelInfo={activeModelInfo} />}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`确认删除供应商「${pendingDelete?.name ?? ''}」？`}
+        description="该供应商下的 API Key 与模型列表将一并移除，此操作不可撤销。"
+        confirmText="删除"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

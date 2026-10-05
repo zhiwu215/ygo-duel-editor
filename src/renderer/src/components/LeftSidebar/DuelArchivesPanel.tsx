@@ -54,11 +54,6 @@ export const DuelArchivesPanel: React.FC = () => {
     }
   }, [])
 
-  // 打开工程存储文件夹
-  const handleOpenFolder = async (): Promise<void> => {
-    await window.api.openProjectsDirectory()
-  }
-
   // 更换工程存储目录
   const handleSelectDir = async (): Promise<void> => {
     const dir = await selectProjectsDir()
@@ -211,9 +206,6 @@ export const DuelArchivesPanel: React.FC = () => {
           <div className="h-full flex flex-col items-center justify-center text-center p-4 text-muted-foreground">
             <Layers className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
             <p className="text-xs font-medium">暂无匹配的对局档案</p>
-            <p className="text-[11px] text-muted-foreground/70 mt-1 max-w-[200px] leading-relaxed">
-              在右侧决斗盘摆好卡片后，按 Ctrl+S 保存即可在此处集中查看与复现
-            </p>
           </div>
         ) : (
           filteredProjects.map((item) => {
@@ -329,15 +321,6 @@ export const DuelArchivesPanel: React.FC = () => {
               title="更换保存目录"
             >
               更换目录
-            </button>
-            <span className="text-muted-foreground/40">|</span>
-            <button
-              type="button"
-              onClick={handleOpenFolder}
-              className="text-muted-foreground hover:text-foreground underline cursor-pointer"
-              title="在系统资源管理器中打开此文件夹"
-            >
-              打开
             </button>
           </div>
         </div>

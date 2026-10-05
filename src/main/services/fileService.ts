@@ -40,7 +40,7 @@ export class FileService {
   }
 
   /**
-   * 确保工程专属目录存在，首次创建时写入预设对局档案
+   * 确保工程专属目录存在
    */
   public ensureProjectsDirectory(): string {
     const dir = this.getProjectsDirectory()
@@ -48,88 +48,10 @@ export class FileService {
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true })
       }
-      const files = readdirSync(dir)
-      const hasDuelFiles = files.some((f) => f.endsWith('.ygoduel') || f.endsWith('.json'))
-      if (!hasDuelFiles) {
-        this.seedPresetProjects(dir)
-      }
     } catch (err) {
       console.error('[FileService] Failed to ensure projects directory:', err)
     }
     return dir
-  }
-
-  /**
-   * 首次启动时注入 3 份预设对局档案 (整局、残局、Combo)
-   */
-  private seedPresetProjects(targetDir = this.getProjectsDirectory()): void {
-    try {
-      const presets: Array<{ filename: string; state: Partial<DuelPuzzleState> }> = [
-        {
-          filename: '【同人剧情】主角暗黑神力觉醒·逆转之决斗.ygoduel',
-          state: {
-            version: '1.1.0',
-            title: '【同人剧情】主角暗黑神力觉醒·逆转之决斗',
-            hint: '同人剧场版高潮：主角在绝境关头突破极限，手牌仅剩一卡，发动墓地效果展开反击逆转终局！',
-            duelType: 'full',
-            masterRule: 5,
-            turnPlayer: 0,
-            firstTurnAttack: true,
-            players: [
-              { lp: 100, maxHand: 0, startHand: 0 },
-              { lp: 8000, maxHand: 0, startHand: 0 }
-            ],
-            cards: [],
-            steps: []
-          }
-        },
-        {
-          filename: '【残局特化】突破神之阵·绝境解场.ygoduel',
-          state: {
-            version: '1.1.0',
-            title: '【残局特化】突破神之阵·绝境解场',
-            hint: '残局解谜：敌方场上存在全抗高打点怪兽，利用连锁优先级与墓地效果突破神之封锁完成斩杀。',
-            duelType: 'puzzle',
-            masterRule: 5,
-            turnPlayer: 0,
-            firstTurnAttack: true,
-            players: [
-              { lp: 800, maxHand: 0, startHand: 0 },
-              { lp: 4000, maxHand: 0, startHand: 0 }
-            ],
-            cards: [],
-            steps: []
-          }
-        },
-        {
-          filename: '【Combo教学】百夫长骑士·标准做场演示.ygoduel',
-          state: {
-            version: '1.1.0',
-            title: '【Combo教学】百夫长骑士·标准做场演示',
-            hint: '做场路线教学：特异特勒单卡动，检索石像，做场赤霄+鲜花+重骑士加速同调压制教学。',
-            duelType: 'combo',
-            masterRule: 5,
-            turnPlayer: 0,
-            firstTurnAttack: true,
-            players: [
-              { lp: 8000, maxHand: 0, startHand: 0 },
-              { lp: 8000, maxHand: 0, startHand: 0 }
-            ],
-            cards: [],
-            steps: []
-          }
-        }
-      ]
-
-      for (const p of presets) {
-        const fullPath = join(targetDir, p.filename)
-        if (!existsSync(fullPath)) {
-          writeFileSync(fullPath, JSON.stringify(p.state, null, 2), 'utf-8')
-        }
-      }
-    } catch (err) {
-      console.error('[FileService] Failed to seed preset projects:', err)
-    }
   }
 
   /**

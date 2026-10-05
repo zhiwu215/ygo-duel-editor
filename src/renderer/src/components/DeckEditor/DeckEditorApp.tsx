@@ -34,6 +34,7 @@ export const DeckEditorApp: React.FC = () => {
     cardDetails,
     selectedCard,
     testHandCards,
+    deckGroups,
     setSelectedCard,
     setDeckName,
     setDeckDescription,
@@ -259,13 +260,21 @@ export const DeckEditorApp: React.FC = () => {
 
         <div className="flex items-center gap-1.5 shrink-0">
           <Folder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          {/* 用原生 datalist 把已存在的分组变成可选项：既能下拉挑，也能手打新名字。
+              存盘时 deckService 会把新名字自动补进分组列表。 */}
+          <datalist id="deck-group-options">
+            {deckGroups.map((g) => (
+              <option key={g} value={g} />
+            ))}
+          </datalist>
           <Input
             type="text"
+            list="deck-group-options"
             value={deck.group || ''}
             onChange={(e) => setDeckGroup(e.target.value)}
             placeholder="剧情分组"
             className="h-6.5 w-28 text-[11.5px] bg-background/60 border-border/60"
-            title="所属剧情分组 (如作品名)，用于卡组库分组归类"
+            title="所属剧情分组：可从已有分组下拉选择，也可直接输入新名字（保存时自动创建）"
           />
         </div>
 

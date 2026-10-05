@@ -2151,11 +2151,25 @@ export const useDuelStore = create<DuelStoreState>()(
                 ? (teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ??
                   teamDuelists[0]?.id)
                 : null
+          // 切换卡组 = 重开一局：该决斗者的手牌、场上、墓地、除外区全部清空。
+          //
+          // **必须包含 HAND**：原先只清DECK / EXTRA，导致「抽过牌再切卡组」时
+          // 旧手牌一张不少地留在场上，与新抽的叠加——切 5 次能叠出 25 张。
+          // 墓地与除外区同理：旧卡组的残骸不该留在新卡组的对局里。
+          const ZONES_TO_CLEAR: number[] = [
+            CardLocation.HAND,
+            CardLocation.DECK,
+            CardLocation.EXTRA,
+            CardLocation.MZONE,
+            CardLocation.SZONE,
+            CardLocation.GRAVE,
+            CardLocation.REMOVED
+          ]
           const otherCards = prev.state.cards.filter(
             (c) =>
               !(
                 c.controller === player &&
-                (c.location === CardLocation.DECK || c.location === CardLocation.EXTRA) &&
+                ZONES_TO_CLEAR.includes(c.location) &&
                 (ownerScope ? c.duelistId === ownerScope : true)
               )
           )
@@ -2173,7 +2187,11 @@ export const useDuelStore = create<DuelStoreState>()(
               controller: player,
               owner: player,
               location: CardLocation.HAND,
-              sequence: i,
+              // 起手序号排在executeDrawCard 抽进来的 999 之前（HandTray 按
+              // sequence 升序排），所以起手牌显示在最左侧，后续抽的依次排到它右边。
+              // 原先从 0 起虽然也排在 999 前，但会与场景切换存档写入手牌的
+              // 小序号（0~N）混在同一个区间，排序结果不可预期。
+              sequence: 900 + i,
               // 这就是普通的起手抽卡，与 executeDrawCard 保持一致用里侧：
               // 手牌里侧 = 未公开。若用 FACEUP_ATTACK，CardItem 的 isPublicHand 会成立，
               // 5 张起手会被打上「公开」角标。
@@ -2217,11 +2235,19 @@ export const useDuelStore = create<DuelStoreState>()(
             })
           }
 
+          const nextCards = [...otherCards, ...newCards]
+
           return {
             state: {
               ...prev.state,
-              cards: [...otherCards, ...newCards]
-            }
+              cards: nextCards,
+              // 切卡组即新的开局：上一步 / 下一步的复位基线必须跟着重算，
+              // 否则复位会回到旧卡组遗留的场面（那些牌已经被清掉了）。
+              initialBoardSnapshot: createLightweightSnapshot(nextCards)
+            },
+            // 旧卡组的牌全被清掉，若还选着其中一张，详情面板会指向不存在的实例
+            selectedCardId: null,
+            hoveredCard: null
           }
         }),
 

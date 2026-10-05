@@ -116,10 +116,14 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
               {ctrlLabel}主卡组
             </span>
           </div>
-          <p className="text-[11px] text-muted-foreground text-right">
+          <p className="text-[11px] text-muted-foreground text-right leading-relaxed">
             {isTeamScope
               ? '将替换该阵营的整副卡组'
               : `将装入「${targetDuelist?.name}」的卡组，同阵营其他人的卡组不受影响`}
+            <br />
+            <span className="text-amber-600 dark:text-amber-400">
+              该决斗者的手牌与场上卡片会一并清空
+            </span>
           </p>
 
           <button

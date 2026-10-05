@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { Search, Layers, Copy, Trash2, ExternalLink, Clock, Check } from 'lucide-react'
+import { Search, Layers, Copy, Trash2, ExternalLink, Clock, Check, BookOpen } from 'lucide-react'
 import { DuelProjectMeta, DuelType } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { Input } from '../ui/input'
+import { Button } from '../ui/button'
+import { NovelSourceModal } from './NovelSourceModal'
 import { cn } from '../../lib/utils'
 
 type FilterType = 'all' | DuelType
@@ -24,6 +26,7 @@ export const DuelArchivesPanel: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [lastLoadedPath, setLastLoadedPath] = useState<string | null>(null)
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
+  const [showNovelModal, setShowNovelModal] = useState(false)
 
   // 获取档案列表 (用于刷新按钮)
   const fetchProjects = useCallback(async (): Promise<void> => {
@@ -298,7 +301,16 @@ export const DuelArchivesPanel: React.FC = () => {
       </div>
 
       {/* 底部存储目录显示与更换 */}
-      <div className="p-2 border-t border-border/60 bg-muted/20 shrink-0 flex flex-col gap-1">
+      <div className="p-2 border-t border-border/60 bg-muted/20 shrink-0 flex flex-col gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowNovelModal(true)}
+          className="w-full h-7 text-[11px] gap-1.5 border-dashed"
+        >
+          <BookOpen className="w-3 h-3" />
+          <span>从小说提取对局</span>
+        </Button>
         <div className="flex items-center justify-between text-[10px] text-muted-foreground/80">
           <span
             className="truncate max-w-[190px]"
@@ -322,6 +334,15 @@ export const DuelArchivesPanel: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showNovelModal && (
+        <NovelSourceModal
+          onClose={() => setShowNovelModal(false)}
+          onSent={() => {
+            // 背后灵会开始生成对局，弹窗留着让用户看到进度提示
+          }}
+        />
+      )}
     </div>
   )
 }

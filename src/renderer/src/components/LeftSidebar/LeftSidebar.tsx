@@ -1,11 +1,10 @@
 import React, { JSX } from 'react'
-import { BookOpen, Bot, FolderKanban, Library, Settings } from 'lucide-react'
+import { BookOpen, Bot, FolderKanban, Settings } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { CardDetailPanel } from '../CardDetail/CardDetailPanel'
 import { BehindSpiritPanel } from '../BehindSpirit/BehindSpiritPanel'
 import { DuelArchivesPanel } from './DuelArchivesPanel'
-import { LibraryPanel } from './LibraryPanel'
 import { cn } from '../../lib/utils'
 
 export function LeftSidebar(): JSX.Element {
@@ -39,10 +38,6 @@ export function LeftSidebar(): JSX.Element {
 
   const handleCardClick = (): void => {
     toggleLeftTab('card')
-  }
-
-  const handleLibraryClick = (): void => {
-    toggleLeftTab('library')
   }
 
   const handleAgentClick = (): void => {
@@ -82,31 +77,7 @@ export function LeftSidebar(): JSX.Element {
             </button>
           </div>
 
-          {/* 2. 创作资源库 (台本 + 小说资料) */}
-          <div className="w-full flex justify-center relative">
-            {isLeftOpen && activeLeftTab === 'library' && (
-              <span className="absolute left-0 top-1 bottom-1 w-[2.5px] bg-primary rounded-r" />
-            )}
-            <button
-              type="button"
-              onClick={handleLibraryClick}
-              title={
-                isLeftOpen && activeLeftTab === 'library'
-                  ? '收起创作资源库'
-                  : '创作资源库 (台本编排与小说资料，拆分后交给 AI 编排决斗剧情)'
-              }
-              className={cn(
-                'w-9 h-9 rounded-md flex items-center justify-center transition-all relative',
-                isLeftOpen && activeLeftTab === 'library'
-                  ? 'text-foreground bg-accent/60 shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
-              )}
-            >
-              <Library className="w-[18px] h-[18px]" />
-            </button>
-          </div>
-
-          {/* 3. 卡片详情 */}
+          {/* 2. 卡片详情 */}
           <div className="w-full flex justify-center relative">
             {isLeftOpen && activeLeftTab === 'card' && (
               <span className="absolute left-0 top-1 bottom-1 w-[2.5px] bg-primary rounded-r" />
@@ -191,8 +162,6 @@ export function LeftSidebar(): JSX.Element {
           {/* 根据活动项渲染对应面板 */}
           {activeLeftTab === 'archives' ? (
             <DuelArchivesPanel />
-          ) : activeLeftTab === 'library' ? (
-            <LibraryPanel />
           ) : activeLeftTab === 'card' ? (
             <CardDetailPanel />
           ) : (

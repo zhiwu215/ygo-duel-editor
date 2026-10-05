@@ -130,6 +130,14 @@ export const DuelBoard: React.FC = () => {
       location === CardLocation.REMOVED
     ) {
       const pile = state.cards.filter((c) => c.controller === controller && c.location === location)
+      // 主卡组：sequence 最小 = 卡组顶 = 下一抽，与卡组面板列表最左一张保持一致；
+      // 墓地/额外/除外：后加入的压在更上层，数组末位即最新一张。
+      if (location === CardLocation.DECK) {
+        return pile.reduce<FieldCard | undefined>(
+          (top, c) => (top === undefined || c.sequence < top.sequence ? c : top),
+          undefined
+        )
+      }
       return pile[pile.length - 1]
     }
     return state.cards.find(

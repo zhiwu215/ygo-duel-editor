@@ -644,12 +644,15 @@ export const useDuelStore = create<DuelStoreState>()(
 
       executeDrawCard: (controller) => {
         const { state, moveCard } = useDuelStore.getState()
-        const deckCards = state.cards.filter(
-          (c) => c.controller === controller && c.location === CardLocation.DECK
-        )
+        // 卡组顶 = 卡组列表最左（sequence 最小）= 下一抽。必须显式按 sequence 排序：
+        // 经过列表重排或移入移出后，cards 数组的物理顺序会与 sequence 脱钩，
+        // 直接取数组末位会抽错卡。
+        const deckCards = state.cards
+          .filter((c) => c.controller === controller && c.location === CardLocation.DECK)
+          .sort((a, b) => a.sequence - b.sequence)
         if (deckCards.length === 0) return
 
-        const topCard = deckCards[deckCards.length - 1]
+        const topCard = deckCards[0]
         moveCard(topCard.instanceId, CardLocation.HAND, 999, controller, CardPosition.FACEDOWN)
       },
 

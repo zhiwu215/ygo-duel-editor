@@ -341,10 +341,28 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onClickCapture={() => {
+        // 主卡组格：捕获阶段即打开卡组面板（载入/切换卡组、抽卡、调整卡序）。
+        // 必须用 capture 而非 bubble —— 格子里显示的卡片 (CardItem) 会在自己的
+        // onClick 里 stopPropagation，冒泡阶段收不到点击，会导致「点卡面没反应、
+        // 只有点格子边缘才开面板」。capture 先于子元素执行，卡面与边缘行为一致。
+        // 不要求已有卡组：「还没载入卡组」恰恰是最主要的使用时机。
+        if (location === CardLocation.DECK) {
+          openPile(controller, location)
+        }
+      }}
       onClick={() => {
+        // 主卡组格已在捕获阶段处理完毕
+        if (location === CardLocation.DECK) return
         if (!card) setSelectedCardId(null)
       }}
       onDoubleClick={() => {
+        // 主卡组格：双击与单击指向同一个面板，行为完全一致，因此不存在
+        // 「双击先触发一次单击造成误抽」的问题，也无需延迟判定。
+        if (location === CardLocation.DECK) {
+          openPile(controller, location)
+          return
+        }
         const isXyz = card?.card ? CardUtils.isXyz(card.card.type) : false
         const hasMats = card?.overlayMaterials && card.overlayMaterials.length > 0
         if (card && (isXyz || hasMats)) {
@@ -360,13 +378,15 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         isOver ? 'ring-2 ring-blue-400 bg-blue-500/15 scale-[1.03] border-transparent' : ''
       } ${className}`}
       title={
-        card &&
-        ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
-          (card.overlayMaterials && card.overlayMaterials.length > 0))
-          ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
-          : isPileZone && count !== undefined && count > 0
-            ? '双击直接查看列表'
-            : undefined
+        location === CardLocation.DECK
+          ? '单击打开卡组面板（载入 / 切换卡组、抽卡、调整卡序）'
+          : card &&
+              ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
+                (card.overlayMaterials && card.overlayMaterials.length > 0))
+            ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
+            : isPileZone && count !== undefined && count > 0
+              ? '双击直接查看列表'
+              : undefined
       }
     >
       {/* 堆叠张数徽标 (如卡组/墓地/额外卡组张数，支持点击直接打开查看列表) */}
@@ -385,7 +405,13 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
               ? 'hover:bg-blue-600 hover:scale-110 cursor-pointer pointer-events-auto'
               : 'pointer-events-none'
           )}
-          title={isPileZone ? '点击查看列表 (或双击格子)' : undefined}
+          title={
+            isPileZone
+              ? location === CardLocation.DECK
+                ? '点击打开卡组面板'
+                : '点击查看列表 (或双击格子)'
+              : undefined
+          }
         >
           {count}
         </button>

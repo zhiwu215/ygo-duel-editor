@@ -43,6 +43,7 @@ export const DeckEditorApp: React.FC = () => {
     setDeckCover,
     addCard,
     removeCard,
+    moveCard,
     clearDeck,
     sortDeck,
     drawTestHand,
@@ -337,6 +338,7 @@ export const DeckEditorApp: React.FC = () => {
             cardDetails={cardDetails}
             onSelectCard={setSelectedCard}
             onRemoveCard={removeCard}
+            onMoveCard={moveCard}
           />
         </main>
 

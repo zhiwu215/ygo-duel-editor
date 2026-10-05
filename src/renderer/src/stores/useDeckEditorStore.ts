@@ -49,6 +49,7 @@ interface DeckEditorState {
   setDeckCover: (cardId: number | undefined) => void
   addCard: (card: CdbCard, targetSection?: 'main' | 'extra' | 'side') => boolean
   removeCard: (section: 'main' | 'extra' | 'side', index: number) => void
+  moveCard: (section: 'main' | 'extra' | 'side', fromIndex: number, toIndex: number) => void
   clearDeck: () => void
   loadDeck: (deck: DeckData) => Promise<void>
   sortDeck: () => void
@@ -298,6 +299,27 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
         }
       })
     }
+  },
+
+  moveCard: (section, fromIndex, toIndex): void => {
+    const { deck } = get()
+    const cards = deck[section]
+    if (
+      fromIndex < 0 ||
+      fromIndex >= cards.length ||
+      toIndex < 0 ||
+      toIndex >= cards.length ||
+      fromIndex === toIndex
+    ) {
+      return
+    }
+
+    const movedCard = cards[fromIndex]
+    if (movedCard === undefined) return
+    const nextCards = [...cards]
+    nextCards.splice(fromIndex, 1)
+    nextCards.splice(toIndex, 0, movedCard)
+    set({ deck: { ...deck, [section]: nextCards } })
   },
 
   clearDeck: (): void => {

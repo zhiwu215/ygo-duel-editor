@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Crown, Maximize2, Minimize2, Plus, Check, Edit2 } from 'lucide-react'
+import { Crown, Plus, Check, Edit2 } from 'lucide-react'
 import { CardLocation, CdbCard, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { ZoneSlot } from '../ZoneSlot'
@@ -153,6 +153,19 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     }
   }
 
+  // 双击手牌区顶部信息条即可展开/收起（替代原先的独立「展开」按钮，少一个图标更好点）
+  // 命中输入框 / 下拉框 / 按钮等交互元素时直接放行，避免与 LP 编辑、顺位选择、改名冲突
+  const handleHeaderDoubleClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+    if (isOnlyOne || isEditingName) return
+    const target = e.target as HTMLElement | null
+    if (target?.closest('input, select, textarea, button, a, [data-no-expand]')) return
+    if (isExpanded) {
+      onCollapse()
+    } else {
+      onExpand()
+    }
+  }
+
   // ==========================================
   // 1. 收起状态（竖排窄条，横向收窄不换行）
   // ==========================================
@@ -241,8 +254,14 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
             : 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10')
       )}
     >
-      {/* 头部信息条：名字、LP、顺位选择、展开/收起 */}
-      <div className="flex items-center justify-between text-xs px-0.5 shrink-0 gap-1 h-5">
+      {/* 头部信息条：名字、LP、顺位选择；双击本行即可展开/收起全部手牌 */}
+      <div
+        onDoubleClick={handleHeaderDoubleClick}
+        title={
+          isOnlyOne ? undefined : isExpanded ? '双击收起为并排展示' : '双击展开占满整行展示全部手牌'
+        }
+        className="flex items-center justify-between text-xs px-0.5 shrink-0 gap-1 h-5"
+      >
         <div className="flex items-center gap-1 min-w-0">
           <span
             className={cn(
@@ -253,7 +272,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
 
           {/* 名字行内编辑 */}
           {isEditingName ? (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1" data-no-expand>
               <input
                 type="text"
                 value={nameInput}
@@ -278,6 +297,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
             <div
               onClick={() => setEditingName(duelist.name)}
               title="点击修改角色名称"
+              data-no-expand
               className="flex items-center gap-0.5 group cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded truncate"
             >
               <span
@@ -298,8 +318,8 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
           </span>
         </div>
 
-        {/* 右侧：LP 编辑（仅在独立 LP 模式下显示）、顺位选择、展开/收起按钮 */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* 右侧：LP 编辑（仅在独立 LP 模式下显示）、顺位选择 */}
+        <div className="flex items-center gap-1 shrink-0" data-no-expand>
           {/* LP 修改 (仅在独立 LP 时由决斗者各自持有；队伍共用 LP 时属于队伍统一管理) */}
           {!isSharedLp && (
             <LpInput
@@ -314,22 +334,6 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
 
           {/* 行动顺位下拉选择 */}
           <TurnOrderBadge duelist={duelist} totalCount={totalCount || 2} />
-
-          {/* 展开/收起按钮 (单人时不显示) */}
-          {!isOnlyOne && (
-            <button
-              type="button"
-              onClick={isExpanded ? onCollapse : onExpand}
-              title={isExpanded ? '收起并排展示' : '展开占满整行展示全部手牌'}
-              className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              {isExpanded ? (
-                <Minimize2 className="w-3.5 h-3.5" />
-              ) : (
-                <Maximize2 className="w-3.5 h-3.5" />
-              )}
-            </button>
-          )}
         </div>
       </div>
 

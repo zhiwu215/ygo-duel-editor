@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, JSX } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Send,
   Square,
@@ -53,6 +54,9 @@ export function BehindSpiritPanel(): JSX.Element {
 
   const chatEndRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
+  const modelMenuRef = useRef<HTMLDivElement>(null)
+  //浮层通过 Portal 渲染到 body，需自行记录触发器位置；宽度固定不跟随触发器（参考 ZCode）
+  const [modelMenuPos, setModelMenuPos] = useState<{ right: number; bottom: number } | null>(null)
 
   useEffect(() => {
     void loadConfig()
@@ -61,7 +65,13 @@ export function BehindSpiritPanel(): JSX.Element {
   useEffect(() => {
     if (!modelMenuOpen) return
     const handler = (e: MouseEvent): void => {
-      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      // 浮层已 Portal 到 body，「点外部关闭」必须同时检查触发器与浮层两个容器
+      if (
+        toolbarRef.current &&
+        !toolbarRef.current.contains(target) &&
+        !modelMenuRef.current?.contains(target)
+      ) {
         setModelMenuOpen(false)
       }
     }
@@ -106,6 +116,15 @@ export function BehindSpiritPanel(): JSX.Element {
   )
 
   const openMenu = (): void => {
+    // 打开时按工具栏上沿锚定浮层位置（Portal 到 body，需自行换算视口坐标）
+    const anchor = toolbarRef.current
+    if (anchor) {
+      const rect = anchor.getBoundingClientRect()
+      setModelMenuPos({
+        right: window.innerWidth - rect.right,
+        bottom: window.innerHeight - rect.top
+      })
+    }
     setOpenProviderKey(null)
     setModelMenuOpen(true)
   }
@@ -205,7 +224,7 @@ export function BehindSpiritPanel(): JSX.Element {
                 </div>
 
                 <div
-                  className={`rounded-lg p-2.5 max-w-[95%] text-xs leading-relaxed ${
+                  className={`rounded-lg p-2.5 max-w-[95%] min-w-0 text-xs leading-relaxed break-words ${
                     msg.role === 'user'
                       ? 'bg-primary text-primary-foreground font-medium'
                       : 'bg-card border border-border/80 text-foreground shadow-xs'
@@ -261,7 +280,9 @@ export function BehindSpiritPanel(): JSX.Element {
                   )}
 
                   {msg.role === 'user' ? (
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                      {msg.content}
+                    </div>
                   ) : (
                     <MarkdownContent content={msg.content} />
                   )}
@@ -324,13 +345,14 @@ export function BehindSpiritPanel(): JSX.Element {
           />
 
           <div className="flex items-center justify-between gap-1.5" ref={toolbarRef}>
-            <div className="flex items-center gap-1 min-w-0">
-              <div className="relative">
+            <div className="flex items-center gap-1 min-w-0 flex-1">
+              <div className="relative min-w-0 flex-1">
                 <button
                   type="button"
                   onClick={() => (modelMenuOpen ? closeMenu() : openMenu())}
                   className={cn(
-                    'h-6 px-1.5 rounded flex items-center gap-1 text-[11px] transition-colors max-w-[200px]',
+                    // w-full + min-w-0：随侧栏宽度收缩，避免把「发送」按钮挤出容器
+                    'h-6 w-full min-w-0 px-1.5 rounded flex items-center gap-1 text-[11px] transition-colors',
                     modelMenuOpen
                       ? 'bg-muted text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
@@ -344,103 +366,9 @@ export function BehindSpiritPanel(): JSX.Element {
                         : 'bg-muted-foreground'
                     )}
                   />
-                  <span className="font-medium truncate">{chipLabel}</span>
+                  <span className="font-medium truncate min-w-0">{chipLabel}</span>
                   <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
                 </button>
-
-                {modelMenuOpen && (
-                  <div className="absolute bottom-full left-0 mb-1 z-50">
-                    <div className="w-52 bg-popover border border-border rounded-md overflow-hidden shadow-lg py-1">
-                      {menuProviders.length === 0 ? (
-                        <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
-                          尚未配置可用模型，去「管理模型」连接供应商并拉取
-                        </div>
-                      ) : (
-                        menuProviders.map((provider) => {
-                          const isCurrent = provider.id === config.provider
-                          const open = openProviderKey === provider.id
-                          return (
-                            <button
-                              key={provider.id}
-                              type="button"
-                              onMouseEnter={() => setOpenProviderKey(provider.id)}
-                              onClick={() => setOpenProviderKey(provider.id)}
-                              className={cn(
-                                'w-full px-2.5 py-1.5 flex items-center gap-2 text-left transition-colors',
-                                open && 'bg-muted/60'
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  'w-1.5 h-1.5 rounded-full shrink-0',
-                                  provider.ready ? 'bg-emerald-500' : 'bg-muted-foreground'
-                                )}
-                              />
-                              <span className="flex-1 min-w-0 truncate text-[11px] font-medium">
-                                {provider.name}
-                              </span>
-                              {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
-                              <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                            </button>
-                          )
-                        })
-                      )}
-
-                      <div className="my-1 border-t border-border" />
-                      <button
-                        type="button"
-                        onMouseEnter={() => setOpenProviderKey(MANAGE_KEY)}
-                        onClick={openManage}
-                        className={cn(
-                          'w-full px-2.5 py-1.5 flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors',
-                          openProviderKey === MANAGE_KEY && 'bg-muted/60'
-                        )}
-                      >
-                        <span className="flex-1 text-left">管理模型</span>
-                      </button>
-                    </div>
-
-                    {openProviderKey && openProviderKey !== MANAGE_KEY && (
-                      <div className="absolute bottom-0 left-full ml-0.5 w-52 max-h-72 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1">
-                        {openProviderModels.length === 0 ? (
-                          <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
-                            该供应商暂无可用模型，去「管理模型」拉取后即可选用
-                          </div>
-                        ) : (
-                          openProviderModels.map((model) => {
-                            const isCurrent =
-                              openProviderKey === config.provider && config.model === model.id
-                            return (
-                              <button
-                                key={model.id}
-                                type="button"
-                                onClick={() => pickModel(openProviderKey, model.id)}
-                                className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left hover:bg-muted/60 transition-colors"
-                              >
-                                <span className="flex-1 min-w-0">
-                                  <span className="block text-[11px] font-medium truncate">
-                                    {model.name ?? model.id}
-                                  </span>
-                                  <span className="block font-mono text-[10px] text-muted-foreground truncate">
-                                    {model.id}
-                                  </span>
-                                </span>
-                                {model.supportsReasoning && (
-                                  <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
-                                    推理
-                                  </span>
-                                )}
-                                {isCurrent && (
-                                  <Check className="w-3 h-3 text-foreground shrink-0" />
-                                )}
-                              </button>
-                            )
-                          })
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -449,7 +377,7 @@ export function BehindSpiritPanel(): JSX.Element {
                 size="xs"
                 variant="destructive"
                 onClick={abort}
-                className="h-7 px-3 text-xs gap-1 font-semibold"
+                className="h-7 shrink-0 px-3 text-xs gap-1 font-semibold"
               >
                 <Square className="w-3 h-3 fill-current" />
                 <span>中断</span>
@@ -459,7 +387,7 @@ export function BehindSpiritPanel(): JSX.Element {
                 size="xs"
                 onClick={handleSend}
                 disabled={!inputPrompt.trim()}
-                className="h-7 px-3 text-xs gap-1 font-semibold shadow-xs"
+                className="h-7 shrink-0 px-3 text-xs gap-1 font-semibold shadow-xs"
               >
                 <Send className="w-3 h-3" />
                 <span>发送</span>
@@ -468,6 +396,108 @@ export function BehindSpiritPanel(): JSX.Element {
           </div>
         </div>
       </div>
+
+      {/* 模型选择浮层：Portal 到 body，脱离侧栏的 overflow-hidden 裁剪，
+          位置锚定工具栏上沿（参考 ZCode ModelConfigSelect 的 Radix Portal 做法）。
+          宽度固定 w-52 不跟随触发器，窄侧栏下也不会被压扁。 */}
+      {modelMenuOpen &&
+        modelMenuPos &&
+        createPortal(
+          <div
+            ref={modelMenuRef}
+            style={{ right: modelMenuPos.right, bottom: modelMenuPos.bottom }}
+            className="fixed z-[70] mb-1 w-52 max-w-[calc(100vw-1.5rem)]"
+          >
+            <div className="bg-popover border border-border rounded-md overflow-hidden shadow-lg py-1">
+              {menuProviders.length === 0 ? (
+                <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
+                  尚未配置可用模型，去「管理模型」连接供应商并拉取
+                </div>
+              ) : (
+                menuProviders.map((provider) => {
+                  const isCurrent = provider.id === config.provider
+                  const open = openProviderKey === provider.id
+                  return (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      onMouseEnter={() => setOpenProviderKey(provider.id)}
+                      onClick={() => setOpenProviderKey(provider.id)}
+                      className={cn(
+                        'w-full px-2.5 py-1.5 flex items-center gap-2 text-left transition-colors',
+                        open && 'bg-muted/60'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'w-1.5 h-1.5 rounded-full shrink-0',
+                          provider.ready ? 'bg-emerald-500' : 'bg-muted-foreground'
+                        )}
+                      />
+                      <span className="flex-1 min-w-0 truncate text-[11px] font-medium">
+                        {provider.name}
+                      </span>
+                      {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
+                      <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
+                    </button>
+                  )
+                })
+              )}
+
+              <div className="my-1 border-t border-border" />
+              <button
+                type="button"
+                onMouseEnter={() => setOpenProviderKey(MANAGE_KEY)}
+                onClick={openManage}
+                className={cn(
+                  'w-full px-2.5 py-1.5 flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors',
+                  openProviderKey === MANAGE_KEY && 'bg-muted/60'
+                )}
+              >
+                <span className="flex-1 text-left">管理模型</span>
+              </button>
+            </div>
+
+            {openProviderKey && openProviderKey !== MANAGE_KEY && (
+              <div className="absolute bottom-0 left-full ml-0.5 w-52 max-w-[calc(100vw-2rem)] max-h-72 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1">
+                {openProviderModels.length === 0 ? (
+                  <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
+                    该供应商暂无可用模型，去「管理模型」拉取后即可选用
+                  </div>
+                ) : (
+                  openProviderModels.map((model) => {
+                    const isCurrent =
+                      openProviderKey === config.provider && config.model === model.id
+                    return (
+                      <button
+                        key={model.id}
+                        type="button"
+                        onClick={() => pickModel(openProviderKey, model.id)}
+                        className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left hover:bg-muted/60 transition-colors"
+                      >
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[11px] font-medium truncate">
+                            {model.name ?? model.id}
+                          </span>
+                          <span className="block font-mono text-[10px] text-muted-foreground truncate">
+                            {model.id}
+                          </span>
+                        </span>
+                        {model.supportsReasoning && (
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
+                            推理
+                          </span>
+                        )}
+                        {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

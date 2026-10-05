@@ -17,7 +17,8 @@ import {
   FolderKanban,
   BookOpen,
   SquareStack,
-  Check
+  Check,
+  Copy
 } from 'lucide-react'
 import wechatQr from '../../REMOVED'
 import alipayQr from '../../REMOVED'
@@ -70,7 +71,18 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showSupportDialog, setShowSupportDialog] = useState(false)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
   const menuBarRef = useRef<HTMLDivElement>(null)
+
+  const handleCopyField = async (field: string, text: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 1500)
+    } catch (err) {
+      console.error('[MenuBar] Failed to copy field:', err)
+    }
+  }
 
   const {
     resetDuel,
@@ -399,16 +411,12 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               <h3 className="font-semibold text-base pt-1">YGO Duel Editor</h3>
               <p className="text-xs text-muted-foreground">版本 1.0.0</p>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed text-center">
-              游戏王决斗创作工作台：可视化布设对局场面，导入导出符合 ocgcore 标准的 Lua
-              决斗脚本，支持同人剧情对局编排、卡组 Combo 教学与残局制作。
-            </p>
             <div className="space-y-1.5 text-xs border-t border-border pt-3">
               {[
                 ['作者', '知兀', null],
-                ['邮箱', 'zhiwu_215@qq.com', 'mailto:zhiwu_215@qq.com'],
+                ['邮箱', 'zhiwu_215@qq.com', null],
                 [
-                  'B 站',
+                  'B站',
                   'space.bilibili.com/3546704263514722',
                   'https://space.bilibili.com/3546704263514722'
                 ],
@@ -431,7 +439,19 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                       {text}
                     </a>
                   ) : (
-                    <span className="truncate">{text}</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyField(label!, text!)}
+                      title="点击复制"
+                      className="group flex items-center gap-1.5 truncate hover:text-foreground transition-colors"
+                    >
+                      <span className="truncate">{text}</span>
+                      {copiedField === label ? (
+                        <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                      ) : (
+                        <Copy className="w-3 h-3 opacity-0 group-hover:opacity-60 shrink-0 transition-opacity" />
+                      )}
+                    </button>
                   )}
                 </div>
               ))}

@@ -77,6 +77,10 @@ export interface MatchConfig {
 
 /**
  * 单个决斗场景快照 (用于不同对阵人数切换时独立保留现场)
+ *
+ * 设计意图：切换对阵人数 = 「把当前这整场决斗存档，再载入另一场」。
+ * 因此快照必须涵盖这场决斗的**全部**状态（场面、血量、步骤、开局盘面），
+ * 缺任何一项都会导致切回来时信息丢失。
  */
 export interface DuelSceneSnapshot {
   duelists: Duelist[]
@@ -85,6 +89,10 @@ export interface DuelSceneSnapshot {
   firstTurnAttack: boolean
   steps?: DuelStep[]
   matchConfig: MatchConfig
+  /** [我方, 对方] 生命值与起手/手牌上限，缺省时按8000 / 0 / 0 处理（兼容旧快照） */
+  players?: [PlayerState, PlayerState]
+  /** 编排开局初始战场盘面快照 (分步回放复位用)，缺省时视为无开局快照 */
+  initialBoardSnapshot?: LightweightCardSnapshot[]
 }
 
 /**

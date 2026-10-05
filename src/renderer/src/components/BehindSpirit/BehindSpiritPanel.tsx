@@ -26,6 +26,7 @@ import {
 } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { AiProposalCard } from './AiProposalCard'
+import { BoardSetupPreviewCard } from './BoardSetupPreviewCard'
 import { MarkdownContent } from './MarkdownContent'
 import { ToolCallList } from './ToolCallList'
 import { Button } from '../ui/button'
@@ -50,7 +51,10 @@ export function BehindSpiritPanel(): JSX.Element {
     resetSession,
     sendMessage,
     abort,
-    applyProposalsToDuel
+    applyProposalsToDuel,
+    applyBoardSetup,
+    markBoardSetupApplied,
+    dismissBoardSetup
   } = useAgentStore()
 
   const { state: currentBoardState } = useDuelStore()
@@ -58,6 +62,9 @@ export function BehindSpiritPanel(): JSX.Element {
   const [inputPrompt, setInputPrompt] = useState('')
   const [appliedMessageId, setAppliedMessageId] = useState<string | null>(null)
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
+  // 场面布局提案的应用过程：同一时刻只可能有一个提案在应用/报错
+  const [applyingSetupMsgId, setApplyingSetupMsgId] = useState<string | null>(null)
+  const [setupError, setSetupError] = useState<{ msgId: string; text: string } | null>(null)
 
   // 从卡片检索面板拖入的卡片引用：随消息一起发给 AI，避免用户手打卡名
   const [attachedCards, setAttachedCards] = useState<CdbCard[]>([])
@@ -239,6 +246,25 @@ export function BehindSpiritPanel(): JSX.Element {
     setTimeout(() => setAppliedMessageId(null), 3000)
   }
 
+  const handleApplySetup = async (messageId: string): Promise<void> => {
+    const msg = useAgentStore.getState().messages.find((m) => m.id === messageId)
+    if (!msg?.boardSetup) return
+    setApplyingSetupMsgId(messageId)
+    setSetupError(null)
+    const res = await applyBoardSetup(msg.boardSetup)
+    setApplyingSetupMsgId(null)
+    if (res.ok) {
+      markBoardSetupApplied(messageId)
+    } else {
+      setSetupError({ msgId: messageId, text: res.error ?? '应用失败' })
+    }
+  }
+
+  const handleDismissSetup = (messageId: string): void => {
+    setSetupError((prev) => (prev?.msgId === messageId ? null : prev))
+    dismissBoardSetup(messageId)
+  }
+
   const toggleThought = (msgId: string): void => {
     setExpandedThoughts((prev) => ({
       ...prev,
@@ -372,6 +398,19 @@ export function BehindSpiritPanel(): JSX.Element {
                     msg === messages[messages.length - 1] && (
                       <span className="inline-block w-1.5 h-3 ml-1 bg-foreground animate-pulse" />
                     )}
+
+                  {msg.boardSetup && (
+                    <div className="mt-3 pt-2.5 border-t border-border/60">
+                      <BoardSetupPreviewCard
+                        setup={msg.boardSetup}
+                        applied={Boolean(msg.boardSetupApplied)}
+                        applying={applyingSetupMsgId === msg.id}
+                        error={setupError?.msgId === msg.id ? setupError.text : null}
+                        onApply={() => void handleApplySetup(msg.id)}
+                        onDismiss={() => handleDismissSetup(msg.id)}
+                      />
+                    </div>
+                  )}
 
                   {msg.proposals && msg.proposals.length > 0 && (
                     <div className="mt-3 pt-2.5 border-t border-border/60 space-y-2">

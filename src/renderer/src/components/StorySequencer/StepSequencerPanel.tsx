@@ -25,7 +25,6 @@ import {
   MessageSquare,
   BookOpen,
   Film,
-  Sparkles,
   ArrowRight,
   Layers,
   X,
@@ -453,7 +452,6 @@ export const StepSequencerPanel: React.FC = () => {
                 {isFirstInTurn && (
                   <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-950/60 to-purple-950/40 border border-blue-500/30 shadow-sm mt-1 select-none">
                     <span className="font-bold text-xs text-blue-300 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-blue-400" />
                       <span>第 {step.turn} 回合</span>
                     </span>
                     <Badge

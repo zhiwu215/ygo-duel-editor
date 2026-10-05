@@ -29,33 +29,21 @@ const DEFAULT_CONTEXT_WINDOW = 131_072
 const DEFAULT_MAX_TOKENS = 8_192
 
 /**
- * 判断接口地址是否指向本机（Ollama 等本地推理服务），这类服务通常无需 API Key
- * 解析失败时按远端处理，避免把畸形地址误当成本地端点而放行空密钥
+ * 本地推理服务（Ollama / LM Studio 等）不需要 API Key，但 Pi 的 models.json schema
+ * 要求 apiKey 字段存在且至少 1 个字符（省略或空串都会让整份配置校验失败、模型全部加载不出来），
+ * 因此本地端点写这个占位值。实测过：省略 → 0 个模型，空串 → 0 个模型，非空 → 正常加载。
  */
-function isLocalEndpoint(baseUrl: string): boolean {
-  try {
-    const host = new URL(baseUrl).hostname.toLowerCase()
-    return (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === '0.0.0.0' ||
-      host === '::1' ||
-      host.endsWith('.local')
-    )
-  } catch {
-    return false
-  }
-}
+const LOCAL_ENDPOINT_PLACEHOLDER_KEY = 'local-no-key'
 
 const PROVIDER_PRESETS: AgentProviderPreset[] = [
+  // —— 国内厂商 ——
   {
     id: 'deepseek',
     name: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/v1',
     apiFormat: 'openai-chat-completions',
     apiKeyUrl: 'https://platform.deepseek.com/api_keys',
-    description: '深度求索官方接口，OpenAI 兼容',
-    badge: 'DS'
+    category: 'cn'
   },
   {
     id: 'dashscope',
@@ -63,8 +51,7 @@ const PROVIDER_PRESETS: AgentProviderPreset[] = [
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     apiFormat: 'openai-chat-completions',
     apiKeyUrl: 'https://bailian.console.aliyun.com/?apiKey=1',
-    description: '阿里云百炼 DashScope 兼容模式',
-    badge: 'QW'
+    category: 'cn'
   },
   {
     id: 'moonshot',
@@ -72,8 +59,70 @@ const PROVIDER_PRESETS: AgentProviderPreset[] = [
     baseUrl: 'https://api.moonshot.cn/v1',
     apiFormat: 'openai-chat-completions',
     apiKeyUrl: 'https://platform.moonshot.cn/console/api-keys',
-    description: 'Moonshot 长上下文与工具调用',
-    badge: 'KM'
+    category: 'cn'
+  },
+  {
+    id: 'bigmodel',
+    name: '智谱 GLM',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    apiFormat: 'openai-chat-completions',
+    apiKeyUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
+    category: 'cn'
+  },
+  {
+    id: 'minimax',
+    name: 'MiniMax',
+    baseUrl: 'https://api.minimaxi.com/v1',
+    apiFormat: 'openai-chat-completions',
+    category: 'cn'
+  },
+  {
+    id: 'xiaomi-mimo',
+    name: '小米 MiMo',
+    baseUrl: 'https://api.xiaomimimo.com/v1',
+    apiFormat: 'openai-chat-completions',
+    category: 'cn'
+  },
+  // —— 国际厂商 ——
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    apiFormat: 'openai-responses',
+    apiKeyUrl: 'https://platform.openai.com/api-keys',
+    category: 'global'
+  },
+  {
+    id: 'anthropic',
+    name: 'Anthropic Claude',
+    baseUrl: 'https://api.anthropic.com/v1',
+    apiFormat: 'anthropic-messages',
+    apiKeyUrl: 'https://console.anthropic.com/settings/keys',
+    category: 'global'
+  },
+  {
+    id: 'xai',
+    name: 'xAI Grok',
+    baseUrl: 'https://api.x.ai/v1',
+    apiFormat: 'openai-responses',
+    apiKeyUrl: 'https://console.x.ai',
+    category: 'global'
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    apiFormat: 'openai-chat-completions',
+    apiKeyUrl: 'https://openrouter.ai/keys',
+    category: 'global'
+  },
+  // —— 本地部署 ——
+  {
+    id: 'ollama',
+    name: 'Ollama (本地)',
+    baseUrl: 'http://localhost:11434/v1',
+    apiFormat: 'openai-chat-completions',
+    category: 'local'
   }
 ]
 
@@ -181,6 +230,7 @@ import {
   AgentModelConfig,
   AgentModelInfo,
   AgentProviderPreset,
+  AgentRuntimeConfig,
   AgentSendMessageParams,
   AgentSendMessageResult,
   AgentStreamEvent,
@@ -190,12 +240,23 @@ import {
   DuelActionType,
   CardLocation,
   cleanAgentApiKey,
+  isLocalEndpoint,
   resolveActiveRuntime,
   toPiApiType
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 import { ocgcoreService } from './ocgcoreService'
+
+/**
+ * 会话构造用的配置：AgentModelConfig 的当前模型快照 + 模型级能力开关。
+ * 后者来自 resolveActiveRuntime，用来决定写进 Pi models.json 的 input / compat。
+ */
+type SessionConfig = AgentModelConfig &
+  Pick<
+    AgentRuntimeConfig,
+    'supportsVision' | 'supportsStructuredOutput' | 'supportsMidConversationSystem'
+  >
 
 export class AgentService {
   private currentBoardState: DuelPuzzleState | null = null
@@ -338,10 +399,7 @@ export class AgentService {
    * 为什么按配置签名缓存：Pi 的模型/系统提示词/工具在会话创建时绑定，
    * 重复创建会丢失多轮记忆；配置一旦变化则必须重建才能生效。
    */
-  private async acquireSession(
-    cfg: AgentModelConfig,
-    tools: ToolDefinition[]
-  ): Promise<AgentSession> {
+  private async acquireSession(cfg: SessionConfig, tools: ToolDefinition[]): Promise<AgentSession> {
     const signature = JSON.stringify([
       cfg.provider,
       cfg.baseUrl,
@@ -351,6 +409,10 @@ export class AgentService {
       cfg.enableReasoning,
       cfg.contextWindow,
       cfg.maxTokens,
+      // 能力开关同样会写进 models.json，改动后必须重建会话
+      cfg.supportsVision,
+      cfg.supportsStructuredOutput,
+      cfg.supportsMidConversationSystem,
       cfg.systemPrompt
     ])
     if (this.cachedSession && this.cachedSession.signature === signature) {
@@ -368,14 +430,22 @@ export class AgentService {
 
     const cleanApiKey = cleanAgentApiKey(cfg.apiKey)
 
+    // 只在显式开启时才写 compat：省略等于沿用 Pi 的默认值，
+    // 无条件写 false 会把 Pi 原本默认具备的能力关掉。
+    const compat: Record<string, boolean> = {}
+    if (cfg.supportsStructuredOutput) compat.supportsStrictMode = true
+    if (cfg.supportsMidConversationSystem) compat.supportsMidConvoSystemMessages = true
+
     const modelsConfig = {
       providers: {
         [cfg.provider || 'custom-openai']: {
           baseUrl: cfg.baseUrl,
           api: toPiApiType(cfg.apiFormat),
-          // Pi 的 models.json schema 要求 apiKey 至少 1 字符；本地服务（Ollama 等）
-          // 无需密钥时必须整个省略该字段，否则整份配置校验失败、提供商全部不可用
-          ...(cleanApiKey ? { apiKey: cleanApiKey } : {}),
+          // Pi 的 models.json schema 要求 apiKey **存在且至少 1 个字符**：
+          // 省略字段或写成空串都会让整份配置校验失败，结果是**一个模型都加载不出来**。
+          // 能走到这里而 Key 为空的只可能是本地端点（远端缺 Key 已在上面拦掉），
+          // 所以补一个占位值 —— Ollama / LM Studio 都会忽略 Authorization 头。
+          apiKey: cleanApiKey || LOCAL_ENDPOINT_PLACEHOLDER_KEY,
           models: [
             {
               id: cfg.model,
@@ -383,7 +453,10 @@ export class AgentService {
               reasoning: Boolean(cfg.enableReasoning),
               // 声明上下文与输出上限，让 Pi 的 token 估算与自动压缩正常工作
               contextWindow: cfg.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
-              maxTokens: cfg.maxTokens ?? DEFAULT_MAX_TOKENS
+              maxTokens: cfg.maxTokens ?? DEFAULT_MAX_TOKENS,
+              // Pi 只认 text / image 两种模态，未开启图片输入时整个省略
+              ...(cfg.supportsVision ? { input: ['text', 'image'] } : {}),
+              ...(Object.keys(compat).length > 0 ? { compat } : {})
             }
           ]
         }
@@ -476,7 +549,7 @@ export class AgentService {
       ...(params.configOverride ?? {})
     } as AgentModelConfig
     const runtime = resolveActiveRuntime(merged)
-    const cfg: AgentModelConfig = {
+    const cfg: SessionConfig = {
       providers: merged.providers,
       provider: runtime.providerId,
       baseUrl: runtime.baseUrl || 'https://api.deepseek.com/v1',
@@ -486,7 +559,10 @@ export class AgentService {
       systemPrompt: merged.systemPrompt || '',
       enableReasoning: runtime.enableReasoning,
       contextWindow: runtime.contextWindow,
-      maxTokens: runtime.maxTokens
+      maxTokens: runtime.maxTokens,
+      supportsVision: runtime.supportsVision,
+      supportsStructuredOutput: runtime.supportsStructuredOutput,
+      supportsMidConversationSystem: runtime.supportsMidConversationSystem
     }
 
     if (!cfg.apiKey && !isLocalEndpoint(cfg.baseUrl)) {

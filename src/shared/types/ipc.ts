@@ -71,6 +71,12 @@ export interface AgentProviderModelConfig {
   supportsReasoning?: boolean
   supportsVision?: boolean
   contextWindow?: number
+  /** 该模型的单次回复上限；留空则回落到 AgentModelConfig.maxTokens */
+  maxTokens?: number
+  /** 结构化输出 / 严格 JSON Schema 工具参数（pi compat.supportsStrictMode） */
+  supportsStructuredOutput?: boolean
+  /** 对话中途插入 system 消息（pi compat.supportsMidConvoSystemMessages） */
+  supportsMidConversationSystem?: boolean
   enabled: boolean
   custom?: boolean
 }
@@ -97,7 +103,18 @@ export interface AgentModelConfig {
   enableReasoning?: boolean
   contextWindow?: number
   maxTokens?: number
+  /**
+   * 是否已经预置过默认的常用供应商（DeepSeek / Kimi / 通义千问）。
+   * 一次性迁移标记：置位后用户手动删掉的供应商不会再被自动补回来。
+   */
+  providersSeeded?: boolean
 }
+
+/**
+ * 内置供应商预设的分组，用于「添加供应商」面板归类展示
+ * cn = 国内厂商 / global = 国际厂商 / local = 本地部署
+ */
+export type AgentProviderCategory = 'cn' | 'global' | 'local'
 
 export interface AgentProviderPreset {
   id: string
@@ -105,8 +122,8 @@ export interface AgentProviderPreset {
   baseUrl: string
   apiFormat?: AgentApiFormat
   apiKeyUrl?: string
-  description?: string
-  badge?: string
+  /** 面板分组，缺省时归入「其他」 */
+  category?: AgentProviderCategory
 }
 
 /**

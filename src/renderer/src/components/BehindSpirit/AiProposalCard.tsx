@@ -32,7 +32,7 @@ export function AiProposalCard({ proposal, index }: AiProposalCardProps): JSX.El
       {/* 头部元数据 */}
       <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-1.5">
         <div className="flex items-center gap-1.5">
-          <span className="font-mono px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
+          <span className="font-mono px-1.5 py-0.5 rounded text-[10px] bg-muted text-foreground font-bold">
             步骤 {index + 1}
           </span>
           <span className="font-semibold text-neutral-800 dark:text-neutral-200">
@@ -76,11 +76,7 @@ export function AiProposalCard({ proposal, index }: AiProposalCardProps): JSX.El
                 C{chainIndex}
               </span>
             )}
-            {cardName && (
-              <span className="font-semibold text-amber-600 dark:text-amber-400 truncate">
-                {cardName}
-              </span>
-            )}
+            {cardName && <span className="font-semibold text-foreground truncate">{cardName}</span>}
             {cardCode && (
               <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500">
                 ({cardCode})
@@ -98,8 +94,8 @@ export function AiProposalCard({ proposal, index }: AiProposalCardProps): JSX.El
 
       {/* 角色热血台词 */}
       {dialogue && (
-        <div className="rounded bg-amber-500/5 border-l-2 border-amber-500/80 p-2 text-neutral-800 dark:text-neutral-200">
-          <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 mb-0.5">
+        <div className="rounded bg-muted/40 border-l-2 border-border p-2 text-neutral-800 dark:text-neutral-200">
+          <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground mb-0.5">
             <User className="w-3 h-3" />
             <span>{speaker || (isP0 ? '我方' : '对方')}</span>
           </div>

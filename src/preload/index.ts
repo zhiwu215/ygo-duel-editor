@@ -91,6 +91,17 @@ const api: IpcApi = {
     }
   },
   openExternal: (url: string) => ipcRenderer.invoke('app:open-external', url),
+  windowMinimize: () => ipcRenderer.invoke('window:minimize'),
+  windowToggleMaximize: () => ipcRenderer.invoke('window:toggle-maximize'),
+  windowClose: () => ipcRenderer.invoke('window:close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window:is-maximized'),
+  onWindowMaximizedChange: (callback) => {
+    const handler = (_: unknown, maximized: boolean): void => callback(maximized)
+    ipcRenderer.on('window:maximized-changed', handler)
+    return () => {
+      ipcRenderer.removeListener('window:maximized-changed', handler)
+    }
+  },
   onConfigUpdated: (callback) => {
     const handler = (): void => callback()
     ipcRenderer.on('config:updated', handler)

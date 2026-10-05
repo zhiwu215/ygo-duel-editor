@@ -372,6 +372,13 @@ export interface IpcApi {
   openSettingsWindow: (section?: SettingsSectionId) => Promise<void>
   onSettingsNavigate: (callback: (section: SettingsSectionId) => void) => () => void
   openExternal: (url: string) => Promise<boolean>
+  /** 主窗口无边框后的自绘窗口控件 (frame: false) */
+  windowMinimize: () => Promise<void>
+  windowToggleMaximize: () => Promise<boolean>
+  windowClose: () => Promise<void>
+  windowIsMaximized: () => Promise<boolean>
+  /** 订阅主窗口最大化状态变化 (双击标题栏 / 系统快捷键都会触发) */
+  onWindowMaximizedChange: (callback: (maximized: boolean) => void) => () => void
   /** 订阅全局配置变更广播 (主题 / 路径 / AI 配置跨窗口同步)，返回退订函数 */
   onConfigUpdated: (callback: () => void) => () => void
   onAgentEvent: (callback: (event: AgentStreamEvent) => void) => () => void

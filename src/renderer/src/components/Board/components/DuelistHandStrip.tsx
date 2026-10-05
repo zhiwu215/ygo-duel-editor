@@ -322,12 +322,15 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         <div className="flex items-center gap-1 shrink-0" data-no-expand>
           {/* LP 修改 (仅在独立 LP 时由决斗者各自持有；队伍共用 LP 时属于队伍统一管理) */}
           {!isSharedLp && (
+            // 一律向下展开：本栏处于 MultiHandTray 的横向滚动行内，该行是 overflow-y-hidden，
+            // 向上弹出的弹层会整块被裁掉（此前「下方我方栏看不到弹层」的根因）；向下展开则
+            // 落在本栏 136px 高度内，上下两方都能正常看到与点击。
             <LpInput
               lp={duelist.lp}
               label="LP"
               size="sm"
               player={controller}
-              popoverPlacement={controller === 0 ? 'top' : 'bottom'}
+              popoverPlacement="bottom"
               onLpChange={(newLp) => updateDuelist(duelist.id, { lp: newLp })}
             />
           )}

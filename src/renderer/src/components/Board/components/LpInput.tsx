@@ -186,7 +186,11 @@ export const LpInput: React.FC<LpInputProps> = ({
         <div
           onMouseDown={(e) => e.preventDefault()} // 阻止失焦，允许连贯点击运算符
           className={cn(
-            'absolute z-50 bg-popover/95 text-popover-foreground border border-border/80 shadow-xl rounded-lg p-2 flex flex-col gap-1.5 backdrop-blur-md min-w-[240px] select-none animate-in fade-in-0 zoom-in-95 duration-100',
+            // 高度预算：多人手牌带的每一栏固定 136px 高（其中头信息条占 24px），弹层在
+            // 「向下展开」时必须完整落在该栏内，否则会被手牌带滚动行的 overflow-y-hidden 裁掉
+            // 底边。故垂直内边距与内部间距收紧为 py-1.5 / gap-1（整体约 102px）。
+            // 调整此密度时请同步复核 DuelistHandStrip 内的弹层可见性。
+            'absolute z-50 bg-popover/95 text-popover-foreground border border-border/80 shadow-xl rounded-lg px-2 py-1.5 flex flex-col gap-1 backdrop-blur-md min-w-[240px] select-none animate-in fade-in-0 zoom-in-95 duration-100',
             isTop ? 'bottom-full mb-1' : 'top-full mt-1',
             isRight ? 'right-0' : 'left-0'
           )}
@@ -235,7 +239,7 @@ export const LpInput: React.FC<LpInputProps> = ({
           </div>
 
           {/* 实时算式解析状态 */}
-          <div className="flex items-center justify-between text-[11px] font-mono px-2 py-1 rounded bg-muted/60 border border-border/40">
+          <div className="flex items-center justify-between text-[11px] font-mono px-2 py-0.5 rounded bg-muted/60 border border-border/40">
             <span
               className="text-muted-foreground truncate max-w-[120px]"
               title={parseResult.formula}

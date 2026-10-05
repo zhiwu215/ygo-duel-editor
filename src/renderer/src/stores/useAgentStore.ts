@@ -29,6 +29,8 @@ export interface AgentChatMessage {
   status?: string
   toolCalls?: AgentToolCallItem[]
   proposals?: AgentStepProposal[]
+  /** 该条消息引用过的卡片（仅用于在记录中还原「AI 当时看到了什么」，不拼进 content） */
+  attachedCards?: { id: number; name: string }[]
   createdAt: number
 }
 
@@ -52,7 +54,17 @@ interface AgentStoreState {
   removeProvider: (providerId: string) => void
   reorderProviders: (fromId: string, toId: string) => void
   selectModel: (providerId: string, modelId: string) => void
-  sendMessage: (prompt: string, boardState?: DuelPuzzleState) => Promise<void>
+  /**
+   * 发送消息。`prompt` 是用户原始输入（用于对话记录展示），
+   * `injectedPrompt` 是拼入引用卡片等上下文后真正发给模型的内容；
+   * `attachedCards` 仅记录引用了哪些卡，供回看时展示，不进入正文。
+   */
+  sendMessage: (
+    prompt: string,
+    boardState?: DuelPuzzleState,
+    injectedPrompt?: string,
+    attachedCards?: { id: number; name: string }[]
+  ) => Promise<void>
   abort: () => Promise<void>
   /** 丢弃 AI 会话并重开（同时清空本地消息） */
   resetSession: () => Promise<void>
@@ -342,13 +354,16 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
     void get().saveConfig()
   },
 
-  sendMessage: async (prompt, boardState) => {
-    if (!prompt.trim() || get().isGenerating) return
+  sendMessage: async (prompt, boardState, injectedPrompt, attachedCards) => {
+    if (!prompt.trim() && !injectedPrompt?.trim()) return
+    if (get().isGenerating) return
 
+    // 对话记录只留用户原始输入，注入的上下文不污染记录（发给模型时才拼）
     const userMessage: AgentChatMessage = {
       id: `msg_user_${Date.now()}`,
       role: 'user',
       content: prompt.trim(),
+      attachedCards,
       createdAt: Date.now()
     }
 
@@ -373,7 +388,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       }
 
       const res = await window.api.agentSendMessage({
-        prompt,
+        prompt: injectedPrompt?.trim() || prompt.trim(),
         boardState,
         configOverride: get().config
       })

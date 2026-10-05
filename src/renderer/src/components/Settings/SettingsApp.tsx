@@ -63,6 +63,12 @@ const ALL_ITEMS: SettingsNavItem[] = NAV_GROUPS.flatMap((g) => g.items)
 const isSettingsSectionId = (value: string | undefined): value is SettingsSectionId =>
   value !== undefined && ALL_ITEMS.some((item) => item.id === value)
 
+/** 主题展示名：base-ui 的 Select.Value 默认渲染原始 value，必须显式给文案，否则会显示 light / dark */
+const THEME_LABELS: Record<string, string> = {
+  light: '浅色模式',
+  dark: '深色模式'
+}
+
 interface SettingsRowProps {
   title: string
   description?: string
@@ -96,12 +102,22 @@ function AppearanceSection(): JSX.Element {
             if (val === 'light' || val === 'dark') void setTheme(val)
           }}
         >
-          <SelectTrigger size="sm" className="w-32">
-            <SelectValue />
+          {/* 与同行的 outline 按钮对齐：默认触发器用 border-input + 透明底，深色下描边会比按钮亮一档 */}
+          <SelectTrigger
+            size="xs"
+            className="w-28 border-border bg-background dark:bg-background dark:hover:bg-background"
+          >
+            <SelectValue>{(value) => THEME_LABELS[value as string] ?? '浅色模式'}</SelectValue>
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="light">浅色模式</SelectItem>
-            <SelectItem value="dark">深色模式</SelectItem>
+          {/* 弹层默认锁成触发器宽度、且自身没有内边距，基础类的 min-w-36 还会比触发器的 w-28 更宽；
+              这里改成按内容收缩 + 4px 内边距，选项才不会贴着弹层圆角 */}
+          <SelectContent align="start" className="w-auto min-w-28 p-1">
+            <SelectItem value="light" className="text-xs py-1.5 pr-7 pl-2">
+              浅色模式
+            </SelectItem>
+            <SelectItem value="dark" className="text-xs py-1.5 pr-7 pl-2">
+              深色模式
+            </SelectItem>
           </SelectContent>
         </Select>
       </SettingsRow>

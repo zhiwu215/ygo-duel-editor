@@ -42,7 +42,7 @@ const NAV_GROUPS: SettingsNavGroup[] = [
     ]
   },
   {
-    title: 'AI 顾问 (背后灵)',
+    title: '背后灵',
     items: [
       {
         id: 'model-settings',
@@ -182,7 +182,7 @@ export function SettingsApp(): JSX.Element {
       <aside className="w-56 shrink-0 border-r border-border bg-muted/30 flex flex-col p-3">
         <div className="text-sm font-bold px-2">偏好设置</div>
         <div className="mt-0.5 px-2 text-[10px] text-muted-foreground">
-          自定义外观、路径与 AI 顾问行为
+          自定义外观、路径与背后灵行为
         </div>
 
         <nav className="mt-4 flex flex-col gap-3 overflow-y-auto">

@@ -3,7 +3,7 @@ import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { is } from '@electron-toolkit/utils'
-import { DeckData, parseYdk, generateYdk } from '@shared/index'
+import { DeckData, DeckLibrary, parseYdk, generateYdk } from '@shared/index'
 import icon from '../../../resources/icon.png?asset'
 import { configService } from './configService'
 
@@ -22,51 +22,142 @@ export class DeckService {
   }
 
   /**
-   * 读取所有已保存的卡组列表，并清除旧版本注入的示例卡组
+   * 读取完整卡组库（分组 + 卡组），并清除旧版本注入的示例卡组
+   *
+   * 分组是独立实体：允许存在「一个卡组都没有」的分组，用户才能预建分类。
    */
-  public getDeckList(): DeckData[] {
+  public getLibrary(): DeckLibrary {
     try {
-      if (!existsSync(this.libraryFilePath)) return []
+      if (!existsSync(this.libraryFilePath)) return { groups: [], decks: [] }
 
       const raw = readFileSync(this.libraryFilePath, 'utf-8')
-      const list = JSON.parse(raw) as DeckData[]
-      if (!Array.isArray(list)) return []
+      const parsed = JSON.parse(raw) as DeckLibrary | DeckData[]
 
-      const userDecks = list.filter((deck) => !deck.id || !LEGACY_PRESET_DECK_IDS.has(deck.id))
-      if (userDecks.length !== list.length) {
-        try {
-          writeFileSync(this.libraryFilePath, JSON.stringify(userDecks, null, 2), 'utf-8')
-        } catch (err) {
-          console.error('[DeckService] Failed to remove legacy preset decks:', err)
+      // 分组成为独立实体后，文件结构从 DeckData[] 变成 DeckLibrary。
+      // 这里做一次性就地升级而不是让用户丢卡组：旧结构是纯数组，
+      // 包一层并把已有的 group 字段回填进分组列表即可。
+      if (Array.isArray(parsed)) {
+        const groups = Array.from(
+          new Set(parsed.map((d) => d.group?.trim()).filter((g): g is string => Boolean(g)))
+        )
+        const migrated: DeckLibrary = { groups, decks: parsed }
+        this.writeLibrary(migrated)
+        const cleaned = migrated.decks.filter(
+          (deck) => !deck.id || !LEGACY_PRESET_DECK_IDS.has(deck.id)
+        )
+        if (cleaned.length !== migrated.decks.length) {
+          this.writeLibrary({ groups, decks: cleaned })
         }
+        return { groups, decks: cleaned }
       }
-      return userDecks
+
+      const groups = Array.isArray(parsed?.groups) ? parsed.groups : []
+      const allDecks = Array.isArray(parsed?.decks) ? parsed.decks : []
+      const userDecks = allDecks.filter((deck) => !deck.id || !LEGACY_PRESET_DECK_IDS.has(deck.id))
+      if (userDecks.length !== allDecks.length) {
+        this.writeLibrary({ groups, decks: userDecks })
+      }
+      return { groups, decks: userDecks }
     } catch (err) {
-      console.error('[DeckService] getDeckList error:', err)
+      console.error('[DeckService] getLibrary error:', err)
     }
-    return []
+    return { groups: [], decks: [] }
+  }
+
+  /** 覆写整个卡组库文件 */
+  private writeLibrary(library: DeckLibrary): void {
+    writeFileSync(this.libraryFilePath, JSON.stringify(library, null, 2), 'utf-8')
+  }
+
+  /**
+   * 读取所有已保存的卡组列表（不含分组）
+   */
+  public getDeckList(): DeckData[] {
+    return this.getLibrary().decks
+  }
+
+  /**
+   * 新建分组。已存在同名分组时返回 false（不静默合并，避免用户以为改的是新分组）
+   */
+  public createGroup(name: string): boolean {
+    const trimmed = name.trim()
+    if (!trimmed) return false
+    const library = this.getLibrary()
+    if (library.groups.includes(trimmed)) return false
+    library.groups.push(trimmed)
+    this.writeLibrary(library)
+    return true
+  }
+
+  /**
+   * 重命名分组，并把该分组下的所有卡组一并改到新名字
+   */
+  public renameGroup(oldName: string, newName: string): boolean {
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === oldName) return false
+    const library = this.getLibrary()
+    const index = library.groups.indexOf(oldName)
+    if (index < 0) return false
+    if (library.groups.includes(trimmed)) return false
+    library.groups[index] = trimmed
+    library.decks = library.decks.map((d) => (d.group === oldName ? { ...d, group: trimmed } : d))
+    this.writeLibrary(library)
+    return true
+  }
+
+  /**
+   * 删除分组。分组下的卡组不会被删除，只是退回「未分组」
+   */
+  public deleteGroup(name: string): boolean {
+    const library = this.getLibrary()
+    const index = library.groups.indexOf(name)
+    if (index < 0) return false
+    library.groups.splice(index, 1)
+    library.decks = library.decks.map((d) => (d.group === name ? { ...d, group: '' } : d))
+    this.writeLibrary(library)
+    return true
+  }
+
+  /**
+   * 把卡组移动到指定分组（传空串表示移回未分组）
+   */
+  public assignDeckToGroup(deckId: string, group: string): boolean {
+    const library = this.getLibrary()
+    const index = library.decks.findIndex((d) => d.id === deckId)
+    if (index < 0) return false
+    library.decks[index] = { ...library.decks[index], group, updatedAt: Date.now() }
+    this.writeLibrary(library)
+    return true
   }
 
   /**
    * 保存或更新卡组到本地卡组库
+   *
+   * 写入时若卡组带了尚不存在的分组名，会自动补进分组列表——
+   * 这样在卡组编辑器里手打分组名也能即时出现在分组栏，不必先建组。
    */
   public saveDeckToLibrary(deck: DeckData): { success: boolean; deck: DeckData } {
     try {
-      const list = this.getDeckList()
+      const library = this.getLibrary()
       const targetDeck: DeckData = {
         ...deck,
         id: deck.id || `deck_${randomUUID().replace(/-/g, '')}`,
         updatedAt: Date.now()
       }
 
-      const existingIndex = list.findIndex((d) => d.id === targetDeck.id)
+      const existingIndex = library.decks.findIndex((d) => d.id === targetDeck.id)
       if (existingIndex >= 0) {
-        list[existingIndex] = targetDeck
+        library.decks[existingIndex] = targetDeck
       } else {
-        list.unshift(targetDeck)
+        library.decks.unshift(targetDeck)
       }
 
-      writeFileSync(this.libraryFilePath, JSON.stringify(list, null, 2), 'utf-8')
+      const group = targetDeck.group?.trim()
+      if (group && !library.groups.includes(group)) {
+        library.groups.push(group)
+      }
+
+      this.writeLibrary(library)
       return { success: true, deck: targetDeck }
     } catch (err) {
       console.error('[DeckService] saveDeckToLibrary error:', err)
@@ -79,9 +170,9 @@ export class DeckService {
    */
   public deleteDeckFromLibrary(id: string): boolean {
     try {
-      const list = this.getDeckList()
-      const nextList = list.filter((d) => d.id !== id)
-      writeFileSync(this.libraryFilePath, JSON.stringify(nextList, null, 2), 'utf-8')
+      const library = this.getLibrary()
+      library.decks = library.decks.filter((d) => d.id !== id)
+      this.writeLibrary(library)
       return true
     } catch (err) {
       console.error('[DeckService] deleteDeckFromLibrary error:', err)
@@ -94,8 +185,8 @@ export class DeckService {
    */
   public duplicateDeckInLibrary(id: string): DeckData | null {
     try {
-      const list = this.getDeckList()
-      const target = list.find((d) => d.id === id)
+      const library = this.getLibrary()
+      const target = library.decks.find((d) => d.id === id)
       if (!target) return null
 
       const cloned: DeckData = {
@@ -105,8 +196,8 @@ export class DeckService {
         updatedAt: Date.now()
       }
 
-      list.unshift(cloned)
-      writeFileSync(this.libraryFilePath, JSON.stringify(list, null, 2), 'utf-8')
+      library.decks.unshift(cloned)
+      this.writeLibrary(library)
       return cloned
     } catch (err) {
       console.error('[DeckService] duplicateDeckInLibrary error:', err)

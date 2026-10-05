@@ -1,6 +1,6 @@
 import { CdbCard } from './card'
 import { DuelPuzzleState, DuelType } from './duel'
-import { DeckData } from './deck'
+import { DeckData, DeckLibrary } from './deck'
 import { DuelPhase, DuelActionType } from './story'
 
 /**
@@ -473,6 +473,16 @@ export interface IpcApi {
   // 卡组编辑器独立窗口与卡组文件
   openDeckEditor: () => Promise<void>
   getDeckList: () => Promise<DeckData[]>
+  /** 读取完整卡组库：分组为独立实体，允许存在没有卡组的空分组 */
+  getDeckLibrary: () => Promise<DeckLibrary>
+  /** 新建分组；同名已存在时返回 false */
+  createDeckGroup: (name: string) => Promise<boolean>
+  /** 重命名分组并同步该组下所有卡组；同名冲突时返回 false */
+  renameDeckGroup: (oldName: string, newName: string) => Promise<boolean>
+  /** 删除分组，组内卡组退回未分组（不删除卡组本身） */
+  deleteDeckGroup: (name: string) => Promise<boolean>
+  /** 把卡组移动到指定分组，空串表示移回未分组 */
+  assignDeckGroup: (deckId: string, group: string) => Promise<boolean>
   saveDeckToLibrary: (deck: DeckData) => Promise<{ success: boolean; deck: DeckData }>
   deleteDeckFromLibrary: (id: string) => Promise<boolean>
   duplicateDeckInLibrary: (id: string) => Promise<DeckData | null>

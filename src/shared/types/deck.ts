@@ -12,11 +12,25 @@ export interface DeckData {
   description?: string // 卡组描述 / 剧情背景 / 展开思路说明
   coverCard?: number // 封面王牌怪兽卡密 (若未指定则自动取额外第一张或主卡组第一张)
   tags?: string[] // 分类 / Tag 标签 (如 '同人剧情', 'Combo教学', '残局特化')
-  group?: string // 所属剧情分组 (如某本同人作品名，用于卡组库分组归类)
+  group?: string // 所属剧情分组 (对应 DeckLibrary.groups 中的某一项；空字符串表示未分组)
   main: number[] // 主卡组卡密数组 (自由容量，无强制限制)
   extra: number[] // 额外卡组卡密数组 (自由容量，无强制限制，允许 >15 张剧情特权额外)
   side: number[] // 副卡组卡密数组 (自由容量，无强制限制)
   updatedAt?: number // 更新时间戳
+}
+
+/**
+ * 本地卡组库的完整持久化结构
+ *
+ * 分组在这里是**独立实体**而不是从卡组反推出来的——否则「一个卡都没有的分组」
+ * 在数据上根本不存在，用户永远无法预建分类（原先的分组栏是遍历deckList 收集
+ * `group` 字段去重得来的，只能看到已有的）。
+ */
+export interface DeckLibrary {
+  /** 分组名列表，顺序即分组栏展示顺序；允许为空数组（此时全部分组都归「未分组」） */
+  groups: string[]
+  /** 全部已保存卡组 */
+  decks: DeckData[]
 }
 
 export interface DeckStats {

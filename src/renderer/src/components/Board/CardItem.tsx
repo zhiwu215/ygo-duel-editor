@@ -88,9 +88,16 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     card.location === CardLocation.GRAVE ||
     card.location === CardLocation.REMOVED
   const isDeckPile = card.location === CardLocation.DECK || card.location === CardLocation.EXTRA
-  // 编排者全知视角：场上盖放渲染清晰卡面+轻微光影+盖放角标 (而非卡背)；仅卡组/额外保留卡背
-  const showCardBack = isFacedown && isDeckPile
+  // 编排者全知视角：里侧卡片渲染清晰卡面+暗化蒙版 (而非模糊或纯卡背)。
+  // - 额外卡组：保留卡背（额外卡组按原样堆着，卡背最直观）
+  // - 主卡组：同「里侧」语义，但沿用与盖放一致的暗化卡面，且**不打盖放角标** ——
+  //   卡组只表示「里侧备着」，打上角标会被读成一张被盖放的卡。
+  //   （卡组被效果翻成表侧时，position 变表侧，暗化自然消失，角标语义不会被占用）
+  const isDeckFacedown = isFacedown && card.location === CardLocation.DECK
+  const showCardBack = isFacedown && card.location === CardLocation.EXTRA
   const isSetOnField = isFacedown && !isDeckPile && !isHand
+  /** 暗化蒙版：场上盖放 + 主卡组里侧 */
+  const showFacedownVeil = isSetOnField || isDeckFacedown
   // 手牌一律正常显示卡面；position FACEUP 表示公开手牌，用角标提示
   const isPublicHand = isHand && !isFacedown
 
@@ -227,7 +234,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           }`}
           style={{ zIndex: (card.overlayMaterials?.length || 0) + 2 }}
         >
-          {/* 卡面图 (卡组/额外显示卡背；场上盖放清晰显示卡面；手牌正常显示) */}
+          {/* 卡面图 (仅额外卡组里侧显示卡背；主卡组/场上盖放显示暗化卡面；手牌正常显示) */}
           <img
             src={showCardBack ? getCardBack(card.controller) : getCardImageUrl(card.code, true)}
             alt={card.card?.name || String(card.code)}
@@ -241,8 +248,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
             }}
           />
 
-          {/* 里侧盖放指示边框与轻微阴影 (彻底移除模糊，保留原生高清卡面，适度调暗并带琥珀内边框) */}
-          {isSetOnField && (
+          {/* 里侧指示边框与暗化蒙版 (彻底移除模糊，保留原生高清卡面，适度调暗并带琥珀内边框) */}
+          {showFacedownVeil && (
             <div className="absolute inset-0 bg-black/25 border border-amber-400/50 rounded pointer-events-none" />
           )}
         </motion.div>

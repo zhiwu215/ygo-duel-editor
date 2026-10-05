@@ -3,6 +3,7 @@ import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
+import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { CardPosition, CardLocation, CardType } from '@shared/index'
 import {
   Swords,
@@ -36,6 +37,14 @@ interface MenuItemConfig {
   variant?: 'default' | 'destructive'
 }
 
+/** 区域级菜单标题用的区域名 */
+const LOCATION_LABELS: Record<number, string> = {
+  [CardLocation.EXTRA]: '额外卡组',
+  [CardLocation.DECK]: '主卡组',
+  [CardLocation.GRAVE]: '墓地',
+  [CardLocation.REMOVED]: '除外区'
+}
+
 /** 右键上下文菜单 */
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
@@ -51,13 +60,13 @@ export const CardContextMenu: React.FC = () => {
     executeNormalSummon,
     executeSpecialSummon,
     executeSetCard,
-    executeDrawCard,
     executeSendToGrave,
     executeBanishCard
   } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
+  const openDeckSwitcher = useDeckSwitcherStore((s) => s.openDeckSwitcher)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
 
@@ -105,6 +114,44 @@ export const CardContextMenu: React.FC = () => {
 
   if (!menu) return null
 
+  // 封装"执行操作并关闭菜单"的通用回调
+  const act = (fn: () => void) => (): void => {
+    fn()
+    closeMenu()
+  }
+
+  // —— 区域级菜单 ——
+  // 右键一个**空**的堆叠格（典型场景：尚未载入卡组的主卡组格，此时没有任何卡片可依附），
+  // 只提供区域级操作。
+  if (menu.kind === 'zone') {
+    const { controller, location } = menu
+    return (
+      <div
+        ref={menuRef}
+        style={{ left: menuPos.x, top: menuPos.y }}
+        className="fixed z-[60] min-w-48 max-w-56 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-52">
+          {controller === 0 ? '我方' : '对方'}
+          {LOCATION_LABELS[location] || '区域'}
+        </div>
+
+        {location === CardLocation.DECK && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={act(() => openDeckSwitcher(controller))}
+            className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+            <span>切换卡组</span>
+          </Button>
+        )}
+      </div>
+    )
+  }
+
   const { card, x, y } = menu
   /** 是否处于堆叠型区域（主卡组、额外卡组、墓地、除外区） */
   const isPileZone =
@@ -122,12 +169,6 @@ export const CardContextMenu: React.FC = () => {
     card.location === CardLocation.SZONE ||
     card.location === CardLocation.FZONE ||
     card.location === CardLocation.PZONE
-
-  // 封装"执行操作并关闭菜单"的通用回调
-  const act = (fn: () => void) => (): void => {
-    fn()
-    closeMenu()
-  }
 
   const setPos = (pos: number): (() => void) => act(() => updateCardPosition(card.instanceId, pos))
   const moveTo = (loc: number, ctrl?: 0 | 1): (() => void) =>
@@ -217,13 +258,8 @@ export const CardContextMenu: React.FC = () => {
         action: act(() => executeSpecialSummon(card.instanceId))
       })
     }
-  } else if (card.location === CardLocation.DECK) {
-    duelActionItems.push({
-      icon: <Layers className="w-3.5 h-3.5 text-amber-500" />,
-      label: '抽卡到手牌 (Draw)',
-      action: act(() => executeDrawCard(card.controller))
-    })
   }
+  // 主卡组不再提供「抽卡到手牌」—— 单击主卡组格即可抽卡，菜单里重复没有意义
 
   // 手牌操作项
   const handItems: MenuItemConfig[] = isHand
@@ -401,15 +437,28 @@ export const CardContextMenu: React.FC = () => {
 
       {isPileZone && !isModalOpenForThisZone && (
         <>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={act(() => openPile(card.controller, card.location))}
-            className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
-          >
-            <ListOrdered className="w-3.5 h-3.5" />
-            <span>查看列表 ({pileCount})</span>
-          </Button>
+          {card.location === CardLocation.DECK ? (
+            // 主卡组：不提供「查看列表」（双击卡组格即可展开列表），只提供切换卡组
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={act(() => openDeckSwitcher(card.controller))}
+              className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <span>切换卡组</span>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={act(() => openPile(card.controller, card.location))}
+              className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
+            >
+              <ListOrdered className="w-3.5 h-3.5" />
+              <span>查看列表 ({pileCount})</span>
+            </Button>
+          )}
           <Separator className="my-1" />
         </>
       )}

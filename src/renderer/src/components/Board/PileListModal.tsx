@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { CardLocation, CardPosition, CdbCard, DeckData } from '@shared/index'
+import { CardLocation, CardPosition, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
@@ -12,13 +12,10 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Trash2,
   Search,
   GripVertical,
-  MoreHorizontal,
-  FolderOpen,
-  Hand
+  MoreHorizontal
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -66,9 +63,7 @@ const PileListContent: React.FC = () => {
     reorderPileCards,
     updateCardPosition,
     addCardToZone,
-    moveCard,
-    applyDeckToPlayer,
-    executeDrawCard
+    moveCard
   } = useDuelStore()
 
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -78,23 +73,6 @@ const PileListContent: React.FC = () => {
     side: 'before' | 'after'
   } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-
-  // —— 主卡组专属：从卡组库载入 ——
-  // 空卡组时直接展开卡组库：此时用户点开面板的唯一意图就是「挑一副卡组载入」，
-  // 少点一次。已有卡组则默认收起，让卡片列表占满空间。
-  const [showDeckLibrary, setShowDeckLibrary] = useState<boolean>(() => {
-    if (!target || target.location !== CardLocation.DECK) return false
-    return !state.cards.some(
-      (c) => c.controller === target.controller && c.location === CardLocation.DECK
-    )
-  })
-  const [deckLibrary, setDeckLibrary] = useState<DeckData[]>([])
-  const [deckLibQuery, setDeckLibQuery] = useState<string>('')
-  // 初值 true：挂载即取一次卡组库，取回前展开都显示加载中（由 promise 收尾置 false）
-  const [isLoadingDecks, setIsLoadingDecks] = useState<boolean>(true)
-  // 载入卡组时是否顺带模拟起手抽牌。默认全留：切换卡组属于剧情中途行为，
-  // 不应再自动抽 5 张（起手抽 5 只在「配置开局」那一次使用）。
-  const [loadDrawCount, setLoadDrawCount] = useState<0 | 5>(0)
 
   // 监听 Esc 键关闭弹窗
   useEffect(() => {
@@ -142,37 +120,6 @@ const PileListContent: React.FC = () => {
     })
   }, [pileCards, searchQuery])
 
-  // 卡组库搜索过滤
-  const filteredDeckLibrary = useMemo(() => {
-    const query = deckLibQuery.trim().toLowerCase()
-    if (!query) return deckLibrary
-    return deckLibrary.filter((d) => {
-      const haystack = [d.name, d.group, ...(d.tags || [])].filter(Boolean).join(' ').toLowerCase()
-      return haystack.includes(query)
-    })
-  }, [deckLibrary, deckLibQuery])
-
-  // 主卡组面板挂载时先取一次卡组库（供「空卡组自动展开」直接显示）。
-  // 注意：不在 effect 体内同步 setState，loading 初值已由 useState 给出。
-  useEffect(() => {
-    if (target?.location !== CardLocation.DECK) return
-    let cancelled = false
-    window.api
-      .getDeckList()
-      .then((list) => {
-        if (!cancelled) setDeckLibrary(list)
-      })
-      .catch(() => {
-        if (!cancelled) setDeckLibrary([])
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingDecks(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [target?.location])
-
   if (!target) return null
 
   const meta = LOCATION_META[target.location] || {
@@ -194,33 +141,6 @@ const PileListContent: React.FC = () => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollBy({ left: 320, behavior: 'smooth' })
     }
-  }
-
-  /** 重新读取卡组库（每次展开都刷新，保证卡组编辑器里刚保存的卡组能立刻出现） */
-  const reloadDeckLibrary = (): void => {
-    setIsLoadingDecks(true)
-    window.api
-      .getDeckList()
-      .then((list) => setDeckLibrary(list))
-      .catch(() => setDeckLibrary([]))
-      .finally(() => setIsLoadingDecks(false))
-  }
-
-  /** 展开 / 收起卡组库 */
-  const handleToggleDeckLibrary = (): void => {
-    const next = !showDeckLibrary
-    setShowDeckLibrary(next)
-    if (!next) return
-    setDeckLibQuery('')
-    reloadDeckLibrary()
-  }
-
-  /** 把卡组库里的某一副卡组整体载入到本面板对应的控制者（清空该方主卡组与额外卡组后重建） */
-  const handleLoadDeck = (deck: DeckData): void => {
-    if (!target) return
-    applyDeckToPlayer(target.controller, deck, loadDrawCount)
-    setShowDeckLibrary(false)
-    setDeckLibQuery('')
   }
 
   // 处理外部卡片拖入（从检索区新增，或从场上/手牌移动入卡堆）
@@ -289,128 +209,6 @@ const PileListContent: React.FC = () => {
           </div>
         </div>
 
-        {/* 主卡组专属工具条：从卡组库载入 / 切换卡组 + 单张抽卡 */}
-        {target.location === CardLocation.DECK && (
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/20 shrink-0">
-            <Button
-              variant={showDeckLibrary ? 'default' : 'outline'}
-              size="sm"
-              onClick={handleToggleDeckLibrary}
-              className="h-7 text-xs gap-1.5 cursor-pointer"
-            >
-              <FolderOpen className="w-3.5 h-3.5" />
-              <span>从卡组库载入</span>
-              <ChevronDown
-                className={cn('w-3.5 h-3.5 transition-transform', showDeckLibrary && 'rotate-180')}
-              />
-            </Button>
-
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span>载入时手牌</span>
-              <div className="flex items-center rounded-md border border-border overflow-hidden">
-                {([0, 5] as const).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setLoadDrawCount(n)}
-                    className={cn(
-                      'px-2 py-0.5 text-[11px] transition-colors cursor-pointer',
-                      loadDrawCount === n
-                        ? 'bg-primary/15 text-primary font-bold'
-                        : 'text-muted-foreground hover:bg-muted'
-                    )}
-                  >
-                    {n === 0 ? '全留' : '抽 5'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex-1" />
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => executeDrawCard(target.controller)}
-              disabled={pileCards.length === 0}
-              className="h-7 text-xs gap-1.5 cursor-pointer"
-              title="把卡组顶（列表最左）那张抽到手牌，可连点"
-            >
-              <Hand className="w-3.5 h-3.5" />
-              <span>抽 1 张</span>
-            </Button>
-          </div>
-        )}
-
-        {/* 卡组库列表（展开时） */}
-        {target.location === CardLocation.DECK && showDeckLibrary && (
-          <div className="shrink-0 border-b border-border bg-background/70 flex flex-col max-h-[36%]">
-            <div className="flex items-center gap-3 px-4 pt-2.5 pb-1.5">
-              <div className="relative w-52">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input
-                  value={deckLibQuery}
-                  onChange={(e) => setDeckLibQuery(e.target.value)}
-                  placeholder="搜索卡组名 / 分组 / 标签..."
-                  className="h-7 text-xs pl-8 pr-2"
-                />
-              </div>
-              <span className="text-[11px] text-muted-foreground">
-                选中后立即替换{target.controller === 0 ? '我方' : '对方'}的主卡组与额外卡组
-              </span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-4 pb-3">
-              {isLoadingDecks ? (
-                <p className="text-xs text-muted-foreground py-8 text-center">正在读取卡组库...</p>
-              ) : filteredDeckLibrary.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-8 text-center">
-                  {deckLibrary.length === 0
-                    ? '卡组库还是空的 —— 先在「卡组」窗口里创建并保存一副卡组吧'
-                    : '没有匹配的卡组'}
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
-                  {filteredDeckLibrary.map((deck) => {
-                    const cover = deck.coverCard || deck.extra[0] || deck.main[0]
-                    return (
-                      <button
-                        key={deck.id || deck.name}
-                        type="button"
-                        onClick={() => handleLoadDeck(deck)}
-                        className="flex items-center gap-2.5 p-2 rounded-lg border border-border/70 hover:border-blue-500/70 hover:bg-blue-500/[0.06] text-left transition-colors cursor-pointer"
-                      >
-                        <img
-                          src={getCardImageUrl(cover, true)}
-                          alt={deck.name}
-                          className="w-8 h-[46px] object-cover rounded shrink-0 border border-border/60"
-                          onError={(e) => {
-                            const el = e.currentTarget
-                            if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
-                          }}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold truncate" title={deck.name}>
-                            {deck.name}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                            主 {deck.main.length} / 额外 {deck.extra.length}
-                          </p>
-                          {(deck.group || (deck.tags && deck.tags.length > 0)) && (
-                            <p className="text-[10px] text-muted-foreground/80 truncate mt-0.5">
-                              {[deck.group, ...(deck.tags || [])].filter(Boolean).join(' · ')}
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* 卡片横向滚动视窗 */}
         <div
           onDragOver={(e) => {
@@ -432,11 +230,7 @@ const PileListContent: React.FC = () => {
               setDragOverInfo(null)
             }
           }}
-          className={cn(
-            'relative flex-1 max-h-[60vh] flex items-center overflow-hidden p-4 bg-muted/10',
-            // 展开卡组库时压低卡片列表的最小高度，避免弹窗总高超出上限被裁切
-            showDeckLibrary ? 'min-h-[180px]' : 'min-h-[360px]'
-          )}
+          className="relative flex-1 min-h-[360px] max-h-[60vh] flex items-center overflow-hidden p-4 bg-muted/10"
         >
           {filteredCards.length === 0 ? (
             <div
@@ -466,9 +260,7 @@ const PileListContent: React.FC = () => {
                 {searchQuery
                   ? '未找到符合条件的卡片'
                   : target.location === CardLocation.DECK
-                    ? showDeckLibrary
-                      ? '还没有载入卡组 —— 在上方卡组库里挑一副吧'
-                      : '还没有载入卡组 —— 点上方「从卡组库载入」挑一副吧'
+                    ? '还没有载入卡组 —— 右键主卡组格选「切换卡组」即可载入'
                     : '该区域目前没有任何卡片（可直接从右侧搜索栏拖入卡片）'}
               </p>
             </div>
@@ -775,7 +567,7 @@ const PileListContent: React.FC = () => {
         <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
           <p className="text-[11px] text-muted-foreground leading-none">
             {target.location === CardLocation.DECK
-              ? '提示：列表最左一张是卡组顶（下一抽），点「抽 1 张」即抽走它；左右拖动白色卡框可调整抽卡顺序；拖动卡图可直接移至场上。'
+              ? '提示：列表最左一张是卡组顶（下一抽，格子上显示的就是它）；左右拖动白色卡框可调整抽卡顺序；拖动卡图可直接移至场上。'
               : '提示：左右拖动白色卡框可换位（目标侧强光指示落点）；拖动卡图可直接移至场上；右键或点击「···」可移至手牌/送墓/除外/回卡组。'}
           </p>
           <Button size="sm" onClick={closePile} className="px-5 h-7 text-xs">

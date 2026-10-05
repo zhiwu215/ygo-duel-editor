@@ -7,6 +7,7 @@ import { HandTray } from './components/HandTray'
 import { CardContextMenu } from './CardContextMenu'
 import { PileListModal } from './PileListModal'
 import { OverlayListModal } from './OverlayListModal'
+import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardStatPopover } from './components/CardStatPopover'
 
 export const DuelBoard: React.FC = () => {
@@ -542,6 +543,9 @@ export const DuelBoard: React.FC = () => {
 
       {/* 超量素材列表查看与编排弹窗 */}
       <OverlayListModal />
+
+      {/* 主卡组「切换卡组」弹窗 (由主卡组格右键菜单唤起) */}
+      <DeckSwitcherModal />
 
       {/* 全局单例右键上下文菜单 */}
       <CardContextMenu />

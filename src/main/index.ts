@@ -32,6 +32,7 @@ function createWindow(): void {
     minHeight: 720,
     show: false,
     autoHideMenuBar: true,
+    frame: false,
     title: 'YGO Duel Editor - 游戏王决斗编辑器',
     icon,
     webPreferences: {
@@ -42,6 +43,16 @@ function createWindow(): void {
 
   // 彻底移除系统默认的原生菜单栏，避免用户按下 Alt 键时触发 Windows 原生的 File/Edit/View 工具栏
   mainWindow.removeMenu()
+
+  // 无边框窗口的标题栏由渲染层自绘（见 Header.tsx），双击标题栏区域时
+  // Windows 不会替我们处理最大化，需要把状态广播回去让按钮图标跟着变
+  const broadcastMaximized = (): void => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('window:maximized-changed', mainWindow.isMaximized())
+    }
+  }
+  mainWindow.on('maximize', broadcastMaximized)
+  mainWindow.on('unmaximize', broadcastMaximized)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

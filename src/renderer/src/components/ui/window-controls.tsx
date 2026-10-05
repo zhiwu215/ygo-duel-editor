@@ -22,12 +22,12 @@ export const WindowControls: React.FC<{ className?: string }> = ({ className }) 
   }, [])
 
   return (
-    <div className={cn('flex items-center', className)}>
+    <div className={cn('flex items-center [-webkit-app-region:no-drag]', className)}>
       <button
         type="button"
         onClick={() => void window.api.windowMinimize()}
         title="最小化"
-        className="w-9 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
+        className="w-9 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors [-webkit-app-region:no-drag]"
       >
         <Minus className="w-3 h-3" />
       </button>
@@ -35,7 +35,7 @@ export const WindowControls: React.FC<{ className?: string }> = ({ className }) 
         type="button"
         onClick={() => void window.api.windowToggleMaximize()}
         title={isMaximized ? '向下还原' : '最大化'}
-        className="w-9 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
+        className="w-9 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors [-webkit-app-region:no-drag]"
       >
         {isMaximized ? (
           <Copy className="w-2.5 h-2.5 -scale-x-100" />
@@ -47,7 +47,7 @@ export const WindowControls: React.FC<{ className?: string }> = ({ className }) 
         type="button"
         onClick={() => void window.api.windowClose()}
         title="关闭"
-        className="w-10 h-9 flex items-center justify-center text-muted-foreground/80 hover:bg-red-600 hover:text-white transition-colors"
+        className="w-9 h-9 rounded-md flex items-center justify-center text-muted-foreground/80 hover:bg-destructive/10 hover:text-destructive transition-colors [-webkit-app-region:no-drag]"
       >
         <X className="w-3.5 h-3.5" />
       </button>

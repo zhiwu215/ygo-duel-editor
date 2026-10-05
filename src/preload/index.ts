@@ -79,6 +79,17 @@ const api: IpcApi = {
   // AI 决斗编排
   agentSendMessage: (params) => ipcRenderer.invoke('agent:send-message', params),
   agentAbort: () => ipcRenderer.invoke('agent:abort'),
+  agentResetSession: () => ipcRenderer.invoke('agent:reset-session'),
+  agentFetchModels: (params) => ipcRenderer.invoke('agent:fetch-models', params),
+  agentGetProviderPresets: () => ipcRenderer.invoke('agent:get-provider-presets'),
+  openSettingsWindow: () => ipcRenderer.invoke('window:open-settings'),
+  onConfigUpdated: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('config:updated', handler)
+    return () => {
+      ipcRenderer.removeListener('config:updated', handler)
+    }
+  },
   onAgentEvent: (callback) => {
     const handler = (_: unknown, event: unknown): void => callback(event as AgentStreamEvent)
     ipcRenderer.on('agent:event', handler)

@@ -10,13 +10,8 @@ import {
   Redo2,
   RotateCcw,
   ArrowLeftRight,
-  Sun,
-  Moon,
-  Database,
-  Folder,
   Keyboard,
   Info,
-  Check,
   Coffee,
   BookOpen,
   FileText,
@@ -25,7 +20,6 @@ import {
 import wechatQr from '../../REMOVED'
 import alipayQr from '../../REMOVED'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useConfigStore } from '../../stores/useConfigStore'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
@@ -44,7 +38,6 @@ interface MenuItemDef {
   shortcut?: string
   action?: () => void
   disabled?: boolean
-  checked?: boolean
   separator?: boolean
 }
 
@@ -55,8 +48,9 @@ interface MenuDef {
 }
 
 /**
- * 桌面风格下拉菜单栏（文件 / 编辑 / 设置 / 帮助）。
+ * 桌面风格下拉菜单栏（文件 / 编辑 / 剧情/台本 / 帮助）。
  * 纯菜单 UI 组件：文件类命令由 Header 通过 props 注入，避免两处重复实现。
+ * 全局设置入口不在菜单栏：统一收在活动栏左下角 (VSCode 风格) 的独立设置窗口。
  */
 export const MenuBar: React.FC<MenuBarProps> = ({
   onNew,
@@ -77,9 +71,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   const { undo, redo, pastStates, futureStates } = useStore(useDuelStore.temporal)
   const canUndo = pastStates.length > 0
   const canRedo = futureStates.length > 0
-
-  const { config, selectCdbFile, selectGameDir, selectProjectsDir, setTheme } = useConfigStore()
-  const isDark = config.theme !== 'light'
 
   // 点击外部 / Esc 关闭菜单
   useEffect(() => {
@@ -197,42 +188,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
       ]
     },
     {
-      id: 'settings',
-      label: '设置',
-      items: [
-        {
-          label: '浅色模式',
-          icon: Sun,
-          checked: !isDark,
-          action: () => setTheme('light')
-        },
-        {
-          label: '深色模式',
-          icon: Moon,
-          checked: isDark,
-          action: () => setTheme('dark')
-        },
-        { label: '', separator: true },
-        {
-          label: config.cdbPath ? '更换 cards.cdb 数据库...' : '加载 cards.cdb 数据库...',
-          icon: Database,
-          action: () => selectCdbFile()
-        },
-        {
-          label: '设置 YGOPro 游戏目录 (本地卡图)...',
-          icon: Folder,
-          action: () => selectGameDir()
-        },
-        {
-          label: config.projectsDirectory
-            ? `更换工程保存目录 (当前: ${config.projectsDirectory.length > 25 ? '...' + config.projectsDirectory.slice(-25) : config.projectsDirectory})`
-            : '设置工程保存目录 (决斗档案)...',
-          icon: FolderKanban,
-          action: () => selectProjectsDir()
-        }
-      ]
-    },
-    {
       id: 'help',
       label: '帮助',
       items: [
@@ -300,13 +255,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                         className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted text-left transition-colors disabled:opacity-40 disabled:pointer-events-none"
                       >
                         <div className="flex items-center gap-2">
-                          {item.checked !== undefined ? (
-                            <span className="w-3.5 h-3.5 flex items-center justify-center">
-                              {item.checked && <Check className="w-3.5 h-3.5" />}
-                            </span>
-                          ) : (
-                            Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />
-                          )}
+                          {Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />}
                           <span>{item.label}</span>
                         </div>
                         {item.shortcut && (

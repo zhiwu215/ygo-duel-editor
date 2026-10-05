@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
 import { writeFileSync, mkdirSync } from 'fs'
-import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
+import type { AgentSession, ModelRuntime, ToolDefinition } from '@earendil-works/pi-coding-agent'
 
 type PiAgentModule = typeof import('@earendil-works/pi-coding-agent')
 let piAgentPromise: Promise<PiAgentModule> | null = null
@@ -14,6 +14,108 @@ function getPiAgent(): Promise<PiAgentModule> {
     piAgentPromise = dynamicImport('@earendil-works/pi-coding-agent')
   }
   return piAgentPromise
+}
+
+/** 整次请求的看门狗超时：含工具调用的 agentic 编排可能持续数分钟，需宽松；
+ * 真正的连接卡死由 provider 空闲超时 (PROVIDER_TIMEOUT_MS) 秒级暴露 */
+const AGENT_WATCHDOG_TIMEOUT_MS = 600_000
+/** 单次模型请求的空闲超时（Pi 默认继承 httpIdleTimeoutMs = 5 分钟，太久） */
+const PROVIDER_TIMEOUT_MS = 60_000
+/** 模型列表拉取超时 */
+const MODEL_LIST_TIMEOUT_MS = 15_000
+/** 未配置时的默认上下文窗口（tokens） */
+const DEFAULT_CONTEXT_WINDOW = 131_072
+/** 未配置时的默认单次回复上限（tokens） */
+const DEFAULT_MAX_TOKENS = 8_192
+
+/**
+ * 判断接口地址是否指向本机（Ollama 等本地推理服务），这类服务通常无需 API Key
+ * 解析失败时按远端处理，避免把畸形地址误当成本地端点而放行空密钥
+ */
+function isLocalEndpoint(baseUrl: string): boolean {
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase()
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host.endsWith('.local')
+    )
+  } catch {
+    return false
+  }
+}
+
+/** AI 提供商预设：设置页「常用提供商」区数据源 */
+const PROVIDER_PRESETS: AgentProviderPreset[] = [
+  {
+    id: 'deepseek',
+    name: 'DeepSeek 官方',
+    baseUrl: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+    supportsReasoning: true
+  },
+  {
+    id: 'dashscope',
+    name: '通义千问 (DashScope)',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: 'qwen-plus',
+    supportsReasoning: true
+  },
+  {
+    id: 'siliconflow',
+    name: 'SiliconFlow (硅基流动)',
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    model: 'deepseek-ai/DeepSeek-V3',
+    supportsReasoning: true
+  },
+  {
+    id: 'moonshot',
+    name: 'Kimi (月之暗面)',
+    baseUrl: 'https://api.moonshot.cn/v1',
+    model: 'moonshot-v1-8k'
+  },
+  {
+    id: 'zhipu',
+    name: '智谱 GLM',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    model: 'glm-4-flash',
+    supportsReasoning: true
+  },
+  { id: 'openai', name: 'OpenAI 兼容', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  {
+    id: 'ollama',
+    name: 'Ollama 本地服务',
+    baseUrl: 'http://localhost:11434/v1',
+    model: 'qwen2.5:7b'
+  }
+]
+
+/**
+ * ai的系统提示词
+ * 通过 DefaultResourceLoader 的 systemPromptOverride 注入为真正的 system 消息，
+ */
+function buildSystemPrompt(cfg: AgentModelConfig): string {
+  return `你是一位精通《游戏王》(Yu-Gi-Oh!) 全时代规则的大师级同人决斗编排与剧本写作顾问。
+你的核心任务是：
+1. 理解创作者的剧情构思、对战双方角色性格与决斗意图；
+2. 遇到不确定的卡片效果时，使用【search_cards】或【get_card_info】查询官方真实卡片数据，杜绝口胡虚构效果；
+3. 可以使用【get_current_board】获取创作者当前盘面上双方的卡片与生命值；
+4. 构思战术与扣人心弦的热血对白、心理博弈内心独白；
+5. 在完成战术推演后，**必须调用【propose_duel_steps】工具**，将详细步骤提交给创作者，方便其一键导入决斗盘面与生成 Markdown 台本！
+6. 必要时可调用【validate_with_ocgcore】对复杂时点进行规则引擎合规检验。${
+    cfg.systemPrompt ? `\n\n【创作者补充背景设定】\n${cfg.systemPrompt}` : ''
+  }`
+}
+
+/**
+ * 只关心 assistant 消息终止原因的结构化视图
+ */
+interface PiAssistantMessage {
+  role: 'assistant'
+  stopReason: string
+  errorMessage?: string
 }
 
 /**
@@ -95,6 +197,7 @@ const Type = {
 }
 import {
   AgentModelConfig,
+  AgentProviderPreset,
   AgentSendMessageParams,
   AgentSendMessageResult,
   AgentStreamEvent,
@@ -109,8 +212,14 @@ import { configService } from './configService'
 import { ocgcoreService } from './ocgcoreService'
 
 export class AgentService {
-  private currentAbortController: AbortController | null = null
   private currentBoardState: DuelPuzzleState | null = null
+  /** 本轮已收集的战术步骤提案（工具闭包通过实例字段跨消息共享） */
+  private collectedProposals: AgentStepProposal[] = []
+  /** 本轮已累计的正文与思考链增量 */
+  private streamText = ''
+  private streamThought = ''
+  /** 跨消息复用的会话缓存：同一模型配置下保留多轮上下文，配置变化时销毁重建 */
+  private cachedSession: { session: AgentSession; signature: string } | null = null
 
   /**
    * 广播流式事件到渲染层窗口
@@ -127,14 +236,243 @@ export class AgentService {
   /**
    * 中断当前正在运行的 AI 生成
    */
-  public abort(): boolean {
-    if (this.currentAbortController) {
-      this.currentAbortController.abort()
-      this.currentAbortController = null
-      this.emitEvent({ type: 'error', message: '已由用户中断生成' })
-      return true
+  public async abort(): Promise<boolean> {
+    const session = this.cachedSession?.session
+    const wasActive = session ? !session.isIdle : false
+    if (wasActive) {
+      try {
+        await session?.abort()
+      } catch {
+        // 会话可能已自行结束，忽略中断异常
+      }
     }
-    return false
+    return wasActive
+  }
+
+  /**
+   * 丢弃当前 AI 会话并新建（切换模型配置或用户主动重开对话时调用）
+   */
+  public resetSession(): boolean {
+    if (!this.cachedSession) return false
+    this.cachedSession.session.dispose()
+    this.cachedSession = null
+    this.emitEvent({ type: 'status', message: '已开启新的 AI 会话' })
+    return true
+  }
+
+  /**
+   * AI 提供商预设列表
+   */
+  public getProviderPresets(): AgentProviderPreset[] {
+    return PROVIDER_PRESETS
+  }
+
+  /**
+   * 从厂商 OpenAI 兼容接口拉取模型列表（主进程代理请求，规避 CORS 与浏览器网络栈差异）
+   *
+   * 为什么在主进程做：渲染层 fetch 会走 Chromium 网络栈并受 CORS 限制；
+   * 厂商 /v1/models 是 Read 接口，主进程直连最稳。
+   */
+  public async fetchModels(
+    baseUrl: string,
+    apiKey: string
+  ): Promise<{ success: boolean; models?: { id: string; ownedBy?: string }[]; error?: string }> {
+    const trimmed = baseUrl.trim().replace(/\/+$/, '')
+    if (!trimmed) {
+      return { success: false, error: '接口地址不能为空' }
+    }
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      return { success: false, error: '接口地址必须以 http:// 或 https:// 开头' }
+    }
+    try {
+      const cleanKey = apiKey
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), MODEL_LIST_TIMEOUT_MS)
+      const res = await fetch(`${trimmed}/models`, {
+        headers: cleanKey ? { Authorization: `Bearer ${cleanKey}` } : {},
+        signal: controller.signal
+      })
+      clearTimeout(timer)
+
+      if (!res.ok) {
+        let errorDetail = ''
+        try {
+          const json = (await res.json()) as { error?: { message?: string } }
+          if (json?.error?.message) {
+            errorDetail = json.error.message
+          }
+        } catch {
+          // ignore json parse error
+        }
+        if (!errorDetail) {
+          errorDetail = (await res.text()).slice(0, 300) || res.statusText
+        }
+
+        const msg =
+          res.status === 401
+            ? `身份验证失败 (HTTP 401): ${errorDetail}（请检查 API Key 是否有效）`
+            : `HTTP ${res.status}: ${errorDetail}`
+        return { success: false, error: msg }
+      }
+      const json = (await res.json()) as {
+        data?: { id?: unknown; owned_by?: unknown }[]
+        models?: { name?: unknown }[]
+      }
+      // OpenAI 兼容: { data: [...] }；Ollama: { models: [...] }
+      const rawList = Array.isArray(json.data)
+        ? json.data
+        : Array.isArray(json.models)
+          ? json.models
+          : []
+      const models = rawList
+        .map((m) => ({
+          id:
+            typeof m.id === 'string'
+              ? m.id
+              : typeof (m as { name?: unknown }).name === 'string'
+                ? String((m as { name?: unknown }).name)
+                : ''
+        }))
+        .filter((m) => m.id)
+        .sort((a, b) => a.id.localeCompare(b.id))
+      return { success: true, models }
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^Error:\s*/, '') : String(err)
+      return { success: false, error: `连接失败: ${message}（请检查接口地址与网络）` }
+    }
+  }
+
+  /**
+   * 获取（或复用）AgentSession
+   *
+   * 为什么按配置签名缓存：Pi 的模型/系统提示词/工具在会话创建时绑定，
+   * 重复创建会丢失多轮记忆；配置一旦变化则必须重建才能生效。
+   */
+  private async acquireSession(
+    cfg: AgentModelConfig,
+    tools: ToolDefinition[]
+  ): Promise<AgentSession> {
+    const signature = JSON.stringify([
+      cfg.provider,
+      cfg.baseUrl,
+      cfg.apiKey,
+      cfg.model,
+      cfg.enableReasoning,
+      cfg.contextWindow,
+      cfg.maxTokens,
+      cfg.systemPrompt
+    ])
+    if (this.cachedSession && this.cachedSession.signature === signature) {
+      return this.cachedSession.session
+    }
+    if (this.cachedSession) {
+      this.cachedSession.session.dispose()
+      this.cachedSession = null
+    }
+
+    // 1. 为 Pi Agent 动态生成 models.json
+    const agentDir = path.join(app.getPath('userData'), 'pi-agent')
+    mkdirSync(agentDir, { recursive: true })
+    const modelsPath = path.join(agentDir, 'models.json')
+
+    const cleanApiKey = (cfg.apiKey || '')
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+
+    const modelsConfig = {
+      providers: {
+        [cfg.provider || 'custom-openai']: {
+          baseUrl: cfg.baseUrl,
+          api: 'openai-completions',
+          // Pi 的 models.json schema 要求 apiKey 至少 1 字符；本地服务（Ollama 等）
+          // 无需密钥时必须整个省略该字段，否则整份配置校验失败、提供商全部不可用
+          ...(cleanApiKey ? { apiKey: cleanApiKey } : {}),
+          models: [
+            {
+              id: cfg.model,
+              name: cfg.model,
+              reasoning: Boolean(cfg.enableReasoning),
+              // 声明上下文与输出上限，让 Pi 的 token 估算与自动压缩正常工作
+              contextWindow: cfg.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
+              maxTokens: cfg.maxTokens ?? DEFAULT_MAX_TOKENS
+            }
+          ]
+        }
+      }
+    }
+    writeFileSync(modelsPath, JSON.stringify(modelsConfig, null, 2), 'utf-8')
+
+    // 2. 初始化 ModelRuntime 并解析目标模型
+    const {
+      createAgentSession,
+      ModelRuntime,
+      SessionManager,
+      SettingsManager,
+      DefaultResourceLoader
+    } = await getPiAgent()
+    const modelRuntime: ModelRuntime = await ModelRuntime.create({ modelsPath })
+
+    const availableModels = await modelRuntime.getAvailable()
+    const targetModel = availableModels.find((m) => m.id === cfg.model) || availableModels[0]
+    if (!targetModel) {
+      throw new Error(`未找到可用模型: ${cfg.model}`)
+    }
+
+    // 3. 用真正的 system 消息承载角色设定（原先拼在 user prompt 里，挤占回复预算）
+    const loader = new DefaultResourceLoader({
+      cwd: agentDir,
+      agentDir,
+      systemPromptOverride: () => buildSystemPrompt(cfg),
+      // 屏蔽用户磁盘上的 APPEND_SYSTEM.md / 项目 AGENTS.md，避免无关内容注入决斗顾问
+      appendSystemPromptOverride: () => []
+    })
+    await loader.reload()
+
+    // 4. 创建会话
+    const { session } = await createAgentSession({
+      cwd: agentDir,
+      agentDir,
+      model: targetModel,
+      modelRuntime,
+      resourceLoader: loader,
+      // 会话持久化到用户数据目录，便于事后追溯
+      sessionManager: SessionManager.create(agentDir, path.join(agentDir, 'sessions')),
+      // 关闭 Pi 的静默自动重试并收紧空闲超时（默认 5 分钟），让真实报错秒级暴露
+      settingsManager: SettingsManager.inMemory({
+        retry: { enabled: false, provider: { timeoutMs: PROVIDER_TIMEOUT_MS } },
+        cacheWarming: 'off'
+      }),
+      // 只开放业务工具：Pi 默认会启用 read/bash/edit/write，等于把磁盘暴露给模型
+      tools: tools.map((t) => t.name),
+      customTools: tools
+    })
+
+    // 5. 订阅事件流（会话被复用，因此只订阅一次）
+    session.subscribe((event) => {
+      if (event.type === 'message_update') {
+        const assistantEvent = event.assistantMessageEvent
+        if (assistantEvent.type === 'text_delta') {
+          this.streamText += assistantEvent.delta
+          this.emitEvent({ type: 'text_delta', delta: assistantEvent.delta })
+        } else if (assistantEvent.type === 'thinking_delta') {
+          this.streamThought += assistantEvent.delta
+          this.emitEvent({ type: 'thinking_delta', delta: assistantEvent.delta })
+        }
+      } else if (event.type === 'auto_retry_start') {
+        this.emitEvent({
+          type: 'status',
+          message: `模型请求失败，第 ${event.attempt}/${event.maxAttempts} 次重试：${event.errorMessage}`
+        })
+      }
+    })
+
+    this.cachedSession = { session, signature }
+    return session
   }
 
   /**
@@ -142,12 +480,10 @@ export class AgentService {
    */
   public async sendMessage(params: AgentSendMessageParams): Promise<AgentSendMessageResult> {
     // 1. 中断上一次可能未完成的任务
-    this.abort()
-    const abortController = new AbortController()
-    this.currentAbortController = abortController
-
-    // 2. 准备盘面快照
+    await this.abort()
+    // 2. 准备盘面快照并重置本轮提案收集
     this.currentBoardState = params.boardState || null
+    this.collectedProposals = []
 
     // 3. 读取大模型配置
     const appConfig = configService.get()
@@ -156,7 +492,7 @@ export class AgentService {
         params.configOverride?.baseUrl ||
         appConfig.agentConfig?.baseUrl ||
         'https://api.deepseek.com/v1',
-      apiKey: params.configOverride?.apiKey || appConfig.agentConfig?.apiKey || '',
+      apiKey: (params.configOverride?.apiKey || appConfig.agentConfig?.apiKey || '').trim(),
       model: params.configOverride?.model || appConfig.agentConfig?.model || 'deepseek-chat',
       provider:
         params.configOverride?.provider || appConfig.agentConfig?.provider || 'custom-openai',
@@ -166,60 +502,14 @@ export class AgentService {
         params.configOverride?.enableReasoning ?? appConfig.agentConfig?.enableReasoning ?? false
     }
 
-    if (!cfg.apiKey.trim()) {
-      const errMsg = '请先在右侧 AI 顾问面板中配置 API Key'
+    if (!cfg.apiKey && !isLocalEndpoint(cfg.baseUrl)) {
+      const errMsg = '请先在「设置 → AI 顾问」中配置 API Key'
       this.emitEvent({ type: 'error', message: errMsg })
       return { success: false, error: errMsg }
     }
 
-    // 4. 为 Pi Agent 动态生成 models.json
-    const agentDir = path.join(app.getPath('userData'), 'pi-agent')
-    mkdirSync(agentDir, { recursive: true })
-    const modelsPath = path.join(agentDir, 'models.json')
-
-    const modelsConfig = {
-      providers: {
-        [cfg.provider || 'custom-openai']: {
-          baseUrl: cfg.baseUrl,
-          api: 'openai-completions',
-          apiKey: cfg.apiKey,
-          models: [
-            {
-              id: cfg.model,
-              name: cfg.model,
-              reasoning: Boolean(cfg.enableReasoning)
-            }
-          ]
-        }
-      }
-    }
-    writeFileSync(modelsPath, JSON.stringify(modelsConfig, null, 2), 'utf-8')
-
-    // 5. 初始化 ModelRuntime
-    let modelRuntime: ModelRuntime
-    const { createAgentSession, ModelRuntime, SessionManager, defineTool } = await getPiAgent()
-    try {
-      modelRuntime = await ModelRuntime.create({ modelsPath })
-    } catch (err: unknown) {
-      const errMsg = `ModelRuntime 初始化失败: ${err instanceof Error ? err.message : String(err)}`
-      console.error('[AgentService]', errMsg)
-      this.emitEvent({ type: 'error', message: errMsg })
-      return { success: false, error: errMsg }
-    }
-
-    const availableModels = await modelRuntime.getAvailable()
-    const targetModel = availableModels.find((m) => m.id === cfg.model) || availableModels[0]
-
-    if (!targetModel) {
-      const errMsg = `未找到可用模型: ${cfg.model}`
-      this.emitEvent({ type: 'error', message: errMsg })
-      return { success: false, error: errMsg }
-    }
-
-    // 6. 收集 AI 提交的战术步骤
-    const collectedProposals: AgentStepProposal[] = []
-
-    // 7. 注册游戏王编排专属 Tools
+    // 4. 注册游戏王编排专属 Tools
+    const { defineTool } = await getPiAgent()
     /**
      * 工具 1：搜索游戏王卡片 (search_cards)
      * 允许 AI 根据关键词模糊检索本地 SQLite 卡片数据库 (cards.cdb)，
@@ -484,11 +774,11 @@ export class AgentService {
             : undefined
         }))
 
-        collectedProposals.push(...mappedSteps)
+        this.collectedProposals.push(...mappedSteps)
 
         this.emitEvent({
           type: 'proposals_ready',
-          proposals: [...collectedProposals]
+          proposals: [...this.collectedProposals]
         })
 
         this.emitEvent({
@@ -559,69 +849,66 @@ export class AgentService {
       }
     })
 
-    // 8. 创建 AgentSession
-    let fullContent = ''
-    let fullThought = ''
-
+    // 5. 获取（或复用）会话，提交本条请求，并核查真实终止原因
     try {
-      const { session } = await createAgentSession({
-        model: targetModel,
-        modelRuntime,
-        sessionManager: SessionManager.inMemory(),
-        customTools: [
-          searchCardsTool,
-          getCardInfoTool,
-          getCurrentBoardTool,
-          proposeStepsTool,
-          validateWithOcgcoreTool
-        ]
-      })
+      const session = await this.acquireSession(cfg, [
+        searchCardsTool,
+        getCardInfoTool,
+        getCurrentBoardTool,
+        proposeStepsTool,
+        validateWithOcgcoreTool
+      ])
 
-      // 9. 订阅会话事件流
-      session.subscribe((event) => {
-        if (event.type === 'message_update') {
-          const assistantEvent = event.assistantMessageEvent
-          if (assistantEvent.type === 'text_delta') {
-            fullContent += assistantEvent.delta
-            this.emitEvent({ type: 'text_delta', delta: assistantEvent.delta })
-          } else if (assistantEvent.type === 'thinking_delta') {
-            fullThought += assistantEvent.delta
-            this.emitEvent({ type: 'thinking_delta', delta: assistantEvent.delta })
-          }
-        }
-      })
+      this.streamText = ''
+      this.streamThought = ''
 
-      // 10. 组装系统提示词与用户请求
-      const systemInstruction = `你是一位精通《游戏王》(Yu-Gi-Oh!) 全时代规则的大师级同人决斗编排与剧本写作顾问。
-你的核心任务是：
-1. 理解创作者的剧情构思、对战双方角色性格与决斗意图；
-2. 遇到不确定的卡片效果时，使用【search_cards】或【get_card_info】查询官方真实卡片数据，杜绝口胡虚构效果；
-3. 可以使用【get_current_board】获取创作者当前盘面上双方的卡片与生命值；
-4. 构思战术与扣人心弦的热血对白、心理博弈内心独白；
-5. 在完成战术推演后，**必须调用【propose_duel_steps】工具**，将详细步骤提交给创作者，方便其一键导入决斗盘面与生成 Markdown 台本！
-6. 必要时可调用【validate_with_ocgcore】对复杂时点进行规则引擎合规检验。`
+      // 看门狗：超时自动中断，避免渲染层无限转圈
+      const watchdog = setTimeout(() => {
+        void this.abort()
+      }, AGENT_WATCHDOG_TIMEOUT_MS)
 
-      const promptText = `${systemInstruction}\n\n${cfg.systemPrompt ? `【补充创作者设定】:\n${cfg.systemPrompt}\n\n` : ''}【创作者本次提出的剧情与战术需求】:\n${params.prompt}`
+      try {
+        await session.prompt(`【创作者本次提出的剧情与战术需求】\n${params.prompt}`)
+      } finally {
+        clearTimeout(watchdog)
+      }
 
-      await session.prompt(promptText)
+      // 6. 检查最终 assistant 消息的终止原因（请求失败时 errorMessage 在这里，Pi 不会抛异常）
+      const lastAssistantMsg = [...session.messages]
+        .reverse()
+        .find((m) => (m as PiAssistantMessage).role === 'assistant')
+      const lastAssistant = lastAssistantMsg as PiAssistantMessage | undefined
 
-      session.dispose()
-      this.currentAbortController = null
+      if (lastAssistant?.stopReason === 'error') {
+        const errMsg = lastAssistant.errorMessage || '模型请求失败（未返回具体错误信息）'
+        console.error('[AgentService] Model request failed:', errMsg)
+        this.emitEvent({ type: 'error', message: errMsg })
+        return { success: false, error: errMsg }
+      }
+      if (lastAssistant?.stopReason === 'aborted') {
+        const errMsg = '生成已中断'
+        this.emitEvent({ type: 'error', message: errMsg })
+        return { success: false, error: errMsg }
+      }
+      if (!lastAssistant || (!this.streamText && this.collectedProposals.length === 0)) {
+        const errMsg = '模型未返回任何内容（请检查模型名称是否正确、账户是否有余额）'
+        this.emitEvent({ type: 'error', message: errMsg })
+        return { success: false, error: errMsg }
+      }
 
       this.emitEvent({
         type: 'done',
-        fullText: fullContent,
-        proposals: collectedProposals
+        fullText: this.streamText,
+        proposals: this.collectedProposals
       })
 
       return {
         success: true,
-        content: fullContent,
-        thought: fullThought,
-        proposals: collectedProposals
+        content: this.streamText,
+        thought: this.streamThought,
+        proposals: this.collectedProposals
       }
     } catch (err: unknown) {
-      this.currentAbortController = null
       const errMsg = err instanceof Error ? err.message : String(err)
       console.error('[AgentService] Session error:', err)
       this.emitEvent({ type: 'error', message: errMsg })

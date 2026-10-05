@@ -6,7 +6,7 @@ import {
   formatCardStatsLine,
   formatCardSeriesLine
 } from '../../utils/cardFormat'
-import { HelpCircle, ZoomIn, X, Copy, Check, BookOpen, PanelLeftClose } from 'lucide-react'
+import { HelpCircle, ZoomIn, X, Copy, Check } from 'lucide-react'
 
 export const CardDetailPanel: React.FC = () => {
   const { hoveredCard, selectedCardId, state } = useDuelStore()
@@ -73,18 +73,7 @@ export const CardDetailPanel: React.FC = () => {
       <div className="w-full h-full bg-card/30 flex flex-col select-none">
         {/* VSCode 风格面板顶栏 */}
         <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs font-bold text-foreground">卡片详情</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => useDuelStore.getState().setLeftOpen(false)}
-            title="收起左侧面板"
-            className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-          >
-            <PanelLeftClose className="w-3.5 h-3.5" />
-          </button>
+          <span className="text-xs font-bold text-foreground">卡片详情</span>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none">
           <HelpCircle className="w-10 h-10 text-muted-foreground/30 mb-3" />
@@ -105,18 +94,7 @@ export const CardDetailPanel: React.FC = () => {
       <div className="w-full h-full bg-card/40 flex flex-col overflow-hidden">
         {/* VSCode 风格面板顶栏 */}
         <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <BookOpen className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-            <span className="text-xs font-bold text-foreground">卡片详情</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => useDuelStore.getState().setLeftOpen(false)}
-            title="收起左侧面板"
-            className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-          >
-            <PanelLeftClose className="w-3.5 h-3.5" />
-          </button>
+          <span className="text-xs font-bold text-foreground">卡片详情</span>
         </div>
 
         {/* 卡图展示区域 (原生 59:86 卡牌黄金比例，居中高质感渲染) */}

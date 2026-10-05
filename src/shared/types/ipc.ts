@@ -261,6 +261,8 @@ export interface AppConfig {
   recentProjectPaths?: string[]
   /** 决斗档案默认保存与归档目录 */
   projectsDirectory?: string
+  /** 「切换卡组」弹窗里「载入手牌」的选择 (0: 无, 5: 抽 5)，记忆上次使用 */
+  deckLoadDrawCount?: 0 | 5
 }
 
 /**

@@ -9,6 +9,8 @@ import { usePileListStore } from '../../stores/usePileListStore'
 import { CardHudOverlay } from './components/CardHudOverlay'
 import { cn } from '../../lib/utils'
 
+export const HAND_REORDER_DRAG_TYPE = 'application/x-ygo-hand-reorder'
+
 interface CardItemProps {
   card: FieldCard
   /** 宿主格子是否为正方形 (场上交互格)。正方形格中竖卡与横卡共用同一盒子尺寸 */
@@ -120,11 +122,14 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     <div
       draggable
       onDragStart={(e) => {
+        if (card.location === CardLocation.HAND) {
+          e.dataTransfer.setData(HAND_REORDER_DRAG_TYPE, card.instanceId)
+        }
+        e.dataTransfer.setData('text/instanceId', card.instanceId)
         if (card.card) {
           e.dataTransfer.setData('application/json', JSON.stringify(card.card))
-          e.dataTransfer.setData('text/instanceId', card.instanceId)
-          e.dataTransfer.effectAllowed = 'copyMove'
         }
+        e.dataTransfer.effectAllowed = 'copyMove'
       }}
       onClick={(e) => {
         e.stopPropagation()

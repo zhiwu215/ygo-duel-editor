@@ -1906,7 +1906,9 @@ export const useDuelStore = create<DuelStoreState>()(
               owner: player,
               location: CardLocation.DECK,
               sequence: i - actualDraw,
-              position: CardPosition.FACEDOWN_ATTACK,
+              // 主卡组一律里侧备着。不能用 FACEDOWN_ATTACK(0x2)——它是「暗黑同调」那类
+              // 特殊表里侧，不在 CardItem 的 isFacedown 判定内，会被当成表侧渲染出卡面。
+              position: CardPosition.FACEDOWN,
               overlayMaterials: []
             })
           }
@@ -1921,7 +1923,7 @@ export const useDuelStore = create<DuelStoreState>()(
               owner: player,
               location: CardLocation.EXTRA,
               sequence: i,
-              position: CardPosition.FACEDOWN_ATTACK,
+              position: CardPosition.FACEDOWN,
               overlayMaterials: []
             })
           }

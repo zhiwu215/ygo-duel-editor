@@ -4,6 +4,7 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { useDropHintStore } from '../../stores/useDropHintStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
+import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { CardItem } from './CardItem'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
@@ -179,13 +180,17 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     moveCard,
     addOverlayMaterial,
     overlayOnTop,
-    removeCard
+    removeCard,
+    executeDrawCard
   } = useDuelStore()
   const hintZone = useDropHintStore((s) => s.zone)
   const showHint = useDropHintStore((s) => s.show)
   const openPile = usePileListStore((s) => s.openPile)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
+  const openZoneMenu = useContextMenuStore((s) => s.openZoneMenu)
   const [isOver, setIsOver] = useState(false)
+  /** 待执行的「主卡组格单击抽卡」定时器 */
+  const deckDrawTimer = useRef<number | null>(null)
 
   /** 是否为堆叠型区域（主卡组、额外卡组、墓地、除外区） */
   const isPileZone =
@@ -311,6 +316,41 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     }
   }
 
+  /* ---------- 主卡组格：单击抽卡 / 双击展开卡组列表 ---------- */
+
+  /** 取消待执行的单击抽卡 */
+  const cancelDeckDraw = (): void => {
+    if (deckDrawTimer.current !== null) {
+      window.clearTimeout(deckDrawTimer.current)
+      deckDrawTimer.current = null
+    }
+  }
+
+  /**
+   * 主卡组格的单击抽卡。
+   * 浏览器在派发 dblclick 之前**一定会先派发两次 click**，所以单击抽卡必须延后约 240ms 执行：
+   * 若这期间来了双击，由 cancelDeckDraw 取消，避免「双击展开列表时先被白白抽走两张」。
+   * 240ms 覆盖绝大多数双击间隔；万一没覆盖到，多抽的那张可用 Ctrl+Z 撤销。
+   */
+  const scheduleDeckDraw = (): void => {
+    cancelDeckDraw()
+    deckDrawTimer.current = window.setTimeout(() => {
+      deckDrawTimer.current = null
+      executeDrawCard(controller)
+    }, 240)
+  }
+
+  // 卸载时清掉未执行的定时器，避免组件销毁后仍触发抽卡
+  useEffect(() => {
+    return () => {
+      if (deckDrawTimer.current !== null) window.clearTimeout(deckDrawTimer.current)
+    }
+  }, [])
+
+  /** 事件是否来自格子右上角的计数徽标（它自带「打开列表」行为，不应被格子抢走） */
+  const isFromZoneBadge = (e: React.MouseEvent): boolean =>
+    Boolean((e.target as Element | null)?.closest?.('[data-zone-badge]'))
+
   const config = VARIANT_CONFIGS[colorVariant] || VARIANT_CONFIGS.monster
   const IconComponent = config.icon
 
@@ -341,28 +381,29 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClickCapture={() => {
-        // 主卡组格：捕获阶段即打开卡组面板（载入/切换卡组、抽卡、调整卡序）。
-        // 必须用 capture 而非 bubble —— 格子里显示的卡片 (CardItem) 会在自己的
-        // onClick 里 stopPropagation，冒泡阶段收不到点击，会导致「点卡面没反应、
-        // 只有点格子边缘才开面板」。capture 先于子元素执行，卡面与边缘行为一致。
-        // 不要求已有卡组：「还没载入卡组」恰恰是最主要的使用时机。
-        if (location === CardLocation.DECK) {
-          openPile(controller, location)
-        }
+      onClickCapture={(e) => {
+        // 主卡组格：单击抽卡。必须用 capture —— 格内 CardItem 会在自己的 onClick 里
+        // stopPropagation，挂在冒泡阶段会「点卡面没反应、只有点格子边缘才生效」。
+        // 计数徽标自带「打开列表」行为，放行不抢。
+        if (location !== CardLocation.DECK) return
+        if (isFromZoneBadge(e)) return
+        scheduleDeckDraw()
       }}
       onClick={() => {
         // 主卡组格已在捕获阶段处理完毕
         if (location === CardLocation.DECK) return
         if (!card) setSelectedCardId(null)
       }}
+      onDoubleClickCapture={(e) => {
+        // 主卡组格：双击展开卡组列表。捕获阶段先取消待执行的「单击抽卡」，
+        // 否则一次双击会先白白抽走两张。
+        if (location !== CardLocation.DECK) return
+        if (isFromZoneBadge(e)) return
+        cancelDeckDraw()
+        openPile(controller, location)
+      }}
       onDoubleClick={() => {
-        // 主卡组格：双击与单击指向同一个面板，行为完全一致，因此不存在
-        // 「双击先触发一次单击造成误抽」的问题，也无需延迟判定。
-        if (location === CardLocation.DECK) {
-          openPile(controller, location)
-          return
-        }
+        if (location === CardLocation.DECK) return // 已由捕获阶段处理
         const isXyz = card?.card ? CardUtils.isXyz(card.card.type) : false
         const hasMats = card?.overlayMaterials && card.overlayMaterials.length > 0
         if (card && (isXyz || hasMats)) {
@@ -370,6 +411,14 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         } else if (isPileZone && count !== undefined && count > 0) {
           openPile(controller, location)
         }
+      }}
+      onContextMenuCapture={(e) => {
+        // 主卡组格**为空**时右键：没有卡片可依附，由格子自身提供区域菜单（切换卡组）。
+        // 有卡片时放行给 CardItem，走常规卡片菜单（其中也已含「切换卡组」）。
+        if (location !== CardLocation.DECK || card) return
+        e.preventDefault()
+        e.stopPropagation()
+        openZoneMenu(controller, location, e.clientX, e.clientY)
       }}
       className={`group relative ${
         isSquareCell ? 'w-[92px] h-[92px]' : 'w-[64px] h-[92px]'
@@ -379,7 +428,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       } ${className}`}
       title={
         location === CardLocation.DECK
-          ? '单击打开卡组面板（载入 / 切换卡组、抽卡、调整卡序）'
+          ? '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
           : card &&
               ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
                 (card.overlayMaterials && card.overlayMaterials.length > 0))
@@ -393,6 +442,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       {count !== undefined && count > 0 && (
         <button
           type="button"
+          data-zone-badge=""
           onClick={(e) => {
             if (isPileZone) {
               e.stopPropagation()
@@ -408,7 +458,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           title={
             isPileZone
               ? location === CardLocation.DECK
-                ? '点击打开卡组面板'
+                ? '点击展开卡组列表 (或双击格子)'
                 : '点击查看列表 (或双击格子)'
               : undefined
           }

@@ -450,18 +450,11 @@ export const StepSequencerPanel: React.FC = () => {
               <div key={step.id} className="flex flex-col gap-1.5">
                 {/* 2.1 回合分隔头 (Turn Header) */}
                 {isFirstInTurn && (
-                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-950/60 to-purple-950/40 border border-blue-500/30 shadow-sm mt-1 select-none">
-                    <span className="font-bold text-xs text-blue-300 flex items-center gap-1.5">
-                      <span>第 {step.turn} 回合</span>
-                    </span>
+                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-muted/50 border border-border/70 shadow-sm mt-1 select-none">
+                    <span className="font-bold text-xs text-foreground">第 {step.turn} 回合</span>
                     <Badge
                       variant="outline"
-                      className={cn(
-                        'text-[10px] px-1.5 py-0 font-medium',
-                        step.turnPlayer === 0
-                          ? 'border-blue-500/50 text-blue-400 bg-blue-500/10'
-                          : 'border-rose-500/50 text-rose-400 bg-rose-500/10'
-                      )}
+                      className="text-[10px] px-1.5 py-0 font-medium border-border bg-background/60 text-muted-foreground"
                     >
                       {step.turnPlayer === 0 ? '我方回合' : '对方回合'}
                     </Badge>

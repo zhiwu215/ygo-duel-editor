@@ -7,6 +7,8 @@ import {
   AppConfig,
   DeckData,
   AgentStreamEvent,
+  CardNote,
+  CardNoteKind,
   SettingsSectionId
 } from '@shared/index'
 
@@ -36,6 +38,16 @@ const api: IpcApi = {
     ipcRenderer.invoke('library:novel-chapter-content', novelId, chapterId),
   deleteNovel: (id: string) => ipcRenderer.invoke('library:novel-delete', id),
   resplitNovel: (id: string) => ipcRenderer.invoke('library:novel-resplit', id),
+
+  openCardNoteWindow: () => ipcRenderer.invoke('window:open-card-notes'),
+  listCardNotes: () => ipcRenderer.invoke('note:list-all'),
+  getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') =>
+    ipcRenderer.invoke('note:get', cardCode, kind),
+  saveCardNote: (note: CardNote) => ipcRenderer.invoke('note:save', note),
+  deleteCardNote: (cardCode: number, kind: CardNoteKind, label: string) =>
+    ipcRenderer.invoke('note:delete', cardCode, kind, label),
+  exportCardNoteLibrary: () => ipcRenderer.invoke('note:export'),
+  importCardNoteLibrary: () => ipcRenderer.invoke('note:import'),
 
   testRunOcgcore: () => ipcRenderer.invoke('ocgcore:test-run'),
 

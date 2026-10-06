@@ -481,6 +481,43 @@ export interface DuelProjectMeta {
 
 export type SettingsSectionId = 'appearance' | 'paths' | 'model-settings' | 'chat'
 
+export type CardNoteKind = 'chant' | 'note'
+
+export interface CardNote {
+  cardCode: number
+  kind: CardNoteKind
+  label: string
+  text: string
+  user?: string
+  source?: string
+  readonly?: boolean
+  updatedAt: number
+}
+
+export interface DefaultCardNote {
+  cardCode: number
+  cardName: string
+  kind: CardNoteKind
+  label: string
+  text: string
+  user?: string
+  source?: string
+}
+
+export interface CardNoteLibrary {
+  notes: Record<string, CardNote[]>
+  updatedAt: number
+  version: string
+}
+
+export interface CardNoteEntry {
+  cardCode: number
+  cardName: string
+  variantCodes: number[]
+  chants: CardNote[]
+  notes: CardNote[]
+}
+
 /** 小说资料的处理进度 */
 export type NovelProgress = 'raw' | 'splitting' | 'split' | 'done'
 
@@ -562,6 +599,18 @@ export interface IpcApi {
   deleteNovel: (id: string) => Promise<{ success: boolean; error?: string }>
   /** 重新按章节拆分（原文有更新时） */
   resplitNovel: (id: string) => Promise<{ success: boolean; novel?: NovelMeta; error?: string }>
+
+  openCardNoteWindow: () => Promise<void>
+  listCardNotes: () => Promise<CardNoteEntry[]>
+  getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') => Promise<CardNote[]>
+  saveCardNote: (note: CardNote) => Promise<{ success: boolean; error?: string }>
+  deleteCardNote: (
+    cardCode: number,
+    kind: CardNoteKind,
+    label: string
+  ) => Promise<{ success: boolean; error?: string }>
+  exportCardNoteLibrary: () => Promise<{ success: boolean; filePath?: string; error?: string }>
+  importCardNoteLibrary: () => Promise<{ success: boolean; imported?: number; error?: string }>
 
   // 规则引擎校验与模拟
   testRunOcgcore: () => Promise<{

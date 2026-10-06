@@ -430,6 +430,25 @@ export class CdbService {
     }
   }
 
+  public getCardById(id: number): CdbCard | null {
+    const map = this.getCardsByIds([id])
+    return map[id] ?? null
+  }
+
+  public getAliasGroupIds(id: number): number[] {
+    if (!this.db) return [id]
+    try {
+      const rows = this.db
+        .prepare('SELECT id FROM datas WHERE id = ? OR alias = ?')
+        .all(id, id) as Array<{ id: number }>
+      const ids = rows.map((r) => r.id)
+      return ids.includes(id) ? ids : [id, ...ids]
+    } catch (err) {
+      console.error('[CdbService] getAliasGroupIds error:', err)
+      return [id]
+    }
+  }
+
   public close(): void {
     if (this.db) {
       this.db.close()

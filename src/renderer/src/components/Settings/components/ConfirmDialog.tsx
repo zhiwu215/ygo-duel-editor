@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Info } from 'lucide-react'
 import { Button } from '../../ui/button'
 import { cn } from '../../../lib/utils'
+import { useBackdropClose } from '../../../hooks/useBackdropClose'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -10,6 +11,8 @@ interface ConfirmDialogProps {
   confirmText?: string
   cancelText?: string
   destructive?: boolean
+  icon?: 'warning' | 'info'
+  showCancel?: boolean
   onConfirm: () => void
   onCancel: () => void
 }
@@ -21,9 +24,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   confirmText = '确定',
   cancelText = '取消',
   destructive = true,
+  icon = 'warning',
+  showCancel = true,
   onConfirm,
   onCancel
 }) => {
+  const backdropClose = useBackdropClose(onCancel)
   useEffect(() => {
     if (!open) return
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -37,8 +43,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   return (
     <div
-      onClick={onCancel}
-      className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
+      onMouseDown={backdropClose.onMouseDown}
+      onClick={backdropClose.onClick}
+      className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -51,7 +58,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               destructive ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'
             )}
           >
-            <AlertTriangle className="w-4 h-4" />
+            {icon === 'info' ? <Info className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
           </div>
           <div className="min-w-0 pt-0.5">
             <h3 className="text-sm font-semibold leading-tight">{title}</h3>
@@ -64,14 +71,16 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </div>
 
         <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onCancel}
-            className="h-7 text-xs font-medium"
-          >
-            {cancelText}
-          </Button>
+          {showCancel && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onCancel}
+              className="h-7 text-xs font-medium"
+            >
+              {cancelText}
+            </Button>
+          )}
           <Button
             variant={destructive ? 'destructive' : 'default'}
             size="sm"

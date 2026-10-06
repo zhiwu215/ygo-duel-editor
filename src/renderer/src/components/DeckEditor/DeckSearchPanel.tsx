@@ -66,6 +66,18 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
     }
   }, [])
 
+  // 卡库或卡图目录变更后重新拉取，保持与主窗口一致
+  useEffect(() => {
+    return window.api.onCdbUpdated(() => {
+      void handleSearch(keyword)
+      if (activeTab === 'favorites' && favorites.length > 0) {
+        void window.api.getCardsByIds(favorites).then((map) => {
+          setFavoriteCards(favorites.map((code) => map[code]).filter(Boolean) as CdbCard[])
+        })
+      }
+    })
+  }, [keyword, activeTab, favorites, handleSearch])
+
   // 当切换到收藏夹或收藏列表变化时，拉取收藏卡的详细数据
   useEffect(() => {
     if (activeTab !== 'favorites' || favorites.length === 0) {

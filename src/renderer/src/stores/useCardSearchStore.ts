@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { CdbCard, CardPoolFilter, CardSearchParams, NumericCompareOp } from '@shared/index'
+import { bumpCardImageVersion } from '../utils/cardImage'
 
 const PAGE_SIZE = 40
 
@@ -214,3 +215,14 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
       hasMore: true
     })
 }))
+
+// 主窗口 / 设置窗口 / 卡组编辑器窗口是独立渲染进程，各有一份本 store。
+// 卡库在设置窗口里改动后必须由主进程广播，否则只有设置窗口那份 store 会刷新。
+if (typeof window !== 'undefined' && window.api?.onCdbUpdated) {
+  window.api.onCdbUpdated(() => {
+    bumpCardImageVersion()
+    const state = useCardSearchStore.getState()
+    if (!state.hasSearched) return
+    void state.search()
+  })
+}

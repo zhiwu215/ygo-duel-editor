@@ -15,6 +15,12 @@ import {
 
 const api: IpcApi = {
   selectYgoDirectory: () => ipcRenderer.invoke('config:select-ygo-dir'),
+  addExtraCdb: () => ipcRenderer.invoke('cdb:add-extra'),
+  removeExtraCdb: (cdbPath: string) => ipcRenderer.invoke('cdb:remove-extra', cdbPath),
+  setExtraCdbEnabled: (cdbPath: string, enabled: boolean) =>
+    ipcRenderer.invoke('cdb:set-extra-enabled', cdbPath, enabled),
+  setExtraPicsDir: (cdbPath: string, picsDir: string | null) =>
+    ipcRenderer.invoke('cdb:set-pics-dir', cdbPath, picsDir),
   searchCards: (params: CardSearchParams) => ipcRenderer.invoke('cdb:search', params),
   getCardSearchFilterOptions: () => ipcRenderer.invoke('cdb:search-filter-options'),
   getCardsByIds: (ids: number[]) => ipcRenderer.invoke('cdb:get-by-ids', ids),
@@ -70,6 +76,13 @@ const api: IpcApi = {
   getProjectsDirectory: () => ipcRenderer.invoke('file:get-projects-dir'),
   openProjectsDirectory: () => ipcRenderer.invoke('file:open-projects-dir'),
   selectProjectsDirectory: () => ipcRenderer.invoke('file:select-projects-dir'),
+
+  createProjectSeries: (name: string) => ipcRenderer.invoke('file:create-project-series', name),
+  renameProjectSeries: (oldName: string, newName: string) =>
+    ipcRenderer.invoke('file:rename-project-series', oldName, newName),
+  deleteProjectSeries: (name: string) => ipcRenderer.invoke('file:delete-project-series', name),
+  setProjectSeries: (filePath: string, series: string | null) =>
+    ipcRenderer.invoke('file:set-project-series', filePath, series),
 
   getConfig: () => ipcRenderer.invoke('config:get'),
   saveConfig: (cfg: Partial<AppConfig>) => ipcRenderer.invoke('config:save', cfg),
@@ -142,6 +155,13 @@ const api: IpcApi = {
     ipcRenderer.on('config:updated', handler)
     return () => {
       ipcRenderer.removeListener('config:updated', handler)
+    }
+  },
+  onCdbUpdated: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('cdb:updated', handler)
+    return () => {
+      ipcRenderer.removeListener('cdb:updated', handler)
     }
   },
   onAgentEvent: (callback) => {

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { AppConfig } from '@shared/index'
-import { useCardSearchStore } from './useCardSearchStore'
 
 interface ConfigStoreState {
   config: AppConfig
@@ -9,6 +8,11 @@ interface ConfigStoreState {
   loadConfig: () => Promise<void>
   refreshCdbStatus: () => Promise<void>
   selectYgoDir: () => Promise<string | null>
+
+  addExtraCdb: () => Promise<string | null>
+  removeExtraCdb: (cdbPath: string) => Promise<void>
+  setExtraCdbEnabled: (cdbPath: string, enabled: boolean) => Promise<void>
+  setExtraPicsDir: (cdbPath: string, picsDir: string | null) => Promise<void>
 
   selectProjectsDir: () => Promise<string | null>
   setTheme: (theme: 'dark' | 'light') => Promise<void>
@@ -78,7 +82,6 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       const res = await window.api.selectYgoDirectory()
       if (res.success && res.path) {
         await get().loadConfig()
-        useCardSearchStore.getState().search({ limit: 40 })
         return res.path
       }
       if (res.error) {
@@ -88,6 +91,56 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     } catch (err) {
       console.error('[useConfigStore] selectYgoDir error:', err)
       return null
+    }
+  },
+
+  addExtraCdb: async () => {
+    try {
+      const res = await window.api.addExtraCdb()
+      if (res.success && res.path) {
+        await get().loadConfig()
+        if (res.picsDetected === false) {
+          alert('已添加卡库，但未自动找到卡图目录，请手动指定该卡库的卡图位置。')
+        }
+        return res.path
+      }
+      if (res.error) {
+        alert(`添加附加卡库失败：${res.error}`)
+      }
+      return null
+    } catch (err) {
+      console.error('[useConfigStore] addExtraCdb error:', err)
+      return null
+    }
+  },
+
+  removeExtraCdb: async (cdbPath) => {
+    try {
+      await window.api.removeExtraCdb(cdbPath)
+      await get().loadConfig()
+    } catch (err) {
+      console.error('[useConfigStore] removeExtraCdb error:', err)
+    }
+  },
+
+  setExtraCdbEnabled: async (cdbPath, enabled) => {
+    try {
+      await window.api.setExtraCdbEnabled(cdbPath, enabled)
+      await get().loadConfig()
+    } catch (err) {
+      console.error('[useConfigStore] setExtraCdbEnabled error:', err)
+    }
+  },
+
+  setExtraPicsDir: async (cdbPath, picsDir) => {
+    try {
+      const res = await window.api.setExtraPicsDir(cdbPath, picsDir)
+      if (!res.success && res.error) {
+        alert(`设置卡图目录失败：${res.error}`)
+      }
+      if (res.success) await get().loadConfig()
+    } catch (err) {
+      console.error('[useConfigStore] setExtraPicsDir error:', err)
     }
   },
 

@@ -12,6 +12,18 @@ import { settingsWindowService } from '../services/settingsWindowService'
 import { libraryService } from '../services/libraryService'
 import { cardNoteService } from '../services/cardNoteService'
 
+const notifyCdbUpdated = (): void => {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('cdb:updated')
+  }
+}
+
+const enabledExtraPaths = (): string[] => {
+  const cfg = configService.get()
+  const disabled = cfg.disabledCdbPaths || []
+  return (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
+}
+
 export function registerAllIpcHandlers(): void {
   ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
     return cdbService.search(params)
@@ -26,8 +38,91 @@ export function registerAllIpcHandlers(): void {
   ipcMain.handle('cdb:status', () => {
     return {
       ready: cdbService.isReady(),
-      path: cdbService.getCurrentPath()
+      path: cdbService.getCurrentPath(),
+      loadedPaths: cdbService.getLoadedPaths()
     }
+  })
+
+  ipcMain.handle('cdb:add-extra', async () => {
+    const cdbPath = await fileService.selectExtraCdb()
+    if (!cdbPath) {
+      return { success: false }
+    }
+    const cfg = configService.get()
+    const extras = (cfg.extraCdbPaths || []).filter((p) => p !== cdbPath)
+    const merged = [...extras, cdbPath]
+    const loaded = cdbService.addExtra([cdbPath])
+    if (loaded.length === 0) {
+      return { success: false, error: '该文件不是有效的卡库 (缺少 datas/texts 表)' }
+    }
+
+    const detectedPics = imageService.detectPicsDirsFromCdb(cdbPath)
+    const extraPicsDirs = { ...(cfg.extraPicsDirs || {}) }
+    if (!extraPicsDirs[cdbPath] && detectedPics.length > 0) {
+      extraPicsDirs[cdbPath] = detectedPics[0]
+    }
+
+    configService.save({ extraCdbPaths: merged, extraPicsDirs })
+    notifyCdbUpdated()
+    return {
+      success: true,
+      path: cdbPath,
+      picsDetected: detectedPics.length > 0
+    }
+  })
+
+  ipcMain.handle('cdb:remove-extra', async (_, cdbPath: string) => {
+    const cfg = configService.get()
+    const extras = (cfg.extraCdbPaths || []).filter((p) => p !== cdbPath)
+    const extraPicsDirs = { ...(cfg.extraPicsDirs || {}) }
+    delete extraPicsDirs[cdbPath]
+    const disabledCdbPaths = (cfg.disabledCdbPaths || []).filter((p) => p !== cdbPath)
+    configService.save({ extraCdbPaths: extras, extraPicsDirs, disabledCdbPaths })
+    cdbService.reloadAll(
+      cfg.cdbPath,
+      extras.filter((p) => !disabledCdbPaths.includes(p))
+    )
+    notifyCdbUpdated()
+    return { success: true, paths: cdbService.getLoadedPaths() }
+  })
+
+  ipcMain.handle('cdb:set-extra-enabled', async (_, cdbPath: string, enabled: boolean) => {
+    const cfg = configService.get()
+    const current = cfg.disabledCdbPaths || []
+    const disabledCdbPaths = enabled
+      ? current.filter((p) => p !== cdbPath)
+      : [...new Set([...current, cdbPath])]
+    configService.save({ disabledCdbPaths })
+    cdbService.reloadAll(
+      cfg.cdbPath,
+      (cfg.extraCdbPaths || []).filter((p) => !disabledCdbPaths.includes(p))
+    )
+    notifyCdbUpdated()
+    return { success: true, paths: cdbService.getLoadedPaths() }
+  })
+
+  ipcMain.handle('cdb:set-pics-dir', async (_, cdbPath: string, picsDir: string | null) => {
+    const cfg = configService.get()
+    const extraPicsDirs = { ...(cfg.extraPicsDirs || {}) }
+
+    let target = picsDir
+    if (picsDir === '@pick') {
+      target = await fileService.selectPicsDir()
+      if (!target) return { success: false, cancelled: true, picsDir: null }
+    }
+
+    if (!target) {
+      delete extraPicsDirs[cdbPath]
+    } else {
+      const resolved = imageService.resolvePicsDir(target)
+      if (!resolved) {
+        return { success: false, error: '所选目录不存在', picsDir: null }
+      }
+      extraPicsDirs[cdbPath] = resolved
+    }
+    configService.save({ extraPicsDirs })
+    notifyCdbUpdated()
+    return { success: true, picsDir: extraPicsDirs[cdbPath] ?? null }
   })
 
   ipcMain.handle('file:export-lua', async (_, state: DuelPuzzleState, targetPath?: string) => {
@@ -188,6 +283,22 @@ export function registerAllIpcHandlers(): void {
     return fileService.selectProjectsDirectory()
   })
 
+  ipcMain.handle('file:create-project-series', async (_, name: string) => {
+    return fileService.createProjectSeries(name)
+  })
+
+  ipcMain.handle('file:rename-project-series', async (_, oldName: string, newName: string) => {
+    return fileService.renameProjectSeries(oldName, newName)
+  })
+
+  ipcMain.handle('file:delete-project-series', async (_, name: string) => {
+    return fileService.deleteProjectSeries(name)
+  })
+
+  ipcMain.handle('file:set-project-series', async (_, filePath: string, series: string | null) => {
+    return fileService.setProjectSeries(filePath, series)
+  })
+
   ipcMain.handle('config:get', async () => {
     return configService.get()
   })
@@ -208,11 +319,12 @@ export function registerAllIpcHandlers(): void {
         error: '未在该目录下找到 cards.cdb，请确认选择的是 YGOPro 等游戏的主目录'
       }
     }
-    const ok = cdbService.open(cdbPath)
+    const ok = cdbService.open(cdbPath, enabledExtraPaths())
     if (!ok) {
       return { success: false, error: 'cards.cdb 加载失败，文件可能已损坏' }
     }
     configService.save({ gameDirectory: dir, cdbPath })
+    notifyCdbUpdated()
     return { success: true, path: dir }
   })
 

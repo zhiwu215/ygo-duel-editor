@@ -53,6 +53,7 @@ export interface CardSearchResult {
 export interface CdbStatusResult {
   ready: boolean
   path: string | null
+  loadedPaths: string[]
 }
 
 export interface CdbSelectResult {
@@ -371,6 +372,15 @@ export interface AppConfig {
 
   cdbPath?: string
 
+  /** 附加卡库路径 (动漫卡等扩展 cdb)，与主库合并搜索 */
+  extraCdbPaths?: string[]
+
+  /** 附加卡库手动指定的卡图目录，key 为卡库路径，value 为 pics 文件夹 */
+  extraPicsDirs?: Record<string, string>
+
+  /** 已停用的附加卡库路径，仍保留在 extraCdbPaths 中但不参与加载 */
+  disabledCdbPaths?: string[]
+
   theme: 'dark' | 'light'
 
   favorites?: number[]
@@ -382,6 +392,9 @@ export interface AppConfig {
   projectsDirectory?: string
 
   deckLoadDrawCount?: 0 | 5
+
+  /** 用户建立的作品分类名清单（允许存在尚未收录任何对局的空分类） */
+  projectSeries?: string[]
 }
 
 export interface DuelProjectMeta {
@@ -389,6 +402,8 @@ export interface DuelProjectMeta {
   filePath: string
   title: string
   duelType: DuelType
+  /** 所属作品分类名，未归类时为空字符串 */
+  series?: string
   hint?: string
   masterRule: number
   cardCount: number
@@ -465,6 +480,17 @@ export interface NovelChapter {
 
 export interface IpcApi {
   selectYgoDirectory: () => Promise<CdbSelectResult>
+  addExtraCdb: () => Promise<CdbSelectResult & { picsDetected?: boolean }>
+  removeExtraCdb: (cdbPath: string) => Promise<{ success: boolean; paths: string[] }>
+  setExtraCdbEnabled: (
+    cdbPath: string,
+    enabled: boolean
+  ) => Promise<{ success: boolean; paths: string[] }>
+  /** picsDir 传 '@pick' 打开目录选择框，传 null 清除设置 */
+  setExtraPicsDir: (
+    cdbPath: string,
+    picsDir: string | null
+  ) => Promise<{ success: boolean; picsDir: string | null; cancelled?: boolean; error?: string }>
   searchCards: (params: CardSearchParams) => Promise<CardSearchResult>
   getCardSearchFilterOptions: () => Promise<CardSearchFilterOptions>
   getCardsByIds: (ids: number[]) => Promise<Record<number, CdbCard>>
@@ -557,6 +583,17 @@ export interface IpcApi {
   openProjectsDirectory: () => Promise<void>
   selectProjectsDirectory: () => Promise<string | null>
 
+  createProjectSeries: (name: string) => Promise<{ success: boolean; error?: string }>
+  renameProjectSeries: (
+    oldName: string,
+    newName: string
+  ) => Promise<{ success: boolean; error?: string }>
+  deleteProjectSeries: (name: string) => Promise<{ success: boolean; error?: string }>
+  setProjectSeries: (
+    filePath: string,
+    series: string | null
+  ) => Promise<{ success: boolean; error?: string }>
+
   getConfig: () => Promise<AppConfig>
   saveConfig: (config: Partial<AppConfig>) => Promise<boolean>
 
@@ -617,6 +654,7 @@ export interface IpcApi {
   onWindowMaximizedChange: (callback: (maximized: boolean) => void) => () => void
 
   onConfigUpdated: (callback: () => void) => () => void
+  onCdbUpdated: (callback: () => void) => () => void
   onAgentEvent: (callback: (event: AgentStreamEvent) => void) => () => void
 
   onAgentHandoff: (callback: (request: AgentHandoffRequest) => void) => () => void

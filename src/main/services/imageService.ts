@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { join, dirname } from 'path'
+import { join, dirname, basename } from 'path'
 import { configService } from './configService'
 import { cdbService } from '../db/cdbService'
 
@@ -43,34 +43,75 @@ export class ImageService {
   }
 
   /**
+   * 把用户选择的目录归一化为实际存放卡图的目录
+   */
+  public resolvePicsDir(targetDir: string): string | null {
+    if (!targetDir || !existsSync(targetDir)) return null
+    const base = basename(targetDir).toLocaleLowerCase()
+    if (base === 'pics') return targetDir
+    const nested = join(targetDir, 'pics')
+    if (existsSync(nested)) return nested
+    return targetDir
+  }
+
+  /**
+   * 收集指定目录下所有的 pics 文件夹 (含 expansions/pics)
+   */
+  private collectPicsDirs(baseDir: string | undefined, out: string[]): void {
+    if (!baseDir) return
+    const p1 = join(baseDir, 'pics')
+    if (existsSync(p1) && !out.includes(p1)) out.push(p1)
+    const p2 = join(baseDir, 'expansions', 'pics')
+    if (existsSync(p2) && !out.includes(p2)) out.push(p2)
+  }
+
+  /**
+   * 从 cdb 路径向上逐级探测卡图目录 (动漫卡库常位于 config/languages/Chs 之类的深层位置)
+   */
+  public detectPicsDirsFromCdb(cdbPath: string): string[] {
+    const dirs: string[] = []
+    let dir = dirname(cdbPath)
+    for (let depth = 0; depth < 6; depth++) {
+      const parent = dirname(dir)
+      if (parent === dir) break
+      dir = parent
+      this.collectPicsDirs(dir, dirs)
+    }
+    return dirs
+  }
+
+  /**
    * 获取所有可用的卡图搜索目录 (支持 pics 和 expansions/pics)
    */
   public getPicsDirectories(): string[] {
     const cfg = configService.get()
     const dirs: string[] = []
 
-    const tryAddPicsDir = (baseDir: string | undefined): void => {
-      if (!baseDir) return
-      const p1 = join(baseDir, 'pics')
-      if (existsSync(p1) && !dirs.includes(p1)) {
-        dirs.push(p1)
-      }
-      const p2 = join(baseDir, 'expansions', 'pics')
-      if (existsSync(p2) && !dirs.includes(p2)) {
-        dirs.push(p2)
-      }
-    }
-
     // 1. 用户配置的游戏根目录
-    if (cfg.gameDirectory) {
-      tryAddPicsDir(cfg.gameDirectory)
-    }
+    this.collectPicsDirs(cfg.gameDirectory, dirs)
 
     // 2. 当前加载的 cards.cdb 所在目录及其父目录
     if (cfg.cdbPath) {
       const cdbDir = dirname(cfg.cdbPath)
-      tryAddPicsDir(cdbDir)
-      tryAddPicsDir(dirname(cdbDir))
+      this.collectPicsDirs(cdbDir, dirs)
+      this.collectPicsDirs(dirname(cdbDir), dirs)
+    }
+
+    // 3. 附加卡库手动指定的卡图目录 (已停用的卡库不参与)
+    const extraPics = cfg.extraPicsDirs || {}
+    const disabled = cfg.disabledCdbPaths || []
+    const activeExtras = (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
+
+    for (const cdbPath of activeExtras) {
+      const dir = extraPics[cdbPath]
+      if (dir && existsSync(dir) && !dirs.includes(dir)) dirs.push(dir)
+    }
+
+    // 4. 附加卡库路径向上自动探测 (未手动指定时的兜底)
+    for (const extraPath of activeExtras) {
+      for (const dir of this.detectPicsDirsFromCdb(extraPath)) {
+        if (!dirs.includes(dir)) dirs.push(dir)
+      }
     }
 
     return dirs

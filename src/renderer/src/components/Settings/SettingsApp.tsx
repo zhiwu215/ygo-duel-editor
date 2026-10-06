@@ -1,5 +1,18 @@
 import React, { useEffect, useState, JSX } from 'react'
-import { X, Palette, FolderOpen, Plug, MessageSquareText, Folder, FolderKanban } from 'lucide-react'
+import {
+  X,
+  Palette,
+  FolderOpen,
+  Plug,
+  MessageSquareText,
+  Folder,
+  FolderKanban,
+  FolderPlus,
+  Loader2,
+  Image as ImageIcon,
+  Eye,
+  EyeOff
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useAgentStore } from '../../stores/useAgentStore'
@@ -161,6 +174,135 @@ function PathsSection(): JSX.Element {
   )
 }
 
+/** 附加卡库分区：可加载动漫卡等扩展 cdb，与主库合并搜索 */
+function ExtraCdbSection(): JSX.Element {
+  const { config, addExtraCdb, removeExtraCdb, setExtraCdbEnabled, setExtraPicsDir } =
+    useConfigStore()
+  const paths = config.extraCdbPaths || []
+  const picsDirs = config.extraPicsDirs || {}
+  const disabled = config.disabledCdbPaths || []
+  const [busy, setBusy] = useState(false)
+
+  const handleAdd = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      await addExtraCdb()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-border bg-card/60">
+      <div className="flex items-center justify-between gap-6 px-5 py-4 border-b border-border/60">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold">附加卡库</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            动漫卡等扩展卡库 (.cdb)，加载后与主库合并搜索，可随时启用或停用
+          </div>
+        </div>
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => void handleAdd()}
+          disabled={busy}
+          className="gap-1 shrink-0"
+        >
+          {busy ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <FolderPlus className="w-3.5 h-3.5" />
+          )}
+          <span>添加...</span>
+        </Button>
+      </div>
+
+      {paths.length === 0 ? (
+        <div className="px-5 py-4 text-xs text-muted-foreground">未添加附加卡库</div>
+      ) : (
+        paths.map((path) => {
+          const picsDir = picsDirs[path]
+          const enabled = !disabled.includes(path)
+          return (
+            <div key={path} className="px-5 py-3 border-b border-border/60 last:border-b-0">
+              <div className="flex items-center justify-between gap-6">
+                <div
+                  className={cn(
+                    'min-w-0 text-xs break-all',
+                    enabled ? 'text-foreground/80' : 'text-muted-foreground/60'
+                  )}
+                >
+                  {path}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    size="xs"
+                    variant={enabled ? 'outline' : 'ghost'}
+                    onClick={() => void setExtraCdbEnabled(path, !enabled)}
+                    className="gap-1"
+                  >
+                    {enabled ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    <span>{enabled ? '已启用' : '已停用'}</span>
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    onClick={() => void removeExtraCdb(path)}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    移除
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between gap-6">
+                <div
+                  className={cn(
+                    'min-w-0 text-xs break-all',
+                    !enabled
+                      ? 'text-muted-foreground/60'
+                      : picsDir
+                        ? 'text-muted-foreground'
+                        : 'text-amber-600 dark:text-amber-400'
+                  )}
+                >
+                  {!enabled
+                    ? '已停用，不参与搜索'
+                    : picsDir
+                      ? `卡图：${picsDir}`
+                      : '未找到卡图目录，卡牌将不显示图片'}
+                </div>
+                {enabled && (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => void setExtraPicsDir(path, '@pick')}
+                      className="gap-1"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      <span>{picsDir ? '更换...' : '指定...'}</span>
+                    </Button>
+                    {picsDir && (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => void setExtraPicsDir(path, null)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        清除
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })
+      )}
+    </section>
+  )
+}
+
 /**
  * 全局设置独立窗口页面 (hash 路由 #settings，见 App.tsx)
  * 参照 VSCode / OpenCode：左侧分区导航 + 右侧内容，改动即时生效
@@ -260,7 +402,10 @@ export function SettingsApp(): JSX.Element {
           ) : section === 'appearance' ? (
             <AppearanceSection />
           ) : section === 'paths' ? (
-            <PathsSection />
+            <div className="flex flex-col gap-4">
+              <PathsSection />
+              <ExtraCdbSection />
+            </div>
           ) : (
             <AgentSettingsContent section={section} />
           )}

@@ -97,9 +97,11 @@ app.whenReady().then(() => {
   })
 
   const cfg = configService.get()
-  if (cfg.cdbPath) {
-    const ok = cdbService.open(cfg.cdbPath)
-    if (ok && !cfg.gameDirectory) {
+  const disabled = cfg.disabledCdbPaths || []
+  const extraCdbPaths = (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
+  if (cfg.cdbPath || extraCdbPaths.length > 0) {
+    cdbService.reloadAll(cfg.cdbPath, extraCdbPaths)
+    if (!cfg.gameDirectory && cfg.cdbPath) {
       const detected = imageService.detectGameDirectory(cfg.cdbPath)
       if (detected) {
         configService.save({ gameDirectory: detected })

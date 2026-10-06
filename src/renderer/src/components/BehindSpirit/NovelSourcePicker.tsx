@@ -4,21 +4,14 @@ import { AgentNovelSourceRef, NovelChapter, NovelMeta } from '@shared/index'
 import { cn } from '../../lib/utils'
 
 interface NovelSourcePickerProps {
-  /** 浮层锚点（视口坐标，右下角定位），由父组件算好传入 */
   pos: { right: number; bottom: number } | null
-  /** 触发按钮的 ref：点外部关闭时用来豁免触发器本身 */
+
   anchorRef: RefObject<HTMLDivElement | null>
   onClose: () => void
-  /** 选中章节后回调（传资料库章节形态的素材） */
+
   onAttach: (selection: AgentNovelSourceRef) => void
 }
 
-/**
- * 小说素材选择浮层（Portal 到 body，同 BehindSpiritPanel 的模型选择浮层模式）
- *
- * 小说正文不在浮层里读取：选章后只把定位器交给父组件，
- * 正文由主进程在发送消息时经 libraryService 读取，避免浮层拉几万字卡 UI。
- */
 export function NovelSourcePicker({
   pos,
   anchorRef,
@@ -32,7 +25,7 @@ export function NovelSourcePicker({
   const [chapterLoadingId, setChapterLoadingId] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // 浮层根容器：Portal 到 body 后，「点外部关闭」靠这个 ref 判断点击是否落在浮层内
+
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

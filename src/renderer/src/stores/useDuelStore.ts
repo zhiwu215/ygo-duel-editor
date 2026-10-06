@@ -28,6 +28,12 @@ import {
   DuelType
 } from '@shared/index'
 import { inferMoveAction, inferPositionChangeAction } from '../utils/duelActionInference'
+import {
+  PendingAction,
+  PendingActionKind,
+  resolveBattle,
+  resolveDirectAttack
+} from '../utils/duelActionTargets'
 
 /** 布局整体写入的公共构造结果 */
 interface BoardLayoutResult {
@@ -195,6 +201,12 @@ interface DuelStoreState {
 
   // 选中与悬停交互
   selectedCardId: string | null
+  pendingAction: PendingAction | null
+  beginAction: (kind: PendingActionKind, sourceId: string) => void
+  toggleActionTarget: (instanceId: string) => void
+  setActionTargetPlayer: (player: 0 | 1) => void
+  commitPendingAction: () => void
+  cancelPendingAction: () => void
   activeStatPopoverCardId: string | null
   statPopoverPosition: { x: number; y: number } | null
   hoveredCard: CdbCard | null
@@ -250,7 +262,7 @@ interface DuelStoreState {
   // 决斗盘实战动作执行器 (直接在盘面上打牌并自动记谱)
   executeActivateCard: (instanceId: string) => void
   executeChainCard: (instanceId: string) => void
-  executeAttackCard: (instanceId: string) => void
+  executeAttackCard: (instanceId: string, targetInstanceId?: string) => void
   executeNormalSummon: (instanceId: string) => void
   executeSpecialSummon: (instanceId: string) => void
   executeSetCard: (instanceId: string) => void
@@ -439,6 +451,7 @@ export const useDuelStore = create<DuelStoreState>()(
       expandedDuelistId: null,
       activeDuelistId: null,
       selectedCardId: null,
+      pendingAction: null,
       activeStatPopoverCardId: null,
       statPopoverPosition: null,
       hoveredCard: null,
@@ -663,6 +676,7 @@ export const useDuelStore = create<DuelStoreState>()(
 
           return {
             currentStepIndex: stepIndex,
+            pendingAction: null,
             currentTurn: targetStep.turn,
             currentPhase: targetStep.phase,
             currentChain: targetStep.chainIndex ?? 0,
@@ -700,6 +714,59 @@ export const useDuelStore = create<DuelStoreState>()(
             }
           }
         }),
+
+      beginAction: (kind, sourceId) =>
+        set((prev) => {
+          const card = prev.state.cards.find((c) => c.instanceId === sourceId)
+          if (!card) return prev
+          return {
+            selectedCardId: sourceId,
+            pendingAction: {
+              kind,
+              sourceId,
+              sourceName: card.card?.name || String(card.code),
+              sourceController: card.controller,
+              targetIds: [],
+              targetPlayer: null
+            }
+          }
+        }),
+
+      toggleActionTarget: (instanceId) =>
+        set((prev) => {
+          if (!prev.pendingAction) return prev
+          const exists = prev.pendingAction.targetIds.includes(instanceId)
+          return {
+            pendingAction: {
+              ...prev.pendingAction,
+              targetIds: exists
+                ? prev.pendingAction.targetIds.filter((id) => id !== instanceId)
+                : [...prev.pendingAction.targetIds, instanceId],
+              targetPlayer: null
+            }
+          }
+        }),
+
+      setActionTargetPlayer: (player) =>
+        set((prev) => {
+          if (!prev.pendingAction) return prev
+          return {
+            pendingAction: { ...prev.pendingAction, targetIds: [], targetPlayer: player }
+          }
+        }),
+
+      cancelPendingAction: () => set({ pendingAction: null }),
+
+      commitPendingAction: () => {
+        const { pendingAction, executeAttackCard, executeActivateCard } = useDuelStore.getState()
+        if (!pendingAction) return
+        if (pendingAction.kind === 'ATTACK') {
+          executeAttackCard(pendingAction.sourceId, pendingAction.targetIds[0])
+        } else {
+          executeActivateCard(pendingAction.sourceId)
+        }
+        set({ pendingAction: null })
+      },
 
       // 决斗盘实战动作执行器 (统一走 moveCard / updateCardPosition，保证完整规整与牌堆序列)
       executeActivateCard: (instanceId) => {
@@ -755,13 +822,34 @@ export const useDuelStore = create<DuelStoreState>()(
         useDuelStore.getState().executeActivateCard(instanceId)
       },
 
-      executeAttackCard: (instanceId) => {
+      executeAttackCard: (instanceId, targetInstanceId) => {
         const { state, currentTurn, currentPhase, activeTurnPlayer } = useDuelStore.getState()
         const card = state.cards.find((c) => c.instanceId === instanceId)
         if (!card) return
 
+        const targetCard = targetInstanceId
+          ? state.cards.find((c) => c.instanceId === targetInstanceId)
+          : undefined
+        const direct = !targetCard
+        const preview = targetCard ? resolveBattle(card, targetCard) : resolveDirectAttack(card)
         const pName = card.controller === 0 ? '我方' : '对方'
         const cName = card.card?.name || (card.code ? String(card.code) : '怪兽')
+        const dmgRecipient = preview.damageRecipient === 0 ? '我方' : '对方'
+        const damageText = preview.damage > 0 ? `，${dmgRecipient}受到 ${preview.damage} 伤害` : ''
+        const outcome = direct
+          ? '直接攻击'
+          : preview.destroyTarget
+            ? '战斗破坏对方怪兽'
+            : preview.destroyAttacker
+              ? '攻击怪兽被战斗破坏'
+              : '战斗未分胜负'
+        const versusText = direct
+          ? ''
+          : ` (${preview.attackerAtk} vs ${preview.targetIsDefense ? '守备 ' : ''}${preview.targetValue})`
+        const description = direct
+          ? `${pName}【${cName}】${outcome}${damageText}`
+          : `${pName}【${cName}】攻击【${preview.targetName}】${versusText} → ${outcome}${damageText}`
+
         const newStep: DuelStep = {
           id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           turn: currentTurn,
@@ -774,12 +862,16 @@ export const useDuelStore = create<DuelStoreState>()(
           cardName: card.card?.name,
           fromLocation: CardLocation.MZONE,
           fromSequence: card.sequence,
-          description: `${pName}【${cName}】发动攻击！`,
+          targetInstanceId: targetCard?.instanceId,
+          targetCardName: targetCard?.card?.name,
+          targetPlayer: direct ? (card.controller === 0 ? 1 : 0) : undefined,
+          description,
           boardAfter: createLightweightSnapshot(state.cards)
         }
 
         set((prev) => ({
           currentChain: 0,
+          pendingAction: null,
           state: {
             ...prev.state,
             steps: [...(prev.state.steps || []), newStep],
@@ -1664,7 +1756,8 @@ export const useDuelStore = create<DuelStoreState>()(
             cards: prev.state.cards.filter((c) => c.instanceId !== instanceId)
           },
           selectedCardId: prev.selectedCardId === instanceId ? null : prev.selectedCardId,
-          hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredInstanceId
+          hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredInstanceId,
+          pendingAction: prev.pendingAction?.sourceId === instanceId ? null : prev.pendingAction
         })),
 
       updateCardPosition: (instanceId, position) =>
@@ -2130,6 +2223,7 @@ export const useDuelStore = create<DuelStoreState>()(
         set(() => ({
           state: normalizeDuelState(newState),
           selectedCardId: null,
+          pendingAction: null,
           expandedDuelistId: null
         })),
 
@@ -2149,6 +2243,7 @@ export const useDuelStore = create<DuelStoreState>()(
           return {
             state: baseState,
             selectedCardId: null,
+            pendingAction: null,
             activeStatPopoverCardId: null,
             statPopoverPosition: null,
             hoveredCard: null,

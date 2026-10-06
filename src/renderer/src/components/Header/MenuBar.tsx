@@ -342,61 +342,18 @@ export const MenuBar: React.FC<MenuBarProps> = ({
             </div>
             <div className="space-y-1 text-xs">
               {[
-                ['新建局面', 'Ctrl + N'],
-                ['打开工程', 'Ctrl + O'],
-                ['保存工程', 'Ctrl + S'],
-                ['导入 Lua', 'Ctrl + I'],
-                ['导出 Lua', 'Ctrl + E'],
-                ['撤销', 'Ctrl + Z'],
-                ['重做', 'Ctrl + Y / Ctrl + Shift + Z'],
                 ['删除卡片', 'Delete / Del'],
                 ['超量叠放', 'Alt + 拖放'],
                 ['战术透视', 'Tab'],
-                ['攻守与指示物', 'Shift + 点击']
+                ['攻守与指示物', 'Shift + 鼠标左键'],
+                ['双击卡堆', '查看卡组列表（额外/卡组/墓地/除外）'],
+                ['切换默认放置状态', 'Ctrl + 拖放']
               ].map(([name, key]) => (
                 <div key={name} className="flex justify-between py-1 border-b border-border/40">
                   <span className="text-muted-foreground">{name}</span>
                   <kbd className="bg-muted px-1.5 py-0.5 rounded font-mono text-[11px]">{key}</kbd>
                 </div>
               ))}
-            </div>
-            <div className="space-y-1 text-xs pt-1">
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">攻守与指示物</span>
-                <span>Shift + 鼠标左键点击场上卡片唤出微调面板（支持自由拖拽与四则运算）</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">战术透视 (Tab)</span>
-                <span>按 Tab 键全局切换战术全息透视 HUD，直观查看全场变动与指示物</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">删除卡片</span>
-                <span>鼠标指向卡片或选中卡片时按 Delete / Del 直接删除（可撤销）</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">摆卡 / 移动</span>
-                <span>从搜索列表拖拽至格；场上卡拖到另一格即移动</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Alt + 拖放</span>
-                <span>拖拽至怪兽格进行超量素材叠放（超量怪兽置顶，素材垫在下方）</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">超量素材管理</span>
-                <span>双击怪兽卡直接查看素材列表；亦可点击右下角 ● 徽标或右键菜单管理</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Ctrl + 拖放</span>
-                <span>切换默认放置状态：魔陷直接发动 / 怪兽盖守 / 手牌公开 / 额外表侧</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">双击堆叠格</span>
-                <span>直接查看列表（额外/卡组/墓地/除外）并支持重排与做场</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">卡片右键菜单</span>
-                <span>切换表里侧 / 攻守表示 / 编辑超量素材 / 查看列表</span>
-              </div>
             </div>
           </div>
         </div>

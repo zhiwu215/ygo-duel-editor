@@ -165,6 +165,10 @@ export interface DuelStep {
   fromSequence?: number // 来源格子序号
   toLocation?: number // 目标区域 (CardLocation: MZONE/SZONE/GRAVE 等)
   toSequence?: number // 目标格子序号
+  targetInstanceId?: string
+  targetCardName?: string
+  targetPlayer?: 0 | 1
+  costInstanceIds?: string[]
   chainIndex?: number // 连锁链条序号 (1: C1, 2: C2...)
   speaker?: string // 剧情台词说话者 (如 "暗游戏" / "海马濑人" / "决斗解说")
   dialogue?: string // 剧情对白 / 台词口播

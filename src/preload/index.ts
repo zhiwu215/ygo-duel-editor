@@ -7,12 +7,12 @@ import {
   AppConfig,
   DeckData,
   AgentStreamEvent,
+  AgentHandoffRequest,
   CardNote,
   CardNoteKind,
   SettingsSectionId
 } from '@shared/index'
 
-// 实现类型完备的 IPC 桥接层
 const api: IpcApi = {
   selectYgoDirectory: () => ipcRenderer.invoke('config:select-ygo-dir'),
   searchCards: (params: CardSearchParams) => ipcRenderer.invoke('cdb:search', params),
@@ -29,14 +29,19 @@ const api: IpcApi = {
   saveProjectToLibrary: (state: DuelPuzzleState) =>
     ipcRenderer.invoke('file:save-to-library', state),
 
-  // 小说素材（AI 编排对局的原料）
   getNovelList: () => ipcRenderer.invoke('library:novel-list'),
   importNovelFile: () => ipcRenderer.invoke('library:novel-import'),
   getNovelChapters: (novelId: string) => ipcRenderer.invoke('library:novel-chapters', novelId),
   getNovelChapterContent: (novelId: string, chapterId: string) =>
     ipcRenderer.invoke('library:novel-chapter-content', novelId, chapterId),
+  updateNovelChapterContent: (novelId: string, chapterId: string, content: string) =>
+    ipcRenderer.invoke('library:novel-chapter-update', novelId, chapterId, content),
+  updateNovelChapterTitle: (novelId: string, chapterId: string, title: string) =>
+    ipcRenderer.invoke('library:novel-chapter-title-update', novelId, chapterId, title),
   deleteNovel: (id: string) => ipcRenderer.invoke('library:novel-delete', id),
   resplitNovel: (id: string) => ipcRenderer.invoke('library:novel-resplit', id),
+
+  agentHandoff: (request) => ipcRenderer.invoke('agent:handoff', request),
 
   openCardNoteWindow: () => ipcRenderer.invoke('window:open-card-notes'),
   listCardNotes: () => ipcRenderer.invoke('note:list-all'),
@@ -55,7 +60,6 @@ const api: IpcApi = {
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   loadProjectFile: () => ipcRenderer.invoke('file:load-project'),
 
-  // 决斗档案
   getProjectList: () => ipcRenderer.invoke('file:get-project-list'),
   loadProjectByPath: (filePath: string) =>
     ipcRenderer.invoke('file:load-project-by-path', filePath),
@@ -73,10 +77,9 @@ const api: IpcApi = {
   getCardImagePath: (code: number, small?: boolean) =>
     ipcRenderer.invoke('image:get-path', code, small),
 
-  // 卡组编辑器独立窗口与卡组文件
   openDeckEditor: () => ipcRenderer.invoke('window:open-deck-editor'),
   getDeckList: () => ipcRenderer.invoke('deck:get-list'),
-  /** 读取完整卡组库（分组为独立实体，含空分组） */
+
   getDeckLibrary: () => ipcRenderer.invoke('deck:get-library'),
   createDeckGroup: (name) => ipcRenderer.invoke('deck:create-group', name),
   renameDeckGroup: (oldName, newName) => ipcRenderer.invoke('deck:rename-group', oldName, newName),
@@ -99,7 +102,6 @@ const api: IpcApi = {
     }
   },
 
-  // 卡片收藏
   getFavorites: () => ipcRenderer.invoke('favorites:get'),
   toggleFavorite: (code) => ipcRenderer.invoke('favorites:toggle', code),
   onFavoritesChanged: (callback) => {
@@ -110,7 +112,6 @@ const api: IpcApi = {
     }
   },
 
-  // AI 决斗编排
   agentSendMessage: (params) => ipcRenderer.invoke('agent:send-message', params),
   agentAbort: () => ipcRenderer.invoke('agent:abort'),
   agentResetSession: () => ipcRenderer.invoke('agent:reset-session'),
@@ -148,6 +149,13 @@ const api: IpcApi = {
     ipcRenderer.on('agent:event', handler)
     return () => {
       ipcRenderer.removeListener('agent:event', handler)
+    }
+  },
+  onAgentHandoff: (callback) => {
+    const handler = (_: unknown, request: unknown): void => callback(request as AgentHandoffRequest)
+    ipcRenderer.on('agent:handoff-request', handler)
+    return () => {
+      ipcRenderer.removeListener('agent:handoff-request', handler)
     }
   }
 }

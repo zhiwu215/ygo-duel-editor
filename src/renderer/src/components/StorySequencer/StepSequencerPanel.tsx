@@ -30,10 +30,8 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-/** 阶段列表定义 */
 const ALL_PHASES: DuelPhase[] = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP']
 
-/** 常见动作类型快捷列表 */
 const ALL_ACTIONS: DuelActionType[] = [
   'NORMAL_SUMMON',
   'SPECIAL_SUMMON',
@@ -51,7 +49,6 @@ const ALL_ACTIONS: DuelActionType[] = [
   'DIALOGUE'
 ]
 
-/** 常用区域映射 */
 const COMMONLY_USED_LOCATIONS: { loc: number; name: string }[] = [
   { loc: CardLocation.HAND, name: '手牌' },
   { loc: CardLocation.MZONE, name: '怪兽区' },
@@ -102,11 +99,9 @@ export const StepSequencerPanel: React.FC = () => {
 
   const steps = state.steps || []
 
-  // 对话框与表单状态
   const [showAddModal, setShowAddModal] = useState<boolean>(false)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
 
-  // 步骤草稿表单状态
   const latestStep = steps[steps.length - 1]
   const [formTurn, setFormTurn] = useState<number>(latestStep?.turn || 1)
   const [formTurnPlayer, setFormTurnPlayer] = useState<0 | 1>(latestStep?.turnPlayer ?? 0)
@@ -124,7 +119,6 @@ export const StepSequencerPanel: React.FC = () => {
   const [formChain, setFormChain] = useState<number>(0)
   const [formDesc, setFormDesc] = useState<string>('')
 
-  // 打开新增步骤窗口
   const handleOpenAdd = (): void => {
     setEditingStepId(null)
     const last = steps[steps.length - 1]
@@ -139,7 +133,7 @@ export const StepSequencerPanel: React.FC = () => {
       setFormPhase('M1')
       setFormActionPlayer(0)
     }
-    // 默认选取当前悬停的卡片
+
     if (hoveredCard) {
       setFormCardCode(String(hoveredCard.id))
       setFormCardName(hoveredCard.name)
@@ -155,7 +149,6 @@ export const StepSequencerPanel: React.FC = () => {
     setShowAddModal(true)
   }
 
-  // 打开编辑现有步骤窗口
   const handleOpenEdit = (step: DuelStep): void => {
     setEditingStepId(step.id)
     setFormTurn(step.turn)
@@ -174,7 +167,6 @@ export const StepSequencerPanel: React.FC = () => {
     setShowAddModal(true)
   }
 
-  // 提交添加或保存
   const handleSaveStep = (e: React.FormEvent): void => {
     e.preventDefault()
     const codeNum = parseInt(formCardCode, 10)
@@ -208,7 +200,6 @@ export const StepSequencerPanel: React.FC = () => {
     setShowAddModal(false)
   }
 
-  // 真实播放推演控制 (上一步 / 下一步 / 复位)
   const handlePrevStep = (): void => {
     if (currentStepIndex === null) {
       previewStepBoard(steps.length - 1)
@@ -231,7 +222,6 @@ export const StepSequencerPanel: React.FC = () => {
 
   return (
     <div className="w-full h-full flex flex-col shrink-0 select-none overflow-hidden text-xs">
-      {/* 1. 顶栏：统计与核心操作按钮 */}
       <div className="p-2.5 border-b border-border/60 bg-muted/10 flex items-center justify-between shrink-0">
         <div className="flex flex-col">
           <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
@@ -283,9 +273,7 @@ export const StepSequencerPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* 1.1 决斗实战时序与连锁控制条 (Direct Duel Flow & Chain Bar) */}
       <div className="p-2 border-b border-border/60 bg-muted/20 flex flex-col gap-2 shrink-0 select-none">
-        {/* 回合数、回合方与连锁状态 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <span className="font-extrabold text-xs text-foreground">第 {currentTurn} 回合</span>
@@ -305,7 +293,6 @@ export const StepSequencerPanel: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1">
-            {/* 连锁状态指示器 */}
             {currentChain > 0 ? (
               <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-[10px] font-bold text-teal-300">
                 <span className="animate-pulse">⛓ Chain {currentChain}</span>
@@ -322,7 +309,6 @@ export const StepSequencerPanel: React.FC = () => {
               <span className="text-[10px] text-muted-foreground/60 font-mono">C0 (无连锁)</span>
             )}
 
-            {/* 自动记谱开关 */}
             <button
               type="button"
               onClick={() => setIsAutoRecording(!isAutoRecording)}
@@ -349,7 +335,6 @@ export const StepSequencerPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* 6 个阶段快捷切换条 (DP, SP, M1, BP, M2, EP) 与推进按钮 */}
         <div className="flex items-center justify-between gap-1">
           <div className="flex items-center gap-0.5 bg-background/80 p-0.5 rounded-md border border-border/70 flex-1">
             {ALL_PHASES.map((p) => {
@@ -397,7 +382,6 @@ export const StepSequencerPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. 步骤流纵向时间轴展示区 (对标 MDPro3 动作列表) */}
       <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-2 select-text">
         {steps.length === 0 ? (
           <div className="flex-1 h-full flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none">
@@ -440,13 +424,11 @@ export const StepSequencerPanel: React.FC = () => {
             const actionLabel = ACTION_TYPE_NAMES[step.actionType] || step.actionType
             const isCurrentPlaying = currentStepIndex === index
 
-            // 移动路线描述
             const fromName = getLocationDisplayName(step.fromLocation, step.fromSequence)
             const toName = getLocationDisplayName(step.toLocation, step.toSequence)
 
             return (
               <div key={step.id} className="flex flex-col gap-1.5">
-                {/* 2.1 回合分隔头 (Turn Header) */}
                 {isFirstInTurn && (
                   <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-muted/50 border border-border/70 shadow-sm mt-1 select-none">
                     <span className="font-bold text-xs text-foreground">第 {step.turn} 回合</span>
@@ -459,7 +441,6 @@ export const StepSequencerPanel: React.FC = () => {
                   </div>
                 )}
 
-                {/* 2.2 阶段标头 (Phase Banner) */}
                 {isFirstInPhase && (
                   <div className="flex items-center gap-1.5 px-1 pt-1 select-none text-[11px] font-semibold text-muted-foreground/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-primary/70" />
@@ -468,7 +449,6 @@ export const StepSequencerPanel: React.FC = () => {
                   </div>
                 )}
 
-                {/* 2.3 动作卡片本体 (Action Block) */}
                 <div
                   onClick={() => previewStepBoard(index)}
                   onMouseEnter={() => {
@@ -484,9 +464,7 @@ export const StepSequencerPanel: React.FC = () => {
                         : 'border-rose-500/30 bg-muted/20 hover:border-rose-500/60 hover:bg-muted/30'
                   )}
                 >
-                  {/* 卡片主信息行 */}
                   <div className="flex items-center gap-2">
-                    {/* 卡图缩略图 (若有卡密) */}
                     {step.cardCode ? (
                       <div className="w-9 h-[52px] rounded overflow-hidden border border-border/80 bg-black/60 shrink-0 shadow-sm relative">
                         <img
@@ -504,7 +482,6 @@ export const StepSequencerPanel: React.FC = () => {
                       </div>
                     )}
 
-                    {/* 动作类型、玩家标签与移动流向 */}
                     <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                       <div className="flex items-center justify-between gap-1">
                         <div className="flex items-center gap-1 truncate">
@@ -528,7 +505,6 @@ export const StepSequencerPanel: React.FC = () => {
                           </span>
                         </div>
 
-                        {/* 动作类型徽标 */}
                         <span
                           className={cn(
                             'text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0',
@@ -541,7 +517,6 @@ export const StepSequencerPanel: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* 移动流向或连锁信息 */}
                       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono mt-0.5">
                         {fromName && toName && (
                           <span className="flex items-center gap-1 truncate">
@@ -559,7 +534,6 @@ export const StepSequencerPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 2.4 剧情对白 / 解说台词气泡 */}
                   {(step.dialogue || step.speaker || step.innerThoughts) && (
                     <div
                       onClick={(e) => {
@@ -585,7 +559,6 @@ export const StepSequencerPanel: React.FC = () => {
                     </div>
                   )}
 
-                  {/* 悬停快捷操作栏 (台本工作台、上移、下移、编辑、删除) */}
                   <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-background/90 backdrop-blur-xs p-0.5 rounded border border-border shadow-sm">
                     <Button
                       size="icon-xs"
@@ -657,7 +630,6 @@ export const StepSequencerPanel: React.FC = () => {
         )}
       </div>
 
-      {/* 3. 底部推演控制栏 (对标 MDPro3 播放推进控制器) */}
       <div className="p-2 border-t border-border/60 bg-muted/20 flex items-center justify-between select-none shrink-0">
         <div className="flex items-center gap-1">
           <Button
@@ -700,14 +672,12 @@ export const StepSequencerPanel: React.FC = () => {
         </span>
       </div>
 
-      {/* 4. 添加 / 编辑动作步骤浮层弹窗 (Modal) */}
       {showAddModal && (
         <div
           onMouseDown={(e) => e.stopPropagation()}
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in-0 duration-100"
         >
           <div className="w-[360px] bg-card text-card-foreground border border-border shadow-2xl rounded-xl p-4 flex flex-col gap-3 select-none animate-in zoom-in-95 duration-100 max-h-[90vh] overflow-y-auto">
-            {/* 弹窗顶栏 */}
             <div className="flex items-center justify-between border-b border-border/60 pb-2">
               <span className="font-bold text-sm flex items-center gap-1.5">
                 <Film className="w-4 h-4 text-muted-foreground" />
@@ -724,7 +694,6 @@ export const StepSequencerPanel: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveStep} className="flex flex-col gap-2.5 text-xs">
-              {/* 回合与阶段设置 */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">回合数</label>
@@ -755,7 +724,6 @@ export const StepSequencerPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* 回合玩家与动作执行玩家 */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">回合方</label>
@@ -784,7 +752,6 @@ export const StepSequencerPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* 动作类型与连锁序号 */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">
@@ -818,7 +785,6 @@ export const StepSequencerPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* 涉及卡密与卡名 */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">
@@ -847,7 +813,6 @@ export const StepSequencerPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* 来源与目标区域 */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[11px] font-semibold text-muted-foreground">
@@ -884,7 +849,6 @@ export const StepSequencerPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* 底部按钮 */}
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
                 <Button
                   type="button"

@@ -31,7 +31,6 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-/** 常用角色预设快速气泡 */
 const CHARACTER_PRESETS = [
   '我方',
   '对方',
@@ -60,13 +59,11 @@ export const DuelScreenplayModal: React.FC = () => {
 
   const steps = useMemo(() => state.steps || [], [state.steps])
 
-  // 模式切换: 'editor' (分步撰写工作台) | 'document' (完整台本文档排版预览)
   const [viewMode, setViewMode] = useState<'editor' | 'document'>('editor')
   const [copiedFullScript, setCopiedFullScript] = useState<boolean>(false)
   const [savedToArchive, setSavedToArchive] = useState<boolean>(false)
   const [chantPickerCode, setChantPickerCode] = useState<number>(-1)
 
-  // 确保有当前选中的步骤 ID
   const activeStep = steps.find((s) => s.id === selectedStepId) || steps[0]
   const activeStepIndex = steps.findIndex((s) => s.id === (activeStep?.id || ''))
 
@@ -76,14 +73,12 @@ export const DuelScreenplayModal: React.FC = () => {
     }
   }, [isScreenplayOpen, selectedStepId, steps, setSelectedStepId])
 
-  // 当在台本窗口中选中步骤时，联动推演决斗盘面至该步骤时刻
   useEffect(() => {
     if (isScreenplayOpen && activeStepIndex >= 0) {
       previewStepBoard(activeStepIndex)
     }
   }, [isScreenplayOpen, activeStepIndex, previewStepBoard])
 
-  // 按 Esc 键关闭与上下步快捷键
   useEffect(() => {
     if (!isScreenplayOpen) return
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -91,13 +86,11 @@ export const DuelScreenplayModal: React.FC = () => {
         e.stopPropagation()
         setIsScreenplayOpen(false)
       } else if (e.ctrlKey && e.key === 'ArrowUp') {
-        // Ctrl + Up: 上一步骤
         e.preventDefault()
         if (activeStepIndex > 0) {
           setSelectedStepId(steps[activeStepIndex - 1].id)
         }
       } else if ((e.ctrlKey && e.key === 'ArrowDown') || (e.ctrlKey && e.key === 'Enter')) {
-        // Ctrl + Down 或 Ctrl + Enter: 下一步骤
         e.preventDefault()
         if (activeStepIndex < steps.length - 1) {
           setSelectedStepId(steps[activeStepIndex + 1].id)
@@ -110,7 +103,6 @@ export const DuelScreenplayModal: React.FC = () => {
 
   if (!isScreenplayOpen) return null
 
-  // 快速在当前步之后追加一步
   const handleInsertAfterCurrent = (): void => {
     const baseTurn = activeStep ? activeStep.turn : 1
     const basePhase = activeStep ? activeStep.phase : 'M1'
@@ -132,7 +124,6 @@ export const DuelScreenplayModal: React.FC = () => {
     }, 50)
   }
 
-  // 导出/复制完整台本文档为 Markdown / 纯文本格式
   const generateFullScriptText = (): string => {
     const lines: string[] = []
     lines.push(`## 决斗台本：《${state.title || '未命名对局'}》`)
@@ -195,13 +186,6 @@ export const DuelScreenplayModal: React.FC = () => {
     }
   }
 
-  /**
-   * 存入对局档案
-   *
-   * 走 `saveProjectToLibrary` 而非`saveProjectFile`：后者会弹另存为对话框，
-   * 而这条路径的典型场景是「AI刚从小说转写完一份台本」，用户不该再点一次
-   * 文件对话框。文件名按标题自动生成，同名加序号，不覆盖已有对局。
-   */
   const handleSaveToArchive = async (): Promise<void> => {
     if (!window.api?.saveProjectToLibrary) return
     if ((state.steps || []).length === 0) {
@@ -223,7 +207,6 @@ export const DuelScreenplayModal: React.FC = () => {
       className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in-0 duration-150 select-none"
     >
       <div className="w-[1100px] max-w-[96vw] h-[88vh] bg-card text-card-foreground border border-border/80 shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
-        {/* 1. 顶栏：工作台标题、双视图切换与快速导出 */}
         <div className="px-5 py-2.5 border-b border-border/70 bg-card flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
@@ -233,7 +216,6 @@ export const DuelScreenplayModal: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* 视图模式切换：分步撰写 vs 完整台本文档预览 */}
             <div className="flex items-center p-0.5 rounded-lg border border-border bg-background/80">
               <button
                 type="button"
@@ -263,7 +245,6 @@ export const DuelScreenplayModal: React.FC = () => {
               </button>
             </div>
 
-            {/* 复制全文 */}
             <Button
               variant="outline"
               size="sm"
@@ -284,7 +265,6 @@ export const DuelScreenplayModal: React.FC = () => {
               )}
             </Button>
 
-            {/* 存入对局档案（不弹另存为，文件名按标题自动生成） */}
             <Button
               variant={savedToArchive ? 'outline' : 'secondary'}
               size="sm"
@@ -305,7 +285,6 @@ export const DuelScreenplayModal: React.FC = () => {
               )}
             </Button>
 
-            {/* 导出 Markdown 剧本文档 */}
             <Button
               variant="default"
               size="sm"
@@ -328,9 +307,7 @@ export const DuelScreenplayModal: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. 主体工作区 */}
         {viewMode === 'document' ? (
-          /* 完整剧本文档排版预览视图 */
           <div className="flex-1 min-h-0 overflow-y-auto p-8 select-text bg-background/50 flex flex-col items-center">
             <div className="w-full max-w-3xl flex flex-col gap-5 bg-card border border-border/80 rounded-xl p-8 shadow-sm">
               <div className="border-b border-border/70 pb-4 flex flex-col gap-1">
@@ -455,9 +432,7 @@ export const DuelScreenplayModal: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* 分步撰写模式：左侧大纲时间轴 + 右侧宽敞剧本写作台 */
           <div className="flex-1 min-h-0 flex overflow-hidden">
-            {/* 2.1 左侧：回合与动作步骤大纲 (Timeline Outline) */}
             <div className="w-[340px] h-full border-r border-border/70 bg-muted/15 flex flex-col shrink-0 overflow-hidden">
               <div className="p-2.5 border-b border-border/60 bg-muted/20 flex items-center justify-between shrink-0">
                 <span className="font-semibold text-xs text-muted-foreground flex items-center gap-1.5">
@@ -525,7 +500,6 @@ export const DuelScreenplayModal: React.FC = () => {
                             {idx + 1}
                           </span>
 
-                          {/* 卡图或动作图标 */}
                           {s.cardCode ? (
                             <img
                               src={getCardImageUrl(s.cardCode, true)}
@@ -541,7 +515,6 @@ export const DuelScreenplayModal: React.FC = () => {
                             </div>
                           )}
 
-                          {/* 动作类型与台词概览 */}
                           <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                             <div className="flex items-center justify-between gap-1">
                               <span
@@ -573,7 +546,6 @@ export const DuelScreenplayModal: React.FC = () => {
                               {s.cardName || '动作事件'}
                             </span>
 
-                            {/* 台词标记 */}
                             <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
                               {hasScript ? (
                                 <span className="text-foreground flex items-center gap-1 truncate font-medium">
@@ -595,11 +567,9 @@ export const DuelScreenplayModal: React.FC = () => {
               </div>
             </div>
 
-            {/* 2.2 右侧：宽敞浸润式台词与剧情创作区 (Spacious Script Studio) */}
             <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-5 select-text bg-background/40">
               {activeStep ? (
                 <>
-                  {/* 2.2.1 顶部动作上下文横幅 (与对局强关联) */}
                   <div className="p-3.5 rounded-xl bg-card border border-border/80 shadow-xs flex items-center justify-between gap-4 select-none">
                     <div className="flex items-center gap-3 min-w-0">
                       {activeStep.cardCode ? (
@@ -658,7 +628,6 @@ export const DuelScreenplayModal: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 快捷跳转/导航按钮 */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Button
                         variant="outline"
@@ -685,7 +654,6 @@ export const DuelScreenplayModal: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 2.2.2 角色说话人与预设选择 */}
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <label className="font-semibold text-xs text-foreground flex items-center gap-1.5">
@@ -705,7 +673,6 @@ export const DuelScreenplayModal: React.FC = () => {
                       />
                     </div>
 
-                    {/* 角色预设药丸标签栏 */}
                     <div className="flex flex-wrap items-center gap-1 pt-0.5">
                       {CHARACTER_PRESETS.map((name) => (
                         <button
@@ -725,7 +692,6 @@ export const DuelScreenplayModal: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 2.2.3 角色台词正文 (宽敞多行自适应文本框) */}
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <label className="font-semibold text-xs text-foreground flex items-center gap-1.5">
@@ -755,7 +721,6 @@ export const DuelScreenplayModal: React.FC = () => {
                     />
                   </div>
 
-                  {/* 2.2.4 心理活动与内心戏 (Inner Thoughts) */}
                   <div className="flex flex-col gap-1.5">
                     <label className="font-bold text-xs text-foreground">
                       <span>内心独白 / 心理戏 (可选)</span>
@@ -768,7 +733,6 @@ export const DuelScreenplayModal: React.FC = () => {
                     />
                   </div>
 
-                  {/* 2.2.5 战术解说与额外批注 */}
                   <div className="flex flex-col gap-1.5">
                     <label className="font-bold text-xs text-foreground">
                       <span>战术解说 / 备忘说明 (可选)</span>
@@ -781,7 +745,6 @@ export const DuelScreenplayModal: React.FC = () => {
                     />
                   </div>
 
-                  {/* 2.2.6 底栏控制：快捷插入与删除 */}
                   <div className="pt-3 border-t border-border/60 flex items-center justify-between select-none">
                     <Button
                       variant="ghost"

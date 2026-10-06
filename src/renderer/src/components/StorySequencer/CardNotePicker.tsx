@@ -6,6 +6,8 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { CardNoteEditor } from '../LeftSidebar/CardNoteEditor'
 import { cn } from '../../lib/utils'
+import { useBackdropClose } from '../../hooks/useBackdropClose'
+import { alertDialog } from '../../stores/useDialogStore'
 
 interface CardNotePickerProps {
   cardCode: number | null
@@ -23,6 +25,7 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
   onPick,
   onClose
 }) => {
+  const backdropClose = useBackdropClose(onClose)
   const [code, setCode] = useState<number | null>(cardCode)
   const [name, setName] = useState<string | undefined>(cardName)
   const [chants, setChants] = useState<CardNote[]>([])
@@ -111,7 +114,8 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
   return (
     <>
       <div
-        onClick={onClose}
+        onMouseDown={backdropClose.onMouseDown}
+        onClick={backdropClose.onClick}
         className="fixed inset-0 z-[80] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
       >
         <div
@@ -272,7 +276,7 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
               updatedAt: 0
             })
             if (!res.success) {
-              alert(res.error || '保存失败')
+              void alertDialog(res.error || '保存失败')
               return false
             }
             setChants(await window.api.getCardNotes(code, 'chant'))

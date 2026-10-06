@@ -9,15 +9,14 @@ interface ConfigStoreState {
   loadConfig: () => Promise<void>
   refreshCdbStatus: () => Promise<void>
   selectYgoDir: () => Promise<string | null>
-  /** 选择决斗档案保存目录 */
+
   selectProjectsDir: () => Promise<string | null>
   setTheme: (theme: 'dark' | 'light') => Promise<void>
   toggleTheme: () => Promise<void>
-  /** 记忆「切换卡组」弹窗里「载入手牌」的选择 (0: 无, 5: 抽 5) */
+
   setDeckLoadDrawCount: (drawCount: 0 | 5) => Promise<void>
 }
 
-/** 跨窗口配置广播只订阅一次（设置窗口改主题/路径后，其余窗口即时生效） */
 let configUpdatedSubscribed = false
 
 export const useConfigStore = create<ConfigStoreState>((set, get) => ({
@@ -70,7 +69,6 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   },
 
   setDeckLoadDrawCount: async (drawCount) => {
-    // 先乐观更新本地状态（切换即时生效），再落盘；主进程会广播 config:updated 兜底同步
     set((state) => ({ config: { ...state.config, deckLoadDrawCount: drawCount } }))
     await window.api.saveConfig({ deckLoadDrawCount: drawCount })
   },

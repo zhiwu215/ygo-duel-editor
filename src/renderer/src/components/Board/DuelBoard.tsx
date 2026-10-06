@@ -26,14 +26,19 @@ export const DuelBoard: React.FC = () => {
   //   · 空间不足 → 保持原始尺寸（scale 下限 1）不缩小，由容器滚动条承担溢出。
   // 任何情况下托盘与网格宽度都严格相等，错位问题不复存在。
   // 缩放用 CSS `zoom` 而非 `transform: scale()`：zoom 会真实改变布局尺寸，父容器看到的即
-  // 缩放后的大小，因此不会残留「布局仍按原尺寸占位」造成的多余留白；且 zoom 下 offsetWidth
-  // 仍返回未缩放的布局尺寸，测量天然稳定，不会与自身缩放形成反馈回路。
+  // 缩放后的大小，因此不会残留「布局仍按原尺寸占位」造成的多余留白。
   const viewportRef = useRef<HTMLDivElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [naturalW, setNaturalW] = useState(0)
-  const metricsRef = useRef({ scale: 1, w: 0 })
+  const metricsRef = useRef({ scale: 1, w: 0, h: 0 })
+  const appliedScaleRef = useRef(1)
+  const signalRef = useRef({ w: 0, h: 0 })
+
+  useLayoutEffect(() => {
+    appliedScaleRef.current = scale
+  }, [scale])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -44,19 +49,23 @@ export const DuelBoard: React.FC = () => {
     let frame = 0
 
     const measure = (): void => {
-      // 决斗盘网格自然宽度：w-max 布局宽度，不受 zoom 与容器宽度影响
-      const boardW = board.offsetWidth
+      const zoom = appliedScaleRef.current || 1
+
+      const boardW = board.getBoundingClientRect().width / zoom
       if (boardW <= 0) return
 
-      if (boardW !== metricsRef.current.w) {
+      const wrapperH = wrapper.getBoundingClientRect().height / zoom
+
+      const widthChanged = Math.abs(boardW - metricsRef.current.w) > 0.5
+      const heightChanged = Math.abs(wrapperH - metricsRef.current.h) > 0.5
+      if (widthChanged) {
         metricsRef.current.w = boardW
         setNaturalW(boardW)
       }
+      if (heightChanged) {
+        metricsRef.current.h = wrapperH
+      }
 
-      // 「上下手牌托盘 + 对战台网格」整体自然高度（未缩放布局高度）
-      const wrapperH = wrapper.offsetHeight
-
-      // 可用空间 = 容器内容区尺寸（已排除内边距与滚动条）
       const style = window.getComputedStyle(viewport)
       const availW =
         viewport.clientWidth -
@@ -67,9 +76,11 @@ export const DuelBoard: React.FC = () => {
         (parseFloat(style.paddingTop) || 0) -
         (parseFloat(style.paddingBottom) || 0)
 
-      // 只在「空间充足」时按 contain 规则等比放大以填满可用空间；空间不足时**绝不缩小**
-      // （scale 下限锁定为 1），溢出交给容器的横向/纵向滚动条承担 —— 保证卡片与文字始终
-      // 保持设计尺寸与清晰度。各留 1px 余量，避免放大到临界值时挤出滚动条来回抖动。
+      const signalChanged =
+        Math.abs(availW - signalRef.current.w) > 1 || Math.abs(availH - signalRef.current.h) > 1
+      if (!signalChanged && !widthChanged && !heightChanged) return
+      signalRef.current = { w: availW, h: availH }
+
       const ratioW = availW > 1 ? (availW - 1) / boardW : 1
       const ratioH = availH > 1 && wrapperH > 0 ? (availH - 1) / wrapperH : 1
       const next = Math.max(1, Math.min(ratioW, ratioH))
@@ -172,7 +183,7 @@ export const DuelBoard: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 h-full relative select-none min-h-0 overflow-hidden">
+    <div className="flex-1 h-full relative select-none min-h-0 overflow-hidden flex flex-col">
       {/* CSS 六边形网格背景（替代位图纹理，深浅双主题自适应，固定置底不随内容滚动断层） */}
       <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(180deg,#eef1f7_0%,#e2e7f0_100%)] dark:bg-[linear-gradient(180deg,#0a1128_0%,#060b1a_100%)]" />
       <div
@@ -191,7 +202,8 @@ export const DuelBoard: React.FC = () => {
       {/* 核心滚动与排布容器：整体战场形成紧凑舒适、垂直居中的一体化决斗盘台面 */}
       <div
         ref={viewportRef}
-        className="w-full h-full overflow-auto p-2 sm:p-3 flex flex-col items-center relative z-10 min-h-0"
+        className="w-full flex-1 overflow-auto p-2 sm:p-3 flex flex-col items-center relative z-10 min-h-0"
+        style={{ scrollbarGutter: 'stable' }}
       >
         {/* 决斗盘整体（上下手牌托盘 + 对战台网格）作为同一缩放单元，宽度严格对齐。
             m-auto 而非仅 my-auto：宽度不足时 auto 边距归零使内容贴起始边，横向滚动条才能

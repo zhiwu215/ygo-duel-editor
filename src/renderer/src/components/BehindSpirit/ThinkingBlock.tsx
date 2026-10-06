@@ -1,10 +1,11 @@
-import { memo, useEffect, useRef, useState, type JSX } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
 import { BrainCircuit, ChevronRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { usePacedText } from './usePacedText'
 
 const UNMOUNT_DELAY_MS = 300
 const MS_PER_SECOND = 1000
+const FOLLOW_THRESHOLD_PX = 24
 
 function resolveLastLine(text: string): string | null {
   const lines = text.replace(/\r\n?/g, '\n').split('\n')
@@ -27,7 +28,15 @@ function ThinkingBlockImpl({
   const [duration, setDuration] = useState<number | undefined>(undefined)
   const startRef = useRef<number | null>(null)
   const unmountTimerRef = useRef<number | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const followRef = useRef(true)
   const renderedText = usePacedText(text, isStreaming)
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || !followRef.current) return
+    el.scrollTop = el.scrollHeight
+  }, [renderedText, open, shouldRender])
 
   useEffect(() => {
     if (!isStreaming) {
@@ -120,7 +129,16 @@ function ThinkingBlockImpl({
       >
         <div className="overflow-hidden">
           {shouldRender && (
-            <div className="mt-1.5 ml-2 max-h-48 overflow-y-auto border-l border-border pl-3">
+            <div
+              ref={scrollRef}
+              onScroll={() => {
+                const el = scrollRef.current
+                if (!el) return
+                followRef.current =
+                  el.scrollHeight - el.scrollTop - el.clientHeight < FOLLOW_THRESHOLD_PX
+              }}
+              className="mt-1.5 ml-2 max-h-48 overflow-y-auto border-l border-border pl-3"
+            >
               <div className="whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                 {renderedText}
               </div>

@@ -236,8 +236,8 @@ export function registerAllIpcHandlers(): void {
     return deckService.getLibrary()
   })
 
-  ipcMain.handle('deck:create-group', async (_, name: string) => {
-    return deckService.createGroup(name)
+  ipcMain.handle('deck:create-group', async (_, name: string, parent?: string | null) => {
+    return deckService.createGroup(name, parent)
   })
 
   ipcMain.handle('deck:rename-group', async (_, oldName: string, newName: string) => {

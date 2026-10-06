@@ -3,7 +3,17 @@ import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { is } from '@electron-toolkit/utils'
-import { DeckData, DeckLibrary, parseYdk, generateYdk } from '@shared/index'
+import {
+  DeckData,
+  DeckLibrary,
+  parseYdk,
+  generateYdk,
+  groupChildPath,
+  groupLeafName,
+  groupParentPath,
+  groupAncestorPaths,
+  isGroupDescendant
+} from '@shared/index'
 import icon from '../../../resources/icon.png?asset'
 import { configService } from './configService'
 
@@ -76,44 +86,52 @@ export class DeckService {
     return this.getLibrary().decks
   }
 
-  /**
-   * 新建分组。已存在同名分组时返回 false（不静默合并，避免用户以为改的是新分组）
-   */
-  public createGroup(name: string): boolean {
+  public createGroup(name: string, parent?: string | null): boolean {
     const trimmed = name.trim()
     if (!trimmed) return false
     const library = this.getLibrary()
-    if (library.groups.includes(trimmed)) return false
-    library.groups.push(trimmed)
+    const parentPath = parent?.trim() || null
+    if (parentPath && !library.groups.includes(parentPath)) return false
+    const path = groupChildPath(parentPath, trimmed)
+    if (library.groups.includes(path)) return false
+    library.groups.push(path)
     this.writeLibrary(library)
     return true
   }
 
-  /**
-   * 重命名分组，并把该分组下的所有卡组一并改到新名字
-   */
-  public renameGroup(oldName: string, newName: string): boolean {
+  public renameGroup(oldPath: string, newName: string): boolean {
     const trimmed = newName.trim()
-    if (!trimmed || trimmed === oldName) return false
+    if (!trimmed || trimmed === groupLeafName(oldPath)) return false
     const library = this.getLibrary()
-    const index = library.groups.indexOf(oldName)
+    const index = library.groups.indexOf(oldPath)
     if (index < 0) return false
-    if (library.groups.includes(trimmed)) return false
-    library.groups[index] = trimmed
-    library.decks = library.decks.map((d) => (d.group === oldName ? { ...d, group: trimmed } : d))
+    const newPath = groupChildPath(groupParentPath(oldPath), trimmed)
+    if (newPath === oldPath) return false
+    if (library.groups.includes(newPath)) return false
+
+    const remap = (path: string | undefined): string | undefined => {
+      if (!path) return path
+      if (path === oldPath) return newPath
+      return isGroupDescendant(path, oldPath) ? newPath + path.slice(oldPath.length) : path
+    }
+
+    library.groups = library.groups.map((g) => remap(g) as string)
+    library.decks = library.decks.map((d) => ({ ...d, group: remap(d.group) }))
     this.writeLibrary(library)
     return true
   }
 
-  /**
-   * 删除分组。分组下的卡组不会被删除，只是退回「未分组」
-   */
-  public deleteGroup(name: string): boolean {
+  public deleteGroup(path: string): boolean {
     const library = this.getLibrary()
-    const index = library.groups.indexOf(name)
+    const index = library.groups.indexOf(path)
     if (index < 0) return false
-    library.groups.splice(index, 1)
-    library.decks = library.decks.map((d) => (d.group === name ? { ...d, group: '' } : d))
+
+    const parent = groupParentPath(path) || ''
+    const removed = library.groups.filter((g) => g === path || isGroupDescendant(g, path))
+    library.groups = library.groups.filter((g) => !removed.includes(g))
+    library.decks = library.decks.map((d) =>
+      d.group && removed.includes(d.group) ? { ...d, group: parent } : d
+    )
     this.writeLibrary(library)
     return true
   }
@@ -130,12 +148,6 @@ export class DeckService {
     return true
   }
 
-  /**
-   * 保存或更新卡组到本地卡组库
-   *
-   * 写入时若卡组带了尚不存在的分组名，会自动补进分组列表——
-   * 这样在卡组编辑器里手打分组名也能即时出现在分组栏，不必先建组。
-   */
   public saveDeckToLibrary(deck: DeckData): { success: boolean; deck: DeckData } {
     try {
       const library = this.getLibrary()
@@ -153,8 +165,10 @@ export class DeckService {
       }
 
       const group = targetDeck.group?.trim()
-      if (group && !library.groups.includes(group)) {
-        library.groups.push(group)
+      if (group) {
+        for (const ancestor of groupAncestorPaths(group)) {
+          if (!library.groups.includes(ancestor)) library.groups.push(ancestor)
+        }
       }
 
       this.writeLibrary(library)

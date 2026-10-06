@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { DeckData } from '@shared/index'
+import {
+  DeckData,
+  groupDepth,
+  groupLeafName,
+  groupParentPath,
+  isGroupDescendant
+} from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
@@ -141,13 +147,17 @@ export const DeckLibraryView: React.FC = () => {
 
   const groupCounts = useMemo(() => {
     const map = new Map<string, number>()
-    for (const g of deckGroups) map.set(g, 0)
     for (const d of deckList) {
       const g = d.group?.trim()
-      if (g && map.has(g)) map.set(g, (map.get(g) || 0) + 1)
+      if (!g) continue
+      let cur: string | null = g
+      while (cur) {
+        map.set(cur, (map.get(cur) || 0) + 1)
+        cur = groupParentPath(cur)
+      }
     }
     return map
-  }, [deckGroups, deckList])
+  }, [deckList])
 
   const searchMatchedDecks = useMemo(() => {
     const kw = searchKeyword.trim().toLowerCase()
@@ -168,14 +178,32 @@ export const DeckLibraryView: React.FC = () => {
   }, [deckList, selectedGroup, searchMatchedDecks])
 
   const visibleGroups = useMemo(() => {
-    if (!searchMatchedDecks) return deckGroups
+    const pool = deckGroups.filter((g) =>
+      selectedGroup === null ? groupParentPath(g) === null : groupParentPath(g) === selectedGroup
+    )
+    if (!searchMatchedDecks) return pool
     const hit = new Set<string>()
     for (const d of searchMatchedDecks) {
       const g = d.group?.trim()
-      if (g) hit.add(g)
+      if (!g) continue
+      let cur: string | null = g
+      while (cur) {
+        hit.add(cur)
+        cur = groupParentPath(cur)
+      }
     }
-    return deckGroups.filter((g) => hit.has(g))
-  }, [deckGroups, searchMatchedDecks])
+    return pool.filter((g) => hit.has(g))
+  }, [deckGroups, selectedGroup, searchMatchedDecks])
+
+  const breadcrumb = useMemo(() => {
+    const chain: string[] = []
+    let cur = selectedGroup
+    while (cur) {
+      chain.unshift(cur)
+      cur = groupParentPath(cur)
+    }
+    return chain
+  }, [selectedGroup])
 
   const handleContextMenu = (e: React.MouseEvent, deck: DeckData): void => {
     e.preventDefault()
@@ -220,11 +248,21 @@ export const DeckLibraryView: React.FC = () => {
     setGroupModal({ original })
   }
 
+  const handleCreateGroup = async (name: string): Promise<boolean> => {
+    return createGroup(name, selectedGroup)
+  }
+
   const handleDeleteGroup = async (name: string): Promise<void> => {
     const count = groupCounts.get(name) ?? 0
-    const suffix =
-      count > 0 ? `\n该分组下的 ${count} 个卡组将退回「未分组」，卡组本身不会被删除。` : ''
-    if (confirm(`确认删除分组「${name}」？${suffix}`)) {
+    const kids = deckGroups.filter((g) => isGroupDescendant(g, name)).length
+    const parts = [`确认删除分组「${name}」？`]
+    if (kids > 0) parts.push(`其下 ${kids} 个子分组会一并删除。`)
+    if (count > 0) {
+      parts.push(
+        `该分组下的 ${count} 个卡组将退回「${groupParentPath(name) || '未分组'}」，卡组本身不会被删除。`
+      )
+    }
+    if (confirm(parts.join('\n'))) {
       await deleteGroup(name)
     }
   }
@@ -333,250 +371,268 @@ export const DeckLibraryView: React.FC = () => {
           setContextMenu(null)
           setGroupMenu({ x: e.clientX, y: e.clientY, group: null })
         }}
-        className="flex-1 overflow-y-auto p-5 min-h-0 bg-background/50"
+        className="flex-1 min-h-0 flex flex-col overflow-hidden bg-background/50"
       >
-        {selectedGroup !== null && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
-            <button
-              type="button"
-              onClick={() => setSelectedGroup(null)}
-              className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>全部</span>
-            </button>
-            <ChevronRight className="w-3 h-3 opacity-50" />
-            <span className="font-semibold text-foreground flex items-center gap-1 min-w-0">
-              <Folder className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{selectedGroup}</span>
-            </span>
-          </div>
-        )}
-
-        {selectedGroup === null && visibleGroups.length > 0 && (
-          <div className="mb-5">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-1.5 px-1">
-              <Folder className="w-3.5 h-3.5" />
-              <span>分组</span>
-              <span className="font-mono text-[10px] opacity-70">({visibleGroups.length})</span>
-            </div>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1">
-              {visibleGroups.map((group) => {
-                const isDropTarget = dragOverGroup === group
-                return (
-                  <div
-                    key={group}
-                    data-deck-folder
-                    onClick={() => setSelectedGroup(group)}
-                    onContextMenu={(e) => handleGroupContextMenu(e, group)}
-                    onDragOver={(e) => {
-                      if (!e.dataTransfer.types.includes('text/deck-id')) return
-                      e.preventDefault()
-                      e.dataTransfer.dropEffect = 'move'
-                      if (dragOverGroup !== group) setDragOverGroup(group)
-                    }}
-                    onDragLeave={(e) => {
-                      if (e.currentTarget.contains(e.relatedTarget as Node)) return
-                      if (dragOverGroup === group) setDragOverGroup(null)
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setDragOverGroup(null)
-                      const deckId = e.dataTransfer.getData('text/deck-id')
-                      if (deckId) void assignDeckGroup(deckId, group)
-                    }}
-                    title={group}
+        <div className="shrink-0 px-5 pt-5">
+          {breadcrumb.length > 0 && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setSelectedGroup(null)}
+                className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>全部</span>
+              </button>
+              {breadcrumb.map((path, i) => (
+                <span key={path} className="flex items-center gap-1 min-w-0">
+                  <ChevronRight className="w-3 h-3 opacity-50 shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGroup(path)}
                     className={cn(
-                      'group cursor-pointer rounded-md px-2 py-2.5 flex flex-col items-center gap-1.5 min-w-0 transition-colors',
-                      isDropTarget
-                        ? 'bg-primary/15 ring-1 ring-inset ring-primary/50'
-                        : 'hover:bg-accent'
+                      'flex items-center gap-1 min-w-0 transition-colors cursor-pointer hover:text-foreground',
+                      i === breadcrumb.length - 1 && 'text-foreground font-semibold'
                     )}
                   >
-                    <Folder
-                      className="h-11 w-11 text-foreground/75 fill-foreground/5 transition-colors group-hover:text-foreground"
-                      strokeWidth={1.5}
-                    />
-                    <span className="max-w-full rounded-sm px-1 text-center text-[11px] leading-tight font-medium text-foreground line-clamp-2 break-words group-hover:bg-accent-foreground/10">
-                      {group}
-                    </span>
+                    {i === 0 && <Folder className="w-3.5 h-3.5 shrink-0" />}
+                    <span className="truncate">{groupLeafName(path)}</span>
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5">
+          {visibleGroups.length > 0 && (
+            <div className="mb-5">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-1.5 px-1">
+                <Folder className="w-3.5 h-3.5" />
+                <span>{selectedGroup === null ? '分组' : '子分组'}</span>
+              </div>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1">
+                {visibleGroups.map((group) => {
+                  const isDropTarget = dragOverGroup === group
+                  return (
+                    <div
+                      key={group}
+                      data-deck-folder
+                      onClick={() => setSelectedGroup(group)}
+                      onContextMenu={(e) => handleGroupContextMenu(e, group)}
+                      onDragOver={(e) => {
+                        if (!e.dataTransfer.types.includes('text/deck-id')) return
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        if (dragOverGroup !== group) setDragOverGroup(group)
+                      }}
+                      onDragLeave={(e) => {
+                        if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                        if (dragOverGroup === group) setDragOverGroup(null)
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setDragOverGroup(null)
+                        const deckId = e.dataTransfer.getData('text/deck-id')
+                        if (deckId) void assignDeckGroup(deckId, group)
+                      }}
+                      title={group}
+                      className={cn(
+                        'group cursor-pointer rounded-md px-2 py-2.5 flex flex-col items-center gap-1.5 min-w-0 transition-colors',
+                        isDropTarget
+                          ? 'bg-primary/15 ring-1 ring-inset ring-primary/50'
+                          : 'hover:bg-accent'
+                      )}
+                    >
+                      <Folder
+                        className="h-11 w-11 text-foreground/75 fill-foreground/5 transition-colors group-hover:text-foreground"
+                        strokeWidth={1.5}
+                      />
+                      <span className="max-w-full rounded-sm px-1 text-center text-[11px] leading-tight font-medium text-foreground line-clamp-2 break-words group-hover:bg-accent-foreground/10">
+                        {groupLeafName(group)}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {selectedGroup === null && visibleDecks.length > 0 && ungroupedCount > 0 && (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-2.5">
+              <Inbox className="w-3.5 h-3.5" />
+              <span>未分组</span>
+              <span className="font-mono text-[10px] opacity-70">({ungroupedCount})</span>
+            </div>
+          )}
+
+          {visibleDecks.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+              {visibleDecks.map((deck) => {
+                const coverCode = getCoverCode(deck)
+                const coverCard = coverCode ? cardDetails[coverCode] : undefined
+
+                return (
+                  <div
+                    key={deck.id || deck.name}
+                    data-deck-card
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/deck-id', deck.id || '')
+                      e.dataTransfer.effectAllowed = 'move'
+                    }}
+                    onClick={() => void openDeck(deck)}
+                    onContextMenu={(e) => handleContextMenu(e, deck)}
+                    className="group relative flex gap-3 rounded-lg bg-card border border-border/70 hover:border-primary/60 transition-all duration-200 hover:shadow-md overflow-hidden cursor-pointer p-2.5"
+                  >
+                    <div className="relative h-20 w-14 shrink-0 rounded-md bg-slate-950/80 overflow-hidden flex items-center justify-center">
+                      <img
+                        src={getCardImageUrl(coverCode)}
+                        alt={deck.name}
+                        onError={(e) => {
+                          e.currentTarget.src = CARD_BACK_IMAGE
+                        }}
+                        className="h-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
+                      />
+                      {deck.group?.trim() && (
+                        <div
+                          className="absolute top-1 left-1 right-1 flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-black/65 backdrop-blur-xs px-1 py-0.5 rounded"
+                          title={deck.group.trim()}
+                        >
+                          <Folder className="w-2 h-2 shrink-0" />
+                          <span className="truncate">{groupLeafName(deck.group.trim())}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <h3
+                        className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1"
+                        title={deck.name}
+                      >
+                        {deck.name}
+                      </h3>
+
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
+                        <Clock className="w-2.5 h-2.5" />
+                        <span>
+                          {deck.updatedAt
+                            ? new Date(deck.updatedAt).toLocaleDateString()
+                            : '未同步'}
+                        </span>
+                        {coverCard && (
+                          <span className="truncate ml-1" title={coverCard.name}>
+                            · {coverCard.name}
+                          </span>
+                        )}
+                      </div>
+
+                      {deck.tags && deck.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 mt-1.5">
+                          {deck.tags.slice(0, 2).map((t) => (
+                            <span
+                              key={t}
+                              className="text-[9px] font-medium px-1 py-px rounded bg-muted/80 text-muted-foreground border border-border/40"
+                            >
+                              #{t}
+                            </span>
+                          ))}
+                          {deck.tags.length > 2 && (
+                            <span className="text-[9px] text-muted-foreground self-center">
+                              +{deck.tags.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="text-[10px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug">
+                        {deck.description ? (
+                          <span>{deck.description}</span>
+                        ) : (
+                          <span className="italic text-muted-foreground/60">暂无描述</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2.5 text-[10px] font-mono font-medium text-muted-foreground mt-auto pt-1.5">
+                        <span className="text-foreground">
+                          主 <span className="font-bold">{deck.main.length}</span>
+                        </span>
+                        <span className="text-foreground">
+                          额外 <span className="font-bold">{deck.extra.length}</span>
+                        </span>
+                        <span>
+                          副 <span>{deck.side.length}</span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )
               })}
             </div>
-          </div>
-        )}
-
-        {selectedGroup === null && visibleDecks.length > 0 && ungroupedCount > 0 && (
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-2.5">
-            <Inbox className="w-3.5 h-3.5" />
-            <span>未分组</span>
-            <span className="font-mono text-[10px] opacity-70">({ungroupedCount})</span>
-          </div>
-        )}
-
-        {visibleDecks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-            {visibleDecks.map((deck) => {
-              const coverCode = getCoverCode(deck)
-              const coverCard = coverCode ? cardDetails[coverCode] : undefined
-
-              return (
-                <div
-                  key={deck.id || deck.name}
-                  data-deck-card
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('text/deck-id', deck.id || '')
-                    e.dataTransfer.effectAllowed = 'move'
-                  }}
-                  onClick={() => void openDeck(deck)}
-                  onContextMenu={(e) => handleContextMenu(e, deck)}
-                  className="group relative flex gap-3 rounded-lg bg-card border border-border/70 hover:border-primary/60 transition-all duration-200 hover:shadow-md overflow-hidden cursor-pointer p-2.5"
-                >
-                  <div className="relative h-20 w-14 shrink-0 rounded-md bg-slate-950/80 overflow-hidden flex items-center justify-center">
-                    <img
-                      src={getCardImageUrl(coverCode)}
-                      alt={deck.name}
-                      onError={(e) => {
-                        e.currentTarget.src = CARD_BACK_IMAGE
-                      }}
-                      className="h-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
-                    />
-                    {deck.group?.trim() && (
-                      <div className="absolute top-1 left-1 right-1 flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-black/65 backdrop-blur-xs px-1 py-0.5 rounded">
-                        <Folder className="w-2 h-2 shrink-0" />
-                        <span className="truncate">{deck.group.trim()}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <h3
-                      className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1"
-                      title={deck.name}
-                    >
-                      {deck.name}
-                    </h3>
-
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
-                      <Clock className="w-2.5 h-2.5" />
-                      <span>
-                        {deck.updatedAt ? new Date(deck.updatedAt).toLocaleDateString() : '未同步'}
-                      </span>
-                      {coverCard && (
-                        <span className="truncate ml-1" title={coverCard.name}>
-                          · {coverCard.name}
-                        </span>
-                      )}
-                    </div>
-
-                    {deck.tags && deck.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-0.5 mt-1.5">
-                        {deck.tags.slice(0, 2).map((t) => (
-                          <span
-                            key={t}
-                            className="text-[9px] font-medium px-1 py-px rounded bg-muted/80 text-muted-foreground border border-border/40"
-                          >
-                            #{t}
-                          </span>
-                        ))}
-                        {deck.tags.length > 2 && (
-                          <span className="text-[9px] text-muted-foreground self-center">
-                            +{deck.tags.length - 2}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="text-[10px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug">
-                      {deck.description ? (
-                        <span>{deck.description}</span>
-                      ) : (
-                        <span className="italic text-muted-foreground/60">暂无描述</span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2.5 text-[10px] font-mono font-medium text-muted-foreground mt-auto pt-1.5">
-                      <span className="text-foreground">
-                        主 <span className="font-bold">{deck.main.length}</span>
-                      </span>
-                      <span className="text-foreground">
-                        额外 <span className="font-bold">{deck.extra.length}</span>
-                      </span>
-                      <span>
-                        副 <span>{deck.side.length}</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="h-full flex flex-col items-center justify-center text-center p-8 gap-3">
-            <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground">
-              <BookOpen className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                {searchKeyword
-                  ? '没有找到匹配的卡组'
-                  : selectedGroup
-                    ? '该分组内还没有卡组'
-                    : '还没有卡组'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {searchKeyword
-                  ? '尝试清除搜索关键词'
-                  : selectedGroup
-                    ? '把卡组拖进来，或在卡组右键菜单里选择「移动到分组」'
-                    : '点击上方按钮新建或导入 YDK 卡组；右键空白处可新建分组'}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              {(searchKeyword || selectedGroup) && (
+          ) : (
+            <div className="py-16 flex flex-col items-center justify-center text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground">
+                <BookOpen className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {searchKeyword
+                    ? '没有找到匹配的卡组'
+                    : selectedGroup
+                      ? '该分组内还没有卡组'
+                      : '还没有卡组'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {searchKeyword
+                    ? '尝试清除搜索关键词'
+                    : selectedGroup
+                      ? '把卡组拖进来，或在卡组右键菜单里选择「移动到分组」'
+                      : '点击上方按钮新建或导入 YDK 卡组；右键空白处可新建分组'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                {(searchKeyword || selectedGroup) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchKeyword('')
+                      setSelectedGroup(null)
+                    }}
+                    className="h-8 text-xs"
+                  >
+                    {searchKeyword ? '清除搜索' : '返回全部'}
+                  </Button>
+                )}
+                {!searchKeyword && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openGroupModal(null)}
+                    className="h-8 text-xs gap-1.5"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5" />
+                    <span>{selectedGroup ? '新建子分组' : '新建分组'}</span>
+                  </Button>
+                )}
                 <Button
-                  variant="outline"
+                  variant="default"
                   size="sm"
-                  onClick={() => {
-                    setSearchKeyword('')
-                    setSelectedGroup(null)
-                  }}
-                  className="h-8 text-xs"
-                >
-                  {searchKeyword ? '清除搜索' : '返回全部'}
-                </Button>
-              )}
-              {selectedGroup === null && !searchKeyword && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openGroupModal(null)}
+                  onClick={createNewDeck}
                   className="h-8 text-xs gap-1.5"
                 >
-                  <FolderPlus className="w-3.5 h-3.5" />
-                  <span>新建分组</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>新建卡组</span>
                 </Button>
-              )}
-              <Button
-                variant="default"
-                size="sm"
-                onClick={createNewDeck}
-                className="h-8 text-xs gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>新建卡组</span>
-              </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </main>
 
       <footer className="h-7 shrink-0 border-t border-border/70 bg-muted/30 px-4 flex items-center gap-4 text-[11px] text-muted-foreground font-mono">
         <span>{deckList.length} 个卡组</span>
-        <span>{deckGroups.length} 个分组</span>
         {selectedGroup !== null && <span className="truncate">当前：{selectedGroup}</span>}
       </footer>
 
@@ -671,28 +727,32 @@ export const DeckLibraryView: React.FC = () => {
                   <span className="truncate">未分组</span>
                 </button>
 
-                {deckGroups.map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => {
-                      const id = contextMenu.deck.id
-                      setContextMenu(null)
-                      setMoveMenuDeckId(null)
-                      if (id) void assignDeckGroup(id, g)
-                    }}
-                    className={cn(
-                      'w-full px-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
-                      contextMenu.deck.group === g
-                        ? 'bg-primary/15 text-primary font-semibold'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                    )}
-                  >
-                    <Folder className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{g}</span>
-                  </button>
-                ))}
+                {[...deckGroups]
+                  .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+                  .map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={() => {
+                        const id = contextMenu.deck.id
+                        setContextMenu(null)
+                        setMoveMenuDeckId(null)
+                        if (id) void assignDeckGroup(id, g)
+                      }}
+                      style={{ paddingLeft: `${8 + (groupDepth(g) - 1) * 12}px` }}
+                      title={g}
+                      className={cn(
+                        'w-full pr-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
+                        contextMenu.deck.group === g
+                          ? 'bg-primary/15 text-primary font-semibold'
+                          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                      )}
+                    >
+                      <Folder className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{groupLeafName(g)}</span>
+                    </button>
+                  ))}
 
                 {deckGroups.length === 0 && (
                   <p className="px-2 py-1.5 text-[10px] text-muted-foreground/70 leading-relaxed">
@@ -730,7 +790,7 @@ export const DeckLibraryView: React.FC = () => {
           {groupMenu.group === null ? (
             <>
               <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1">
-                新建分组
+                {selectedGroup ? `在「${groupLeafName(selectedGroup)}」下新建` : '新建分组'}
               </div>
               <Button
                 variant="ghost"
@@ -739,7 +799,7 @@ export const DeckLibraryView: React.FC = () => {
                 className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
               >
                 <FolderPlus className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>新建分组</span>
+                <span>{selectedGroup ? '新建子分组' : '新建分组'}</span>
               </Button>
               <Button
                 variant="ghost"
@@ -753,9 +813,21 @@ export const DeckLibraryView: React.FC = () => {
             </>
           ) : (
             <>
-              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44">
-                {groupMenu.group}
+              <div
+                className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44"
+                title={groupMenu.group}
+              >
+                {groupLeafName(groupMenu.group)}
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => openGroupModal(null)}
+                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>新建子分组</span>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -789,12 +861,13 @@ export const DeckLibraryView: React.FC = () => {
 
       {groupModal && (
         <GroupNameModal
-          initialName={groupModal.original}
+          initialName={groupModal.original ? groupLeafName(groupModal.original) : null}
           existingGroups={deckGroups}
+          parentPath={selectedGroup}
           onClose={() => setGroupModal(null)}
           onConfirm={async (name) =>
             groupModal.original === null
-              ? await createGroup(name)
+              ? await handleCreateGroup(name)
               : await renameGroup(groupModal.original, name)
           }
         />

@@ -5,7 +5,8 @@ import {
   CdbCard,
   CardUtils,
   calculateDeckStats,
-  parseYdk
+  parseYdk,
+  groupChildPath
 } from '@shared/index'
 
 interface DeckEditorState {
@@ -14,7 +15,7 @@ interface DeckEditorState {
 
   // 卡组库管理
   deckList: DeckData[]
-  /** 分组名列表（独立实体，可为空分组） */
+  /** 分组完整路径列表（独立实体，可为空分组；嵌套形如 '剧情/暗之游戏'） */
   deckGroups: string[]
   selectedGroup: string | null
   searchKeyword: string
@@ -29,8 +30,7 @@ interface DeckEditorState {
   // 动作：卡组库
   setViewMode: (mode: 'library' | 'editor') => void
   fetchDeckList: () => Promise<void>
-  /** 新建分组；重名或空名时返回 false */
-  createGroup: (name: string) => Promise<boolean>
+  createGroup: (name: string, parent?: string | null) => Promise<boolean>
   /** 重命名分组（同步组内卡组）；重名时返回 false */
   renameGroup: (oldName: string, newName: string) => Promise<boolean>
   /** 删除分组，组内卡组退回未分组 */
@@ -131,13 +131,10 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
     }
   },
 
-  createGroup: async (name) => {
-    const ok = await window.api.createDeckGroup(name)
-    // 无论成败都重新拉取：重名等失败路径下分组列表不该停留在旧快照
+  createGroup: async (name, parent) => {
+    const ok = await window.api.createDeckGroup(name, parent ?? null)
     await get().fetchDeckList()
-    if (ok && !get().selectedGroup) {
-      set({ selectedGroup: name.trim() })
-    }
+    if (ok) set({ selectedGroup: parent ? parent : groupChildPath(null, name) })
     return ok
   },
 

@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { FolderPlus, Pencil, X } from 'lucide-react'
+import { groupChildPath, groupLeafName } from '@shared/index'
 
 interface GroupNameModalProps {
   initialName: string | null
-
   existingGroups: string[]
+  parentPath?: string | null
   onConfirm: (name: string) => Promise<boolean>
   onClose: () => void
 }
@@ -14,6 +15,7 @@ interface GroupNameModalProps {
 export const GroupNameModal: React.FC<GroupNameModalProps> = ({
   initialName,
   existingGroups,
+  parentPath,
   onConfirm,
   onClose
 }) => {
@@ -22,6 +24,7 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const parent = isRename ? null : (parentPath ?? null)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -45,11 +48,15 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
       setError('分组名不能为空')
       return
     }
+    if (trimmed.includes('/')) {
+      setError('分组名不能包含 /')
+      return
+    }
     if (isRename && trimmed === initialName) {
       onClose()
       return
     }
-    if (existingGroups.includes(trimmed)) {
+    if (existingGroups.includes(groupChildPath(parent, trimmed))) {
       setError('已存在同名分组')
       return
     }
@@ -77,7 +84,9 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
             ) : (
               <FolderPlus className="w-4 h-4 text-primary shrink-0" />
             )}
-            <span className="font-bold text-sm">{isRename ? '重命名分组' : '新建分组'}</span>
+            <span className="font-bold text-sm">
+              {isRename ? '重命名分组' : parent ? '新建子分组' : '新建分组'}
+            </span>
           </div>
           <Button
             variant="ghost"
@@ -90,7 +99,14 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-muted-foreground">分组名</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-muted-foreground">分组名</span>
+            {parent && (
+              <span className="text-[11px] text-muted-foreground truncate">
+                位置：{parent.split('/').map(groupLeafName).join(' / ')}
+              </span>
+            )}
+          </div>
           <Input
             ref={inputRef}
             type="text"

@@ -81,7 +81,7 @@ const api: IpcApi = {
   getDeckList: () => ipcRenderer.invoke('deck:get-list'),
 
   getDeckLibrary: () => ipcRenderer.invoke('deck:get-library'),
-  createDeckGroup: (name) => ipcRenderer.invoke('deck:create-group', name),
+  createDeckGroup: (name, parent) => ipcRenderer.invoke('deck:create-group', name, parent ?? null),
   renameDeckGroup: (oldName, newName) => ipcRenderer.invoke('deck:rename-group', oldName, newName),
   deleteDeckGroup: (name) => ipcRenderer.invoke('deck:delete-group', name),
   assignDeckGroup: (deckId, group) => ipcRenderer.invoke('deck:assign-group', deckId, group),

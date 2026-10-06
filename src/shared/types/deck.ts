@@ -12,7 +12,8 @@ export interface DeckData {
   description?: string // 卡组描述 / 剧情背景 / 展开思路说明
   coverCard?: number // 封面王牌怪兽卡密 (若未指定则自动取额外第一张或主卡组第一张)
   tags?: string[] // 分类 / Tag 标签 (如 '同人剧情', 'Combo教学', '残局特化')
-  group?: string // 所属剧情分组 (对应 DeckLibrary.groups 中的某一项；空字符串表示未分组)
+  /** 所属分组的完整路径，'剧情/暗之游戏' 表示嵌在「暗之游戏」下；空表示未分组 */
+  group?: string
   main: number[] // 主卡组卡密数组 (自由容量，无强制限制)
   extra: number[] // 额外卡组卡密数组 (自由容量，无强制限制，允许 >15 张剧情特权额外)
   side: number[] // 副卡组卡密数组 (自由容量，无强制限制)
@@ -27,10 +28,40 @@ export interface DeckData {
  * `group` 字段去重得来的，只能看到已有的）。
  */
 export interface DeckLibrary {
-  /** 分组名列表，顺序即分组栏展示顺序；允许为空数组（此时全部分组都归「未分组」） */
+  /** 分组的完整路径列表，顺序即分组栏展示顺序；嵌套分组形如 '剧情/暗之游戏' */
   groups: string[]
   /** 全部已保存卡组 */
   decks: DeckData[]
+}
+
+export const GROUP_SEP = '/'
+
+export function groupLeafName(path: string): string {
+  const i = path.lastIndexOf(GROUP_SEP)
+  return i < 0 ? path : path.slice(i + 1)
+}
+
+export function groupParentPath(path: string): string | null {
+  const i = path.lastIndexOf(GROUP_SEP)
+  return i < 0 ? null : path.slice(0, i)
+}
+
+export function groupDepth(path: string): number {
+  return path.split(GROUP_SEP).filter(Boolean).length
+}
+
+export function groupChildPath(parent: string | null | undefined, name: string): string {
+  const leaf = name.trim()
+  return parent ? `${parent}${GROUP_SEP}${leaf}` : leaf
+}
+
+export function isGroupDescendant(path: string, ancestor: string): boolean {
+  return path.startsWith(`${ancestor}${GROUP_SEP}`)
+}
+
+export function groupAncestorPaths(path: string): string[] {
+  const segments = path.split(GROUP_SEP).filter(Boolean)
+  return segments.map((_, i) => segments.slice(0, i + 1).join(GROUP_SEP))
 }
 
 export interface DeckStats {

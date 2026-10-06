@@ -567,7 +567,7 @@ export interface IpcApi {
 
   getDeckLibrary: () => Promise<DeckLibrary>
 
-  createDeckGroup: (name: string) => Promise<boolean>
+  createDeckGroup: (name: string, parent?: string | null) => Promise<boolean>
 
   renameDeckGroup: (oldName: string, newName: string) => Promise<boolean>
 

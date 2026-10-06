@@ -177,22 +177,38 @@ export class CardNoteService {
     const orderedKeys = [...legacyKeys, String(root)]
 
     const byKey = new Map<string, CardNote>()
+    const presetKeys = new Set<string>()
     for (const key of orderedKeys) {
       const list = lib.notes[key]
       if (!Array.isArray(list)) continue
       for (const c of list) {
         if (kind && kind !== 'all' && c.kind !== kind) continue
-        byKey.set(`${c.kind}::${c.label}`, c)
+        const k = `${c.kind}::${c.label}`
+        if (!byKey.has(k)) byKey.set(k, c)
       }
     }
 
     for (const d of this.readDefaults()) {
       if (d.cardCode !== root) continue
       if (kind && kind !== 'all' && d.kind !== kind) continue
-      byKey.set(`${d.kind}::${d.label}`, d)
+      const k = `${d.kind}::${d.label}`
+      presetKeys.add(k)
+      if (!byKey.has(k)) byKey.set(k, d)
     }
 
-    return Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
+    return this.sortForDisplay(Array.from(byKey.values()), presetKeys)
+  }
+
+  private sortForDisplay(list: CardNote[], presetKeys: Set<string>): CardNote[] {
+    return list
+      .map((note, index) => ({ note, index }))
+      .sort((a, b) => {
+        const pa = a.note.readonly || presetKeys.has(`${a.note.kind}::${a.note.label}`) ? 0 : 1
+        const pb = b.note.readonly || presetKeys.has(`${b.note.kind}::${b.note.label}`) ? 0 : 1
+        if (pa !== pb) return pa - pb
+        return a.index - b.index
+      })
+      .map((x) => x.note)
   }
 
   public listAll(): CardNoteEntry[] {
@@ -227,21 +243,24 @@ export class CardNoteService {
     return codes
       .map((code) => {
         const byKey = new Map<string, CardNote>()
-        for (const c of [...(legacy.get(code) ?? []), ...(normal.get(code) ?? [])]) {
-          byKey.set(`${c.kind}::${c.label}`, c)
+        const presetKeys = new Set<string>()
+        for (const c of legacy.get(code) ?? []) {
+          const k = `${c.kind}::${c.label}`
+          if (!byKey.has(k)) byKey.set(k, c)
         }
-        const all = Array.from(byKey.values())
+        for (const c of normal.get(code) ?? []) {
+          if (c.readonly) presetKeys.add(`${c.kind}::${c.label}`)
+          const k = `${c.kind}::${c.label}`
+          if (!byKey.has(k)) byKey.set(k, c)
+        }
+        const all = this.sortForDisplay(Array.from(byKey.values()), presetKeys)
         if (all.length === 0) return null
         return {
           cardCode: code,
           cardName: nameMap[code]?.name || `卡密 ${code}`,
           variantCodes: this.variantCodesOf(code),
-          chants: all
-            .filter((c) => c.kind === 'chant')
-            .sort((a, b) => a.label.localeCompare(b.label, 'zh-CN')),
-          notes: all
-            .filter((c) => c.kind === 'note')
-            .sort((a, b) => a.label.localeCompare(b.label, 'zh-CN'))
+          chants: all.filter((c) => c.kind === 'chant'),
+          notes: all.filter((c) => c.kind === 'note')
         }
       })
       .filter((x): x is CardNoteEntry => x !== null)
@@ -255,7 +274,7 @@ export class CardNoteService {
     const text = (note.text || '').trim()
     if (!Number.isFinite(code) || code <= 0) return { success: false, error: '卡密无效' }
     if (!label) {
-      return { success: false, error: kind === 'chant' ? '请填写版本名称' : '请填写条目标题' }
+      return { success: false, error: '请填写标题' }
     }
     if (!text) return { success: false, error: '内容不能为空' }
 
@@ -271,10 +290,41 @@ export class CardNoteService {
     const list = Array.isArray(lib.notes[key]) ? [...lib.notes[key]] : []
     const idx = list.findIndex((c) => c.kind === kind && c.label === label)
     const entry: CardNote = { cardCode: code, kind, label, text, updatedAt: Date.now() }
-    if (idx >= 0) list[idx] = entry
-    else list.push(entry)
+    if (idx >= 0) list.splice(idx, 1)
+    list.unshift(entry)
 
     lib.notes[key] = list
+    return this.writeLibrary(lib)
+  }
+
+  public reorderNotes(
+    cardCode: number,
+    kind: CardNoteKind,
+    labels: string[]
+  ): { success: boolean; error?: string } {
+    const code = this.normalizeCode(cardCode)
+    if (!Number.isFinite(code) || code <= 0) return { success: false, error: '卡密无效' }
+    const k: CardNoteKind = kind === 'note' ? 'note' : 'chant'
+
+    const lib = this.readLibrary()
+    const key = String(code)
+    const list = Array.isArray(lib.notes[key]) ? [...lib.notes[key]] : []
+    if (list.length === 0) return { success: false, error: '没有可排序的条目' }
+
+    const rank = new Map<string, number>()
+    labels.forEach((label, i) => rank.set(`${k}::${label}`, i))
+
+    const known = list.filter((c) => rank.has(`${c.kind}::${c.label}`))
+    const rest = list.filter((c) => !rank.has(`${c.kind}::${c.label}`))
+    if (known.length === 0) return { success: false, error: '没有可排序的条目' }
+
+    known.sort((a, b) => {
+      const ra = rank.get(`${a.kind}::${a.label}`) ?? 0
+      const rb = rank.get(`${b.kind}::${b.label}`) ?? 0
+      return ra - rb
+    })
+
+    lib.notes[key] = [...known, ...rest]
     return this.writeLibrary(lib)
   }
 
@@ -387,8 +437,8 @@ export class CardNoteService {
       const list = Array.isArray(lib.notes[key]) ? [...lib.notes[key]] : []
       const idx = list.findIndex((c) => c.kind === note.kind && c.label === note.label)
       const entry: CardNote = { ...note, cardCode: code, updatedAt: Date.now() }
-      if (idx >= 0) list[idx] = entry
-      else list.push(entry)
+      if (idx >= 0) list.splice(idx, 1)
+      list.unshift(entry)
       lib.notes[key] = list
     }
     const written = this.writeLibrary(lib)

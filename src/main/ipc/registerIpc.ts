@@ -1,12 +1,6 @@
 import { ipcMain, shell, BrowserWindow, dialog } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import {
-  CardSearchParams,
-  DuelPuzzleState,
-  AppConfig,
-  CardNote,
-  CardNoteKind
-} from '@shared/index'
+import { CardSearchParams, DuelPuzzleState, AppConfig, CardNote, CardNoteKind } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
 import { configService } from '../services/configService'
@@ -117,6 +111,13 @@ export function registerAllIpcHandlers(): void {
   ipcMain.handle('note:import', async () => {
     return cardNoteService.importLibrary()
   })
+
+  ipcMain.handle(
+    'note:reorder',
+    async (_, cardCode: number, kind: CardNoteKind, labels: string[]) => {
+      return cardNoteService.reorderNotes(cardCode, kind, labels)
+    }
+  )
 
   // 规则引擎校验与探针
   ipcMain.handle('ocgcore:test-run', async () => {

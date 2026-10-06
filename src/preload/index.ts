@@ -32,8 +32,7 @@ const api: IpcApi = {
   // 小说素材（AI 编排对局的原料）
   getNovelList: () => ipcRenderer.invoke('library:novel-list'),
   importNovelFile: () => ipcRenderer.invoke('library:novel-import'),
-  getNovelChapters: (novelId: string) =>
-    ipcRenderer.invoke('library:novel-chapters', novelId),
+  getNovelChapters: (novelId: string) => ipcRenderer.invoke('library:novel-chapters', novelId),
   getNovelChapterContent: (novelId: string, chapterId: string) =>
     ipcRenderer.invoke('library:novel-chapter-content', novelId, chapterId),
   deleteNovel: (id: string) => ipcRenderer.invoke('library:novel-delete', id),
@@ -48,6 +47,8 @@ const api: IpcApi = {
     ipcRenderer.invoke('note:delete', cardCode, kind, label),
   exportCardNoteLibrary: () => ipcRenderer.invoke('note:export'),
   importCardNoteLibrary: () => ipcRenderer.invoke('note:import'),
+  reorderCardNotes: (cardCode: number, kind: CardNoteKind, labels: string[]) =>
+    ipcRenderer.invoke('note:reorder', cardCode, kind, labels),
 
   testRunOcgcore: () => ipcRenderer.invoke('ocgcore:test-run'),
 

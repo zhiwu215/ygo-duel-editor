@@ -611,6 +611,11 @@ export interface IpcApi {
   ) => Promise<{ success: boolean; error?: string }>
   exportCardNoteLibrary: () => Promise<{ success: boolean; filePath?: string; error?: string }>
   importCardNoteLibrary: () => Promise<{ success: boolean; imported?: number; error?: string }>
+  reorderCardNotes: (
+    cardCode: number,
+    kind: CardNoteKind,
+    labels: string[]
+  ) => Promise<{ success: boolean; error?: string }>
 
   // 规则引擎校验与模拟
   testRunOcgcore: () => Promise<{

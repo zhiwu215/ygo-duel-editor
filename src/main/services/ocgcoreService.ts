@@ -13,14 +13,10 @@ import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 
 export class OcgcoreService {
-  // 懒加载，getCore() 进行初次实例化
   private core: OcgCoreSync | null = null
-  // 防重入互斥锁
+
   private isInitializing: boolean = false
 
-  /**
-   * 确保并获取 ocgcore-wasm 核心实例
-   */
   public async getCore(): Promise<OcgCoreSync> {
     if (this.core) return this.core
     if (this.isInitializing) {
@@ -41,9 +37,6 @@ export class OcgcoreService {
     }
   }
 
-  /**
-   * 从用户配置的游戏目录按需读取卡片效果 Lua 脚本
-   */
   public readScript(name: string): string | null {
     const cfg = configService.get()
     const gameDir = cfg.gameDirectory
@@ -61,13 +54,9 @@ export class OcgcoreService {
       }
     }
 
-    // 若本地未找到或未配置游戏目录，返回安全空实现防崩溃
     return '-- empty fallback script\nfunction initial_effect(c)\nend\n'
   }
 
-  /**
-   * 从 cdbService 读取卡片属性数据并转换为 OcgCardData
-   */
   public readCardData(code: number): OcgCardData | null {
     const details = cdbService.getCardsByIds([code])
     const c = details[code]
@@ -103,9 +92,6 @@ export class OcgcoreService {
     return null
   }
 
-  /**
-   * 将应用的 CardLocation 映射为 ocgcore-wasm 的 OcgLocation
-   */
   private mapLocation(loc: number): OcgLocation {
     switch (loc) {
       case CardLocation.DECK:
@@ -130,9 +116,6 @@ export class OcgcoreService {
     }
   }
 
-  /**
-   * 将应用的 CardPosition 映射为 ocgcore-wasm 的 OcgPosition
-   */
   private mapPosition(pos: number): OcgPosition {
     switch (pos) {
       case CardPosition.FACEUP_ATTACK:
@@ -148,9 +131,6 @@ export class OcgcoreService {
     }
   }
 
-  /**
-   * 根据决斗盘状态创建无头决斗实例 (彻底解除官方张数死锁，支持同人剧情自定义任意数量的手牌、卡组与额外卡组)
-   */
   public async createDuelFromState(state: DuelPuzzleState): Promise<{
     handle: OcgDuelHandle | null
     core: OcgCoreSync
@@ -158,7 +138,6 @@ export class OcgcoreService {
   }> {
     const core = await this.getCore()
 
-    // 规则映射：默认 MR5，关闭自动洗牌以保证创作者编排的牌堆顺序
     let ruleFlag = OcgDuelMode.MODE_MR5
     if (state.masterRule === 2) ruleFlag = OcgDuelMode.MODE_MR2
     else if (state.masterRule === 3) ruleFlag = OcgDuelMode.MODE_MR3
@@ -190,7 +169,6 @@ export class OcgcoreService {
       return { handle: null, core, cardCount: 0 }
     }
 
-    // 逐张将场面上的卡牌注入引擎 (解除官方张数死锁，允许同人剧情自定义任意数量的卡牌)
     let cardCount = 0
     for (const card of state.cards) {
       const ocgLoc = this.mapLocation(card.location)

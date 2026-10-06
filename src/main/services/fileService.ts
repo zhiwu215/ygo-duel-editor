@@ -20,12 +20,6 @@ import {
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 
-/**
- * 合法化工程文件名：去掉 Windows 非法字符与结尾的点
- *
- * 对局标题常取自小说章节名或角色名，可能带 ` / : * ? " < > |`。
- * 注意**保留中文**——工程名基本都是中文标题，转写成拼音反而更难认。
- */
 function sanitizeProjectFileName(name: string): string {
   const cleaned = name
     .replace(/[\\/:*?"<>|]/g, '_')

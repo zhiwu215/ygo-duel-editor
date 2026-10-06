@@ -8,7 +8,6 @@ import { configService } from './services/configService'
 import { cdbService } from './db/cdbService'
 import { imageService } from './services/imageService'
 
-// 注册自定义协议 ygopic:// 用于本地卡图秒级加载 (零网络依赖、零 CDN)
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'ygopic',
@@ -24,7 +23,6 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 function createWindow(): void {
-  // 创建现代化大尺寸工作台窗口
   const mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
@@ -41,7 +39,6 @@ function createWindow(): void {
     }
   })
 
-  // 彻底移除系统默认的原生菜单栏，避免用户按下 Alt 键时触发 Windows 原生的 File/Edit/View 工具栏
   mainWindow.removeMenu()
 
   mainWindow.on('ready-to-show', () => {
@@ -53,7 +50,6 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -67,9 +63,6 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
 
-    // 无边框窗口 (frame: false) 的标题栏由渲染层自绘（见 WindowControls.tsx）：双击拖拽区
-    // 时 Windows 会替我们最大化/还原，需要把状态广播回该窗口让按钮图标跟着变。
-    // 这里对所有窗口统一挂载，主窗口与卡组编辑器窗口都能拿到最新状态。
     const broadcastMaximized = (): void => {
       if (!window.isDestroyed()) {
         window.webContents.send('window:maximized-changed', window.isMaximized())
@@ -79,10 +72,8 @@ app.whenReady().then(() => {
     window.on('unmaximize', broadcastMaximized)
   })
 
-  // 1. 注册所有业务 IPC 处理器
   registerAllIpcHandlers()
 
-  // 2. 注册 ygopic 协议处理器：从本地游戏目录秒级加载卡图 (pics / expansions/pics)
   protocol.handle('ygopic', async (request) => {
     try {
       const url = new URL(request.url)
@@ -105,7 +96,6 @@ app.whenReady().then(() => {
     }
   })
 
-  // 3. 尝试自动恢复上次使用的 cards.cdb 与游戏目录
   const cfg = configService.get()
   if (cfg.cdbPath) {
     const ok = cdbService.open(cfg.cdbPath)
@@ -117,7 +107,6 @@ app.whenReady().then(() => {
     }
   }
 
-  // 4. 打开窗口
   createWindow()
 
   app.on('activate', function () {

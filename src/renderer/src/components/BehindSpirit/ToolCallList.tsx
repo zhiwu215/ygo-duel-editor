@@ -6,7 +6,9 @@ const TOOL_LABELS: Record<string, string> = {
   get_current_board: '读取当前盘面',
   search_cards: '搜索卡片',
   get_card_info: '查询卡片详情',
+  read_novel_source: '读取小说素材',
   propose_duel_steps: '整理决斗步骤',
+  propose_board_setup: '复盘场面布局',
   validate_with_ocgcore: '校验战术规则'
 }
 
@@ -21,6 +23,16 @@ function getToolParamsSummary(tool: AgentToolCallItem): string | null {
   if (tool.toolName === 'get_card_info' && Array.isArray(tool.params.codes)) {
     const codes = tool.params.codes
     return `卡密：${codes.slice(0, 5).join(', ')}${codes.length > 5 ? ` 等 ${codes.length} 张` : ''}`
+  }
+  if (tool.toolName === 'read_novel_source') {
+    const offset = typeof tool.params.offset === 'number' ? tool.params.offset : 0
+    return offset > 0 ? `续读：第 ${offset} 字起` : '从头通读素材'
+  }
+  if (tool.toolName === 'propose_board_setup') {
+    const cardCount = typeof tool.params.cardCount === 'number' ? tool.params.cardCount : null
+    if (cardCount !== null) {
+      return `${tool.params.clearExisting ? '清空后摆' : '叠加摆放'} ${cardCount} 张卡`
+    }
   }
   if (
     (tool.toolName === 'validate_with_ocgcore' || tool.toolName === 'propose_duel_steps') &&

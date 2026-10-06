@@ -106,6 +106,11 @@ export function generateScreenplayMarkdown(
       }
     }
 
+    // 转写来源原文摘句（AI 从小说转写时保留，供读者核对）
+    if (step.sourceQuote) {
+      lines.push(`  - *原文*：「${step.sourceQuote}」`)
+    }
+
     // 生命值变动广播
     if (step.lpChange) {
       const targetName = step.lpChange.player === 0 ? p0Name : p1Name

@@ -20,18 +20,165 @@ import {
   createDefaultDuelists,
   normalizeDuelState,
   createLightweightSnapshot,
+  LightweightCardSnapshot,
+  AgentBoardLpTarget,
+  ResolvedBoardPlacement,
+  replayStepsBoard,
   DeckData,
   DuelType
 } from '@shared/index'
 import { inferMoveAction, inferPositionChangeAction } from '../utils/duelActionInference'
 
+/** 布局整体写入的公共构造结果 */
+interface BoardLayoutResult {
+  players: [PlayerState, PlayerState]
+  duelists: Duelist[]
+  cards: FieldCard[]
+  /** clearExisting 时为布局后的初始快照；否则 null（保留原开局基线） */
+  initialSnapshot: LightweightCardSnapshot[] | null
+  selectedInstanceId: string | null
+  hoveredCard: CdbCard | null
+}
+
+/**
+ * 由落位列表构造完整的双方生命值 / 决斗者 / 场面卡片
+ *
+ * applyBoardSetup（只摆布局）与 applyDuelScreenplay（布局 + 步骤台本）
+ * 共用这段构造：堆叠区序号要在同一次计算里连续分配，离散格同格旧卡
+ * 被顶掉的行为也与 addCardToZone 保持一致。
+ */
+function buildLayoutFromSetup(
+  state: DuelPuzzleState,
+  activeDuelistId: string | null,
+  params: {
+    lp: AgentBoardLpTarget[]
+    cards: ResolvedBoardPlacement[]
+    clearExisting?: boolean
+  }
+): BoardLayoutResult {
+  const baseDuelists =
+    state.duelists && state.duelists.length > 0
+      ? state.duelists
+      : createDefaultDuelists(
+          state.matchConfig?.team0Count ?? 1,
+          state.matchConfig?.team1Count ?? 1
+        )
+
+  // 生命值：指定了决斗者名就只改那一位；共享 LP 或该阵营仅一位时全阵营同步
+  const sharedLp = Boolean(state.matchConfig?.sharedLp)
+  const nextLpBySide = new Map<0 | 1, number>()
+  params.lp.forEach((t) => {
+    const v = Math.max(0, Math.trunc(t.lp))
+    nextLpBySide.set(t.side, v)
+  })
+  const duelists = baseDuelists.map((d) => {
+    if (!nextLpBySide.has(d.team)) return d
+    const v = nextLpBySide.get(d.team)!
+    const sameTeam = baseDuelists.filter((x) => x.team === d.team)
+    return sharedLp || sameTeam.length <= 1 ? { ...d, lp: v } : d
+  })
+  // 逐个决斗者单独指定时覆盖上一轮按阵营算出的值
+  params.lp.forEach((t) => {
+    if (!t.duelistName) return
+    const idx = duelists.findIndex((d) => d.name === t.duelistName)
+    if (idx >= 0) {
+      duelists[idx] = { ...duelists[idx], lp: Math.max(0, Math.trunc(t.lp)) }
+    }
+  })
+  const players: [PlayerState, PlayerState] = [
+    nextLpBySide.has(0) ? { ...state.players[0], lp: nextLpBySide.get(0)! } : state.players[0],
+    nextLpBySide.has(1) ? { ...state.players[1], lp: nextLpBySide.get(1)! } : state.players[1]
+  ]
+
+  const clearExisting = Boolean(params.clearExisting)
+  let workingCards = clearExisting ? [] : [...state.cards]
+  let selectedInstanceId: string | null = null
+  let hoveredCard: CdbCard | null = null
+  const unresolvedDuelists: string[] = []
+
+  params.cards.forEach((c) => {
+    const location = c.location
+    const isPileZone =
+      location === CardLocation.HAND ||
+      location === CardLocation.GRAVE ||
+      location === CardLocation.DECK ||
+      location === CardLocation.EXTRA ||
+      location === CardLocation.REMOVED
+    const isOwnerScopedZone = isPileZone
+
+    let duelistId = c.duelistId
+    if (!duelistId && c.duelistName) {
+      const hit = baseDuelists.find((d) => d.name === c.duelistName)
+      if (hit) duelistId = hit.id
+      else unresolvedDuelists.push(c.duelistName)
+    }
+    if (isOwnerScopedZone && !duelistId) {
+      const teamDuelists = baseDuelists.filter((d) => d.team === c.controller)
+      duelistId =
+        teamDuelists.find((d) => d.id === activeDuelistId)?.id ||
+        teamDuelists[0]?.id ||
+        (c.controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
+    }
+
+    const newCard: FieldCard = {
+      instanceId: `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      code: c.card.id,
+      card: c.card,
+      controller: c.controller,
+      owner: c.controller,
+      location,
+      sequence: 0,
+      position: c.position,
+      overlayMaterials: [],
+      duelistId: isOwnerScopedZone ? duelistId : undefined,
+      customAtk: c.customAtk,
+      customDef: c.customDef
+    }
+
+    if (isPileZone) {
+      const pileSize = workingCards.filter(
+        (x) =>
+          x.controller === c.controller &&
+          x.location === location &&
+          (!isOwnerScopedZone || x.duelistId === newCard.duelistId)
+      ).length
+      newCard.sequence = pileSize
+      workingCards.push(newCard)
+    } else {
+      // 离散格子：同格旧卡被覆盖（与 addCardToZone 行为一致）
+      workingCards = workingCards.filter(
+        (x) =>
+          !(x.controller === c.controller && x.location === location && x.sequence === c.sequence)
+      )
+      newCard.sequence = c.sequence
+      workingCards.push(newCard)
+    }
+    selectedInstanceId = newCard.instanceId
+    hoveredCard = newCard.card ?? null
+  })
+
+  if (unresolvedDuelists.length > 0) {
+    console.warn(
+      '[useDuelStore] 布局落位未找到决斗者，已回落到阵营首位:',
+      unresolvedDuelists.join(', ')
+    )
+  }
+
+  return {
+    players,
+    duelists,
+    cards: workingCards,
+    initialSnapshot: clearExisting ? createLightweightSnapshot(workingCards) : null,
+    selectedInstanceId,
+    hoveredCard
+  }
+}
+
 interface DuelStoreState {
   // 装载卡组到对局
   applyDeckToPlayer: (player: 0 | 1, deck: DeckData, drawCount?: number, duelistId?: string) => void
   // 核心战场状态
-  state: DuelPuzzleState
-
-  // 多人手牌交互
+  state: DuelPuzzleState // 多人手牌交互
   expandedDuelistId: string | null
   setExpandedDuelistId: (id: string | null) => void
 
@@ -180,6 +327,17 @@ interface DuelStoreState {
       customAtk?: number
       customDef?: number
     }>
+    clearExisting: boolean
+  }) => void
+  /**
+   * 整体写入「布局 + 步骤台本」（AI 转写 / 剧情导入共用）
+   *
+   * 步骤会被重放器补出逐步盘面快照，供台本回放逐帧还原场面。
+   */
+  applyDuelScreenplay: (params: {
+    lp: Array<{ side: 0 | 1; lp: number; duelistName?: string }>
+    cards: ResolvedBoardPlacement[]
+    steps: Array<Omit<DuelStep, 'id'>>
     clearExisting: boolean
   }) => void
   /**
@@ -491,13 +649,25 @@ export const useDuelStore = create<DuelStoreState>()(
             }
           })
 
+          // 恢复场面时同步恢复该步之后的生命值，演示时 LP 才会跟住原文数值
+          const lpChange = targetStep.lpChange
+          let nextPlayers = prev.state.players
+          if (lpChange) {
+            const players: [PlayerState, PlayerState] = [...prev.state.players]
+            const target = players[lpChange.player]
+            if (target) {
+              players[lpChange.player] = { ...target, lp: lpChange.newLp }
+            }
+            nextPlayers = players
+          }
+
           return {
             currentStepIndex: stepIndex,
             currentTurn: targetStep.turn,
             currentPhase: targetStep.phase,
             currentChain: targetStep.chainIndex ?? 0,
             activeTurnPlayer: targetStep.turnPlayer,
-            state: { ...prev.state, cards: restoredCards }
+            state: { ...prev.state, cards: restoredCards, players: nextPlayers }
           }
         }),
 
@@ -1256,133 +1426,62 @@ export const useDuelStore = create<DuelStoreState>()(
 
       applyBoardSetup: ({ lp, cards, clearExisting }) =>
         set((prev) => {
-          const baseDuelists =
-            prev.state.duelists && prev.state.duelists.length > 0
-              ? prev.state.duelists
-              : createDefaultDuelists(
-                  prev.state.matchConfig?.team0Count ?? 1,
-                  prev.state.matchConfig?.team1Count ?? 1
-                )
-
-          // 生命值：指定了决斗者名就只改那一位；共享 LP 或该阵营仅一位时全阵营同步
-          const sharedLp = Boolean(prev.state.matchConfig?.sharedLp)
-          const nextLpBySide = new Map<0 | 1, number>()
-          lp.forEach((t) => {
-            const v = Math.max(0, Math.trunc(t.lp))
-            nextLpBySide.set(t.side, v)
+          const layout = buildLayoutFromSetup(prev.state, prev.activeDuelistId, {
+            lp,
+            cards,
+            clearExisting
           })
-          const duelists = baseDuelists.map((d) => {
-            if (!nextLpBySide.has(d.team)) return d
-            const v = nextLpBySide.get(d.team)!
-            const sameTeam = baseDuelists.filter((x) => x.team === d.team)
-            return sharedLp || sameTeam.length <= 1 ? { ...d, lp: v } : d
-          })
-          // 逐个决斗者单独指定时覆盖上一轮按阵营算出的值
-          lp.forEach((t) => {
-            if (!t.duelistName) return
-            const idx = duelists.findIndex((d) => d.name === t.duelistName)
-            if (idx >= 0) {
-              duelists[idx] = { ...duelists[idx], lp: Math.max(0, Math.trunc(t.lp)) }
-            }
-          })
-          const players: [PlayerState, PlayerState] = [
-            nextLpBySide.has(0)
-              ? { ...prev.state.players[0], lp: nextLpBySide.get(0)! }
-              : prev.state.players[0],
-            nextLpBySide.has(1)
-              ? { ...prev.state.players[1], lp: nextLpBySide.get(1)! }
-              : prev.state.players[1]
-          ]
-
-          let workingCards = clearExisting ? [] : [...prev.state.cards]
-          const created: FieldCard[] = []
-          const unresolvedDuelists: string[] = []
-
-          cards.forEach((c) => {
-            const location = c.location
-            const isPileZone =
-              location === CardLocation.HAND ||
-              location === CardLocation.GRAVE ||
-              location === CardLocation.DECK ||
-              location === CardLocation.EXTRA ||
-              location === CardLocation.REMOVED
-            const isOwnerScopedZone = isPileZone
-
-            let duelistId = c.duelistId
-            if (!duelistId && c.duelistName) {
-              const hit = baseDuelists.find((d) => d.name === c.duelistName)
-              if (hit) duelistId = hit.id
-              else unresolvedDuelists.push(c.duelistName)
-            }
-            if (isOwnerScopedZone && !duelistId) {
-              const teamDuelists = baseDuelists.filter((d) => d.team === c.controller)
-              duelistId =
-                teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ||
-                teamDuelists[0]?.id ||
-                (c.controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
-            }
-
-            const newCard: FieldCard = {
-              instanceId: `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-              code: c.card.id,
-              card: c.card,
-              controller: c.controller,
-              owner: c.controller,
-              location,
-              sequence: 0,
-              position: c.position,
-              overlayMaterials: [],
-              duelistId: isOwnerScopedZone ? duelistId : undefined,
-              customAtk: c.customAtk,
-              customDef: c.customDef
-            }
-
-            if (isPileZone) {
-              const pileSize = workingCards.filter(
-                (x) =>
-                  x.controller === c.controller &&
-                  x.location === location &&
-                  (!isOwnerScopedZone || x.duelistId === newCard.duelistId)
-              ).length
-              newCard.sequence = pileSize
-              workingCards.push(newCard)
-            } else {
-              // 离散格子：同格旧卡被覆盖（与 addCardToZone 行为一致）
-              workingCards = workingCards.filter(
-                (x) =>
-                  !(
-                    x.controller === c.controller &&
-                    x.location === location &&
-                    x.sequence === c.sequence
-                  )
-              )
-              newCard.sequence = c.sequence
-              workingCards.push(newCard)
-            }
-            created.push(newCard)
-          })
-
-          if (unresolvedDuelists.length > 0) {
-            console.warn(
-              '[useDuelStore] applyBoardSetup 未找到决斗者，已回落到阵营首位:',
-              unresolvedDuelists.join(', ')
-            )
-          }
-
           return {
             state: {
               ...prev.state,
-              players,
-              duelists,
-              cards: workingCards,
+              players: layout.players,
+              duelists: layout.duelists,
+              cards: layout.cards,
               // 布局即新的开局基线：清空盘面时必须把初始快照也清掉，
               // 否则「上一步 / 下一步」复位会回到 AI 落位前的旧场面。
-              initialBoardSnapshot: clearExisting
-                ? createLightweightSnapshot(workingCards)
-                : prev.state.initialBoardSnapshot
+              ...(layout.initialSnapshot ? { initialBoardSnapshot: layout.initialSnapshot } : {})
             },
-            selectedCardId: created.length > 0 ? created[created.length - 1].instanceId : null,
-            hoveredCard: created.length > 0 ? created[created.length - 1].card : null
+            selectedCardId: layout.selectedInstanceId,
+            hoveredCard: layout.hoveredCard
+          }
+        }),
+
+      /**
+       * 整体写入「布局 + 步骤台本」（AI 转写 / 剧情导入共用）
+       *
+       * 与 applyBoardSetup 同样单次 set；差别是会从布局落盘后的场面出发，
+       * 用重放器为每个步骤推演出 boardAfter 快照——「上一步 / 下一步」
+       * 回放时场面才能跟着时间线推进，而不是停在一张静态开场图上。
+       */
+      applyDuelScreenplay: ({ lp, cards, steps, clearExisting }) =>
+        set((prev) => {
+          const layout = buildLayoutFromSetup(prev.state, prev.activeDuelistId, {
+            lp,
+            cards,
+            clearExisting
+          })
+          const draft: DuelStep[] = steps.map((s, idx) => ({
+            ...s,
+            id: `step_${Date.now()}_${idx.toString(36)}_${Math.random().toString(36).substring(2, 7)}`
+          }))
+          const stepsWithBoard = replayStepsBoard(createLightweightSnapshot(layout.cards), draft)
+          const turnPlayer = draft[0]?.turnPlayer ?? prev.state.turnPlayer ?? 0
+          return {
+            state: {
+              ...prev.state,
+              players: layout.players,
+              duelists: layout.duelists,
+              cards: layout.cards,
+              steps: stepsWithBoard,
+              ...(layout.initialSnapshot ? { initialBoardSnapshot: layout.initialSnapshot } : {})
+            },
+            selectedCardId: layout.selectedInstanceId,
+            hoveredCard: layout.hoveredCard,
+            currentStepIndex: null,
+            currentTurn: 1,
+            currentPhase: 'DP',
+            currentChain: 0,
+            activeTurnPlayer: turnPlayer
           }
         }),
 
@@ -2010,6 +2109,9 @@ export const useDuelStore = create<DuelStoreState>()(
           )
           const insertIndex = adjustedTargetIndex + (insertAfter ? 1 : 0)
           reordered.splice(insertIndex, 0, movingCard)
+          if (reordered.every((card, index) => card.instanceId === hand[index].instanceId)) {
+            return prev
+          }
 
           const sequenceById = new Map<string, number>()
           reordered.forEach((card, index) => sequenceById.set(card.instanceId, index))

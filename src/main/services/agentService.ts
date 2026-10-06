@@ -250,18 +250,18 @@ import {
   AgentStreamEvent,
   AgentStepProposal,
   DuelPuzzleState,
-  DuelPhase,
-  DuelActionType,
   CardLocation,
   CdbCard,
   cleanAgentApiKey,
   isLocalEndpoint,
   normalizeAgentBoardPlacement,
+  normalizeAgentStepProposal,
   resolveActiveRuntime,
   toPiApiType
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
+import { libraryService } from './libraryService'
 import { ocgcoreService } from './ocgcoreService'
 
 /**
@@ -280,11 +280,25 @@ export class AgentService {
   private collectedProposals: AgentStepProposal[] = []
   /** 本轮已提交的场面布局提案（同一轮内后写的覆盖先写的，与步骤提案同生命周期） */
   private collectedBoardSetup: AgentBoardSetupProposal | null = null
+  /**
+   * 本轮附加的小说素材正文（工具按需分段读取，正文不进 prompt 不进 system）。
+   * 只在收到新消息时刷新，避免上一轮素材残留到下一轮误导模型。
+   * novelId / chapterId 仅当素材来自资料库时才有值（拖入文本没有）。
+   */
+  private currentNovelSource: {
+    novelId?: string
+    chapterId?: string
+    title: string
+    content: string
+  } | null = null
   /** 本轮已累计的正文与思考链增量 */
   private streamText = ''
   private streamThought = ''
   /** 跨消息复用的会话缓存：同一模型配置下保留多轮上下文，配置变化时销毁重建 */
   private cachedSession: { session: AgentSession; signature: string } | null = null
+
+  /** read_novel_source 单次返回的字符数上限：控制单次工具输出体量，续读走 offset */
+  private static readonly NOVEL_CHUNK_SIZE = 8000
 
   /**
    * 广播流式事件到渲染层窗口
@@ -564,6 +578,30 @@ export class AgentService {
     this.currentBoardState = params.boardState || null
     this.collectedProposals = []
     this.collectedBoardSetup = null
+    // 装载本轮附加的素材：直接文本（拖入的临时文件）优先，
+    // 其次按 id 从资料库读正文。正文留在主进程，模型经 read_novel_source
+    // 分段读取；读取失败如实广播，不静默吞掉。
+    this.currentNovelSource = null
+    const novelRef = params.novelSource
+    const directText = novelRef?.content?.trim()
+    if (directText) {
+      this.currentNovelSource = {
+        novelId: novelRef?.novelId ?? '',
+        chapterId: novelRef?.chapterId ?? '',
+        title: novelRef?.title?.trim() || '附加文本',
+        content: directText
+      }
+    } else if (novelRef?.novelId && novelRef.chapterId) {
+      const res = libraryService.getNovelChapterContent(novelRef.novelId, novelRef.chapterId)
+      if (res.success && res.content) {
+        this.currentNovelSource = { ...novelRef, content: res.content }
+      } else {
+        this.emitEvent({
+          type: 'status',
+          message: `小说素材《${novelRef.title}》读取失败（可能已被删除或重新拆分），本次按无素材处理`
+        })
+      }
+    }
 
     // 3. 读取大模型配置
     const appConfig = configService.get()
@@ -812,7 +850,84 @@ export class AgentService {
     })
 
     /**
-     * 工具 4：提交决斗推演步骤与角色台词 (propose_duel_steps)
+     * 工具 4：分段读取小说素材 (read_novel_source)
+     * 整章小说动辄数万字，不塞 prompt 而是由模型按 offset 自主续读：
+     * 单次只回一段 + 明确的续读指引（借鉴 opencode read 的分页与截断提示），
+     * 读没读完由「是否还有下一段」显式告知，避免模型只读开头就下结论。
+     */
+    const readNovelSourceTool = defineTool({
+      name: 'read_novel_source',
+      label: '分段读取小说素材',
+      description:
+        '分段读取创作者随消息附加的小说/文本素材。消息里标注了【小说素材】时必须先用它通读全文（从 offset 缺省开始，按返回指引传 offset 续读直到读完），再开始整理对局；未附加素材时不要调用',
+      parameters: Type.Object({
+        offset: Type.Optional(
+          Type.Number({
+            description: '起始字符偏移，首次调用省略；续读时传上一次返回的 nextOffset'
+          })
+        )
+      }),
+      execute: async (_toolCallId, p: { offset?: number }) => {
+        this.emitEvent({
+          type: 'tool_call_start',
+          id: _toolCallId,
+          toolName: 'read_novel_source',
+          params: { offset: p.offset ?? 0 }
+        })
+
+        const source = this.currentNovelSource
+        if (!source) {
+          this.emitEvent({
+            type: 'tool_call_end',
+            id: _toolCallId,
+            toolName: 'read_novel_source',
+            resultSummary: '本轮未附加小说素材'
+          })
+          return {
+            content: [
+              {
+                type: 'text',
+                text: '本轮消息没有附加小说素材。若创作者的诉求需要原文，请直接请对方通过「附加小说素材」按钮选择章节后再发送，不要凭空猜测剧情。'
+              }
+            ],
+            details: { attached: false }
+          }
+        }
+
+        const total = source.content.length
+        const offset = Math.min(Math.max(0, Math.trunc(p.offset ?? 0)), total)
+        const chunk = source.content.slice(offset, offset + AgentService.NOVEL_CHUNK_SIZE)
+        const end = offset + chunk.length
+        const remaining = total - end
+
+        this.emitEvent({
+          type: 'tool_call_end',
+          id: _toolCallId,
+          toolName: 'read_novel_source',
+          resultSummary: `读取《${source.title}》第 ${offset}-${end} 字，共 ${total} 字`
+        })
+
+        const header = [
+          `【小说素材】《${source.title}》`,
+          `共 ${total} 字；本次输出第 ${offset}-${end} 字。`,
+          remaining > 0
+            ? `素材尚未读完（剩余 ${remaining} 字），请继续调用本工具并传 offset: ${end}。`
+            : '素材已全部读完，可以开始整理对局。'
+        ].join('\n')
+
+        const details: Record<string, unknown> = {
+          title: source.title,
+          total,
+          offset,
+          end,
+          remaining
+        }
+        return { content: [{ type: 'text', text: `${header}\n\n${chunk}` }], details }
+      }
+    })
+
+    /**
+     * 工具 5：提交决斗推演步骤与角色台词 (propose_duel_steps)
      * 整个 AI 编排顾问的核心业务工具。
      * 当 AI 构思好一连串战术动作后调用此工具，结构化输出回合、阶段、行动方、动作类型、
      * 涉及卡密、热血台词、心理博弈内心独白及 LP 生命值变动，供创作者在界面一键导入战场。
@@ -840,6 +955,29 @@ export class AgentService {
             innerThoughts: Type.Optional(Type.String({ description: '角色内心独白/博弈思考' })),
             description: Type.Optional(Type.String({ description: '战术动作操作说明' })),
             chainIndex: Type.Optional(Type.Number({ description: '连锁序号' })),
+            fromLocation: Type.Optional(
+              Type.String({
+                description:
+                  '涉及卡片在动作前的区域: MZONE / SZONE / HAND / GRAVE / DECK / EXTRA / REMOVED。同一卡密有多张时用于消歧'
+              })
+            ),
+            toLocation: Type.Optional(
+              Type.String({
+                description:
+                  '动作后卡片移动到的区域（同上枚举）。缺省时编辑器按动作类型推断：召唤→怪兽区、盖放→魔陷区、破坏/送墓→墓地、除外→除外区'
+              })
+            ),
+            toSequence: Type.Optional(
+              Type.Number({
+                description: '目标格子序号 0~4，仅在移动到怪兽区/魔陷区等离散格时填写'
+              })
+            ),
+            sourceQuote: Type.Optional(
+              Type.String({
+                description:
+                  '该步对应的原文短句（40 字内），供创作者核对转写顺序；凭空推演的步骤不要编造原文'
+              })
+            ),
             lpChange: Type.Optional(
               Type.Object({
                 player: Type.Number({ description: '受到LP变动的玩家: 0我方, 1对方' }),
@@ -854,24 +992,7 @@ export class AgentService {
         _toolCallId,
         p: {
           summary: string
-          steps: Array<{
-            turn: number
-            phase: string
-            actionPlayer: number
-            actionType: string
-            cardCode?: number
-            cardName?: string
-            speaker?: string
-            dialogue?: string
-            innerThoughts?: string
-            description?: string
-            chainIndex?: number
-            lpChange?: {
-              player: number
-              oldLp: number
-              newLp: number
-            }
-          }>
+          steps: unknown[]
         }
       ) => {
         this.emitEvent({
@@ -881,28 +1002,21 @@ export class AgentService {
           params: { stepCount: p.steps.length, summary: p.summary }
         })
 
-        const mappedSteps: AgentStepProposal[] = p.steps.map((s) => ({
-          turn: s.turn,
-          phase: (['DP', 'SP', 'M1', 'BP', 'M2', 'EP'].includes(s.phase)
-            ? s.phase
-            : 'M1') as DuelPhase,
-          actionPlayer: (s.actionPlayer === 1 ? 1 : 0) as 0 | 1,
-          actionType: s.actionType as DuelActionType,
-          cardCode: s.cardCode,
-          cardName: s.cardName,
-          speaker: s.speaker,
-          dialogue: s.dialogue,
-          innerThoughts: s.innerThoughts,
-          description: s.description,
-          chainIndex: s.chainIndex,
-          lpChange: s.lpChange
-            ? {
-                player: (s.lpChange.player === 1 ? 1 : 0) as 0 | 1,
-                oldLp: s.lpChange.oldLp,
-                newLp: s.lpChange.newLp
-              }
-            : undefined
-        }))
+        // 逐条归一化：写错字段（中文动作词、缺 actionPlayer 等）的步骤不静默
+        // 丢弃也不整批失败 —— 通过工具返回值把每条的问题告知模型，让它下一批
+        // 修正重交（借鉴 ZCode 的 ToolHandlerFailure：业务失败用返回值表达而非异常）。
+        const notes: string[] = []
+        const rejected: string[] = []
+        const mappedSteps: AgentStepProposal[] = []
+        p.steps.forEach((s, idx) => {
+          const res = normalizeAgentStepProposal(s)
+          if (res.ok) {
+            if (res.note) notes.push(`第 ${idx + 1} 步：${res.note}`)
+            mappedSteps.push(res.step)
+          } else {
+            rejected.push(`第 ${idx + 1} 步：${res.error}`)
+          }
+        })
 
         this.collectedProposals.push(...mappedSteps)
 
@@ -915,18 +1029,39 @@ export class AgentService {
           type: 'tool_call_end',
           id: _toolCallId,
           toolName: 'propose_duel_steps',
-          resultSummary: `成功编排 ${mappedSteps.length} 个决斗步骤`
+          resultSummary: `累计接收 ${this.collectedProposals.length} 步（本批 +${mappedSteps.length}）${
+            rejected.length > 0 ? `，剔除 ${rejected.length} 步` : ''
+          }`
         })
 
+        const lines: string[] = []
+        if (mappedSteps.length === 0) {
+          lines.push(
+            '本批没有可用的步骤提案，全部被剔除。请按下列原因修正字段后重新提交整批，不要缩小范围重试。'
+          )
+        } else {
+          lines.push(
+            `已接收 ${mappedSteps.length} 个步骤提案（本轮累计 ${this.collectedProposals.length} 个）。转写未完成时继续按回合分批提交；已全部完成则不必再调用。`
+          )
+        }
+        if (notes.length > 0) lines.push('已自动修正：', ...notes.map((n) => `- ${n}`))
+        if (rejected.length > 0) {
+          lines.push('被剔除的步骤（下一批提交前请先修正）：', ...rejected.map((r) => `- ${r}`))
+        }
+
         return {
-          content: [{ type: 'text', text: `成功接收 ${mappedSteps.length} 个步骤提案。` }],
-          details: { count: mappedSteps.length }
+          content: [{ type: 'text', text: lines.join('\n') }],
+          details: {
+            accepted: mappedSteps.length,
+            rejected: rejected.length,
+            total: this.collectedProposals.length
+          }
         }
       }
     })
 
     /**
-     * 工具 5：复盘场面布局 (propose_board_setup)
+     * 工具 6：复盘场面布局 (propose_board_setup)
      * 当用户口述了一个具体局面（LP、怪兽区/魔陷区配置、手牌）并要求「摆到决斗场上」时调用。
      * 只产出**待确认的布局提案**，不直接改盘面 —— 由渲染层弹出预览卡，用户确认后才写入。
      */
@@ -1121,7 +1256,7 @@ export class AgentService {
     })
 
     /**
-     * 工具 6：调用无头规则引擎校验战术 (validate_with_ocgcore)
+     * 工具 7：调用无头规则引擎校验战术 (validate_with_ocgcore)
      * 接入官方 ocgcore 规则引擎 (WebAssembly 沙箱)。
      *
      * **当前只做引擎可用性自检**：ocgcoreService 尚未接受局面输入，
@@ -1200,6 +1335,7 @@ export class AgentService {
         searchCardsTool,
         getCardInfoTool,
         getCurrentBoardTool,
+        readNovelSourceTool,
         proposeStepsTool,
         proposeBoardSetupTool,
         validateWithOcgcoreTool

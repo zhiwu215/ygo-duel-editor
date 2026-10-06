@@ -7,32 +7,36 @@ import {
   ChevronDown,
   ChevronRight,
   BrainCircuit,
-  Sliders,
-  Check,
-  Layers,
   Bot,
+  Check,
   Loader2,
   X,
-  Paperclip
+  Paperclip,
+  BookOpen
 } from 'lucide-react'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import {
   AgentProviderModelConfig,
-  AgentStepProposal,
+  AgentNovelSourceRef,
+  countWords,
   isProviderReady,
   CdbCard,
   CardUtils
 } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
-import { AiProposalCard } from './AiProposalCard'
-import { BoardSetupPreviewCard } from './BoardSetupPreviewCard'
+import { DuelProposalSummaryCard } from './DuelProposalSummaryCard'
 import { MarkdownContent } from './MarkdownContent'
+import { NovelSourcePicker } from './NovelSourcePicker'
 import { ToolCallList } from './ToolCallList'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
 const MANAGE_KEY = 'action:manage'
+
+/** 拖入文本的大小上限（字符）：素材经 read_novel_source 分段读取，
+ * 但渲染端读取与 IPC 传输仍需要一次全量 —— 正常「一场对局」远小于这个量级 */
+const MAX_DRAGGED_TEXT_CHARS = 800_000
 
 interface MenuProvider {
   id: string
@@ -51,10 +55,7 @@ export function BehindSpiritPanel(): JSX.Element {
     resetSession,
     sendMessage,
     abort,
-    applyProposalsToDuel,
-    applyBoardSetup,
-    markBoardSetupApplied,
-    dismissBoardSetup
+    applyDuelProposal
   } = useAgentStore()
 
   const { state: currentBoardState } = useDuelStore()
@@ -62,13 +63,21 @@ export function BehindSpiritPanel(): JSX.Element {
   const [inputPrompt, setInputPrompt] = useState('')
   const [appliedMessageId, setAppliedMessageId] = useState<string | null>(null)
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
-  // 场面布局提案的应用过程：同一时刻只可能有一个提案在应用/报错
-  const [applyingSetupMsgId, setApplyingSetupMsgId] = useState<string | null>(null)
-  const [setupError, setSetupError] = useState<{ msgId: string; text: string } | null>(null)
+  // 整理提案的应用过程：同一时刻只可能有一个提案在应用/报错
+  const [applyingProposalMsgId, setApplyingProposalMsgId] = useState<string | null>(null)
+  const [proposalError, setProposalError] = useState<{ msgId: string; text: string } | null>(null)
 
   // 从卡片检索面板拖入的卡片引用：随消息一起发给 AI，避免用户手打卡名
   const [attachedCards, setAttachedCards] = useState<CdbCard[]>([])
   const [isCardDragOver, setIsCardDragOver] = useState(false)
+
+  // 素材附件：从资料库选章节，或直接拖入 txt/md 文件（正文都不进 prompt）
+  const [attachedNovel, setAttachedNovel] = useState<AgentNovelSourceRef | null>(null)
+  const [novelPickerOpen, setNovelPickerOpen] = useState(false)
+  const [novelPickerPos, setNovelPickerPos] = useState<{ right: number; bottom: number } | null>(
+    null
+  )
+  const novelPickerAnchorRef = useRef<HTMLDivElement>(null)
 
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [openProviderKey, setOpenProviderKey] = useState<string | null>(null)
@@ -178,17 +187,20 @@ export function BehindSpiritPanel(): JSX.Element {
   }
 
   const handleSend = (): void => {
-    if ((!inputPrompt.trim() && attachedCards.length === 0) || isGenerating) return
+    if ((!inputPrompt.trim() && attachedCards.length === 0 && !attachedNovel) || isGenerating)
+      return
     shouldAutoScrollRef.current = true
-    // 对话记录只存用户原始输入；引用卡片的上下文仅在发给模型时拼接
+    // 对话记录只存用户原始输入；引用卡片与小说素材的上下文仅在发给模型时拼接
     sendMessage(
-      inputPrompt.trim(),
+      inputPrompt.trim() || (attachedNovel ? '请把附加的对局原文整理成可演示的对局流程' : ''),
       currentBoardState,
-      buildPromptWithCards(inputPrompt.trim(), attachedCards),
-      attachedCards.map((c) => ({ id: c.id, name: c.name }))
+      buildInjectedPrompt(inputPrompt.trim(), attachedCards, attachedNovel),
+      attachedCards.map((c) => ({ id: c.id, name: c.name })),
+      attachedNovel ?? undefined
     )
     setInputPrompt('')
     setAttachedCards([])
+    setAttachedNovel(null)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -198,12 +210,8 @@ export function BehindSpiritPanel(): JSX.Element {
     }
   }
 
-  /**
-   * 把引用的卡片拼成结构化上下文附在消息前。
-   * 只给 AI 提供事实数据（卡名/卡密/攻防/效果原文），不替用户下结论。
-   */
-  const buildPromptWithCards = (prompt: string, cards: CdbCard[]): string => {
-    if (cards.length === 0) return prompt
+  /** 引用卡片的事实块：只给 AI 卡名/卡密/攻防/效果原文，不替用户下结论 */
+  const buildCardsBlock = (cards: CdbCard[]): string => {
     const blocks = cards.map((c) => {
       const typeLabel = CardUtils.getCardTypeLabel(c.type)
       const isSpellOrTrap = CardUtils.isSpell(c.type) || CardUtils.isTrap(c.type)
@@ -218,13 +226,45 @@ export function BehindSpiritPanel(): JSX.Element {
         .filter(Boolean)
         .join('\n')
     })
-    return `【我参考的卡片】\n${blocks.join('\n\n')}\n\n【我的问题】\n${prompt}`
+    return `【我参考的卡片】\n${blocks.join('\n\n')}`
   }
 
-  // 从卡片检索面板拖入卡片：去重后加入引用列表
+  /**
+   * 组装真正发给模型的 prompt：卡片事实块 + 小说素材提示 + 用户需求。
+   * 小说正文不进 prompt（几万字会挤占上下文），只标注素材已附加，
+   * 由模型用 read_novel_source 工具分段读取。
+   */
+  const buildInjectedPrompt = (
+    prompt: string,
+    cards: CdbCard[],
+    novel: AgentNovelSourceRef | null
+  ): string => {
+    const blocks: string[] = []
+    if (cards.length > 0) blocks.push(buildCardsBlock(cards))
+    if (novel) {
+      const size = novel.wordCount ? `约 ${novel.wordCount} 字` : ''
+      blocks.push(
+        `【小说素材】已附加《${novel.title}》${size ? `（${size}）` : ''}。正文不随消息直接发送，请先用 read_novel_source 分段通读全文。`
+      )
+    }
+    if (blocks.length === 0) return prompt
+    return `${blocks.join('\n\n')}\n\n【我的问题】\n${prompt}`
+  }
+
+  // 从卡片检索面板拖入卡片：去重后加入引用列表；拖入 txt/md 文件则直接附加为素材
   const handleCardDrop = (e: React.DragEvent): void => {
     e.preventDefault()
     setIsCardDragOver(false)
+
+    // 文件分支：渲染端直接读正文（不需要本地路径），随消息携带给主进程
+    const files = Array.from(e.dataTransfer.files).filter((f) =>
+      /\.(txt|md|markdown)$/i.test(f.name)
+    )
+    if (files.length > 0) {
+      void handleFileDrop(files)
+      return
+    }
+
     const raw = e.dataTransfer.getData('application/json')
     if (!raw) return
     try {
@@ -236,33 +276,82 @@ export function BehindSpiritPanel(): JSX.Element {
     }
   }
 
+  /** 拖入本地 txt/md：一次只取一个文件，读为「直接文本」形态的素材（不入资料库） */
+  const handleFileDrop = async (files: File[]): Promise<void> => {
+    const file = files[0]
+    if (files.length > 1) {
+      window.alert('一次只能附加一个文本文件，已取第一个')
+    }
+    try {
+      const content = await file.text()
+      if (!content.trim()) {
+        window.alert('这个文件是空的')
+        return
+      }
+      if (content.length > MAX_DRAGGED_TEXT_CHARS) {
+        window.alert(
+          `文件过大（${content.length} 字，上限 ${MAX_DRAGGED_TEXT_CHARS}）。请拆分后拖入，或先在资料库按章节导入`
+        )
+        return
+      }
+      // 已有素材时覆盖（chip 只能挂一个，覆盖比追加更符合直觉）
+      setAttachedNovel({
+        title: file.name,
+        wordCount: countWords(content),
+        content
+      })
+    } catch (err) {
+      console.error('[BehindSpiritPanel] 读取拖入文件失败:', err)
+      window.alert('读取文件失败，请确认文件未被占用')
+    }
+  }
+
   const removeAttachedCard = (cardId: number): void => {
     setAttachedCards((prev) => prev.filter((c) => c.id !== cardId))
   }
 
-  const handleApplySteps = (proposals: AgentStepProposal[], messageId: string): void => {
-    applyProposalsToDuel(proposals)
-    setAppliedMessageId(messageId)
-    setTimeout(() => setAppliedMessageId(null), 3000)
-  }
-
-  const handleApplySetup = async (messageId: string): Promise<void> => {
-    const msg = useAgentStore.getState().messages.find((m) => m.id === messageId)
-    if (!msg?.boardSetup) return
-    setApplyingSetupMsgId(messageId)
-    setSetupError(null)
-    const res = await applyBoardSetup(msg.boardSetup)
-    setApplyingSetupMsgId(null)
-    if (res.ok) {
-      markBoardSetupApplied(messageId)
-    } else {
-      setSetupError({ msgId: messageId, text: res.error ?? '应用失败' })
+  // 小说素材浮层与模型浮层同款锚定：按触发按钮上沿计算视口坐标
+  const openNovelPicker = (): void => {
+    if (novelPickerOpen) {
+      setNovelPickerOpen(false)
+      return
     }
+    const anchor = novelPickerAnchorRef.current
+    if (anchor) {
+      const rect = anchor.getBoundingClientRect()
+      setNovelPickerPos({
+        right: window.innerWidth - rect.right,
+        bottom: window.innerHeight - rect.top
+      })
+    }
+    setNovelPickerOpen(true)
   }
 
-  const handleDismissSetup = (messageId: string): void => {
-    setSetupError((prev) => (prev?.msgId === messageId ? null : prev))
-    dismissBoardSetup(messageId)
+  /**
+   * 应用一条消息的整理提案（布局 + 步骤一起写，二者本是一体）。
+   * 盘面还是空的就直接应用；已有布局时弹一次覆盖确认 ——
+   * 确认措辞与提案的 clearExisting 无关：只要会改写现有场面都要过目。
+   */
+  const handleApplyProposal = async (messageId: string): Promise<void> => {
+    const msg = useAgentStore.getState().messages.find((m) => m.id === messageId)
+    if (!msg) return
+    const fieldCards = useDuelStore.getState().state.cards
+    if (fieldCards.length > 0) {
+      const confirmed = window.confirm(
+        `当前决斗盘上已有 ${fieldCards.length} 张卡。\n应用会把盘面清空并按提案重建，已排的步骤也会被替换。继续吗？`
+      )
+      if (!confirmed) return
+    }
+    setApplyingProposalMsgId(messageId)
+    setProposalError(null)
+    const res = await applyDuelProposal(msg.boardSetup ?? null, msg.proposals ?? [])
+    setApplyingProposalMsgId(null)
+    if (res.ok) {
+      setAppliedMessageId(messageId)
+      setTimeout(() => setAppliedMessageId(null), 3000)
+    } else {
+      setProposalError({ msgId: messageId, text: res.error ?? '应用失败' })
+    }
   }
 
   const toggleThought = (msgId: string): void => {
@@ -293,7 +382,35 @@ export function BehindSpiritPanel(): JSX.Element {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 bg-background/50">
+      {/* 拖放落点覆盖「消息列表 + 输入区」整栏。
+          放在这层而不是只包输入框：原先只有底部那条窄带能接文件，
+          往对话区里拖会显示系统禁止符号（该区域没有 dragover 的 preventDefault）。 */}
+      <div
+        onDragOver={(e) => {
+          // 一律接管：文件与卡牌都从drop 落到 handleCardDrop 里分流。
+          // 缺了这一句，浏览器会因未声明合法落点而显示禁止光标。
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+          setIsCardDragOver(true)
+        }}
+        onDragLeave={(e) => {
+          // 仅当指针真正离开整栏时才取消高亮，避免经过内部子元素误判
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsCardDragOver(false)
+        }}
+        onDrop={handleCardDrop}
+        className={cn(
+          'flex-1 flex flex-col min-h-0 bg-background/50 relative transition-colors',
+          isCardDragOver && 'bg-primary/5'
+        )}
+      >
+        {isCardDragOver && (
+          <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
+            <div className="px-3 py-1.5 rounded-md bg-primary/90 text-primary-foreground text-[11px] font-semibold shadow-lg">
+              松手附加到下一条提问
+            </div>
+          </div>
+        )}
+
         <div
           ref={chatScrollRef}
           onScroll={handleChatScroll}
@@ -305,6 +422,9 @@ export function BehindSpiritPanel(): JSX.Element {
                 <Bot className="w-7 h-7" />
               </div>
               <h3 className="text-xs font-bold text-foreground">我是您的决斗创作者背后灵</h3>
+              <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+                把 txt / md 小说文件拖到这整栏任意位置，或点下方书本按钮从资料库选章节
+              </p>
               {!config.apiKey && (
                 <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
                   尚未连接模型提供商：点击窗口左下角的「设置」补全 Key，
@@ -370,6 +490,23 @@ export function BehindSpiritPanel(): JSX.Element {
                     </div>
                   )}
 
+                  {msg.role === 'user' && msg.novelSource && (
+                    <div className="mb-1.5 flex items-center gap-1.5">
+                      <span
+                        title="已附加的小说素材，正文经 read_novel_source 工具读取"
+                        className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground min-w-0"
+                      >
+                        <BookOpen className="w-3 h-3 shrink-0" />
+                        <span className="truncate max-w-64">{msg.novelSource.title}</span>
+                        {msg.novelSource.wordCount ? (
+                          <span className="shrink-0 font-mono">
+                            约 {msg.novelSource.wordCount} 字
+                          </span>
+                        ) : null}
+                      </span>
+                    </div>
+                  )}
+
                   {msg.attachedCards && msg.attachedCards.length > 0 && (
                     <div className="mb-1.5 flex flex-wrap items-center gap-1">
                       <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
@@ -399,52 +536,15 @@ export function BehindSpiritPanel(): JSX.Element {
                       <span className="inline-block w-1.5 h-3 ml-1 bg-foreground animate-pulse" />
                     )}
 
-                  {msg.boardSetup && (
-                    <div className="mt-3 pt-2.5 border-t border-border/60">
-                      <BoardSetupPreviewCard
-                        setup={msg.boardSetup}
-                        applied={Boolean(msg.boardSetupApplied)}
-                        applying={applyingSetupMsgId === msg.id}
-                        error={setupError?.msgId === msg.id ? setupError.text : null}
-                        onApply={() => void handleApplySetup(msg.id)}
-                        onDismiss={() => handleDismissSetup(msg.id)}
-                      />
-                    </div>
-                  )}
-
-                  {msg.proposals && msg.proposals.length > 0 && (
-                    <div className="mt-3 pt-2.5 border-t border-border/60 space-y-2">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-foreground flex items-center gap-1">
-                          <Sliders className="w-3.5 h-3.5" />
-                          <span>生成战术步骤提案 ({msg.proposals.length})</span>
-                        </span>
-
-                        <Button
-                          size="xs"
-                          onClick={() => handleApplySteps(msg.proposals!, msg.id)}
-                          className="h-6 text-[10px] gap-1 font-bold"
-                        >
-                          {appliedMessageId === msg.id ? (
-                            <>
-                              <Check className="w-3 h-3" />
-                              <span>已同步步骤编排</span>
-                            </>
-                          ) : (
-                            <>
-                              <Layers className="w-3 h-3" />
-                              <span>一键应用到决斗</span>
-                            </>
-                          )}
-                        </Button>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        {msg.proposals.map((step, idx) => (
-                          <AiProposalCard key={idx} proposal={step} index={idx} />
-                        ))}
-                      </div>
-                    </div>
+                  {(msg.boardSetup || (msg.proposals && msg.proposals.length > 0)) && (
+                    <DuelProposalSummaryCard
+                      setup={msg.boardSetup}
+                      proposals={msg.proposals ?? []}
+                      applied={appliedMessageId === msg.id}
+                      applying={applyingProposalMsgId === msg.id}
+                      error={proposalError?.msgId === msg.id ? proposalError.text : null}
+                      onApply={() => void handleApplyProposal(msg.id)}
+                    />
                   )}
                 </div>
               </div>
@@ -453,23 +553,8 @@ export function BehindSpiritPanel(): JSX.Element {
         </div>
 
         <div className="p-2.5 border-t border-border bg-card/80 flex flex-col gap-2 shrink-0">
-          {/* 拖入卡片的落点：包住输入框 + 引用区，拖入时整块高亮提示可松手 */}
-          <div
-            onDragOver={(e) => {
-              e.preventDefault()
-              e.dataTransfer.dropEffect = 'copy'
-              setIsCardDragOver(true)
-            }}
-            onDragLeave={(e) => {
-              // 仅当指针真正离开整块区域时才取消高亮，避免经过内部子元素误判
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsCardDragOver(false)
-            }}
-            onDrop={handleCardDrop}
-            className={cn(
-              'flex flex-col gap-2 rounded-md transition-colors',
-              isCardDragOver && 'bg-primary/5 ring-1 ring-primary/30'
-            )}
-          >
+          {/* 拖放落点已上移到整栏容器，这里只负责引用区与输入框的布局 */}
+          <div className="flex flex-col gap-2 rounded-md">
             {attachedCards.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {attachedCards.map((c) => (
@@ -507,14 +592,40 @@ export function BehindSpiritPanel(): JSX.Element {
               </div>
             )}
 
+            {attachedNovel && (
+              <div className="flex flex-wrap gap-1.5">
+                <div className="group flex items-center gap-1.5 rounded border border-border bg-muted/60 pl-2 pr-1 py-1 max-w-full">
+                  <BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium leading-tight truncate max-w-52">
+                      {attachedNovel.title}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground font-mono leading-tight">
+                      {attachedNovel.wordCount ? `约 ${attachedNovel.wordCount} 字` : '文本素材'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedNovel(null)}
+                    title="移除这本小说素材"
+                    className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <textarea
               value={inputPrompt}
               onChange={(e) => setInputPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                attachedCards.length > 0
-                  ? '已引用卡片，直接提问即可...'
-                  : '输入消息...（enter发送，shift+enter换行）'
+                attachedNovel
+                  ? '已附加素材，说明要怎么整理这段对局即可...'
+                  : attachedCards.length > 0
+                    ? '已引用卡片，直接提问即可...'
+                    : '输入消息...（enter发送，shift+enter换行）'
               }
               rows={2}
               className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
@@ -523,6 +634,21 @@ export function BehindSpiritPanel(): JSX.Element {
 
           <div className="flex items-center justify-between gap-1.5" ref={toolbarRef}>
             <div className="flex items-center gap-1 min-w-0 flex-1">
+              <div ref={novelPickerAnchorRef} className="shrink-0">
+                <button
+                  type="button"
+                  onClick={openNovelPicker}
+                  title="附加素材：从资料库选章节；也可以把 txt / md 文件拖到面板任意位置"
+                  className={cn(
+                    'w-6 h-6 rounded flex items-center justify-center transition-colors',
+                    novelPickerOpen
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  )}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <div className="relative min-w-0 flex-1">
                 <button
                   type="button"
@@ -673,6 +799,21 @@ export function BehindSpiritPanel(): JSX.Element {
               </div>
             )}
           </div>,
+          document.body
+        )}
+
+      {/* 小说素材选择浮层：同样 Portal 到 body，锚定工具栏的「附加小说」按钮上沿 */}
+      {novelPickerOpen &&
+        createPortal(
+          <NovelSourcePicker
+            pos={novelPickerPos}
+            anchorRef={novelPickerAnchorRef}
+            onClose={() => setNovelPickerOpen(false)}
+            onAttach={(selection) => {
+              setAttachedNovel(selection)
+              setNovelPickerOpen(false)
+            }}
+          />,
           document.body
         )}
     </div>

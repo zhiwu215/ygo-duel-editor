@@ -170,6 +170,7 @@ export interface DuelStep {
   dialogue?: string // 剧情对白 / 台词口播
   innerThoughts?: string // 内心独白 / 心理戏 (可选)
   description?: string // 步骤战术讲解 / 批注
+  sourceQuote?: string // 原文摘句 (AI 从小说文本转写时保留，供人工核对转写顺序；手工编排时可省略)
   boardAfter?: LightweightCardSnapshot[] // 执行此步骤后局面的盘面卡片轻量快照 (用于上一步/下一步真实回放)
   lpChange?: { player: 0 | 1; oldLp: number; newLp: number } // 生命值变动数据 (伤害/回复)
 }

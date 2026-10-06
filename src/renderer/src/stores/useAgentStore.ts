@@ -5,6 +5,7 @@ import {
   AgentBoardCardPlacement,
   AgentBoardSetupProposal,
   AgentModelConfig,
+  AgentNovelSourceRef,
   AgentProviderConfig,
   AgentProviderPreset,
   AgentStepProposal,
@@ -40,6 +41,8 @@ export interface AgentChatMessage {
   boardSetupApplied?: boolean
   /** 该条消息引用过的卡片（仅用于在记录中还原「AI 当时看到了什么」，不拼进 content） */
   attachedCards?: { id: number; name: string }[]
+  /** 该条消息附加的素材（仅标题与字数供气泡展示；正文经工具读取，id 与正文不进对话记录） */
+  novelSource?: { title: string; wordCount?: number }
   createdAt: number
 }
 
@@ -66,24 +69,30 @@ interface AgentStoreState {
   /**
    * 发送消息。`prompt` 是用户原始输入（用于对话记录展示），
    * `injectedPrompt` 是拼入引用卡片等上下文后真正发给模型的内容；
-   * `attachedCards` 仅记录引用了哪些卡，供回看时展示，不进入正文。
+   * `attachedCards` 仅记录引用了哪些卡，供回看时展示，不进入正文；
+   * `novelSource` 是附加的小说素材定位器，正文由主进程经工具供给模型。
    */
   sendMessage: (
     prompt: string,
     boardState?: DuelPuzzleState,
     injectedPrompt?: string,
-    attachedCards?: { id: number; name: string }[]
+    attachedCards?: { id: number; name: string }[],
+    novelSource?: AgentNovelSourceRef
   ) => Promise<void>
   abort: () => Promise<void>
   /** 丢弃 AI 会话并重开（同时清空本地消息） */
   resetSession: () => Promise<void>
-  applyProposalsToDuel: (proposals: AgentStepProposal[]) => void
-  /** 把预览卡中确认过的场面布局写入决斗场 */
-  applyBoardSetup: (setup: AgentBoardSetupProposal) => Promise<{ ok: boolean; error?: string }>
-  /** 把某条消息的布局提案标记为已应用（预览卡按钮态） */
-  markBoardSetupApplied: (messageId: string) => void
-  /** 丢弃某条消息的布局提案（用户点「放弃」） */
-  dismissBoardSetup: (messageId: string) => void
+  /**
+   * 把一条消息的整理提案（开局布局 + 步骤台本）应用进决斗场
+   *
+   * 布局与步骤是一个整体（每个步骤对应一个场面），一次应用：
+   * 布局清空重建 + 步骤经重放器补出逐步快照。「是否覆盖」的询问由
+   * 调用方在盘面已有布局时处理，这里不重复询问。
+   */
+  applyDuelProposal: (
+    setup: AgentBoardSetupProposal | null,
+    proposals: AgentStepProposal[]
+  ) => Promise<{ ok: boolean; error?: string }>
 }
 
 /**
@@ -397,16 +406,20 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
     void get().saveConfig()
   },
 
-  sendMessage: async (prompt, boardState, injectedPrompt, attachedCards) => {
+  sendMessage: async (prompt, boardState, injectedPrompt, attachedCards, novelSource) => {
     if (!prompt.trim() && !injectedPrompt?.trim()) return
     if (get().isGenerating) return
 
-    // 对话记录只留用户原始输入，注入的上下文不污染记录（发给模型时才拼）
+    // 对话记录只留用户原始输入，注入的上下文不污染记录（发给模型时才拼）；
+    // 素材只存展示字段，定位 id 与正文不进记录
     const userMessage: AgentChatMessage = {
       id: `msg_user_${Date.now()}`,
       role: 'user',
       content: prompt.trim(),
       attachedCards,
+      novelSource: novelSource
+        ? { title: novelSource.title, wordCount: novelSource.wordCount }
+        : undefined,
       createdAt: Date.now()
     }
 
@@ -433,6 +446,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       const res = await window.api.agentSendMessage({
         prompt: injectedPrompt?.trim() || prompt.trim(),
         boardState,
+        novelSource,
         configOverride: get().config
       })
 
@@ -494,42 +508,21 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
     set({ messages: [], isGenerating: false })
   },
 
-  applyProposalsToDuel: (proposals) => {
-    if (!proposals || proposals.length === 0) return
-    const { addStep, state } = useDuelStore.getState()
-    const initialTurnPlayer = state.turnPlayer ?? 0
-
-    for (const p of proposals) {
-      const turnPlayer = p.actionPlayer !== undefined ? p.actionPlayer : initialTurnPlayer
-      addStep({
-        turn: p.turn || 1,
-        phase: p.phase,
-        turnPlayer,
-        actionPlayer: p.actionPlayer,
-        actionType: p.actionType,
-        cardCode: p.cardCode,
-        cardName: p.cardName,
-        speaker: p.speaker,
-        dialogue: p.dialogue,
-        innerThoughts: p.innerThoughts,
-        description: p.description,
-        chainIndex: p.chainIndex,
-        lpChange: p.lpChange
-      })
-    }
-  },
-
   /**
-   * 把预览卡中确认过的场面布局写入决斗场
+   * 把一条消息的整理提案（开局布局 + 步骤台本）应用进决斗场
    *
    * 卡密 → CdbCard 的解析放在这里而不是主进程：`addCardToZone` 体系要的是
    * 完整卡对象（卡名、攻防、卡图都靠它），而主进程那边的布局提案刻意只带卡密，
    * 避免把整张卡库塞进事件载荷。渲染层已有 `getCardsByIds` 通道，直接复用。
+   *
+   * 步骤草稿里的卡名会先经卡库反查补上卡密，让重放器能按卡密定位卡片；
+   * 反查不到的步骤保留原名，由重放器安静沿用上一帧。
    */
-  applyBoardSetup: async (setup) => {
-    const placements: AgentBoardCardPlacement[] = setup.cards ?? []
-    if (placements.length === 0 && (setup.lp ?? []).length === 0) {
-      return { ok: false, error: '该布局提案没有任何可落位的内容' }
+  applyDuelProposal: async (setup, proposals) => {
+    const placements: AgentBoardCardPlacement[] = setup?.cards ?? []
+    const lpTargets = setup?.lp ?? []
+    if (placements.length === 0 && lpTargets.length === 0 && proposals.length === 0) {
+      return { ok: false, error: '该提案没有任何可应用的内容' }
     }
 
     let dict: Record<number, CdbCard> = {}
@@ -538,7 +531,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       try {
         dict = await window.api.getCardsByIds(knownCodes)
       } catch (err) {
-        console.error('[useAgentStore] applyBoardSetup 解析卡密失败:', err)
+        console.error('[useAgentStore] applyDuelProposal 解析卡密失败:', err)
         return { ok: false, error: '卡库查询失败，未能读取卡片数据' }
       }
     }
@@ -576,31 +569,41 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       })
       .filter((x): x is NonNullable<typeof x> => x !== null)
 
-    if (placements.length > 0 && resolved.length === 0) {
-      return { ok: false, error: '提案中的卡密在当前卡库里都查不到，无法落位' }
+    if (placements.length > 0 && resolved.length === 0 && proposals.length === 0) {
+      return { ok: false, error: '提案中的卡密在当前卡库里都查不到，无法应用' }
     }
 
-    useDuelStore.getState().applyBoardSetup({
-      lp: setup.lp ?? [],
+    // 卡名 → 卡密反查：转写步骤常只给卡名（轻量快照只认卡密），
+    // 用本批出现过的卡面字典反查；查不到就保留 undefined 由重放器降级
+    const nameToCode = new Map<string, number>()
+    Object.values(dict).forEach((c) => nameToCode.set(c.name, c.id))
+    resolved.forEach((r) => nameToCode.set(r.card.name, r.card.id))
+
+    const { applyDuelScreenplay } = useDuelStore.getState()
+    applyDuelScreenplay({
+      lp: lpTargets,
       cards: resolved,
-      clearExisting: setup.clearExisting
+      clearExisting: Boolean(setup?.clearExisting),
+      steps: proposals.map((p) => ({
+        turn: p.turn || 1,
+        phase: p.phase,
+        turnPlayer: p.actionPlayer ?? 0,
+        actionPlayer: p.actionPlayer ?? 0,
+        actionType: p.actionType,
+        cardCode: p.cardCode ?? (p.cardName ? nameToCode.get(p.cardName) : undefined),
+        cardName: p.cardName,
+        speaker: p.speaker,
+        dialogue: p.dialogue,
+        innerThoughts: p.innerThoughts,
+        description: p.description,
+        chainIndex: p.chainIndex,
+        fromLocation: p.fromLocation,
+        toLocation: p.toLocation,
+        toSequence: p.toSequence,
+        sourceQuote: p.sourceQuote,
+        lpChange: p.lpChange
+      }))
     })
     return { ok: true }
-  },
-
-  markBoardSetupApplied: (messageId) => {
-    set((state) => ({
-      messages: state.messages.map((m) =>
-        m.id === messageId ? { ...m, boardSetupApplied: true } : m
-      )
-    }))
-  },
-
-  dismissBoardSetup: (messageId) => {
-    set((state) => ({
-      messages: state.messages.map((m) =>
-        m.id === messageId ? { ...m, boardSetup: undefined } : m
-      )
-    }))
   }
 }))

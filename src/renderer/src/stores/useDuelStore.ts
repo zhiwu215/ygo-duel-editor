@@ -35,24 +35,16 @@ import {
   resolveDirectAttack
 } from '../utils/duelActionTargets'
 
-/** 布局整体写入的公共构造结果 */
 interface BoardLayoutResult {
   players: [PlayerState, PlayerState]
   duelists: Duelist[]
   cards: FieldCard[]
-  /** clearExisting 时为布局后的初始快照；否则 null（保留原开局基线） */
+
   initialSnapshot: LightweightCardSnapshot[] | null
   selectedInstanceId: string | null
   hoveredCard: CdbCard | null
 }
 
-/**
- * 由落位列表构造完整的双方生命值 / 决斗者 / 场面卡片
- *
- * applyBoardSetup（只摆布局）与 applyDuelScreenplay（布局 + 步骤台本）
- * 共用这段构造：堆叠区序号要在同一次计算里连续分配，离散格同格旧卡
- * 被顶掉的行为也与 addCardToZone 保持一致。
- */
 function buildLayoutFromSetup(
   state: DuelPuzzleState,
   activeDuelistId: string | null,
@@ -70,7 +62,6 @@ function buildLayoutFromSetup(
           state.matchConfig?.team1Count ?? 1
         )
 
-  // 生命值：指定了决斗者名就只改那一位；共享 LP 或该阵营仅一位时全阵营同步
   const sharedLp = Boolean(state.matchConfig?.sharedLp)
   const nextLpBySide = new Map<0 | 1, number>()
   params.lp.forEach((t) => {
@@ -83,7 +74,7 @@ function buildLayoutFromSetup(
     const sameTeam = baseDuelists.filter((x) => x.team === d.team)
     return sharedLp || sameTeam.length <= 1 ? { ...d, lp: v } : d
   })
-  // 逐个决斗者单独指定时覆盖上一轮按阵营算出的值
+
   params.lp.forEach((t) => {
     if (!t.duelistName) return
     const idx = duelists.findIndex((d) => d.name === t.duelistName)
@@ -151,7 +142,6 @@ function buildLayoutFromSetup(
       newCard.sequence = pileSize
       workingCards.push(newCard)
     } else {
-      // 离散格子：同格旧卡被覆盖（与 addCardToZone 行为一致）
       workingCards = workingCards.filter(
         (x) =>
           !(x.controller === c.controller && x.location === location && x.sequence === c.sequence)
@@ -181,25 +171,21 @@ function buildLayoutFromSetup(
 }
 
 interface DuelStoreState {
-  // 装载卡组到对局
   applyDeckToPlayer: (player: 0 | 1, deck: DeckData, drawCount?: number, duelistId?: string) => void
-  // 核心战场状态
-  state: DuelPuzzleState // 多人手牌交互
+
+  state: DuelPuzzleState
   expandedDuelistId: string | null
   setExpandedDuelistId: (id: string | null) => void
 
-  // 当前查看的决斗者 (多人时决定棋盘主卡组/额外卡组等区域归属谁)
   activeDuelistId: string | null
   setActiveDuelistId: (id: string | null) => void
 
-  // 多人对阵场景与角色管理
   switchMatchConfig: (config: MatchConfig) => void
   updateDuelist: (duelistId: string, patch: Partial<Duelist>) => void
   setFirstDuelist: (duelistId: string) => void
   setDuelistTurnOrder: (duelistId: string, newOrder: number) => void
   toggleSharedLp: () => void
 
-  // 选中与悬停交互
   selectedCardId: string | null
   pendingAction: PendingAction | null
   beginAction: (kind: PendingActionKind, sourceId: string) => void
@@ -213,7 +199,6 @@ interface DuelStoreState {
   hoveredInstanceId: string | null
   tacticalView: boolean
 
-  // 左侧栏模态 (VSCode 风格活动栏与多模态面板)
   activeLeftTab: 'archives' | 'library' | 'card' | 'agent'
   isLeftOpen: boolean
   leftWidth: number
@@ -223,17 +208,15 @@ interface DuelStoreState {
   setLeftWidth: (width: number) => void
   loadProjectAndStart: (state: DuelPuzzleState) => void
 
-  // 右侧栏模态与剧情步骤编排
   activeRightTab: 'search' | 'steps'
   currentStepIndex: number | null
   isScreenplayOpen: boolean
   selectedStepId: string | null
 
-  // 决斗推进时序与实战自动记谱
   currentTurn: number
   currentPhase: DuelPhase
   currentChain: number
-  activeTurnPlayer: 0 | 1 // 当前推演回合所属玩家 (独立于初始先攻方)
+  activeTurnPlayer: 0 | 1
   isAutoRecording: boolean
 
   setCurrentTurn: (turn: number) => void
@@ -246,7 +229,6 @@ interface DuelStoreState {
   setIsAutoRecording: (recording: boolean) => void
   previewStepBoard: (stepIndex: number | null) => void
 
-  /** 记录一条决斗操作至步骤流中 */
   recordAction: (params: {
     actionType: DuelActionType
     card?: { code: number; name?: string }
@@ -259,7 +241,6 @@ interface DuelStoreState {
     description?: string
   }) => void
 
-  // 决斗盘实战动作执行器 (直接在盘面上打牌并自动记谱)
   executeActivateCard: (instanceId: string) => void
   executeChainCard: (instanceId: string) => void
   executeAttackCard: (instanceId: string, targetInstanceId?: string) => void
@@ -281,14 +262,13 @@ interface DuelStoreState {
   moveStep: (stepId: string, direction: 'up' | 'down') => void
   clearSteps: () => void
 
-  // 动作
   setActiveStatPopoverCardId: (id: string | null) => void
   setStatPopoverPosition: (pos: { x: number; y: number } | null) => void
   openStatPopover: (id: string, initialPos?: { x: number; y: number }) => void
   closeStatPopover: () => void
-  /** 设置规则（如大师规则3） */
+
   setMasterRule: (rule: MasterRule) => void
-  /** 设置决斗类型（如残局、Combo） */
+
   setDuelType: (type: DuelType) => void
   setTitle: (title: string) => void
   setHint: (hint: string) => void
@@ -296,17 +276,6 @@ interface DuelStoreState {
   setTurnPlayer: (player: 0 | 1) => void
   setFirstTurnAttack: (allow: boolean) => void
 
-  // 卡片操作
-  /**
-   * 向指定区域和格子槽位中新增放置一张卡片
-   *
-   * **参数说明：**
-   * - `card`：卡片数据库原型对象 (CdbCard)
-   * - `controller`：放置的控制者方 (0: 我方, 1: 对方)
-   * - `location`：目标区域 (CardLocation，如 MZONE、SZONE、HAND、GRAVE 等)
-   * - `sequence`：目标格子序号 (0~4；牌堆区域会自动追加到末尾)
-   * - `position`：可选，卡片表示形式 (CardPosition；缺省时按目标区域惯例赋予默认表示)
-   */
   addCardToZone: (
     card: CdbCard,
     controller: 0 | 1,
@@ -315,17 +284,7 @@ interface DuelStoreState {
     position?: number,
     duelistId?: string
   ) => void
-  /**
-   * 整体写入一份场面布局（AI 复盘 / 批量导入共用）
-   *
-   * 与逐条调用 `addCardToZone` 的区别是**单次 set**：布局天然是一次性动作，
-   * 逐条调用会让中途状态被 temporal 记录成一串撤销步骤，且堆叠区序号要在
-   * 同一次计算里连续分配。这里先算好所有卡再一次性落盘。
-   *
-   * @param params.lp 生命值设定；`duelistName` 命中该阵营决斗者时只改那一位
-   * @param params.cards 已解析出 CdbCard 的落位列表，顺序即堆叠区顺序
-   * @param params.clearExisting 是否先清空盘面
-   */
+
   applyBoardSetup: (params: {
     lp: Array<{ side: 0 | 1; lp: number; duelistName?: string }>
     cards: Array<{
@@ -341,35 +300,14 @@ interface DuelStoreState {
     }>
     clearExisting: boolean
   }) => void
-  /**
-   * 整体写入「布局 + 步骤台本」（AI 转写 / 剧情导入共用）
-   *
-   * 步骤会被重放器补出逐步盘面快照，供台本回放逐帧还原场面。
-   */
+
   applyDuelScreenplay: (params: {
     lp: Array<{ side: 0 | 1; lp: number; duelistName?: string }>
     cards: ResolvedBoardPlacement[]
     steps: Array<Omit<DuelStep, 'id'>>
     clearExisting: boolean
   }) => void
-  /**
-   * 移动场上或手牌中的卡片至目标区域与槽位
-   *
-   * **参数说明：**
-   * - `instanceId`：要移动卡片的唯一实例 ID（UUID，非卡密 code）
-   * - `toLocation`：目标区域（CardLocation，如 MZONE、SZONE、HAND、GRAVE 等）
-   * - `toSequence`：目标格子序号（如怪兽/魔陷区 0~4；牌堆区域会自动追加到末尾）
-   * - `toController`：可选，目标控制者（0: 我方, 1: 对方；缺省时保持原控制者）
-   * - `customPos`：可选，自定义卡片表示形式（CardPosition；如按住 Ctrl 拖拽切换默认放置状态）
-   * - `targetDuelistId`：可选，目标决斗者 ID（当移动至手牌区时关联）
-   *
-   * @param instanceId 要移动卡片的唯一实例 ID
-   * @param toLocation 目标区域
-   * @param toSequence 目标格子序号
-   * @param toController 可选，目标控制者 (0: 我方, 1: 对方)
-   * @param customPos 可选，自定义卡片表示形式
-   * @param targetDuelistId 可选，目标决斗者 ID
-   */
+
   moveCard: (
     instanceId: string,
     toLocation: number,
@@ -382,32 +320,25 @@ interface DuelStoreState {
   updateCardPosition: (instanceId: string, position: number) => void
   addOverlayMaterial: (targetInstanceId: string, matCode: number) => void
   removeOverlayMaterial: (targetInstanceId: string, matIndex: number) => void
-  /** 将新卡作为顶层主怪兽卡，原怪兽及原有素材全部垫在下方作为素材 */
+
   overlayOnTop: (
     targetInstanceId: string,
     newCardData: CdbCard,
     sourceCardInstanceId?: string
   ) => void
-  /** 将某张素材与顶层主怪兽互换位置 */
+
   swapHostWithMaterial: (targetInstanceId: string, matIndex: number) => void
-  /** 拔除某张素材并送去指定区域（如墓地、手牌、除外） */
+
   detachMaterialToLocation: (
     targetInstanceId: string,
     matIndex: number,
     targetLocation: number
   ) => void
-  /** 调整超量素材的层叠顺序 */
+
   reorderOverlayMaterials: (targetInstanceId: string, fromIndex: number, toIndex: number) => void
-  /** 更新指定场上卡片的 CDB 详情数据缓存 */
+
   setCardData: (instanceId: string, card: CdbCard) => void
-  /**
-   * 调整堆叠型区域（如主卡组、额外卡组、墓地、除外区）内卡片的排序位置
-   *
-   * @param controller 控制者 (0: 我方, 1: 对方)
-   * @param location 区域 (CardLocation)
-   * @param fromIndex 当前索引位置
-   * @param toIndex 目标索引位置
-   */
+
   reorderPileCards: (
     controller: 0 | 1,
     location: number,
@@ -415,7 +346,7 @@ interface DuelStoreState {
     toIndex: number,
     duelistId?: string
   ) => void
-  /** 在同一位决斗者的手牌中，将一张卡插入另一张卡的前方或后方 */
+
   reorderHandCards: (
     controller: 0 | 1,
     duelistId: string,
@@ -424,7 +355,6 @@ interface DuelStoreState {
     insertAfter: boolean
   ) => void
 
-  // 实战属性与指示物操作
   setCardCounter: (instanceId: string, counterType: number, count: number) => void
   removeCardCounter: (instanceId: string, counterType: number) => void
   clearCardCounters: (instanceId: string) => void
@@ -433,12 +363,10 @@ interface DuelStoreState {
   toggleTacticalView: () => void
   setTacticalView: (enabled: boolean) => void
 
-  // 整体替换 / 重置
   loadState: (newState: DuelPuzzleState) => void
   resetDuel: () => void
   swapSides: () => void
 
-  // UI 交互
   setSelectedCardId: (id: string | null) => void
   setHoveredCard: (card: CdbCard | null) => void
   setHoveredInstanceId: (id: string | null) => void
@@ -607,7 +535,6 @@ export const useDuelStore = create<DuelStoreState>()(
       setActiveTurnPlayer: (player) => set({ activeTurnPlayer: player }),
       setIsAutoRecording: (recording) => set({ isAutoRecording: recording }),
 
-      // 真实回放与盘面还原
       previewStepBoard: (stepIndex) =>
         set((prev) => {
           if (stepIndex === null) {
@@ -662,7 +589,6 @@ export const useDuelStore = create<DuelStoreState>()(
             }
           })
 
-          // 恢复场面时同步恢复该步之后的生命值，演示时 LP 才会跟住原文数值
           const lpChange = targetStep.lpChange
           let nextPlayers = prev.state.players
           if (lpChange) {
@@ -768,7 +694,6 @@ export const useDuelStore = create<DuelStoreState>()(
         set({ pendingAction: null })
       },
 
-      // 决斗盘实战动作执行器 (统一走 moveCard / updateCardPosition，保证完整规整与牌堆序列)
       executeActivateCard: (instanceId) => {
         const { state, moveCard, updateCardPosition } = useDuelStore.getState()
         const card = state.cards.find((c) => c.instanceId === instanceId)
@@ -783,7 +708,6 @@ export const useDuelStore = create<DuelStoreState>()(
         } else if (card.location === CardLocation.SZONE) {
           updateCardPosition(instanceId, CardPosition.FACEUP)
         } else {
-          // 怪兽区/墓地发动怪兽效果
           const { currentTurn, currentPhase, currentChain, activeTurnPlayer } =
             useDuelStore.getState()
           const nextChain = currentChain + 1
@@ -818,7 +742,6 @@ export const useDuelStore = create<DuelStoreState>()(
       },
 
       executeChainCard: (instanceId) => {
-        // 直接调用 executeActivateCard 即可自动自增连锁，避免连锁跳跃至 C2
         useDuelStore.getState().executeActivateCard(instanceId)
       },
 
@@ -947,15 +870,12 @@ export const useDuelStore = create<DuelStoreState>()(
 
       executeDrawCard: (controller) => {
         const { state, moveCard, activeDuelistId } = useDuelStore.getState()
-        // 多人时每位决斗者是独立牌堆：只从「当前查看的决斗者」的卡组顶抽，
-        // 否则会对整个阵营的DECK 排序，可能抽走同阵营其他人的牌。
+
         const activeDuelist = (state.duelists || []).find(
           (d) => d.id === activeDuelistId && d.team === controller
         )
         const ownerScope = activeDuelist?.id ?? null
-        // 卡组顶 = 卡组列表最左（sequence 最小）= 下一抽。必须显式按 sequence 排序：
-        // 经过列表重排或移入移出后，cards 数组的物理顺序会与sequence 脱钩，
-        // 直接取数组末位会抽错卡。
+
         const deckCards = state.cards
           .filter(
             (c) =>
@@ -986,7 +906,6 @@ export const useDuelStore = create<DuelStoreState>()(
         })),
       setLeftWidth: (width) => set({ leftWidth: Math.max(280, Math.min(width, 600)) }),
 
-      /** 加载决斗档案并开始第一回合 */
       loadProjectAndStart: (newState) => {
         const normalized = normalizeDuelState(newState)
         set({
@@ -1083,7 +1002,6 @@ export const useDuelStore = create<DuelStoreState>()(
 
       setMasterRule: (rule) =>
         set((prev) => {
-          // 如果切回 MR1/2/3，移除额外怪兽区中已放置的卡片到额外卡组或主怪兽区
           let newCards = [...prev.state.cards]
           if (rule <= 3) {
             newCards = newCards.filter(
@@ -1159,9 +1077,6 @@ export const useDuelStore = create<DuelStoreState>()(
           const currentKey = getMatchScenarioKey(currentConfig)
           const targetKey = getMatchScenarioKey(newConfig)
 
-          // 1. 将当前这整场决斗完整存档：场面、血量、决斗者、步骤、开局盘面一个都不能少，
-          //    否则切回本场景时信息会丢失。players 与 initialBoardSnapshot 是后补的字段，
-          //    旧快照可能没有，这里原样保留 undefined 由读取侧兜底。
           const currentSnapshot: DuelSceneSnapshot = {
             duelists:
               prev.state.duelists ||
@@ -1180,7 +1095,6 @@ export const useDuelStore = create<DuelStoreState>()(
             [currentKey]: currentSnapshot
           }
 
-          // 切换场景后残留的运行时状态统一清零，避免带着上一场的回合/阶段/选中项进来
           const resetRuntime = {
             expandedDuelistId: null,
             activeDuelistId: null,
@@ -1191,7 +1105,6 @@ export const useDuelStore = create<DuelStoreState>()(
             currentChain: 0
           }
 
-          // 2. 目标场景已有独立存档 → 整场还原（场面/血量/步骤/开局盘面）
           if (updatedScenarios[targetKey]) {
             const snap = updatedScenarios[targetKey]
             return {
@@ -1200,7 +1113,7 @@ export const useDuelStore = create<DuelStoreState>()(
                 matchConfig: newConfig,
                 duelists: snap.duelists,
                 cards: snap.cards,
-                // 旧存档可能没有 players / initialBoardSnapshot，回落到当前值而不是硬写8000
+
                 players: snap.players ?? prev.state.players,
                 initialBoardSnapshot: snap.initialBoardSnapshot ?? prev.state.initialBoardSnapshot,
                 turnPlayer: snap.turnPlayer,
@@ -1213,8 +1126,6 @@ export const useDuelStore = create<DuelStoreState>()(
             }
           }
 
-          // 3. 首次进入该场景：这是一场全新的决斗，场面从零开始（不继承上一场的任何卡片）。
-          //    旧场景的完整对局已存进上面的 currentSnapshot，切回来时会原样还原。
           const newDuelists = createDefaultDuelists(newConfig.team0Count, newConfig.team1Count)
 
           return {
@@ -1338,7 +1249,6 @@ export const useDuelStore = create<DuelStoreState>()(
             otherInList.turnOrder = currentTargetOrder
           }
 
-          // 同步 isFirst 与 turnPlayer
           let turnPlayer = prev.state.turnPlayer
           duelists.forEach((d) => {
             const order = d.turnOrder ?? 2
@@ -1406,8 +1316,6 @@ export const useDuelStore = create<DuelStoreState>()(
             location === CardLocation.EXTRA ||
             location === CardLocation.REMOVED
 
-          // 默认表示形式: 魔陷/卡组/额外/手牌盖放 (手牌盖放=未公开, 编排者仍可见卡面),
-          // 墓地/除外/灵摆表侧, 怪兽表攻
           let defaultPos: number = CardPosition.FACEUP_ATTACK
           if (
             location === CardLocation.SZONE ||
@@ -1425,9 +1333,6 @@ export const useDuelStore = create<DuelStoreState>()(
           }
           const pos = customPos !== undefined ? customPos : defaultPos
 
-          // 归属决斗者 ID：手牌与堆叠区（主卡组/额外/墓地/除外）都必须写。
-          // 堆叠区若留空，这些牌在多人对局里会因`c.duelistId === ownerScope` 不成立
-          // 而既不显示也清不掉。取值优先级：调用方指定 > 当前查看的决斗者 > 该阵营首位。
           const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
           const isOwnerScopedZone =
             location === CardLocation.HAND ||
@@ -1443,12 +1348,10 @@ export const useDuelStore = create<DuelStoreState>()(
               (controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
           }
 
-          // 堆叠型区域按已有数量计算新序号；离散格子则替换/覆盖同位置旧卡
           const existingPile = prev.state.cards
             .filter((c) => {
               if (c.controller !== controller || c.location !== location) return false
-              // 手牌与堆叠区都按归属过滤：多人时每位决斗者是独立牌堆，
-              // 混算序号会让 A 的新卡插到 B 的堆里造成错位。
+
               if (isOwnerScopedZone && assignedDuelistId) {
                 return c.duelistId === assignedDuelistId
               }
@@ -1529,8 +1432,7 @@ export const useDuelStore = create<DuelStoreState>()(
               players: layout.players,
               duelists: layout.duelists,
               cards: layout.cards,
-              // 布局即新的开局基线：清空盘面时必须把初始快照也清掉，
-              // 否则「上一步 / 下一步」复位会回到 AI 落位前的旧场面。
+
               ...(layout.initialSnapshot ? { initialBoardSnapshot: layout.initialSnapshot } : {})
             },
             selectedCardId: layout.selectedInstanceId,
@@ -1538,13 +1440,6 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         }),
 
-      /**
-       * 整体写入「布局 + 步骤台本」（AI 转写 / 剧情导入共用）
-       *
-       * 与 applyBoardSetup 同样单次 set；差别是会从布局落盘后的场面出发，
-       * 用重放器为每个步骤推演出 boardAfter 快照——「上一步 / 下一步」
-       * 回放时场面才能跟着时间线推进，而不是停在一张静态开场图上。
-       */
       applyDuelScreenplay: ({ lp, cards, steps, clearExisting }) =>
         set((prev) => {
           const layout = buildLayoutFromSetup(prev.state, prev.activeDuelistId, {
@@ -1577,15 +1472,6 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         }),
 
-      /**
-       * 移动场上或手牌中的卡片至新位置
-       * @param instanceId 要移动卡片的唯一实例 ID
-       * @param toLocation 目标区域 (CardLocation，如 MZONE/SZONE/HAND/GRAVE 等)
-       * @param toSequence 目标格子序号 (如 0~4；牌堆区域会自动追加到末尾)
-       * @param toController 可选，目标控制者 (0: 我方, 1: 对方；缺省时保持原控制者)
-       * @param customPos 可选，自定义卡片表示形式 (CardPosition；如按住 Ctrl 拖拽切换默认放置状态)
-       * @param targetDuelistId 可选，目标决斗者 ID
-       */
       moveCard: (instanceId, toLocation, toSequence, toController, customPos, targetDuelistId) =>
         set((prev) => {
           const targetCard = prev.state.cards.find((c) => c.instanceId === instanceId)
@@ -1602,8 +1488,6 @@ export const useDuelStore = create<DuelStoreState>()(
 
           let assignedDuelistId = targetDuelistId
           if (isPileZone && !assignedDuelistId) {
-            // 保留原属主（从 A 手牌拖到墓地仍是 A 的牌）；原卡无归属时
-            // 回落到当前查看的决斗者 / 该阵营首位，保证堆叠区卡片都有明确归属。
             const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === ctrl)
             assignedDuelistId =
               targetCard.duelistId ||
@@ -1654,19 +1538,17 @@ export const useDuelStore = create<DuelStoreState>()(
             }
           }
 
-          // 表示形式：customPos (如 Ctrl 拖入切换放置状态) 优先级最高；
-          // 否则跨区域移动按目标区域惯例给默认表示，同区域内移动保持原表示
           const sameZone = targetCard.location === toLocation
           let newPos = targetCard.position
           if (customPos !== undefined) {
             newPos = customPos
           } else if (!sameZone) {
             if (toLocation === CardLocation.SZONE) {
-              newPos = CardPosition.FACEDOWN // 魔陷默认盖放 (与搜索拖入一致)
+              newPos = CardPosition.FACEDOWN
             } else if (toLocation === CardLocation.MZONE) {
-              newPos = CardPosition.FACEUP_ATTACK // 怪兽默认表攻
+              newPos = CardPosition.FACEUP_ATTACK
             } else if (toLocation === CardLocation.HAND) {
-              newPos = CardPosition.FACEDOWN // 手牌默认未公开 (编排者仍可见卡面)
+              newPos = CardPosition.FACEDOWN
             } else if (toLocation === CardLocation.DECK || toLocation === CardLocation.EXTRA) {
               newPos = CardPosition.FACEDOWN
             } else if (
@@ -1790,7 +1672,6 @@ export const useDuelStore = create<DuelStoreState>()(
               targetCard.card?.name || (targetCard.code ? String(targetCard.code) : '卡片')
 
             if (isJustDropped) {
-              // 用户刚落子紧接着用浮条修改了表示形式（例如魔陷：盖放 ⇄ 发动；怪兽：表攻 ⇄ 盖守）
               if (
                 targetCard.location === CardLocation.SZONE ||
                 targetCard.location === CardLocation.FZONE
@@ -1834,7 +1715,6 @@ export const useDuelStore = create<DuelStoreState>()(
                 }
               }
             } else {
-              // 场上已有卡片的表示形式变更（翻开发动、反转召唤、守备/攻击切换）
               const inferred = inferPositionChangeAction({
                 location: targetCard.location,
                 oldPosition: oldPos,
@@ -1915,43 +1795,31 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         })),
 
-      // 1. 新怪兽置顶叠放（重叠超量做场：新怪兽当大哥，原怪兽与老素材垫在下方）
       overlayOnTop: (targetInstanceId, newCardData, sourceCardInstanceId) =>
         set((prev) => {
           let sourceMats: number[] = []
           if (sourceCardInstanceId) {
             const src = prev.state.cards.find((c) => c.instanceId === sourceCardInstanceId)
             if (src && src.overlayMaterials) {
-              // 若来源怪兽自身带有素材，根据规则将其已有素材全数抽出垫入新怪兽底下
               sourceMats = src.overlayMaterials
             }
           }
 
           let updatedCards = prev.state.cards
           if (sourceCardInstanceId) {
-            // 来源怪兽已被搬移至目标格，清空其原本占用的场上旧格子，防止一卡双份
             updatedCards = updatedCards.filter((c) => c.instanceId !== sourceCardInstanceId)
           }
 
           const finalCards = updatedCards.map((c) => {
-            // 遍历场上的卡，不是目标格子的怪兽就原样返回
             if (c.instanceId === targetInstanceId) {
               return {
-                // 继承原卡片在场上的位置(格子)、控制者与攻守表示形式等不变
                 ...c,
-                // 把顶层怪兽卡密换成新卡
+
                 code: newCardData.id,
-                // 把卡片详情换成新卡的数据
+
                 card: newCardData,
-                // 重新排布素材的千层饼结构
-                overlayMaterials: [
-                  // 最底下：原本肚子里的老素材
-                  ...c.overlayMaterials,
-                  // 中间层：原怪兽自己退居二线，变成素材
-                  c.code,
-                  // 如果搬过来的新怪兽本身也有素材，也一并垫进去
-                  ...sourceMats
-                ]
+
+                overlayMaterials: [...c.overlayMaterials, c.code, ...sourceMats]
               }
             }
             return c
@@ -1983,20 +1851,18 @@ export const useDuelStore = create<DuelStoreState>()(
 
           return {
             state: {
-              // 保留生命值、规则版本等其他局面信息不变
               ...prev.state,
               cards: finalCards,
               steps: nextSteps,
               initialBoardSnapshot:
                 prev.state.initialBoardSnapshot || createLightweightSnapshot(prev.state.cards)
             },
-            // 叠放完成后，界面上的选中高亮蓝框会自动平滑转移到新的目标怪兽上
+
             selectedCardId:
               prev.selectedCardId === sourceCardInstanceId ? targetInstanceId : prev.selectedCardId
           }
         }),
 
-      // 更新指定场上卡片的 CDB 详情数据缓存
       setCardData: (instanceId, card) =>
         set((prev) => ({
           state: {
@@ -2005,24 +1871,22 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         })),
 
-      // 2. 顶层主怪兽与指定素材互换位置（设为主怪兽）
       swapHostWithMaterial: (targetInstanceId, matIndex) =>
         set((prev) => ({
           state: {
             ...prev.state,
             cards: prev.state.cards.map((c) => {
               if (c.instanceId === targetInstanceId) {
-                // 边界检查：若素材索引越界则不作修改
                 if (matIndex < 0 || matIndex >= c.overlayMaterials.length) return c
                 const oldHostCode = c.code
                 const newHostCode = c.overlayMaterials[matIndex]
                 const newMats = [...c.overlayMaterials]
-                // 将被提升的素材位置替换为原主怪兽卡密
+
                 newMats[matIndex] = oldHostCode
                 return {
                   ...c,
                   code: newHostCode,
-                  // 清空 card 详情以触发自动重新拉取新主怪兽的 CDB 详情
+
                   card: undefined,
                   overlayMaterials: newMats
                 }
@@ -2032,23 +1896,20 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         })),
 
-      // 3. 拔除素材送至指定目标区域（如墓地、手牌、除外）并在目标区域生成新卡片实例
       detachMaterialToLocation: (targetInstanceId, matIndex, targetLocation) =>
         set((prev) => {
           const host = prev.state.cards.find((c) => c.instanceId === targetInstanceId)
           if (!host || matIndex < 0 || matIndex >= host.overlayMaterials.length) return prev
           const matCode = host.overlayMaterials[matIndex]
           const newMats = [...host.overlayMaterials]
-          // 从超量怪兽肚子里移除该素材
+
           newMats.splice(matIndex, 1)
 
-          // 计算目标堆叠区域当前张数，以此作为新卡落位的 sequence 序号
           const existingPile = prev.state.cards
             .filter((c) => c.controller === host.controller && c.location === targetLocation)
             .sort((a, b) => a.sequence - b.sequence)
           const targetSeq = existingPile.length
 
-          // 生成离开素材堆后的全新独立卡片实例
           const newCard: FieldCard = {
             instanceId: `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
             code: matCode,
@@ -2062,11 +1923,10 @@ export const useDuelStore = create<DuelStoreState>()(
           }
 
           const finalResultCards = [
-            // 更新宿主怪兽的素材列表
             ...prev.state.cards.map((c) =>
               c.instanceId === targetInstanceId ? { ...c, overlayMaterials: newMats } : c
             ),
-            // 将拔除出的卡片加入到目标区域
+
             newCard
           ]
 
@@ -2104,7 +1964,6 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         }),
 
-      // 4. 重排超量素材层叠顺序（做场时调整谁在上谁在下）
       reorderOverlayMaterials: (targetInstanceId, fromIndex, toIndex) =>
         set((prev) => ({
           state: {
@@ -2112,7 +1971,7 @@ export const useDuelStore = create<DuelStoreState>()(
             cards: prev.state.cards.map((c) => {
               if (c.instanceId === targetInstanceId) {
                 const mats = [...c.overlayMaterials]
-                // 索引有效性校验
+
                 if (
                   fromIndex < 0 ||
                   fromIndex >= mats.length ||
@@ -2122,7 +1981,7 @@ export const useDuelStore = create<DuelStoreState>()(
                 ) {
                   return c
                 }
-                // 从原位置移出并插入至目标位置
+
                 const [moved] = mats.splice(fromIndex, 1)
                 mats.splice(toIndex, 0, moved)
                 return { ...c, overlayMaterials: mats }
@@ -2273,7 +2132,6 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         }),
 
-      // 实战属性与指示物操作
       setCardCounter: (instanceId, counterType, count) =>
         set((prev) => ({
           state: {
@@ -2336,11 +2194,9 @@ export const useDuelStore = create<DuelStoreState>()(
 
       applyDeckToPlayer: (player, deck, drawCount = 0, duelistId) =>
         set((prev) => {
-          // 多人对局时每位决斗者拥有独立卡组：只清掉该决斗者自己的主卡组 / 额外卡组，
-          // 同阵营其他人的卡组必须原样保留。未传 duelistId（1v1、跨窗口广播）时清整个阵营。
           const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === player)
           const multi = teamDuelists.length > 1
-          // 未指定时回落到「当前查看的决斗者」，再回落到该阵营首位——与 addCardToZone 同口径
+
           const ownerScope =
             duelistId && teamDuelists.some((d) => d.id === duelistId)
               ? duelistId
@@ -2348,11 +2204,7 @@ export const useDuelStore = create<DuelStoreState>()(
                 ? (teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ??
                   teamDuelists[0]?.id)
                 : null
-          // 切换卡组 = 重开一局：该决斗者的手牌、场上、墓地、除外区全部清空。
-          //
-          // **必须包含 HAND**：原先只清DECK / EXTRA，导致「抽过牌再切卡组」时
-          // 旧手牌一张不少地留在场上，与新抽的叠加——切 5 次能叠出 25 张。
-          // 墓地与除外区同理：旧卡组的残骸不该留在新卡组的对局里。
+
           const ZONES_TO_CLEAR: number[] = [
             CardLocation.HAND,
             CardLocation.DECK,
@@ -2375,7 +2227,6 @@ export const useDuelStore = create<DuelStoreState>()(
           const totalMain = deck.main.length
           const actualDraw = Math.min(drawCount, totalMain)
 
-          // 1. 如果指定了抽卡数，主卡组顶部卡片进入手牌
           for (let i = 0; i < actualDraw; i++) {
             const code = deck.main[i]
             newCards.push({
@@ -2384,21 +2235,15 @@ export const useDuelStore = create<DuelStoreState>()(
               controller: player,
               owner: player,
               location: CardLocation.HAND,
-              // 起手序号排在executeDrawCard 抽进来的 999 之前（HandTray 按
-              // sequence 升序排），所以起手牌显示在最左侧，后续抽的依次排到它右边。
-              // 原先从 0 起虽然也排在 999 前，但会与场景切换存档写入手牌的
-              // 小序号（0~N）混在同一个区间，排序结果不可预期。
+
               sequence: 900 + i,
-              // 这就是普通的起手抽卡，与 executeDrawCard 保持一致用里侧：
-              // 手牌里侧 = 未公开。若用 FACEUP_ATTACK，CardItem 的 isPublicHand 会成立，
-              // 5 张起手会被打上「公开」角标。
+
               position: CardPosition.FACEDOWN,
               overlayMaterials: [],
               duelistId: ownerScope ?? undefined
             })
           }
 
-          // 2. 其余主卡组卡片进 DECK
           for (let i = actualDraw; i < totalMain; i++) {
             const code = deck.main[i]
             newCards.push({
@@ -2408,15 +2253,13 @@ export const useDuelStore = create<DuelStoreState>()(
               owner: player,
               location: CardLocation.DECK,
               sequence: i - actualDraw,
-              // 主卡组一律里侧备着。不能用 FACEDOWN_ATTACK(0x2)——它是「暗黑同调」那类
-              // 特殊表里侧，不在 CardItem 的 isFacedown 判定内，会被当成表侧渲染出卡面。
+
               position: CardPosition.FACEDOWN,
               overlayMaterials: [],
               duelistId: ownerScope ?? undefined
             })
           }
 
-          // 3. 额外卡组卡片进 EXTRA
           for (let i = 0; i < deck.extra.length; i++) {
             const code = deck.extra[i]
             newCards.push({
@@ -2438,11 +2281,10 @@ export const useDuelStore = create<DuelStoreState>()(
             state: {
               ...prev.state,
               cards: nextCards,
-              // 切卡组即新的开局：上一步 / 下一步的复位基线必须跟着重算，
-              // 否则复位会回到旧卡组遗留的场面（那些牌已经被清掉了）。
+
               initialBoardSnapshot: createLightweightSnapshot(nextCards)
             },
-            // 旧卡组的牌全被清掉，若还选着其中一张，详情面板会指向不存在的实例
+
             selectedCardId: null,
             hoveredCard: null
           }
@@ -2464,14 +2306,12 @@ export const useDuelStore = create<DuelStoreState>()(
       setHoveredInstanceId: (id) => set({ hoveredInstanceId: id })
     }),
     {
-      // zundo 撤销历史配置：只追踪 state 的变化
       partialize: (state) => ({ state: state.state }),
       limit: 50
     }
   )
 )
 
-// 跨窗口卡组应用广播监听
 if (typeof window !== 'undefined' && window.api?.onApplyDeckToDuel) {
   window.api.onApplyDeckToDuel(({ player, deck, drawCount }) => {
     useDuelStore.getState().applyDeckToPlayer(player, deck, drawCount)

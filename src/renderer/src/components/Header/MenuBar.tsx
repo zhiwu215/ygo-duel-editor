@@ -22,11 +22,12 @@ import {
   Copy,
   X
 } from 'lucide-react'
-import wechatQr from '../../REMOVED'
-import alipayQr from '../../REMOVED'
 import appIcon from '../../assets/app-icon.png'
+import { Button } from '../ui/button'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { cn } from '../../lib/utils'
+
+const AUTHOR_AFDIAN_URL = 'https://afdian.com/a/zhiwu215'
 
 interface MenuBarProps {
   onNew: () => void
@@ -66,6 +67,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showSupportDialog, setShowSupportDialog] = useState(false)
+  const [supportCopied, setSupportCopied] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const menuBarRef = useRef<HTMLDivElement>(null)
 
@@ -423,7 +425,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
 
       {showSupportDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-md w-full p-5 space-y-4 animate-in fade-in">
+          <div className="bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-sm w-full p-5 space-y-4 animate-in fade-in">
             <div className="flex items-center justify-between border-b border-border pb-2.5">
               <h3 className="font-semibold text-sm flex items-center gap-2">
                 <Coffee className="w-4 h-4 text-muted-foreground" />
@@ -438,28 +440,53 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
             <p className="text-xs text-muted-foreground leading-relaxed text-center">
               如果 YGO Duel Editor 对你有帮助，欢迎请作者喝杯咖啡
             </p>
-            <p className="text-[11px] text-muted-foreground/90 leading-relaxed text-center px-1 py-1.5 rounded-md bg-muted/50 border border-border/60">
-              收款码仅用于自愿支持，不影响任何功能
-            </p>
-            <div className="flex items-start justify-center gap-6">
-              {[
-                { src: wechatQr, label: '微信支付' },
-                { src: alipayQr, label: '支付宝' }
-              ].map(({ src, label }) => (
-                <div key={label} className="flex flex-col items-center gap-1.5">
-                  <img
-                    src={src}
-                    alt={`${label}收款码`}
-                    className="h-60 w-auto rounded border border-border bg-white object-contain"
-                    draggable={false}
-                  />
-                  <span className="text-[11px] text-muted-foreground">{label}</span>
-                </div>
-              ))}
+
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border border-border/60">
+              <span className="flex-1 text-[11px] font-mono text-foreground truncate">
+                {AUTHOR_AFDIAN_URL}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(AUTHOR_AFDIAN_URL)
+                  setSupportCopied(true)
+                  setTimeout(() => setSupportCopied(false), 2000)
+                }}
+                title="复制链接"
+                className="shrink-0 flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                {supportCopied ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-500" />
+                    <span className="text-emerald-500">已复制</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span>复制</span>
+                  </>
+                )}
+              </button>
             </div>
+
+            <Button
+              onClick={() => {
+                setShowSupportDialog(false)
+                void window.api.openExternal(AUTHOR_AFDIAN_URL)
+              }}
+              className="w-full gap-2"
+            >
+              <Coffee className="w-4 h-4" />
+              <span>打开爱发电主页</span>
+            </Button>
+
+            <p className="text-[11px] text-muted-foreground/90 leading-relaxed text-center px-1 py-1.5 rounded-md bg-muted/50 border border-border/60">
+              全部功能免费开放，赞助仅作自愿支持，不影响任何功能
+            </p>
           </div>
         </div>
       )}

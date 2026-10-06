@@ -16,6 +16,7 @@ import {
   FileText,
   FolderKanban,
   BookOpen,
+  BookMarked,
   SquareStack,
   Check,
   Copy,
@@ -221,6 +222,11 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           label: '卡组编辑器',
           icon: SquareStack,
           action: () => window.api.openDeckEditor()
+        },
+        {
+          label: '卡牌图鉴',
+          icon: BookMarked,
+          action: () => window.api.openCardNoteWindow()
         }
       ]
     },

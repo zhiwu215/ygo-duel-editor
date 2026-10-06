@@ -18,15 +18,8 @@ import {
   splitNovelChapters
 } from '@shared/index'
 
-/** 小说正文文件扩展名 */
 const NOVEL_EXTS = ['.txt', '.md', '.epub']
 
-/**
- * 合法化文件名：去掉 Windows 非法字符与结尾的点
- *
- * 用户会拿作品名当文件名，原文里可能带 `/ : * ? " < > |`（如「灼華acceptable龙戏」这类同人标题），
- * 不处理会直接创建失败。
- */
 function sanitizeFileName(name: string): string {
   const cleaned = name
     .replace(/[\\/:*?"<>|]/g, '_')
@@ -153,10 +146,11 @@ export class LibraryService {
 
   public importNovelFile(pickedPaths: string[]): {
     success: boolean
+    canceled?: boolean
     novel?: NovelMeta
     error?: string
   } {
-    if (pickedPaths.length === 0) return { success: false, error: '未选择文件' }
+    if (pickedPaths.length === 0) return { success: false, canceled: true }
     this.ensureDirs()
     const first = pickedPaths[0]
     const baseName = first.split(/[\\/]/).pop() || 'novel.txt'
@@ -192,12 +186,7 @@ export class LibraryService {
       wordCount: c.wordCount,
       content: c.content
     }))
-    try {
-      writeFileSync(this.chaptersPath(id), JSON.stringify(chapters, null, 2), 'utf-8')
-    } catch (err) {
-      console.error('[LibraryService] write chapters error:', err)
-      return null
-    }
+    if (!this.writeChapters(id, chapters)) return null
 
     return {
       id,
@@ -244,6 +233,50 @@ export class LibraryService {
     const chapter = this.getNovelChapters(novelId).find((c) => c.id === chapterId)
     if (!chapter) return { success: false, error: '章节不存在' }
     return { success: true, content: chapter.content || '' }
+  }
+
+  private writeChapters(novelId: string, chapters: NovelChapter[]): boolean {
+    try {
+      writeFileSync(this.chaptersPath(novelId), JSON.stringify(chapters, null, 2), 'utf-8')
+      return true
+    } catch (err) {
+      console.error('[LibraryService] write chapters error:', err)
+      return false
+    }
+  }
+
+  public updateNovelChapterContent(
+    novelId: string,
+    chapterId: string,
+    content: string
+  ): { success: boolean; error?: string } {
+    const chapters = this.getNovelChapters(novelId)
+    const index = chapters.findIndex((c) => c.id === chapterId)
+    if (index === -1) return { success: false, error: '章节不存在' }
+    const next = [...chapters]
+    next[index] = {
+      ...next[index],
+      content,
+      wordCount: countWords(content)
+    }
+    return this.writeChapters(novelId, next)
+      ? { success: true }
+      : { success: false, error: '写入章节缓存失败' }
+  }
+
+  public updateNovelChapterTitle(
+    novelId: string,
+    chapterId: string,
+    title: string
+  ): { success: boolean; error?: string } {
+    const chapters = this.getNovelChapters(novelId)
+    const index = chapters.findIndex((c) => c.id === chapterId)
+    if (index === -1) return { success: false, error: '章节不存在' }
+    const next = [...chapters]
+    next[index] = { ...next[index], title }
+    return this.writeChapters(novelId, next)
+      ? { success: true }
+      : { success: false, error: '写入章节缓存失败' }
   }
 
   public deleteNovel(id: string): { success: boolean; error?: string } {

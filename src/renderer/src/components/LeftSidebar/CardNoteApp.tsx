@@ -190,7 +190,7 @@ export const CardNoteApp: React.FC = () => {
           <button
             type="button"
             onClick={() => void handleImport()}
-            title="从 JSON 文件导入。只会合并进你自己的图鉴，内置条目不受影响"
+            title="从 JSON 文件导入"
             className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4" />
@@ -198,7 +198,7 @@ export const CardNoteApp: React.FC = () => {
           <button
             type="button"
             onClick={() => void handleExport()}
-            title="把你的图鉴导出为 JSON 文件（备份或分享给别人）"
+            title="把你的图鉴导出为 JSON 文件"
             className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
           >
             <Upload className="w-4 h-4" />
@@ -210,7 +210,7 @@ export const CardNoteApp: React.FC = () => {
             className="flex items-center gap-1.5 px-2.5 h-7 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>新增条目</span>
+            <span>新增卡片</span>
           </button>
           <WindowControls />
         </div>
@@ -248,7 +248,7 @@ export const CardNoteApp: React.FC = () => {
             <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
               {search
                 ? '换个关键词试试'
-                : '召唤词与卡面描述都不在 YGOPro 卡库里（str1~str16 存的是效果触发关键词），需要照卡面手工录入。点右上角「新增条目」开始。'}
+                : '卡库里没有召唤词和卡片描述。点右上角「新增卡片」开始。'}
             </p>
           </div>
         ) : (

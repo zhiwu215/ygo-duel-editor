@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { NovelChapter, NovelMeta } from '@shared/index'
 import { useAgentStore } from '../../stores/useAgentStore'
+import { useDuelStore } from '../../stores/useDuelStore'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '../../lib/utils'
@@ -31,6 +32,7 @@ interface NovelSourceModalProps {
  */
 export const NovelSourceModal: React.FC<NovelSourceModalProps> = ({ onClose, onSent }) => {
   const { sendMessage, isGenerating } = useAgentStore()
+  const { setSeries } = useDuelStore()
 
   const [novels, setNovels] = useState<NovelMeta[]>([])
   const [search, setSearch] = useState('')
@@ -135,12 +137,30 @@ export const NovelSourceModal: React.FC<NovelSourceModalProps> = ({ onClose, onS
    * 正文只进模型输入（第三个参数），不进对话记录 —— 几十万字写进 messages
    * 会把上下文撑爆、也会让后续每轮都重复携带。
    */
+  /**
+   * 把小说名登记为作品分类，并设为当前局面的归属
+   *
+   * 这样背后灵编排完、用户存档时会自动落进这本小说的分类里，
+   * 不必事后手动归类。分类重名时后端会报错，忽略即可。
+   */
+  const registerSeries = async (title: string): Promise<void> => {
+    const name = title.trim()
+    if (!name || !window.api.createProjectSeries) return
+    try {
+      await window.api.createProjectSeries(name)
+    } catch (err) {
+      console.warn('[NovelSourceModal] 登记作品分类失败:', err)
+    }
+    setSeries(name)
+  }
+
   const handleSend = async (novel: NovelMeta, chapters: NovelChapter[]): Promise<void> => {
     const picked = chapters.filter((c) => c.content)
     if (picked.length === 0) {
       flash('所选章节没有正文内容')
       return
     }
+    await registerSeries(novel.title)
     const total = picked.reduce((sum, c) => sum + (c.content?.length || 0), 0)
     const materials = picked.map((c) => `【${c.title}】\n${c.content}`).join('\n\n---\n\n')
     const injected = `以下是我从《${novel.title}》中挑选的章节原文，请据此编排一场《游戏王》决斗剧情。
@@ -210,11 +230,7 @@ ${materials}`
             disabled={busy}
             className="h-7 text-[11px] gap-1.5 shrink-0"
           >
-            {busy ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Upload className="w-3 h-3" />
-            )}
+            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
             <span>导入小说</span>
           </Button>
         </div>
@@ -389,11 +405,7 @@ function ChapterPicker({ chapters, busy, onSend }: ChapterPickerProps): React.JS
         disabled={picked.size === 0 || busy}
         className="w-full h-6 mt-1.5 text-[10px] gap-1"
       >
-        {busy ? (
-          <Loader2 className="w-3 h-3 animate-spin" />
-        ) : (
-          <Sparkles className="w-3 h-3" />
-        )}
+        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
         <span>{busy ? '编排中' : `把所选 ${picked.size} 章交给背后灵编排`}</span>
       </Button>
     </div>

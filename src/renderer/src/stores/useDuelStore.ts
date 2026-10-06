@@ -270,6 +270,7 @@ interface DuelStoreState {
   setMasterRule: (rule: MasterRule) => void
 
   setDuelType: (type: DuelType) => void
+  setSeries: (series: string) => void
   setTitle: (title: string) => void
   setHint: (hint: string) => void
   setPlayerLp: (player: 0 | 1, lp: number) => void
@@ -1016,6 +1017,11 @@ export const useDuelStore = create<DuelStoreState>()(
       setDuelType: (duelType) =>
         set((prev) => ({
           state: { ...prev.state, duelType }
+        })),
+
+      setSeries: (series) =>
+        set((prev) => ({
+          state: { ...prev.state, series }
         })),
 
       setTitle: (title) =>

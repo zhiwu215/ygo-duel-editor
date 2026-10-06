@@ -116,6 +116,8 @@ export interface DuelPuzzleState {
   hint: string
   /** 对局工程类型: 'full' (整局) | 'puzzle' (残局) | 'combo' (Combo) */
   duelType?: DuelType
+  /** 所属作品分类（小说/漫画等来源名，如《决斗者王国》），未归类时为空 */
+  series?: string
   /** 游戏规则版本 */
   masterRule: MasterRule // 规则版本: 2 (MR1/2), 3 (MR3), 4 (MR4), 5 (MR5)
   /** [我方, 对方]*/

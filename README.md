@@ -48,12 +48,8 @@ Electron 39 + electron-vite 5 · React 19 + TypeScript · TailwindCSS v4 · Zust
 
 ## 支持作者
 
-如果这个项目对你的创作有帮助，欢迎请作者喝杯咖啡：
+如果这个项目对你的创作有帮助，欢迎通过爱发电支持作者：
 
-<p align="center">
-  <img src="REMOVED" width="200" alt="微信收款码">
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="REMOVED" width="200" alt="支付宝收款码">
-</p>
+**<https://afdian.com/a/zhiwu215>**
 
-> 收款码仅用于自愿支持，**不影响任何功能**。本项目全部功能对所有用户完整开放，不存在付费解锁、阉割版或功能限制。支持与否完全由你决定，不支持也完全不影响使用。
+> 爱发电仅用于自愿支持，**不影响任何功能**。本项目全部功能对所有用户完整开放，不存在付费解锁、阉割版或功能限制。支持与否完全由你决定，不支持也完全不影响使用。

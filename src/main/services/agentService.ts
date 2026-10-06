@@ -16,25 +16,17 @@ function getPiAgent(): Promise<PiAgentModule> {
   return piAgentPromise
 }
 
-/** 整次请求的看门狗超时：含工具调用的 agentic 编排可能持续数分钟，需宽松；
- * 真正的连接卡死由 provider 空闲超时 (PROVIDER_TIMEOUT_MS) 秒级暴露 */
 const AGENT_WATCHDOG_TIMEOUT_MS = 600_000
-/** 单次模型请求的空闲超时（Pi 默认继承 httpIdleTimeoutMs = 5 分钟，太久） */
+
 const PROVIDER_TIMEOUT_MS = 60_000
-/** 模型列表拉取超时 */
+
 const MODEL_LIST_TIMEOUT_MS = 15_000
-/** 未配置时的默认上下文窗口（tokens） */
+
 const DEFAULT_CONTEXT_WINDOW = 131_072
 
-/**
- * 本地推理服务（Ollama / LM Studio 等）不需要 API Key，但 Pi 的 models.json schema
- * 要求 apiKey 字段存在且至少 1 个字符（省略或空串都会让整份配置校验失败、模型全部加载不出来），
- * 因此本地端点写这个占位值。实测过：省略 → 0 个模型，空串 → 0 个模型，非空 → 正常加载。
- */
 const LOCAL_ENDPOINT_PLACEHOLDER_KEY = 'local-no-key'
 
 const PROVIDER_PRESETS: AgentProviderPreset[] = [
-  // —— 国内厂商 ——
   {
     id: 'deepseek',
     name: 'DeepSeek',
@@ -81,7 +73,7 @@ const PROVIDER_PRESETS: AgentProviderPreset[] = [
     apiFormat: 'openai-chat-completions',
     category: 'cn'
   },
-  // —— 国际厂商 ——
+
   {
     id: 'openai',
     name: 'OpenAI',
@@ -114,7 +106,7 @@ const PROVIDER_PRESETS: AgentProviderPreset[] = [
     apiKeyUrl: 'https://openrouter.ai/keys',
     category: 'global'
   },
-  // —— 本地部署 ——
+
   {
     id: 'ollama',
     name: 'Ollama (本地)',
@@ -124,10 +116,6 @@ const PROVIDER_PRESETS: AgentProviderPreset[] = [
   }
 ]
 
-/**
- * ai的系统提示词
- * 通过 DefaultResourceLoader 的 systemPromptOverride 注入为真正的 system 消息，
- */
 function buildSystemPrompt(cfg: AgentModelConfig): string {
   return `你是一个专业的《游戏王》卡牌决斗剧情创作者，你能调用工具查真实卡片数据、读取当前盘面、把场面布局与推演步骤交给创作者。
 
@@ -147,41 +135,28 @@ function buildSystemPrompt(cfg: AgentModelConfig): string {
   }`
 }
 
-/**
- * 只关心 assistant 消息终止原因的结构化视图
- */
 interface PiAssistantMessage {
   role: 'assistant'
   stopReason: string
   errorMessage?: string
 }
 
-/**
- * 工具参数的 JSON Schema 结构定义
- * 用于告诉大模型当前工具所接收的参数格式、字段类型以及必填项
- */
 interface JsonSchema {
-  /** 数据类型（如 'object' | 'string' | 'number' | 'array' | 'boolean'） */
   type?: string
-  /** 字段含义描述，大模型依据此描述理解参数用途并填入合适的值 */
+
   description?: string
-  /** 对象内部子属性映射表（当 type 为 'object' 时使用） */
+
   properties?: Record<string, JsonSchema>
-  /** 必填属性名称列表，未声明为可选的字段会自动计入此项 */
+
   required?: string[]
-  /** 数组项的结构定义（当 type 为 'array' 时使用） */
+
   items?: JsonSchema
-  /** 内部辅助标记：是否为可选参数（供 Type.Optional 标记，最终通过 cleanSchema 剔除） */
+
   isOptional?: boolean
-  /** 允许扩展其他标准的 JSON Schema 关键字（如 enum, minimum 等） */
+
   [key: string]: unknown
 }
 
-/**
- * 清理 JSON Schema，剔除内部辅助标记字段
- * @param schema 待清理的 JSON Schema
- * @returns 清理后的 JSON Schema（移除了 isOptional 字段）
- */
 function cleanSchema(schema: JsonSchema): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(schema)) {
@@ -201,10 +176,6 @@ function cleanSchema(schema: JsonSchema): Record<string, unknown> {
   return result
 }
 
-/**
- * 工具参数的 JSON Schema 构造器
- * 提供常用类型（Object, String, Number, Boolean, Array, Optional）的便捷创建方法
- */
 const Type = {
   Object: (props: Record<string, JsonSchema>): Record<string, unknown> => {
     const required = Object.keys(props).filter((k) => !props[k]?.isOptional)
@@ -245,6 +216,7 @@ import {
   AgentModelInfo,
   AgentProviderPreset,
   AgentRuntimeConfig,
+  AgentHandoffRequest,
   AgentSendMessageParams,
   AgentSendMessageResult,
   AgentStreamEvent,
@@ -264,10 +236,6 @@ import { configService } from './configService'
 import { libraryService } from './libraryService'
 import { ocgcoreService } from './ocgcoreService'
 
-/**
- * 会话构造用的配置：AgentModelConfig 的当前模型快照 + 模型级能力开关。
- * 后者来自 resolveActiveRuntime，用来决定写进 Pi models.json 的 input / compat。
- */
 type SessionConfig = AgentModelConfig &
   Pick<
     AgentRuntimeConfig,
@@ -276,33 +244,26 @@ type SessionConfig = AgentModelConfig &
 
 export class AgentService {
   private currentBoardState: DuelPuzzleState | null = null
-  /** 本轮已收集的战术步骤提案（工具闭包通过实例字段跨消息共享） */
+
   private collectedProposals: AgentStepProposal[] = []
-  /** 本轮已提交的场面布局提案（同一轮内后写的覆盖先写的，与步骤提案同生命周期） */
+
   private collectedBoardSetup: AgentBoardSetupProposal | null = null
-  /**
-   * 本轮附加的小说素材正文（工具按需分段读取，正文不进 prompt 不进 system）。
-   * 只在收到新消息时刷新，避免上一轮素材残留到下一轮误导模型。
-   * novelId / chapterId 仅当素材来自资料库时才有值（拖入文本没有）。
-   */
+
   private currentNovelSource: {
     novelId?: string
     chapterId?: string
     title: string
     content: string
+    chapters?: { title: string; content: string }[]
   } | null = null
-  /** 本轮已累计的正文与思考链增量 */
+
   private streamText = ''
   private streamThought = ''
-  /** 跨消息复用的会话缓存：同一模型配置下保留多轮上下文，配置变化时销毁重建 */
+
   private cachedSession: { session: AgentSession; signature: string } | null = null
 
-  /** read_novel_source 单次返回的字符数上限：控制单次工具输出体量，续读走 offset */
   private static readonly NOVEL_CHUNK_SIZE = 8000
 
-  /**
-   * 广播流式事件到渲染层窗口
-   */
   private emitEvent(event: AgentStreamEvent): void {
     const windows = BrowserWindow.getAllWindows()
     for (const win of windows) {
@@ -313,8 +274,21 @@ export class AgentService {
   }
 
   /**
-   * 中断当前正在运行的 AI 生成
+   * 跨窗口提交：小说素材库窗口把选中的章节交给主窗口的对话。
+   * 只广播请求，真正的取正文与发消息仍在主窗口的 store 里完成，
+   * 避免两个窗口各持一份 Zustand 实例导致状态不共享。
    */
+  public handoff(request: AgentHandoffRequest): { success: boolean; error?: string } {
+    const windows = BrowserWindow.getAllWindows()
+    if (windows.length === 0) return { success: false, error: '主窗口未就绪' }
+    for (const win of windows) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('agent:handoff-request', request)
+      }
+    }
+    return { success: true }
+  }
+
   public async abort(): Promise<boolean> {
     const session = this.cachedSession?.session
     const wasActive = session ? !session.isIdle : false
@@ -322,15 +296,12 @@ export class AgentService {
       try {
         await session?.abort()
       } catch {
-        // 会话可能已自行结束，忽略中断异常
+        void 0
       }
     }
     return wasActive
   }
 
-  /**
-   * 丢弃当前 AI 会话并新建（切换模型配置或用户主动重开对话时调用）
-   */
   public resetSession(): boolean {
     if (!this.cachedSession) return false
     this.cachedSession.session.dispose()
@@ -339,19 +310,10 @@ export class AgentService {
     return true
   }
 
-  /**
-   * AI 提供商预设列表
-   */
   public getProviderPresets(): AgentProviderPreset[] {
     return PROVIDER_PRESETS
   }
 
-  /**
-   * 从厂商 OpenAI 兼容接口拉取模型列表（主进程代理请求，规避 CORS 与浏览器网络栈差异）
-   *
-   * 为什么在主进程做：渲染层 fetch 会走 Chromium 网络栈并受 CORS 限制；
-   * 厂商 /v1/models 是 Read 接口，主进程直连最稳。
-   */
   public async fetchModels(
     baseUrl: string,
     apiKey: string
@@ -591,15 +553,25 @@ export class AgentService {
         title: novelRef?.title?.trim() || '附加文本',
         content: directText
       }
-    } else if (novelRef?.novelId && novelRef.chapterId) {
-      const res = libraryService.getNovelChapterContent(novelRef.novelId, novelRef.chapterId)
-      if (res.success && res.content) {
-        this.currentNovelSource = { ...novelRef, content: res.content }
-      } else {
+    } else if (novelRef?.novelId && (novelRef.chapterIds?.length || novelRef.chapterId)) {
+      const chapterIds = novelRef.chapterIds?.length ? novelRef.chapterIds : [novelRef.chapterId!]
+      const contents = libraryService.getNovelChapters(novelRef.novelId)
+      const picked = contents
+        .filter((c) => chapterIds.includes(c.id))
+        .sort((a, b) => chapterIds.indexOf(a.id) - chapterIds.indexOf(b.id))
+      if (picked.length === 0) {
         this.emitEvent({
           type: 'status',
           message: `小说素材《${novelRef.title}》读取失败（可能已被删除或重新拆分），本次按无素材处理`
         })
+      } else {
+        this.currentNovelSource = {
+          novelId: novelRef.novelId,
+          chapterId: picked[0].id,
+          title: novelRef.title.trim() || novelRef.novelId,
+          content: picked.map((c) => c.content || '').join('\n\n'),
+          chapters: picked.map((c) => ({ title: c.title, content: c.content || '' }))
+        }
       }
     }
 
@@ -632,13 +604,8 @@ export class AgentService {
       return { success: false, error: errMsg }
     }
 
-    // 4. 注册游戏王编排专属 Tools
     const { defineTool } = await getPiAgent()
-    /**
-     * 工具 1：搜索游戏王卡片 (search_cards)
-     * 允许 AI 根据关键词模糊检索本地 SQLite 卡片数据库 (cards.cdb)，
-     * 获取准确的卡名、8位卡密、种类掩码、攻防数值及效果描述，杜绝大模型口胡凭空捏造假卡。
-     */
+
     const searchCardsTool = defineTool({
       name: 'search_cards',
       label: '搜索游戏王卡片',
@@ -680,11 +647,6 @@ export class AgentService {
       }
     })
 
-    /**
-     * 工具 2：获取卡片详细规则信息 (get_card_info)
-     * 根据 8 位卡密密码精确查询单张卡片的完整效果文本、攻防数值、等级、属性与种族，
-     * 用于战术构思时深度分析卡片的发动条件、时点与细则。
-     */
     const getCardInfoTool = defineTool({
       name: 'get_card_info',
       label: '获取卡片详细规则信息',
@@ -766,11 +728,6 @@ export class AgentService {
       }
     })
 
-    /**
-     * 工具 3：读取当前决斗盘面与手牌 (get_current_board)
-     * 读取创作者当前在决斗编辑器中排布的双方怪兽区、魔陷区、手牌、墓地、除外区卡片及双方生命值，
-     * 将战场对局态势转化为结构化文本，供 AI 顾问感知局势并制定逆转突破战术。
-     */
     const getCurrentBoardTool = defineTool({
       name: 'get_current_board',
       label: '读取当前决斗盘面与手牌',
@@ -805,8 +762,6 @@ export class AgentService {
         lines.push(`双方生命值: 我方(P0) LP ${p0.lp} vs 对方(P1) LP ${p1.lp}`)
         lines.push(`先攻回合方: ${state.turnPlayer === 0 ? '我方(P0)' : '对方(P1)'}`)
 
-        // 决斗者名单：布局提案要按名字把手牌归到具体人，主进程这边不写盘面，
-        // 所以这是模型唯一能拿到「韩诺」这类名字的途径。
         const duelists = state.duelists || []
         if (duelists.length > 0) {
           lines.push(
@@ -849,30 +804,30 @@ export class AgentService {
       }
     })
 
-    /**
-     * 工具 4：分段读取小说素材 (read_novel_source)
-     * 整章小说动辄数万字，不塞 prompt 而是由模型按 offset 自主续读：
-     * 单次只回一段 + 明确的续读指引（借鉴 opencode read 的分页与截断提示），
-     * 读没读完由「是否还有下一段」显式告知，避免模型只读开头就下结论。
-     */
     const readNovelSourceTool = defineTool({
       name: 'read_novel_source',
       label: '分段读取小说素材',
       description:
         '分段读取创作者随消息附加的小说/文本素材。消息里标注了【小说素材】时必须先用它通读全文（从 offset 缺省开始，按返回指引传 offset 续读直到读完），再开始整理对局；未附加素材时不要调用',
       parameters: Type.Object({
+        chapter: Type.Optional(
+          Type.String({
+            description:
+              '要读取的章节标题（先用不带本参数的调用拿到目录后再传）。缺省时先返回章节目录'
+          })
+        ),
         offset: Type.Optional(
           Type.Number({
             description: '起始字符偏移，首次调用省略；续读时传上一次返回的 nextOffset'
           })
         )
       }),
-      execute: async (_toolCallId, p: { offset?: number }) => {
+      execute: async (_toolCallId, p: { chapter?: string; offset?: number }) => {
         this.emitEvent({
           type: 'tool_call_start',
           id: _toolCallId,
           toolName: 'read_novel_source',
-          params: { offset: p.offset ?? 0 }
+          params: { chapter: p.chapter ?? null, offset: p.offset ?? 0 }
         })
 
         const source = this.currentNovelSource
@@ -894,29 +849,75 @@ export class AgentService {
           }
         }
 
-        const total = source.content.length
+        if (!p.chapter && source.chapters && p.offset === undefined) {
+          const toc = source.chapters
+            .map((c, i) => `${i + 1}. ${c.title}（${c.content.length} 字）`)
+            .join('\n')
+          this.emitEvent({
+            type: 'tool_call_end',
+            id: _toolCallId,
+            toolName: 'read_novel_source',
+            resultSummary: `《${source.title}》共 ${source.chapters.length} 章，返回目录`
+          })
+          const text = [
+            `【小说素材】《${source.title}》`,
+            `共 ${source.chapters.length} 章。请先看目录定位需要改写成决斗的段落，再用 chapter 参数读取对应章节（可多次调用）。`,
+            '',
+            toc
+          ].join('\n')
+          return {
+            content: [{ type: 'text', text }],
+            details: { title: source.title, chapters: source.chapters.length }
+          }
+        }
+
+        const text = p.chapter
+          ? (source.chapters?.find((c) => c.title === p.chapter)?.content ?? '')
+          : source.content
+        if (p.chapter && !text) {
+          this.emitEvent({
+            type: 'tool_call_end',
+            id: _toolCallId,
+            toolName: 'read_novel_source',
+            resultSummary: `章节「${p.chapter}」不存在`
+          })
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `素材里没有名为「${p.chapter}」的章节，请按目录里的准确标题重试。`
+              }
+            ],
+            details: { chapter: p.chapter, found: false }
+          }
+        }
+
+        const total = text.length
         const offset = Math.min(Math.max(0, Math.trunc(p.offset ?? 0)), total)
-        const chunk = source.content.slice(offset, offset + AgentService.NOVEL_CHUNK_SIZE)
+        const chunk = text.slice(offset, offset + AgentService.NOVEL_CHUNK_SIZE)
         const end = offset + chunk.length
         const remaining = total - end
+
+        const scope = p.chapter ? `第「${p.chapter}」章` : `《${source.title}》`
 
         this.emitEvent({
           type: 'tool_call_end',
           id: _toolCallId,
           toolName: 'read_novel_source',
-          resultSummary: `读取《${source.title}》第 ${offset}-${end} 字，共 ${total} 字`
+          resultSummary: `读取${scope}第 ${offset}-${end} 字，共 ${total} 字`
         })
 
         const header = [
-          `【小说素材】《${source.title}》`,
+          `【小说素材】${scope}`,
           `共 ${total} 字；本次输出第 ${offset}-${end} 字。`,
           remaining > 0
-            ? `素材尚未读完（剩余 ${remaining} 字），请继续调用本工具并传 offset: ${end}。`
-            : '素材已全部读完，可以开始整理对局。'
+            ? `本章尚未读完（剩余 ${remaining} 字），请继续调用本工具并传 offset: ${end}。`
+            : '本章已全部读完。'
         ].join('\n')
 
         const details: Record<string, unknown> = {
           title: source.title,
+          chapter: p.chapter,
           total,
           offset,
           end,
@@ -926,12 +927,6 @@ export class AgentService {
       }
     })
 
-    /**
-     * 工具 5：提交决斗推演步骤与角色台词 (propose_duel_steps)
-     * 整个 AI 编排顾问的核心业务工具。
-     * 当 AI 构思好一连串战术动作后调用此工具，结构化输出回合、阶段、行动方、动作类型、
-     * 涉及卡密、热血台词、心理博弈内心独白及 LP 生命值变动，供创作者在界面一键导入战场。
-     */
     const proposeStepsTool = defineTool({
       name: 'propose_duel_steps',
       label: '提交决斗推演步骤与角色台词',
@@ -1002,9 +997,6 @@ export class AgentService {
           params: { stepCount: p.steps.length, summary: p.summary }
         })
 
-        // 逐条归一化：写错字段（中文动作词、缺 actionPlayer 等）的步骤不静默
-        // 丢弃也不整批失败 —— 通过工具返回值把每条的问题告知模型，让它下一批
-        // 修正重交（借鉴 ZCode 的 ToolHandlerFailure：业务失败用返回值表达而非异常）。
         const notes: string[] = []
         const rejected: string[] = []
         const mappedSteps: AgentStepProposal[] = []
@@ -1060,11 +1052,6 @@ export class AgentService {
       }
     })
 
-    /**
-     * 工具 6：复盘场面布局 (propose_board_setup)
-     * 当用户口述了一个具体局面（LP、怪兽区/魔陷区配置、手牌）并要求「摆到决斗场上」时调用。
-     * 只产出**待确认的布局提案**，不直接改盘面 —— 由渲染层弹出预览卡，用户确认后才写入。
-     */
     const proposeBoardSetupTool = defineTool({
       name: 'propose_board_setup',
       label: '复盘场面布局',
@@ -1157,8 +1144,6 @@ export class AgentService {
 
         const placements: AgentBoardCardPlacement[] = []
         rawCards.forEach((c, idx) => {
-          // 未知盖卡：用户说了「有一张盖卡」但没说是哪张。这类卡不查卡库，
-          // code 记 0 表示「有卡但无卡面数据」，由渲染层显示卡背。
           if (c.isUnknown) {
             const norm = normalizeAgentBoardPlacement({
               location: c.location,
@@ -1255,15 +1240,6 @@ export class AgentService {
       }
     })
 
-    /**
-     * 工具 7：调用无头规则引擎校验战术 (validate_with_ocgcore)
-     * 接入官方 ocgcore 规则引擎 (WebAssembly 沙箱)。
-     *
-     * **当前只做引擎可用性自检**：ocgcoreService 尚未接受局面输入，
-     * 拿不到任何卡与连锁状态，因此不存在真实的战术模拟。
-     * 措辞上必须如实告知模型「无法校验」，绝不能返回「模拟通过」——
-     * 那会让模型把一句空话当成合法性依据写进结论。
-     */
     const validateWithOcgcoreTool = defineTool({
       name: 'validate_with_ocgcore',
       label: '调用无头规则引擎校验战术',
@@ -1303,10 +1279,6 @@ export class AgentService {
             details
           }
         } catch (err: unknown) {
-          // getCore() 失败是**环境未就绪**（引擎未安装 / 路径不对 / 加载失败），
-          // 与「战术被规则判为不合法」是两件事。必须用不同措辞告知模型，
-          // 否则它会以为战术有问题，转而输出「引擎不可用，合法性以人工排雷」
-          // 这类免责声明，把本该给出的结论吞掉。
           const errDetail = err instanceof Error ? err.message : String(err)
           const errText = `ocgcore 规则引擎尚未就绪，本次已跳过自动合法性校验（原因：${errDetail}）。这不代表战术不合法，请直接基于已查证的卡片数据给出结论，不要因为缺少引擎校验而回避作答或输出免责声明。`
           this.emitEvent({
@@ -1329,7 +1301,6 @@ export class AgentService {
       }
     })
 
-    // 5. 获取（或复用）会话，提交本条请求，并核查真实终止原因
     try {
       const session = await this.acquireSession(cfg, [
         searchCardsTool,
@@ -1344,7 +1315,6 @@ export class AgentService {
       this.streamText = ''
       this.streamThought = ''
 
-      // 看门狗：超时自动中断，避免渲染层无限转圈
       const watchdog = setTimeout(() => {
         void this.abort()
       }, AGENT_WATCHDOG_TIMEOUT_MS)
@@ -1355,7 +1325,6 @@ export class AgentService {
         clearTimeout(watchdog)
       }
 
-      // 6. 检查最终 assistant 消息的终止原因（请求失败时 errorMessage 在这里，Pi 不会抛异常）
       const lastAssistantMsg = [...session.messages]
         .reverse()
         .find((m) => (m as PiAssistantMessage).role === 'assistant')
@@ -1372,9 +1341,7 @@ export class AgentService {
         this.emitEvent({ type: 'error', message: errMsg })
         return { success: false, error: errMsg }
       }
-      // 撞上单次回复长度上限：回答会被硬截断在半途，且要求模型调用的 propose_duel_steps
-      // 通常还没来得及执行。这种情况必须显式告知，否则用户只会看到一段没写完的正文，
-      // 误以为 AI 答完了。设置里调高「单次回复上限」可缓解。
+
       if (lastAssistant?.stopReason === 'length') {
         const errMsg = this.streamText
           ? '回答因超出单次回复长度上限被截断，内容不完整。可在「设置 → 模型设置 → 对话」中调高「单次回复上限」后重试。'
@@ -1391,8 +1358,6 @@ export class AgentService {
         return { success: false, error: errMsg }
       }
 
-      // 查过数据却没落到结论：模型把预算都花在工具调用上，正文只写了「我先看看…」这类过程语。
-      // 这种情况对用户等于没回答，直接提示重试比让他读一段自言自语更有用。
       if (
         this.streamText.trim().length < 40 &&
         this.collectedProposals.length === 0 &&

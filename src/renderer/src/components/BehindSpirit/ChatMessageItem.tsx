@@ -3,6 +3,7 @@ import { AlertTriangle, BookOpen, Check, Copy, Loader2, Paperclip, Sliders } fro
 import type { AgentChatMessage } from '../../stores/useAgentStore'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { confirmDialog } from '../../stores/useDialogStore'
 import { ContextCompactBlock } from './ContextCompactBlock'
 import { DuelProposalSummaryCard } from './DuelProposalSummaryCard'
 import { MarkdownContent } from './MarkdownContent'
@@ -79,9 +80,11 @@ function ChatMessageItemImpl({
   const handleApplyProposal = useCallback(async (): Promise<void> => {
     const fieldCards = useDuelStore.getState().state.cards
     if (fieldCards.length > 0) {
-      const confirmed = window.confirm(
-        `当前决斗盘上已有 ${fieldCards.length} 张卡。\n应用会把盘面清空并按提案重建，已排的步骤也会被替换。继续吗？`
-      )
+      const confirmed = await confirmDialog({
+        title: '应用提案会清空当前盘面',
+        description: `当前决斗盘上已有 ${fieldCards.length} 张卡。应用会把盘面清空并按提案重建，已排的步骤也会被替换。`,
+        confirmText: '继续'
+      })
       if (!confirmed) return
     }
     setApplying(true)
@@ -102,9 +105,11 @@ function ChatMessageItemImpl({
     if (!message.engineSteps?.length) return
     const existingSteps = useDuelStore.getState().state.steps ?? []
     if (existingSteps.length > 0) {
-      const confirmed = window.confirm(
-        `当前决斗场已排有 ${existingSteps.length} 步。\n应用会替换整条步骤时间线（引擎对局 ${message.engineSteps.length} 步）。继续吗？`
-      )
+      const confirmed = await confirmDialog({
+        title: '应用会替换步骤时间线',
+        description: `当前决斗场已排有 ${existingSteps.length} 步。应用会替换整条步骤时间线（引擎对局 ${message.engineSteps.length} 步）。`,
+        confirmText: '继续'
+      })
       if (!confirmed) return
     }
     setApplying(true)

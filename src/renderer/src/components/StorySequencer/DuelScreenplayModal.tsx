@@ -10,6 +10,7 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { CardNotePicker } from './CardNotePicker'
 import {
   BookOpen,
   Film,
@@ -63,6 +64,7 @@ export const DuelScreenplayModal: React.FC = () => {
   const [viewMode, setViewMode] = useState<'editor' | 'document'>('editor')
   const [copiedFullScript, setCopiedFullScript] = useState<boolean>(false)
   const [savedToArchive, setSavedToArchive] = useState<boolean>(false)
+  const [chantPickerCode, setChantPickerCode] = useState<number>(-1)
 
   // 确保有当前选中的步骤 ID
   const activeStep = steps.find((s) => s.id === selectedStepId) || steps[0]
@@ -729,9 +731,20 @@ export const DuelScreenplayModal: React.FC = () => {
                       <label className="font-semibold text-xs text-foreground flex items-center gap-1.5">
                         <span>角色台词 / 召唤口播 / 决斗战吼</span>
                       </label>
-                      <span className="text-[11px] text-muted-foreground font-mono">
-                        {(activeStep.dialogue || '').length} 字
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setChantPickerCode(activeStep.cardCode ?? 0)}
+                          title="从召唤词库里挑一条填入台词"
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>插入召唤词</span>
+                        </button>
+                        <span className="text-[11px] text-muted-foreground font-mono">
+                          {(activeStep.dialogue || '').length} 字
+                        </span>
+                      </div>
                     </div>
 
                     <textarea
@@ -821,6 +834,16 @@ export const DuelScreenplayModal: React.FC = () => {
           </div>
         )}
       </div>
+
+      {chantPickerCode >= 0 && activeStep && (
+        <CardNotePicker
+          cardCode={chantPickerCode > 0 ? chantPickerCode : null}
+          cardName={activeStep.cardName}
+          currentDialogue={activeStep.dialogue}
+          onPick={(text) => updateStep(activeStep.id, { dialogue: text })}
+          onClose={() => setChantPickerCode(-1)}
+        />
+      )}
     </div>
   )
 }

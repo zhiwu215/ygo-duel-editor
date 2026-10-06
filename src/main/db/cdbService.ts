@@ -10,7 +10,6 @@ import {
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 
-/** 数值比较符 → SQL 运算符 (仅白名单，避免把外部字符串直接拼进 SQL) */
 const COMPARATOR: Record<Exclude<NumericCompareOp, 'unknown'>, string> = {
   eq: '=',
   gt: '>',
@@ -25,7 +24,6 @@ interface SearchToken {
   excluded: boolean
 }
 
-/** 解析 YGOPro 风格的空格分词、引号短语、排除词、$卡名限定与@系列限定。 */
 function parseSearchTokens(input: string): SearchToken[] {
   const tokens: SearchToken[] = []
   let index = 0
@@ -78,9 +76,6 @@ export class CdbService {
   private setnameMap: Map<number, string> = new Map()
   private systemStringMap: Map<number, string> = new Map()
 
-  /**
-   * 从 cards.cdb 同级目录或子目录加载 strings.conf 中的系列名称定义
-   */
   private loadStringsConf(cdbPath: string): void {
     this.setnameMap.clear()
     this.systemStringMap.clear()
@@ -102,10 +97,8 @@ export class CdbService {
           const content = readFileSync(p, 'utf-8')
           const lines = content.split(/\r?\n/)
           for (const line of lines) {
-            // !setname 记录系列名；!system 1100–1131 是游戏内效果分类标签。
             const setnameMatch = line.match(/^!setname\s+(0x[0-9a-fA-F]+|\d+)\s+([^\t\r\n]+)/)
             if (setnameMatch) {
-              // strings.conf 的 setname 编号按十六进制解析，即使没有 0x 前缀。
               const code = parseInt(setnameMatch[1].replace(/^0x/i, ''), 16)
               const name = setnameMatch[2].trim()
               if (!isNaN(code) && name) this.setnameMap.set(code, name)
@@ -128,16 +121,12 @@ export class CdbService {
     }
   }
 
-  /**
-   * 根据 setcode 掩码解析卡片所属的所有系列名
-   */
   public getSetnames(setcode: number | bigint): string[] {
     if (!setcode || this.setnameMap.size === 0) return []
     const names: string[] = []
     let val = typeof setcode === 'bigint' ? setcode : BigInt(setcode)
     if (val === 0n) return []
 
-    // ocgcore 的 setcode 最多支持 4 个 16 位字段
     for (let i = 0; i < 4; i++) {
       const chunk = Number(val & 0xffffn)
       if (chunk > 0) {
@@ -145,7 +134,6 @@ export class CdbService {
         if (name && !names.includes(name)) {
           names.push(name)
         } else {
-          // 子字段低 12 位
           const sub = chunk & 0xfff
           const subName = this.setnameMap.get(sub)
           if (subName && !names.includes(subName)) {
@@ -158,7 +146,6 @@ export class CdbService {
     return names
   }
 
-  /** 按游戏 strings.conf 的系列名规则解析可匹配的 setcode。 */
   private getSetcodesForKeyword(keyword: string): number[] {
     const normalized = keyword.toLocaleLowerCase()
     const codes: number[] = []
@@ -173,9 +160,6 @@ export class CdbService {
     return codes
   }
 
-  /**
-   * 打开指定路径的 cards.cdb 文件
-   */
   public open(cdbPath: string): boolean {
     try {
       if (!existsSync(cdbPath)) {
@@ -185,7 +169,6 @@ export class CdbService {
 
       const db = new Database(cdbPath, { readonly: true, fileMustExist: true })
 
-      // 校验是真正的卡牌数据库 (必须含 datas 与 texts 表)，避免选中任意 sqlite/其他文件
       const probe = db
         .prepare(
           "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('datas','texts')"
@@ -197,7 +180,6 @@ export class CdbService {
         return false
       }
 
-      // 校验通过后才关闭旧连接，保证失败时旧数据库仍然可用
       if (this.db) {
         this.db.close()
       }
@@ -230,9 +212,6 @@ export class CdbService {
     return this.db !== null
   }
 
-  /**
-   * 多条件检索卡片；筛选逻辑沿用 YGOPro 的 CDB 位掩码与关键词语法。
-   */
   public search(params: CardSearchParams): CardSearchResult {
     if (!this.db) return { cards: [], total: 0 }
 
@@ -254,7 +233,6 @@ export class CdbService {
       return `(${parts.join(' OR ')})`
     }
 
-    // 关键词支持空格 AND、引号短语、-排除词、$卡名限定、@系列限定。
     if (params.keyword && params.keyword.trim().length > 0) {
       const keyword = params.keyword.trim()
       if (/^\d+$/.test(keyword)) {
@@ -284,19 +262,16 @@ export class CdbService {
       }
     }
 
-    // 精确卡密过滤
     if (params.code !== undefined && params.code > 0) {
       baseWhere += ' AND d.id = ?'
       args.push(params.code)
     }
 
-    // 主种类过滤 (Monster / Spell / Trap)
     if (params.type !== undefined && params.type !== 0) {
       baseWhere += ' AND (d.type & ?) != 0'
       args.push(params.type)
     }
 
-    // YGOPro 对怪兽按位包含匹配，对魔法/陷阱按完整类型值精确匹配。
     if (params.subType !== undefined && params.subType !== 0) {
       if (params.type === CardType.SPELL || params.type === CardType.TRAP) {
         baseWhere += ' AND d.type = ?'
@@ -345,7 +320,6 @@ export class CdbService {
 
     addNumericFilter('d.atk', params.atk, params.atkOp, true)
     if (params.def !== undefined || params.defOp === 'unknown') {
-      // Link 怪兽没有守备力；对齐 YGOPro，DEF 条件不匹配 Link 怪兽。
       baseWhere += ' AND (d.type & ?) = 0'
       args.push(CardType.LINK)
     }
@@ -396,15 +370,12 @@ export class CdbService {
     }
   }
 
-  /**
-   * 根据卡密列表批量查询卡片详细信息
-   */
   public getCardsByIds(ids: number[]): Record<number, CdbCard> {
     if (!this.db || ids.length === 0) return {}
 
     const placeholders = ids.map(() => '?').join(',')
     const sql = `
-      SELECT 
+      SELECT
         d.id, d.ot, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, d.category,
         t.name, t.desc
       FROM datas d

@@ -7,13 +7,12 @@ import { HelpTip } from './HelpTip'
 import { cn } from '../../../lib/utils'
 
 interface ModelEditorModalProps {
-  /** add = 新增模型，edit = 修改已有模型 */
   mode: 'add' | 'edit'
-  /** 所属供应商，用于「智能配置」拉取厂商模型元数据 */
+
   provider: AgentProviderConfig
-  /** 编辑态传入被编辑的模型 */
+
   initial: AgentProviderModelConfig | null
-  /** 已被占用的模型 ID（编辑态已排除自身），用于查重 */
+
   existingIds: string[]
   onClose: () => void
   onSubmit: (model: AgentProviderModelConfig) => void
@@ -22,7 +21,6 @@ interface ModelEditorModalProps {
 const FIELD_INPUT_CLASS =
   'w-full px-2.5 py-1.5 rounded-lg border border-border bg-background text-[11px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25'
 
-/** 折叠区里的分组小标题，对齐 ZCode 的「输入类型 / 模型能力」写法 */
 function GroupLabel({ label, help }: { label: string; help: string }): React.JSX.Element {
   return (
     <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -32,7 +30,6 @@ function GroupLabel({ label, help }: { label: string; help: string }): React.JSX
   )
 }
 
-/** ZCode 那种「方框 + 文字」的复选芯片 */
 function OptionChip({
   label,
   selected,
@@ -41,7 +38,7 @@ function OptionChip({
 }: {
   label: string
   selected: boolean
-  /** 置灰且不可点（如「文本」这种恒定能力） */
+
   locked?: boolean
   onToggle?: () => void
 }): React.JSX.Element {
@@ -79,15 +76,6 @@ function toNumberText(value?: number): string {
   return typeof value === 'number' && value > 0 ? String(value) : ''
 }
 
-/**
- * 添加 / 编辑模型的弹窗。
- * 结构参照 ZCode 的 ProviderModelMetadataDialog：智能配置 → 模型 ID → 上下文窗口 →
- * 最大输出 Token → 折叠的「高级配置」（输入类型 / 模型能力 / 推理），
- * 底部「重置表单 / 取消 / 保存」。
- *
- * 只列本项目底层（pi）真正支持的项：pi 的模型配置只有 text / image 两种模态，
- * 也没有「原生联网搜索」开关，所以不摆「视频 / PDF / 原生联网搜索」这些点了没反应的选项。
- */
 export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
   mode,
   provider,
@@ -108,7 +96,7 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
   const [midConversationSystem, setMidConversationSystem] = useState(
     Boolean(initial?.supportsMidConversationSystem)
   )
-  /** 智能配置：按模型 ID 从厂商接口自动识别上下文窗口与能力 */
+
   const [smart, setSmart] = useState(true)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [detecting, setDetecting] = useState(false)
@@ -194,7 +182,7 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
       supportsStructuredOutput: structuredOutput,
       supportsMidConversationSystem: midConversationSystem,
       enabled: initial?.enabled ?? true,
-      // 必须标记 custom，否则 normalizeAgentConfig 会把这条模型丢掉
+
       custom: true
     })
   }

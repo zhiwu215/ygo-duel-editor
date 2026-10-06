@@ -124,7 +124,7 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
   } = useAgentStore()
 
   const [selection, setSelection] = useState<string | null>(null)
-  /** 右侧面板是否处于「添加供应商」选择态 */
+
   const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
@@ -133,8 +133,6 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
 
   const providers = useMemo(() => config.providers ?? [], [config.providers])
 
-  // 左列只列出已添加的供应商：内置品牌从「添加供应商」面板创建后才进入列表，
-  // 否则十来个预设会常驻左列，把用户自己建的供应商挤到看不见。
   const presetProviders = useMemo(() => providers.filter((p) => Boolean(p.presetId)), [providers])
   const customProviders = useMemo(() => providers.filter((p) => !p.presetId), [providers])
 
@@ -174,7 +172,6 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
     setPickerOpen(false)
   }
 
-  // 从内置预设创建：重复选择同一品牌时不再新建，直接切到已有那个
   const pickPreset = (preset: AgentProviderPreset): void => {
     const existing = providers.find((p) => p.presetId === preset.id || p.id === preset.id)
     if (existing) {
@@ -188,7 +185,6 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
     setPickerOpen(false)
   }
 
-  // 删除自定义供应商：先弹自定义确认框，避免误点丢失已配置的 API Key
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
 
   const requestDelete = (providerId: string, name: string): void => {
@@ -203,7 +199,6 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
     setPendingDelete(null)
   }
 
-  // 自定义供应商拖拽排序：仅在按住一小段距离后才启动，避免与点击选中冲突
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 4 }
@@ -355,9 +350,9 @@ interface NavItemProps {
   label: string
   status: ProviderStatus
   presetId?: string
-  /** 传入则该行可拖拽排序（用于自定义供应商） */
+
   sortable?: boolean
-  /** 拖拽排序用的稳定唯一 id（供应商 id） */
+
   sortId?: string
   onClick: () => void
 }
@@ -448,7 +443,7 @@ function ProviderDetailPanel({
   }, [menuOpen])
 
   const isCustom = !provider.presetId
-  // 本地推理端点（Ollama 等）无需 API Key，与主进程的放行规则保持一致
+
   const canActivate = provider.apiKey.trim().length > 0 || isLocalEndpoint(provider.baseUrl)
 
   const commit = (patch: Partial<AgentProviderConfig>, selectModelId?: string): void => {
@@ -512,7 +507,6 @@ function ProviderDetailPanel({
     commit({ models }, !enabled && wasActive ? models.find((m) => m.enabled)?.id : undefined)
   }
 
-  // 模型的新增 / 编辑统一走弹窗（结构参照 ZCode），提交时按 id 决定插入还是覆盖
   const submitModel = (model: AgentProviderModelConfig): void => {
     const exists = provider.models.some((m) => m.id === model.id)
     const models = exists
@@ -680,8 +674,6 @@ function ProviderDetailPanel({
               {(value) => AGENT_API_FORMAT_LABELS[normalizeAgentApiFormat(value as string)]}
             </SelectValue>
           </SelectTrigger>
-          {/* 默认弹层宽度锁定为触发器宽度，全宽字段下拉时选项会被拉得很散、勾选标跑到最右；
-              这里改成按内容收缩（min-w 兜底），并在弹层内留 4px 内边距，避免选中态圆角贴边。 */}
           <SelectContent align="start" className="w-auto min-w-44 p-1">
             {AGENT_API_FORMAT_VALUES.map((format) => (
               <SelectItem key={format} value={format} className="text-[11px] py-1.5 pr-7 pl-2">
@@ -706,7 +698,6 @@ function ProviderDetailPanel({
           )}
         </div>
         <div className="flex gap-1.5">
-          {/* 眼睛按钮浮在输入框内部（对齐 ZCode），不再单独占一格 */}
           <div className="relative flex-1 min-w-0">
             <input
               type={showKey ? 'text' : 'password'}

@@ -1,6 +1,3 @@
-/**
- * 决斗阶段枚举 (ocgcore / YGO 标准 6 大阶段)
- */
 export type DuelPhase = 'DP' | 'SP' | 'M1' | 'BP' | 'M2' | 'EP'
 
 export const PHASE_NAMES: Record<DuelPhase, string> = {
@@ -21,37 +18,34 @@ export const PHASE_SHORT_NAMES: Record<DuelPhase, string> = {
   EP: '结束阶段'
 }
 
-/**
- * 动作类型定义 (对标 MDPro3 对局动作与回放动作)
- */
 export type DuelActionType =
-  | 'DRAW' // 抽卡
-  | 'SEARCH' // 检索 (从卡组加入手牌)
-  | 'SALVAGE' // 回收 (从墓地/除外加入手牌)
-  | 'NORMAL_SUMMON' // 通常召唤
-  | 'SPECIAL_SUMMON' // 特殊召唤
-  | 'FLIP_SUMMON' // 反转召唤
-  | 'XYZ_SUMMON' // 超量召唤 (叠放)
-  | 'DETACH_MATERIAL' // 取除超量素材
-  | 'SET_MONSTER' // 盖放怪兽
-  | 'SET_SPELL_TRAP' // 盖放魔陷
-  | 'ACTIVATE' // 发动效果 / 发动卡片
-  | 'ACTIVATE_FIELD' // 发动场地魔法
-  | 'SET_PENDULUM' // 设置灵摆刻度
-  | 'ATTACK' // 攻击宣言
-  | 'TO_GRAVE' // 送去墓地 / 破坏
-  | 'SEND_TO_GRAVE' // 从卡组送入墓地 (堆墓)
-  | 'BANISH' // 除外
-  | 'TO_HAND' // 加入手牌 / 弹回
-  | 'TO_DECK' // 返回卡组 / 额外卡组
-  | 'CHANGE_POS' // 变更表示形式
-  | 'DAMAGE' // 生命值削减 / 伤害
-  | 'RECOVER' // 生命值回复
-  | 'CHAIN' // 连锁响应
-  | 'RESOLVE_CHAIN' // 连锁结算
-  | 'PHASE_CHANGE' // 阶段切换
-  | 'TURN_CHANGE' // 回合切换
-  | 'DIALOGUE' // 纯剧情对白 / 演出解说
+  | 'DRAW'
+  | 'SEARCH'
+  | 'SALVAGE'
+  | 'NORMAL_SUMMON'
+  | 'SPECIAL_SUMMON'
+  | 'FLIP_SUMMON'
+  | 'XYZ_SUMMON'
+  | 'DETACH_MATERIAL'
+  | 'SET_MONSTER'
+  | 'SET_SPELL_TRAP'
+  | 'ACTIVATE'
+  | 'ACTIVATE_FIELD'
+  | 'SET_PENDULUM'
+  | 'ATTACK'
+  | 'TO_GRAVE'
+  | 'SEND_TO_GRAVE'
+  | 'BANISH'
+  | 'TO_HAND'
+  | 'TO_DECK'
+  | 'CHANGE_POS'
+  | 'DAMAGE'
+  | 'RECOVER'
+  | 'CHAIN'
+  | 'RESOLVE_CHAIN'
+  | 'PHASE_CHANGE'
+  | 'TURN_CHANGE'
+  | 'DIALOGUE'
 
 export const ACTION_TYPE_NAMES: Record<DuelActionType, string> = {
   DRAW: '抽卡',
@@ -83,9 +77,6 @@ export const ACTION_TYPE_NAMES: Record<DuelActionType, string> = {
   DIALOGUE: '剧情对白'
 }
 
-/**
- * 动作对应的强调色系 (用于 UI 标签与流向图渲染)
- */
 export const ACTION_TYPE_COLORS: Record<
   DuelActionType,
   { bg: string; text: string; border: string }
@@ -131,9 +122,6 @@ export const ACTION_TYPE_COLORS: Record<
   DIALOGUE: { bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30' }
 }
 
-/**
- * 盘面卡片轻量快照 (用于每步推演回放与盘面还原，避免序列化庞大的 CDB 详情)
- */
 export interface LightweightCardSnapshot {
   instanceId: string
   code: number
@@ -148,33 +136,74 @@ export interface LightweightCardSnapshot {
   customDef?: number
 }
 
-/**
- * 单个决斗动作/剧情步骤数据结构
- */
 export interface DuelStep {
-  id: string // 步骤全局唯一 ID
-  turn: number // 回合数 (1, 2, 3...)
-  turnPlayer: 0 | 1 // 当前回合所属玩家 (0: 我方, 1: 对方)
-  phase: DuelPhase // 阶段 (DP/SP/M1/BP/M2/EP)
-  actionPlayer: 0 | 1 // 执行此动作的玩家 (0: 我方, 1: 对方)
-  actionType: DuelActionType // 动作类型
-  instanceId?: string // 涉及卡片场上唯一实例 ID (可用于双向点击高亮与回放关联)
-  cardCode?: number // 涉及卡片 (8位卡密)
-  cardName?: string // 卡名快照缓存
-  fromLocation?: number // 来源区域 (CardLocation: HAND/MZONE/DECK 等)
-  fromSequence?: number // 来源格子序号
-  toLocation?: number // 目标区域 (CardLocation: MZONE/SZONE/GRAVE 等)
-  toSequence?: number // 目标格子序号
+  id: string
+  turn: number
+  turnPlayer: 0 | 1
+  phase: DuelPhase
+  actionPlayer: 0 | 1
+  actionType: DuelActionType
+  instanceId?: string
+  cardCode?: number
+  cardName?: string
+  fromLocation?: number
+  fromSequence?: number
+  toLocation?: number
+  toSequence?: number
   targetInstanceId?: string
   targetCardName?: string
   targetPlayer?: 0 | 1
   costInstanceIds?: string[]
-  chainIndex?: number // 连锁链条序号 (1: C1, 2: C2...)
-  speaker?: string // 剧情台词说话者 (如 "暗游戏" / "海马濑人" / "决斗解说")
-  dialogue?: string // 剧情对白 / 台词口播
-  innerThoughts?: string // 内心独白 / 心理戏 (可选)
-  description?: string // 步骤战术讲解 / 批注
-  sourceQuote?: string // 原文摘句 (AI 从小说文本转写时保留，供人工核对转写顺序；手工编排时可省略)
-  boardAfter?: LightweightCardSnapshot[] // 执行此步骤后局面的盘面卡片轻量快照 (用于上一步/下一步真实回放)
-  lpChange?: { player: 0 | 1; oldLp: number; newLp: number } // 生命值变动数据 (伤害/回复)
+  chainIndex?: number
+  speaker?: string
+  dialogue?: string
+  innerThoughts?: string
+  description?: string
+  sourceQuote?: string
+  boardAfter?: LightweightCardSnapshot[]
+  lpChange?: { player: 0 | 1; oldLp: number; newLp: number }
+  actId?: string
+  intent?: string
+}
+
+export type EngineDuelStep = Omit<DuelStep, 'id'>
+
+export interface ScreenplayOutcome {
+  winner: 0 | 1
+  endLp?: { player: 0 | 1; lp: number }
+  keyFinisherCode?: number
+  keyFinisherName?: string
+  note?: string
+}
+
+export interface DuelAct {
+  id: string
+  index: number
+  title: string
+  goal: string
+  keyCardCodes?: number[]
+  tone?: string
+  fromSnapshot?: LightweightCardSnapshot[]
+  steps?: DuelStep[]
+}
+
+export interface ScreenplayOutline {
+  id: string
+  title: string
+  tone?: string
+  outcome: ScreenplayOutcome
+  acts: DuelAct[]
+}
+
+export interface ScreenplayActFinish {
+  winner: 0 | 1 | null
+  reason: string
+}
+
+export interface ScreenplayActResult {
+  actId: string
+  index: number
+  steps: EngineDuelStep[]
+  endBoard: LightweightCardSnapshot[]
+  finish: ScreenplayActFinish | null
 }

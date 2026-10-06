@@ -4,6 +4,7 @@ import {
   CheckCheck,
   ChevronRight,
   Info,
+  Layers,
   LayoutGrid,
   ListOrdered,
   MousePointerClick,
@@ -22,6 +23,7 @@ type ToolStatus = 'running' | 'done' | 'failed' | 'stopped'
 
 const TOOL_LABELS: Record<string, string> = {
   get_current_board: '读取当前盘面',
+  get_deck_list: '读取牌堆清单',
   search_cards: '搜索卡片',
   get_card_info: '查询卡片详情',
   find_cards_by_intent: '按意图检索卡片',
@@ -33,13 +35,17 @@ const TOOL_LABELS: Record<string, string> = {
   duel_engine_arrange_deck: '编排牌序',
   duel_engine_start: '引擎开局',
   duel_engine_choose: '引擎选择',
-  duel_engine_commit: '提交对局步骤'
+  duel_engine_commit: '提交对局步骤',
+  screenplay_submit_outline: '提交剧本大纲',
+  screenplay_submit_act: '提交本幕步骤',
+  duel_export_replay: '导出回放'
 }
 
 const FALLBACK_ICON = <Sliders className="h-3 w-3 shrink-0 text-muted-foreground" />
 
 const TOOL_ICONS: Record<string, JSX.Element> = {
   get_current_board: <LayoutGrid className="h-3 w-3 shrink-0 text-muted-foreground" />,
+  get_deck_list: <Layers className="h-3 w-3 shrink-0 text-muted-foreground" />,
   search_cards: <Search className="h-3 w-3 shrink-0 text-muted-foreground" />,
   get_card_info: <Info className="h-3 w-3 shrink-0 text-muted-foreground" />,
   find_cards_by_intent: <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" />,
@@ -51,7 +57,10 @@ const TOOL_ICONS: Record<string, JSX.Element> = {
   duel_engine_arrange_deck: <Swords className="h-3 w-3 shrink-0 text-muted-foreground" />,
   duel_engine_start: <Play className="h-3 w-3 shrink-0 text-muted-foreground" />,
   duel_engine_choose: <MousePointerClick className="h-3 w-3 shrink-0 text-muted-foreground" />,
-  duel_engine_commit: <CheckCheck className="h-3 w-3 shrink-0 text-muted-foreground" />
+  duel_engine_commit: <CheckCheck className="h-3 w-3 shrink-0 text-muted-foreground" />,
+  screenplay_submit_outline: <BookOpen className="h-3 w-3 shrink-0 text-muted-foreground" />,
+  screenplay_submit_act: <ListOrdered className="h-3 w-3 shrink-0 text-muted-foreground" />,
+  duel_export_replay: <Play className="h-3 w-3 shrink-0 text-muted-foreground" />
 }
 
 const STATUS_TEXT: Record<ToolStatus, string> = {

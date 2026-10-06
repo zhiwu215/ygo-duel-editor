@@ -115,10 +115,9 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
           </Button>
         </div>
 
-        {}
         <div className="px-4 py-2.5 border-b border-border/60 shrink-0">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1.5">
-            <span>记录类型</span>
+            <span>类型</span>
           </div>
           <div className="flex items-center gap-1 p-0.5 rounded-md border border-border bg-muted/50">
             {[

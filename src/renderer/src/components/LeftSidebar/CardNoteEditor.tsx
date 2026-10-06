@@ -15,10 +15,6 @@ interface CardNoteEditorProps {
   onClose: () => void
 }
 
-const CHANT_PRESETS = ['日文原文', '中文翻译', '动画台词', '民间译法']
-
-const NOTE_PRESETS = ['初印象', '卡面描述', '重新解读', '剧场版印象']
-
 export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   cardName,
   kind,
@@ -35,7 +31,6 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const labelRef = useRef<HTMLInputElement>(null)
   const textRef = useRef<HTMLTextAreaElement>(null)
-  const presets = isChant ? CHANT_PRESETS : NOTE_PRESETS
 
   useEffect(() => {
     if (isEdit) textRef.current?.focus()
@@ -60,7 +55,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
     const trimmedLabel = label.trim()
     const trimmedText = text.trim()
     if (!trimmedLabel) {
-      setError(isChant ? '请填写版本名称' : '请填写条目标题')
+      setError('请填写标题')
       return
     }
     if (!trimmedText) {
@@ -92,7 +87,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
             <BookMarked className="w-4 h-4 text-primary shrink-0" />
             <div className="min-w-0">
               <div className="font-bold text-sm">
-                {isEdit ? '编辑' : isChant ? '录入召唤词' : '记录描述'}
+                {isEdit ? '编辑' : isChant ? '录入召唤词' : '添加描述'}
               </div>
               <div className="text-[10px] text-muted-foreground truncate">{cardName}</div>
             </div>
@@ -108,9 +103,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-muted-foreground">
-            {isChant ? '版本名称' : '条目标题'}
-          </span>
+          <span className="text-xs font-semibold text-muted-foreground">标题</span>
           <Input
             ref={labelRef}
             type="text"
@@ -125,26 +118,8 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
                 void handleConfirm()
               }
             }}
-            placeholder={isChant ? '如：日文原文' : '如：初印象'}
             className="h-8 text-xs bg-muted/40 border-border/80 focus-visible:ring-1"
           />
-          <div className="flex items-center gap-1 flex-wrap">
-            {presets
-              .filter((p) => !existingLabels.includes(p) || p === label)
-              .map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => {
-                    setLabel(p)
-                    setError(null)
-                  }}
-                  className="px-1.5 py-0.5 rounded text-[10px] bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                >
-                  {p}
-                </button>
-              ))}
-          </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -159,22 +134,11 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
               setError(null)
             }}
             rows={5}
-            placeholder={
-              isChant ? '照卡面下方的台词抄写即可' : '把这段卡面描述抄下来，或写你自己的理解'
-            }
             className="w-full resize-none rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
 
-        {error ? (
-          <span className="text-[11px] text-destructive">{error}</span>
-        ) : (
-          <span className="text-[11px] text-muted-foreground leading-4">
-            {isChant
-              ? '同一张卡可以录入多个版本，日文原文与中文翻译分别存两条。'
-              : '同类型下用同一个标题会覆盖旧条目，所以换个标题就能并存多条。'}
-          </span>
-        )}
+        {error && <span className="text-[11px] text-destructive">{error}</span>}
 
         <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
           <Button
@@ -192,7 +156,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
             disabled={isSaving}
             className="h-7 text-xs font-bold shadow-xs"
           >
-            {isEdit ? '保存' : isChant ? '添加' : '记录'}
+            {isEdit ? '保存' : '添加'}
           </Button>
         </div>
       </div>

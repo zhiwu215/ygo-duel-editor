@@ -11,12 +11,14 @@ import {
   ChevronDown,
   ChevronRight,
   Upload,
-  Download
+  Download,
+  GripVertical
 } from 'lucide-react'
 import { CardNoteEntry, CardNoteKind } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
+import { CardImageViewer } from '../CardDetail/CardImageViewer'
 import { CardNoteEditor } from './CardNoteEditor'
 import { CardNoteAdder } from './CardNoteAdder'
 
@@ -34,6 +36,17 @@ export const CardNoteApp: React.FC = () => {
     initial: { label: string; text: string }
   } | null>(null)
   const [showAdder, setShowAdder] = useState(false)
+  const [previewCard, setPreviewCard] = useState<number | null>(null)
+  const [dragging, setDragging] = useState<{
+    code: number
+    kind: CardNoteKind
+    label: string
+  } | null>(null)
+  const [dropHint, setDropHint] = useState<{
+    code: number
+    kind: CardNoteKind
+    label: string
+  } | null>(null)
 
   const flash = useCallback((msg: string): void => {
     setFeedback(msg)
@@ -50,6 +63,30 @@ export const CardNoteApp: React.FC = () => {
       setLoading(false)
     }
   }, [])
+
+  const applyReorder = useCallback(
+    async (
+      cardCode: number,
+      kind: CardNoteKind,
+      fromLabel: string,
+      toLabel: string
+    ): Promise<void> => {
+      setDragging(null)
+      setDropHint(null)
+      if (!fromLabel || fromLabel === toLabel) return
+      const entry = entries.find((e) => e.cardCode === cardCode)
+      if (!entry) return
+      const list = kind === 'chant' ? entry.chants : entry.notes
+      const labels = list.map((c) => c.label)
+      const from = labels.indexOf(fromLabel)
+      const to = labels.indexOf(toLabel)
+      if (from < 0 || to < 0) return
+      labels.splice(to, 0, ...labels.splice(from, 1))
+      await window.api.reorderCardNotes(cardCode, kind, labels)
+      await fetchAll()
+    },
+    [entries, fetchAll]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -237,15 +274,6 @@ export const CardNoteApp: React.FC = () => {
                       ) : (
                         <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       )}
-                      <img
-                        src={getCardImageUrl(entry.cardCode, true)}
-                        alt={entry.cardName}
-                        className="w-8 h-11 object-cover rounded shrink-0 border border-border/60"
-                        onError={(e) => {
-                          const el = e.currentTarget
-                          if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
-                        }}
-                      />
                       <div className="min-w-0 flex-1 flex items-baseline gap-1.5">
                         <div className="text-xs font-semibold text-foreground truncate">
                           {entry.cardName}
@@ -257,7 +285,22 @@ export const CardNoteApp: React.FC = () => {
                         )}
                       </div>
                     </button>
-                    {}
+                    <button
+                      type="button"
+                      onClick={() => setPreviewCard(entry.cardCode)}
+                      title="放大查看卡图"
+                      className="shrink-0 cursor-zoom-in rounded transition-transform duration-150 hover:scale-105"
+                    >
+                      <img
+                        src={getCardImageUrl(entry.cardCode, true)}
+                        alt={entry.cardName}
+                        className="w-8 h-11 object-cover rounded border border-border/60"
+                        onError={(e) => {
+                          const el = e.currentTarget
+                          if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
+                        }}
+                      />
+                    </button>
                     <button
                       type="button"
                       onClick={() =>
@@ -283,8 +326,8 @@ export const CardNoteApp: React.FC = () => {
                           initial: { label: '', text: '' }
                         })
                       }
-                      title="为这张卡记一条描述"
-                      className="p-1 rounded text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer shrink-0"
+                      title="为这张卡添加一条描述"
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
                     >
                       <MessageSquareQuote className="w-3.5 h-3.5" />
                     </button>
@@ -292,15 +335,58 @@ export const CardNoteApp: React.FC = () => {
 
                   {isOpen && (
                     <div className="px-2.5 pb-2.5 pt-0.5 space-y-2">
-                      {entry.chants.map((chant) => {
+                      {entry.chants.map((chant, index) => {
                         const key = `${entry.cardCode}:chant:${chant.label}`
+                        const draggable = !chant.readonly && index > 0
                         return (
                           <div
                             key={chant.label}
-                            className="rounded border border-border/70 bg-background/40 px-2.5 py-2"
+                            draggable={draggable}
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/card-note-label', chant.label)
+                              e.dataTransfer.effectAllowed = 'move'
+                              setDragging({
+                                code: entry.cardCode,
+                                kind: 'chant',
+                                label: chant.label
+                              })
+                            }}
+                            onDragEnd={() => {
+                              setDragging(null)
+                              setDropHint(null)
+                            }}
+                            onDragOver={(e) => {
+                              if (!draggable) return
+                              e.preventDefault()
+                              e.dataTransfer.dropEffect = 'move'
+                              setDropHint({
+                                code: entry.cardCode,
+                                kind: 'chant',
+                                label: chant.label
+                              })
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              const from = e.dataTransfer.getData('text/card-note-label')
+                              applyReorder(entry.cardCode, 'chant', from, chant.label)
+                            }}
+                            className={`rounded border border-border/70 bg-background/40 px-2.5 py-2 ${
+                              draggable ? 'cursor-grab active:cursor-grabbing' : ''
+                            } ${
+                              dropHint?.code === entry.cardCode &&
+                              dropHint.kind === 'chant' &&
+                              dropHint.label === chant.label &&
+                              dragging?.label !== chant.label
+                                ? 'ring-1 ring-primary/50'
+                                : ''
+                            } ${dragging?.label === chant.label ? 'opacity-40' : ''}`}
                           >
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-semibold text-primary/90 truncate flex-1">
+                              {draggable && (
+                                <GripVertical className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                              )}
+                              <span className="text-[10px] font-semibold text-foreground truncate flex-1">
                                 {chant.label}
                               </span>
                               {chant.readonly && (
@@ -323,7 +409,6 @@ export const CardNoteApp: React.FC = () => {
                                   <Copy className="w-3 h-3" />
                                 )}
                               </button>
-                              {}
                               {!chant.readonly && (
                                 <>
                                   <button
@@ -372,22 +457,64 @@ export const CardNoteApp: React.FC = () => {
                         )
                       })}
 
-                      {}
                       {entry.notes.length > 0 && (
                         <div className="pt-1.5 mt-1.5 border-t border-border/50 space-y-1.5">
-                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground">
                             <MessageSquareQuote className="w-3 h-3" />
                             <span>描述</span>
                           </div>
-                          {entry.notes.map((note) => {
+                          {entry.notes.map((note, index) => {
                             const key = `${entry.cardCode}:note:${note.label}`
+                            const draggable = index > 0
                             return (
                               <div
                                 key={note.label}
-                                className="rounded border border-amber-500/25 bg-amber-500/5 px-2.5 py-2"
+                                draggable={draggable}
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('text/card-note-label', note.label)
+                                  e.dataTransfer.effectAllowed = 'move'
+                                  setDragging({
+                                    code: entry.cardCode,
+                                    kind: 'note',
+                                    label: note.label
+                                  })
+                                }}
+                                onDragEnd={() => {
+                                  setDragging(null)
+                                  setDropHint(null)
+                                }}
+                                onDragOver={(e) => {
+                                  if (!draggable) return
+                                  e.preventDefault()
+                                  e.dataTransfer.dropEffect = 'move'
+                                  setDropHint({
+                                    code: entry.cardCode,
+                                    kind: 'note',
+                                    label: note.label
+                                  })
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  const from = e.dataTransfer.getData('text/card-note-label')
+                                  applyReorder(entry.cardCode, 'note', from, note.label)
+                                }}
+                                className={`rounded border border-border/70 bg-background/40 px-2.5 py-2 ${
+                                  draggable ? 'cursor-grab active:cursor-grabbing' : ''
+                                } ${
+                                  dropHint?.code === entry.cardCode &&
+                                  dropHint.kind === 'note' &&
+                                  dropHint.label === note.label &&
+                                  dragging?.label !== note.label
+                                    ? 'ring-1 ring-primary/50'
+                                    : ''
+                                } ${dragging?.label === note.label ? 'opacity-40' : ''}`}
                               >
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 truncate flex-1">
+                                  {draggable && (
+                                    <GripVertical className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                                  )}
+                                  <span className="text-[10px] font-semibold text-foreground/80 truncate flex-1">
                                     {note.label}
                                   </span>
                                   <button
@@ -466,10 +593,18 @@ export const CardNoteApp: React.FC = () => {
               return false
             }
             await fetchAll()
-            flash(kind === 'chant' ? '已录入召唤词' : '已记录描述')
+            flash(kind === 'chant' ? '已录入召唤词' : '已添加描述')
             return true
           }}
           onClose={() => setShowAdder(false)}
+        />
+      )}
+
+      {previewCard !== null && (
+        <CardImageViewer
+          cardCode={previewCard}
+          cardName={entries.find((e) => e.cardCode === previewCard)?.cardName ?? ''}
+          onClose={() => setPreviewCard(null)}
         />
       )}
     </div>

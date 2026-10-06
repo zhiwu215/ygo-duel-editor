@@ -2,12 +2,7 @@ import React, { useEffect } from 'react'
 import { useStore } from 'zustand'
 import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
-import {
-  MASTER_RULES,
-  MasterRule,
-  SELECTABLE_MASTER_RULES,
-  isExportableMatch
-} from '@shared/index'
+import { MASTER_RULES, MasterRule, SELECTABLE_MASTER_RULES, isExportableMatch } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
@@ -34,14 +29,10 @@ export const Header: React.FC = () => {
     resetChain
   } = useDuelStore()
 
-  // 撤销/重做仍需保留全局快捷键 (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z) 调用
-  // 对应的工具栏按钮已移除 (与菜单重复)
   const { undo, redo } = useStore(useDuelStore.temporal)
 
-  // 保存工程对话框控制
   const [isSaveModalOpen, setIsSaveModalOpen] = React.useState(false)
 
-  // ---------- 文件命令 (MenuBar 与工具栏共用，单处实现) ----------
   const handleNew = React.useCallback((): void => {
     if (confirm('确认清空当前局面并新建对局？')) {
       resetDuel()
@@ -95,14 +86,12 @@ export const Header: React.FC = () => {
     }
   }, [state])
 
-  // ---------- 全局快捷键 (与菜单提示保持一致：N/O/S/I/E + Z/Y) ----------
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       const isInput =
         e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
       const mod = e.ctrlKey || e.metaKey
 
-      // Tab 键切换全场战术透视 (非输入框聚焦时有效)
       if (e.key === 'Tab') {
         if (!isInput) {
           e.preventDefault()
@@ -157,11 +146,7 @@ export const Header: React.FC = () => {
 
   return (
     <header className="border-b border-border bg-card select-none flex flex-col shrink-0">
-      {/* ============ 第一行：菜单栏 (VSCode 风格标题栏 + 无边框窗口自绘控件) ============ */}
-      {/* 整行设为 drag 区（可拖动窗口）；内部交互元素标no-drag。
-          官方规则：no-drag 只对 drag 元素的后代生效，因此必须是嵌套关系，不能靠同级覆盖。 */}
       <div className="h-9 pl-3 pr-3 flex items-center justify-between border-b border-border/60 gap-2 [-webkit-app-region:drag]">
-        {/* 左侧：Logo + 菜单栏（Logo 区域也可拖动窗口，故不设 no-drag；仅菜单按钮需no-drag） */}
         <div className="flex items-center gap-1 min-w-0">
           <div className="flex items-center gap-1.5 mr-2 shrink-0">
             <img
@@ -185,12 +170,9 @@ export const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* 中间弹性空白：作为主要拖拽握把 */}
         <div className="flex-1 h-full" />
 
-        {/* 右侧：工程信息 + 导出状态 + 自绘窗口控件 */}
         <div className="flex items-center gap-2 shrink-0 [-webkit-app-region:no-drag]">
-          {/* 工程分类与标题 */}
           <Input
             type="text"
             value={state.title}
@@ -206,15 +188,12 @@ export const Header: React.FC = () => {
 
           <Separator orientation="vertical" className="h-4" />
 
-          {/* 自绘窗口控件：最小化 / 最大化 / 关闭 */}
           <WindowControls className="-mr-3 ml-1" />
         </div>
       </div>
 
-      {/* ============ 第二行：决斗上下文工具栏 (规则、对阵、回合阶段) ============ */}
       <div className="h-9 px-3 bg-muted/30 flex items-center text-xs">
         <div className="flex items-center gap-3">
-          {/* 主规则选择 */}
           <div className="flex items-center gap-1.5">
             <Select
               value={state.masterRule}
@@ -227,7 +206,9 @@ export const Header: React.FC = () => {
                 className="w-40 h-7 text-xs bg-background/60"
                 title="选择大师规则"
               >
-                <SelectValue>{MASTER_RULES[state.masterRule]?.name ?? '大师规则（2020）'}</SelectValue>
+                <SelectValue>
+                  {MASTER_RULES[state.masterRule]?.name ?? '大师规则（2020）'}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {SELECTABLE_MASTER_RULES.map((rule) => {
@@ -244,12 +225,10 @@ export const Header: React.FC = () => {
 
           <Separator orientation="vertical" className="h-4" />
 
-          {/* 对阵人数选择器 (1v1 / 2v2双打 / 自定义人数) */}
           <MatchSelector />
 
           <Separator orientation="vertical" className="h-4" />
 
-          {/* 回合与阶段快捷推进 */}
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-bold text-foreground">第{currentTurn}回合</span>
             <Button
@@ -274,7 +253,6 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* 保存工程模态弹窗 */}
       {isSaveModalOpen && (
         <SaveProjectModal open={isSaveModalOpen} onClose={() => setIsSaveModalOpen(false)} />
       )}

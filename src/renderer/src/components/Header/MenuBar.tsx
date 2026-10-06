@@ -44,7 +44,7 @@ interface MenuItemDef {
   action?: () => void
   disabled?: boolean
   separator?: boolean
-  /** 勾选态：用于「查看」菜单中的开关项 (如战术透视) */
+
   checked?: boolean
 }
 
@@ -54,13 +54,6 @@ interface MenuDef {
   items: MenuItemDef[]
 }
 
-/**
- * 桌面风格下拉菜单栏（文件 / 编辑 / 查看 / 帮助）。
- * 纯菜单 UI 组件：文件类命令由 Header 通过 props 注入，避免两处重复实现。
- * 全局设置入口不在菜单栏：统一收在活动栏左下角 (VSCode 风格) 的独立设置窗口。
- * 「查看」菜单承载视图/工具类快捷入口 (战术透视 / 台本工作台 / 卡组编辑器)，
- * 这些操作不在「文件」「编辑」菜单中重复出现。
- */
 export const MenuBar: React.FC<MenuBarProps> = ({
   onNew,
   onOpenProject,
@@ -94,12 +87,11 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     toggleTacticalView,
     openScreenplayWithStep
   } = useDuelStore()
-  // temporal 经 useStore 包装成响应式订阅，撤销/重做可用状态随历史变化实时更新
+
   const { undo, redo, pastStates, futureStates } = useStore(useDuelStore.temporal)
   const canUndo = pastStates.length > 0
   const canRedo = futureStates.length > 0
 
-  // 点击外部 / Esc 关闭菜单
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent): void => {
       if (menuBarRef.current && !menuBarRef.current.contains(e.target as Node)) {
@@ -264,7 +256,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 type="button"
                 onClick={() => setActiveMenuId(isOpen ? null : menu.id)}
                 onMouseEnter={() => {
-                  // 已有展开菜单时，滑过即切换（桌面菜单栏惯例）
                   if (activeMenuId !== null && !isOpen) {
                     setActiveMenuId(menu.id)
                   }
@@ -322,7 +313,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
         })}
       </div>
 
-      {/* 快捷键参考弹窗 */}
       {showShortcutsDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-md w-full p-5 space-y-3 animate-in fade-in">
@@ -359,7 +349,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
         </div>
       )}
 
-      {/* 关于弹窗 */}
       {showAboutDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="relative bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-sm w-full p-5 space-y-3 animate-in fade-in">
@@ -432,7 +421,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
         </div>
       )}
 
-      {/* 支持作者弹窗 */}
       {showSupportDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-md w-full p-5 space-y-4 animate-in fade-in">

@@ -6,30 +6,22 @@ import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
 import { cn } from '../../../lib/utils'
 
-/**
- * 保存决斗工程模态弹窗
- */
 interface SaveProjectModalProps {
   open: boolean
   onClose: () => void
 }
 
-/** 决斗分类选项 */
 interface DuelTypeOption {
   value: DuelType
   label: string
 }
 
-/** 决斗分类选项 */
 const DUEL_TYPE_OPTIONS: DuelTypeOption[] = [
   { value: 'full', label: '整局' },
   { value: 'puzzle', label: '残局' },
   { value: 'combo', label: 'Combo' }
 ]
 
-/**
- * 保存决斗工程模态弹窗：
- */
 export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClose }) => {
   const { state, setTitle, setHint, setDuelType } = useDuelStore()
 
@@ -38,7 +30,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
   const [localType, setLocalType] = useState<DuelType>(() => state.duelType || 'full')
   const [isSaving, setIsSaving] = useState(false)
 
-  // 处理全局按键 (Esc 取消)
   useEffect(() => {
     if (!open) return
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -59,12 +50,10 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
     const trimmedTitle = localTitle.trim() || '未命名对局'
     const trimmedHint = localHint.trim()
 
-    // 1. 同步更新至全局 store
     setTitle(trimmedTitle)
     setHint(trimmedHint)
     setDuelType(localType)
 
-    // 2. 构造即时 state 传给原生保存文件对话框
     const stateToSave: DuelPuzzleState = {
       ...state,
       title: trimmedTitle,
@@ -79,7 +68,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
         onClose()
         alert(`工程已成功保存：\n${res.filePath}`)
       } else {
-        // 用户在文件选择器中点击了取消，关闭弹窗以保留当前现场
         onClose()
       }
     } catch (err) {
@@ -98,7 +86,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
       }}
     >
       <div className="relative w-full max-w-md bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4.5 select-none animate-in zoom-in-95 duration-150">
-        {/* 顶部标题与关闭按钮 */}
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-foreground">保存决斗工程</h3>
           <button
@@ -112,7 +99,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
           </button>
         </div>
 
-        {/* 1. 工程分类选择器 */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-foreground">工程分类</label>
           <div className="grid grid-cols-3 gap-1.5 p-1 bg-muted/50 rounded-lg border border-border/70">
@@ -137,7 +123,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
           </div>
         </div>
 
-        {/* 2. 工程名称输入 */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="save-project-title" className="text-xs font-medium text-foreground">
             工程名称
@@ -159,7 +144,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
           />
         </div>
 
-        {/* 3. 注释 (映射为 hint) */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="save-project-hint" className="text-xs font-medium text-foreground">
             注释
@@ -174,7 +158,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
           />
         </div>
 
-        {/* 底部操作按钮 */}
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
           <Button
             type="button"

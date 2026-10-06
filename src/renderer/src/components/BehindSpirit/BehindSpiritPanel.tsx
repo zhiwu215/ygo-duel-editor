@@ -34,8 +34,6 @@ import { cn } from '../../lib/utils'
 
 const MANAGE_KEY = 'action:manage'
 
-/** 拖入文本的大小上限（字符）：素材经 read_novel_source 分段读取，
- * 但渲染端读取与 IPC 传输仍需要一次全量 —— 正常「一场对局」远小于这个量级 */
 const MAX_DRAGGED_TEXT_CHARS = 800_000
 
 interface MenuProvider {
@@ -63,15 +61,13 @@ export function BehindSpiritPanel(): JSX.Element {
   const [inputPrompt, setInputPrompt] = useState('')
   const [appliedMessageId, setAppliedMessageId] = useState<string | null>(null)
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
-  // 整理提案的应用过程：同一时刻只可能有一个提案在应用/报错
+
   const [applyingProposalMsgId, setApplyingProposalMsgId] = useState<string | null>(null)
   const [proposalError, setProposalError] = useState<{ msgId: string; text: string } | null>(null)
 
-  // 从卡片检索面板拖入的卡片引用：随消息一起发给 AI，避免用户手打卡名
   const [attachedCards, setAttachedCards] = useState<CdbCard[]>([])
   const [isCardDragOver, setIsCardDragOver] = useState(false)
 
-  // 素材附件：从资料库选章节，或直接拖入 txt/md 文件（正文都不进 prompt）
   const [attachedNovel, setAttachedNovel] = useState<AgentNovelSourceRef | null>(null)
   const [novelPickerOpen, setNovelPickerOpen] = useState(false)
   const [novelPickerPos, setNovelPickerPos] = useState<{ right: number; bottom: number } | null>(
@@ -86,7 +82,7 @@ export function BehindSpiritPanel(): JSX.Element {
   const shouldAutoScrollRef = useRef(true)
   const toolbarRef = useRef<HTMLDivElement>(null)
   const modelMenuRef = useRef<HTMLDivElement>(null)
-  //浮层通过 Portal 渲染到 body，需自行记录触发器位置；宽度固定不跟随触发器（参考 ZCode）
+
   const [modelMenuPos, setModelMenuPos] = useState<{ right: number; bottom: number } | null>(null)
 
   useEffect(() => {
@@ -97,7 +93,7 @@ export function BehindSpiritPanel(): JSX.Element {
     if (!modelMenuOpen) return
     const handler = (e: MouseEvent): void => {
       const target = e.target as Node
-      // 浮层已 Portal 到 body，「点外部关闭」必须同时检查触发器与浮层两个容器
+
       if (
         toolbarRef.current &&
         !toolbarRef.current.contains(target) &&
@@ -158,7 +154,6 @@ export function BehindSpiritPanel(): JSX.Element {
   )
 
   const openMenu = (): void => {
-    // 打开时按工具栏上沿锚定浮层位置（Portal 到 body，需自行换算视口坐标）
     const anchor = toolbarRef.current
     if (anchor) {
       const rect = anchor.getBoundingClientRect()
@@ -190,7 +185,7 @@ export function BehindSpiritPanel(): JSX.Element {
     if ((!inputPrompt.trim() && attachedCards.length === 0 && !attachedNovel) || isGenerating)
       return
     shouldAutoScrollRef.current = true
-    // 对话记录只存用户原始输入；引用卡片与小说素材的上下文仅在发给模型时拼接
+
     sendMessage(
       inputPrompt.trim() || (attachedNovel ? '请把附加的对局原文整理成可演示的对局流程' : ''),
       currentBoardState,
@@ -210,7 +205,6 @@ export function BehindSpiritPanel(): JSX.Element {
     }
   }
 
-  /** 引用卡片的事实块：只给 AI 卡名/卡密/攻防/效果原文，不替用户下结论 */
   const buildCardsBlock = (cards: CdbCard[]): string => {
     const blocks = cards.map((c) => {
       const typeLabel = CardUtils.getCardTypeLabel(c.type)
@@ -229,11 +223,6 @@ export function BehindSpiritPanel(): JSX.Element {
     return `【我参考的卡片】\n${blocks.join('\n\n')}`
   }
 
-  /**
-   * 组装真正发给模型的 prompt：卡片事实块 + 小说素材提示 + 用户需求。
-   * 小说正文不进 prompt（几万字会挤占上下文），只标注素材已附加，
-   * 由模型用 read_novel_source 工具分段读取。
-   */
   const buildInjectedPrompt = (
     prompt: string,
     cards: CdbCard[],
@@ -251,12 +240,10 @@ export function BehindSpiritPanel(): JSX.Element {
     return `${blocks.join('\n\n')}\n\n【我的问题】\n${prompt}`
   }
 
-  // 从卡片检索面板拖入卡片：去重后加入引用列表；拖入 txt/md 文件则直接附加为素材
   const handleCardDrop = (e: React.DragEvent): void => {
     e.preventDefault()
     setIsCardDragOver(false)
 
-    // 文件分支：渲染端直接读正文（不需要本地路径），随消息携带给主进程
     const files = Array.from(e.dataTransfer.files).filter((f) =>
       /\.(txt|md|markdown)$/i.test(f.name)
     )
@@ -272,11 +259,10 @@ export function BehindSpiritPanel(): JSX.Element {
       if (typeof parsed?.id !== 'number' || !parsed.name) return
       setAttachedCards((prev) => (prev.some((c) => c.id === parsed.id) ? prev : [...prev, parsed]))
     } catch {
-      // 非卡片数据（如从别处拖入的文本）忽略
+      void 0
     }
   }
 
-  /** 拖入本地 txt/md：一次只取一个文件，读为「直接文本」形态的素材（不入资料库） */
   const handleFileDrop = async (files: File[]): Promise<void> => {
     const file = files[0]
     if (files.length > 1) {
@@ -294,7 +280,7 @@ export function BehindSpiritPanel(): JSX.Element {
         )
         return
       }
-      // 已有素材时覆盖（chip 只能挂一个，覆盖比追加更符合直觉）
+
       setAttachedNovel({
         title: file.name,
         wordCount: countWords(content),
@@ -310,7 +296,6 @@ export function BehindSpiritPanel(): JSX.Element {
     setAttachedCards((prev) => prev.filter((c) => c.id !== cardId))
   }
 
-  // 小说素材浮层与模型浮层同款锚定：按触发按钮上沿计算视口坐标
   const openNovelPicker = (): void => {
     if (novelPickerOpen) {
       setNovelPickerOpen(false)
@@ -327,11 +312,6 @@ export function BehindSpiritPanel(): JSX.Element {
     setNovelPickerOpen(true)
   }
 
-  /**
-   * 应用一条消息的整理提案（布局 + 步骤一起写，二者本是一体）。
-   * 盘面还是空的就直接应用；已有布局时弹一次覆盖确认 ——
-   * 确认措辞与提案的 clearExisting 无关：只要会改写现有场面都要过目。
-   */
   const handleApplyProposal = async (messageId: string): Promise<void> => {
     const msg = useAgentStore.getState().messages.find((m) => m.id === messageId)
     if (!msg) return
@@ -382,19 +362,13 @@ export function BehindSpiritPanel(): JSX.Element {
         </div>
       </div>
 
-      {/* 拖放落点覆盖「消息列表 + 输入区」整栏。
-          放在这层而不是只包输入框：原先只有底部那条窄带能接文件，
-          往对话区里拖会显示系统禁止符号（该区域没有 dragover 的 preventDefault）。 */}
       <div
         onDragOver={(e) => {
-          // 一律接管：文件与卡牌都从drop 落到 handleCardDrop 里分流。
-          // 缺了这一句，浏览器会因未声明合法落点而显示禁止光标。
           e.preventDefault()
           e.dataTransfer.dropEffect = 'copy'
           setIsCardDragOver(true)
         }}
         onDragLeave={(e) => {
-          // 仅当指针真正离开整栏时才取消高亮，避免经过内部子元素误判
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsCardDragOver(false)
         }}
         onDrop={handleCardDrop}
@@ -477,7 +451,7 @@ export function BehindSpiritPanel(): JSX.Element {
                   )}
 
                   {msg.toolCalls && msg.toolCalls.length > 0 && (
-                    <ToolCallList calls={msg.toolCalls} isGenerating={isGenerating} />
+                    <ToolCallList calls={msg.toolCalls} isStreaming={isGenerating} />
                   )}
 
                   {msg.status && (
@@ -550,7 +524,6 @@ export function BehindSpiritPanel(): JSX.Element {
         </div>
 
         <div className="p-2.5 border-t border-border bg-card/80 flex flex-col gap-2 shrink-0">
-          {/* 拖放落点已上移到整栏容器，这里只负责引用区与输入框的布局 */}
           <div className="flex flex-col gap-2 rounded-md">
             {attachedCards.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
@@ -651,7 +624,6 @@ export function BehindSpiritPanel(): JSX.Element {
                   type="button"
                   onClick={() => (modelMenuOpen ? closeMenu() : openMenu())}
                   className={cn(
-                    // w-full + min-w-0：随侧栏宽度收缩，避免把「发送」按钮挤出容器
                     'h-6 w-full min-w-0 px-1.5 rounded flex items-center gap-1 text-[11px] transition-colors',
                     modelMenuOpen
                       ? 'bg-muted text-foreground'
@@ -697,9 +669,6 @@ export function BehindSpiritPanel(): JSX.Element {
         </div>
       </div>
 
-      {/* 模型选择浮层：Portal 到 body，脱离侧栏的 overflow-hidden 裁剪，
-          位置锚定工具栏上沿（参考 ZCode ModelConfigSelect 的 Radix Portal 做法）。
-          宽度固定 w-52 不跟随触发器，窄侧栏下也不会被压扁。 */}
       {modelMenuOpen &&
         modelMenuPos &&
         createPortal(
@@ -799,7 +768,6 @@ export function BehindSpiritPanel(): JSX.Element {
           document.body
         )}
 
-      {/* 小说素材选择浮层：同样 Portal 到 body，锚定工具栏的「附加小说」按钮上沿 */}
       {novelPickerOpen &&
         createPortal(
           <NovelSourcePicker

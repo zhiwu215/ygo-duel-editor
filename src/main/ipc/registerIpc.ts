@@ -1,6 +1,12 @@
 import { ipcMain, shell, BrowserWindow, dialog } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import { CardSearchParams, DuelPuzzleState, AppConfig } from '@shared/index'
+import {
+  CardSearchParams,
+  DuelPuzzleState,
+  AppConfig,
+  CardNote,
+  CardNoteKind
+} from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
 import { configService } from '../services/configService'
@@ -10,6 +16,7 @@ import { ocgcoreService } from '../services/ocgcoreService'
 import { agentService } from '../services/agentService'
 import { settingsWindowService } from '../services/settingsWindowService'
 import { libraryService } from '../services/libraryService'
+import { cardNoteService } from '../services/cardNoteService'
 
 export function registerAllIpcHandlers(): void {
   // CDB 数据库操作
@@ -81,6 +88,34 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('library:novel-resplit', async (_, id: string) => {
     return libraryService.resplitNovel(id)
+  })
+
+  ipcMain.handle('window:open-card-notes', async () => {
+    cardNoteService.openWindow()
+  })
+
+  ipcMain.handle('note:list-all', async () => {
+    return cardNoteService.listAll()
+  })
+
+  ipcMain.handle('note:get', async (_, cardCode: number, kind?: CardNoteKind) => {
+    return cardNoteService.getNotes(cardCode, kind)
+  })
+
+  ipcMain.handle('note:save', async (_, note: CardNote) => {
+    return cardNoteService.saveNote(note)
+  })
+
+  ipcMain.handle('note:delete', async (_, cardCode: number, kind: CardNoteKind, label: string) => {
+    return cardNoteService.deleteNote(cardCode, kind, label)
+  })
+
+  ipcMain.handle('note:export', async () => {
+    return cardNoteService.exportLibrary()
+  })
+
+  ipcMain.handle('note:import', async () => {
+    return cardNoteService.importLibrary()
   })
 
   // 规则引擎校验与探针

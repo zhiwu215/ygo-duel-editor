@@ -3,6 +3,7 @@ import { parseYdk } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { ClipboardPaste, X } from 'lucide-react'
+import { useBackdropClose } from '../../hooks/useBackdropClose'
 
 interface YdkPasteModalProps {
   onConfirm: (text: string, deckName: string) => Promise<boolean>
@@ -10,6 +11,7 @@ interface YdkPasteModalProps {
 }
 
 export const YdkPasteModal: React.FC<YdkPasteModalProps> = ({ onConfirm, onClose }) => {
+  const backdropClose = useBackdropClose(onClose)
   const [text, setText] = useState<string>('')
   const [deckName, setDeckName] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
@@ -44,7 +46,8 @@ export const YdkPasteModal: React.FC<YdkPasteModalProps> = ({ onConfirm, onClose
 
   return (
     <div
-      onClick={onClose}
+      onMouseDown={backdropClose.onMouseDown}
+      onClick={backdropClose.onClick}
       className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
     >
       <div

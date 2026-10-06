@@ -17,7 +17,6 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
   onRedraw,
   onClose
 }) => {
-  // Esc 键关闭
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
@@ -38,7 +37,6 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
         onClick={(e) => e.stopPropagation()}
         className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-4 flex flex-col gap-4 max-w-[820px] w-full animate-in zoom-in-95 duration-100"
       >
-        {/* 顶栏 */}
         <div className="flex items-center justify-between border-b border-border/60 pb-2">
           <div className="flex items-center gap-2">
             <Dices className="w-4 h-4 text-primary" />
@@ -67,7 +65,6 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
           </div>
         </div>
 
-        {/* 5 张手牌卡图展示区 */}
         <div className="grid grid-cols-5 gap-3 py-2">
           {cards.map((code, idx) => {
             const card = cardDetails[code]

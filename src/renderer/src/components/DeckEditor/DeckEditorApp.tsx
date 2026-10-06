@@ -60,15 +60,12 @@ export const DeckEditorApp: React.FC = () => {
   const [newTagInput, setNewTagInput] = useState<string>('')
   const [saveToast, setSaveToast] = useState<string | null>(null)
 
-  // 1. 若当前为卡组资产库视图，渲染总览卡组库
   if (viewMode === 'library') {
     return <DeckLibraryView />
   }
 
-  // 2. 当前为卡组三栏编辑台
   const stats = getStats()
 
-  // 保存到本地卡组库
   const handleSaveToLibrary = async (): Promise<void> => {
     const ok = await saveCurrentDeckToLibrary()
     if (ok) {
@@ -79,7 +76,6 @@ export const DeckEditorApp: React.FC = () => {
     }
   }
 
-  // 导出为 .ydk
   const handleExportYdk = async (): Promise<void> => {
     const res = await saveDeckFile()
     if (res.success && res.filePath) {
@@ -89,7 +85,6 @@ export const DeckEditorApp: React.FC = () => {
     }
   }
 
-  // 清空
   const handleClear = (): void => {
     if (deck.main.length > 0 || deck.extra.length > 0 || deck.side.length > 0) {
       if (confirm('确认清空当前卡组的所有卡片？')) {
@@ -98,7 +93,6 @@ export const DeckEditorApp: React.FC = () => {
     }
   }
 
-  // 添加 Tag
   const handleAddTag = (): void => {
     if (newTagInput.trim()) {
       addDeckTag(newTagInput.trim())
@@ -106,7 +100,6 @@ export const DeckEditorApp: React.FC = () => {
     }
   }
 
-  // 切换封面
   const handleToggleCover = (): void => {
     if (!selectedCard) return
     if (deck.coverCard === selectedCard.id) {
@@ -118,9 +111,7 @@ export const DeckEditorApp: React.FC = () => {
 
   return (
     <div className="flex flex-col w-screen h-screen bg-background text-foreground select-none overflow-hidden font-sans">
-      {/* 1. 顶部操作工具栏 (无 emoji，纯 Lucide 矢量图标)；整行兼作无边框窗口的标题栏 */}
       <header className="h-11 px-3 border-b border-border bg-card flex items-center justify-between shrink-0 [-webkit-app-region:drag]">
-        {/* 左侧：返回卡组库与卡组名称 */}
         <div className="flex items-center gap-2 [-webkit-app-region:no-drag]">
           <Button
             variant="ghost"
@@ -151,7 +142,6 @@ export const DeckEditorApp: React.FC = () => {
           )}
         </div>
 
-        {/* 右侧：动作按钮组 */}
         <div className="flex items-center gap-1.5 [-webkit-app-region:no-drag]">
           <Button
             variant="default"
@@ -214,7 +204,6 @@ export const DeckEditorApp: React.FC = () => {
 
           <Separator orientation="vertical" className="h-4 mx-0.5" />
 
-          {/* 送入决斗盘核心联动按钮 */}
           <Button
             variant="default"
             size="xs"
@@ -237,14 +226,11 @@ export const DeckEditorApp: React.FC = () => {
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
 
-          {/* 无边框窗口自绘控件 (用 -mr-3 抵消 header 的 px-3，使按钮贴齐窗口右缘) */}
           <WindowControls className="-mr-3 ml-0.5" />
         </div>
       </header>
 
-      {/* 2. 创作元数据横条 (描述说明、分类标签管理、封面设定) */}
       <div className="px-3 py-1.5 bg-muted/30 border-b border-border/70 flex items-center justify-between gap-3 text-xs shrink-0">
-        {/* 描述编辑 */}
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <Input
@@ -260,8 +246,6 @@ export const DeckEditorApp: React.FC = () => {
 
         <div className="flex items-center gap-1.5 shrink-0">
           <Folder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          {/* 用原生 datalist 把已存在的分组变成可选项：既能下拉挑，也能手打新名字。
-              存盘时 deckService 会把新名字自动补进分组列表。 */}
           <datalist id="deck-group-options">
             {deckGroups.map((g) => (
               <option key={g} value={g} />
@@ -280,7 +264,6 @@ export const DeckEditorApp: React.FC = () => {
 
         <Separator orientation="vertical" className="h-4" />
 
-        {/* 分类 Tags 管理 */}
         <div className="flex items-center gap-1.5 shrink-0 max-w-[420px] overflow-x-auto scrollbar-none">
           <Tag className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
 
@@ -330,16 +313,13 @@ export const DeckEditorApp: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. MDPro3 风格三栏主舞台 */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* 左栏：卡片大图与详细效果展示 + 设为封面 */}
         <DeckDetailCard
           card={selectedCard}
           isCover={selectedCard ? deck.coverCard === selectedCard.id : false}
           onToggleCover={handleToggleCover}
         />
 
-        {/* 中栏：卡组统计条 + 卡片矩阵网格 (无死锁限制，允许自由创作) */}
         <main className="flex-1 flex flex-col p-2.5 gap-2.5 min-w-0 min-h-0 bg-background/50">
           <DeckStatsBar stats={stats} />
           <DeckGrid
@@ -351,11 +331,9 @@ export const DeckEditorApp: React.FC = () => {
           />
         </main>
 
-        {/* 右栏：卡片检索列表与 ⭐ 收藏夹 */}
         <DeckSearchPanel onSelectCard={setSelectedCard} onAddCard={(card) => addCard(card)} />
       </div>
 
-      {/* 4. 模态弹窗 */}
       {testHandCards && (
         <DeckTestHandModal
           cards={testHandCards}

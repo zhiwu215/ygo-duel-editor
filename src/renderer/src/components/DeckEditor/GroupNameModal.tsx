@@ -4,21 +4,13 @@ import { Input } from '../ui/input'
 import { FolderPlus, Pencil, X } from 'lucide-react'
 
 interface GroupNameModalProps {
-  /** 传入分组名 = 重命名；传null = 新建 */
   initialName: string | null
-  /** 已存在的分组名，重名校验时用来挡重名 */
+
   existingGroups: string[]
   onConfirm: (name: string) => Promise<boolean>
   onClose: () => void
 }
 
-/**
- * 分组新建 / 重命名弹窗
- *
- * 用模态而不是分组栏内联输入：内联框会挤在标签流里（新建时排在最右、
- * 改名时插在原位），用户视线要来回找；且分组栏本身横向滚动，
- * 输入框在滚动容器里会被裁切。模态居中固定，位置可预期。
- */
 export const GroupNameModal: React.FC<GroupNameModalProps> = ({
   initialName,
   existingGroups,
@@ -31,7 +23,6 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // 打开即全选已有名字：重命名时直接打字覆盖，比手动清空快
   useEffect(() => {
     inputRef.current?.focus()
     inputRef.current?.select()
@@ -66,7 +57,7 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
     setIsSubmitting(true)
     const ok = await onConfirm(trimmed)
     setIsSubmitting(false)
-    // 失败时保持打开，让用户改名字而不是重新来一遍
+
     if (ok) onClose()
   }
 

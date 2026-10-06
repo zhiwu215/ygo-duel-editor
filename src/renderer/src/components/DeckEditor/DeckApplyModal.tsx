@@ -28,7 +28,7 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
   const actualMain = deck ? deck.main.length : mainCount || 0
   const actualExtra = deck ? deck.extra.length : extraCount || 0
   const [player, setPlayer] = useState<0 | 1>(0)
-  const [drawMode, setDrawMode] = useState<0 | 5>(5) // 0: 全留卡组, 5: 起手抽5张
+  const [drawMode, setDrawMode] = useState<0 | 5>(5)
   const [isApplying, setIsApplying] = useState(false)
   const [isDone, setIsDone] = useState(false)
 
@@ -98,7 +98,6 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
               </div>
             </div>
 
-            {/* 选择目标玩家 */}
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-bold text-foreground">目标控制者：</span>
               <div className="grid grid-cols-2 gap-2">
@@ -132,7 +131,6 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
               </div>
             </div>
 
-            {/* 初始手牌配置 */}
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-bold text-foreground">初始手牌：</span>
               <div className="grid grid-cols-2 gap-2">
@@ -164,7 +162,6 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
               </div>
             </div>
 
-            {/* 底部确认按钮 */}
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50">
               <Button variant="ghost" size="sm" onClick={onClose} disabled={isApplying}>
                 取消

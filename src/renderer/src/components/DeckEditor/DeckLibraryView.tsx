@@ -36,7 +36,6 @@ interface DeckContextMenuState {
   deck: DeckData
 }
 
-/** 分组栏上的右键菜单目标：分组名，或空白处（group 为 null） */
 interface GroupMenuState {
   x: number
   y: number
@@ -67,11 +66,11 @@ export const DeckLibraryView: React.FC = () => {
 
   const [contextMenu, setContextMenu] = useState<DeckContextMenuState | null>(null)
   const [groupMenu, setGroupMenu] = useState<GroupMenuState | null>(null)
-  /** 展开「移动到分组」二级菜单的卡组 id */
+
   const [moveMenuDeckId, setMoveMenuDeckId] = useState<string | null>(null)
-  /** 分组新建 / 重命名弹窗；`original` 为 null 表示新建 */
+
   const [groupModal, setGroupModal] = useState<{ original: string | null } | null>(null)
-  /** 拖拽归组时高亮的目标分组 */
+
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
   const [importMenuOpen, setImportMenuOpen] = useState<boolean>(false)
   const [showPasteModal, setShowPasteModal] = useState<boolean>(false)
@@ -133,7 +132,6 @@ export const DeckLibraryView: React.FC = () => {
 
   const ungroupedCount = useMemo(() => deckList.filter((d) => !d.group?.trim()).length, [deckList])
 
-  /** 分组 → 卡组数。以已保存的分组列表为准，空分组也占位显示 (0) */
   const groupCounts = useMemo(() => {
     const map = new Map<string, number>()
     for (const g of deckGroups) map.set(g, 0)
@@ -144,12 +142,6 @@ export const DeckLibraryView: React.FC = () => {
     return map
   }, [deckGroups, deckList])
 
-  /**
-   * 搜索命中的卡组（null = 未搜索）
-   *
-   * 搜索是**跨分组**的：用户在顶层搜「暗游戏」时应能看到各文件夹里的命中卡组，
-   * 否则「文件夹 + 未分组」的两层结构会让搜索显得像坏了。
-   */
   const searchMatchedDecks = useMemo(() => {
     const kw = searchKeyword.trim().toLowerCase()
     if (!kw) return null
@@ -162,22 +154,12 @@ export const DeckLibraryView: React.FC = () => {
     })
   }, [deckList, searchKeyword])
 
-  /**
-   * 当前视图要展示的卡组
-   *
-   * selectedGroup 为 null = 顶层（只放未分组的卡组，文件夹另行渲染）；
-   * 否则是该分组内部。group 字段对不上任何已存分组的卡组（分组被删等）也算未分组，
-   * 避免它们变成顶层也看不到的幽灵数据。
-   */
   const visibleDecks = useMemo(() => {
     const source = searchMatchedDecks ?? deckList
     if (selectedGroup === null) return source.filter((d) => !d.group?.trim())
     return source.filter((d) => d.group?.trim() === selectedGroup)
   }, [deckList, selectedGroup, searchMatchedDecks])
 
-  /**
-   * 顶层要展示的文件夹。搜索时只留有命中的分组，否则会剩下一堆点进去是空的文件夹。
-   */
   const visibleGroups = useMemo(() => {
     if (!searchMatchedDecks) return deckGroups
     const hit = new Set<string>()
@@ -224,7 +206,6 @@ export const DeckLibraryView: React.FC = () => {
   }
 
   const handleGroupContextMenu = (e: React.MouseEvent, group: string | null): void => {
-    // 拖拽归组进行中不弹菜单：用户正在拖，不是想点菜单
     if (dragOverGroup !== null) return
     e.preventDefault()
     e.stopPropagation()
@@ -233,7 +214,6 @@ export const DeckLibraryView: React.FC = () => {
     setGroupMenu({ x: e.clientX, y: e.clientY, group })
   }
 
-  /** 打开分组命名弹窗；original 为 null 表示新建 */
   const openGroupModal = (original: string | null): void => {
     setContextMenu(null)
     setGroupMenu(null)
@@ -256,7 +236,6 @@ export const DeckLibraryView: React.FC = () => {
 
   return (
     <div className="flex flex-col w-screen h-screen bg-background text-foreground select-none overflow-hidden font-sans">
-      {/* 顶部标题行同时充当无边框窗口的标题栏：整行可拖动窗口，交互元素标 no-drag */}
       <header className="h-14 px-6 border-b border-border bg-card/80 backdrop-blur-md flex items-center justify-between shrink-0 [-webkit-app-region:drag]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs">
@@ -343,14 +322,12 @@ export const DeckLibraryView: React.FC = () => {
             <span>新建卡组</span>
           </Button>
 
-          {/* 无边框窗口自绘控件 (用 -mr-6 抵消 header 的 px-6，使按钮贴齐窗口右缘) */}
           <WindowControls className="-mr-6 ml-1" />
         </div>
       </header>
 
       <main
         onContextMenu={(e) => {
-          // 空白处右键 → 新建分组入口（点卡组时由卡组自己的 onContextMenu 拦下）
           if ((e.target as HTMLElement).closest('[data-deck-card]')) return
           e.preventDefault()
           setContextMenu(null)
@@ -358,7 +335,6 @@ export const DeckLibraryView: React.FC = () => {
         }}
         className="flex-1 overflow-y-auto p-6 min-h-0 bg-background/50"
       >
-        {/* 面包屑：分组内才显示「全部 / 分组名」，顶层只有「全部」 */}
         {selectedGroup !== null && (
           <div className="flex items-center gap-1 text-xs text-muted-foreground mb-4">
             <button
@@ -377,7 +353,6 @@ export const DeckLibraryView: React.FC = () => {
           </div>
         )}
 
-        {/* 顶层：先文件夹区，再未分组卡组区（类百度网盘） */}
         {selectedGroup === null && visibleGroups.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-2.5">
@@ -437,7 +412,6 @@ export const DeckLibraryView: React.FC = () => {
           </div>
         )}
 
-        {/* 分组内 / 顶层未分组卡组的标题 */}
         {selectedGroup === null && visibleDecks.length > 0 && ungroupedCount > 0 && (
           <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-2.5">
             <Inbox className="w-3.5 h-3.5" />
@@ -458,7 +432,6 @@ export const DeckLibraryView: React.FC = () => {
                   data-deck-card
                   draggable
                   onDragStart={(e) => {
-                    // 载荷只放实例 id：分组栏据此判断是否接受拖入
                     e.dataTransfer.setData('text/deck-id', deck.id || '')
                     e.dataTransfer.effectAllowed = 'move'
                   }}
@@ -659,7 +632,6 @@ export const DeckLibraryView: React.FC = () => {
 
           <Separator className="my-1" />
 
-          {/* 移动到分组：hover 展开二级菜单，列出全部分组 + 未分组 */}
           <div
             className="relative"
             onMouseEnter={() => {
@@ -748,7 +720,6 @@ export const DeckLibraryView: React.FC = () => {
         </div>
       )}
 
-      {/* 分组菜单：空白处为「新建分组」，分组标签上为「重命名 / 删除」 */}
       {groupMenu && (
         <div
           style={{ left: groupMenuX, top: groupMenuY }}
@@ -789,7 +760,6 @@ export const DeckLibraryView: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  // 闭包里 TS 无法再做窄化，先取出再判空
                   const name = groupMenu.group
                   if (name === null) return
                   openGroupModal(name)

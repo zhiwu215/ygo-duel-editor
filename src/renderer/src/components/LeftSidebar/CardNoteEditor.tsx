@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { BookMarked, X } from 'lucide-react'
 import { CardNoteKind } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { useBackdropClose } from '../../hooks/useBackdropClose'
 
 interface CardNoteEditorProps {
   cardName: string
@@ -10,8 +11,10 @@ interface CardNoteEditorProps {
 
   initial: { label: string; text: string }
 
-  existingLabels: string[]
-  onSave: (label: string, text: string) => Promise<boolean>
+  existingLabels?: string[]
+  existingLabelsForKind?: (kind: CardNoteKind) => string[]
+  kindEditable?: boolean
+  onSave: (label: string, text: string, kind: CardNoteKind) => Promise<boolean>
   onClose: () => void
 }
 
@@ -20,11 +23,32 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   kind,
   initial,
   existingLabels,
+  existingLabelsForKind,
+  kindEditable,
   onSave,
   onClose
 }) => {
   const isEdit = Boolean(initial.label)
-  const isChant = kind === 'chant'
+  const [activeKind, setActiveKind] = useState<CardNoteKind>(kind)
+  const kindSelectorVisible = Boolean(kindEditable) && !isEdit
+  const effectiveKind = kindSelectorVisible ? activeKind : kind
+  const isChant = effectiveKind === 'chant'
+  const existingLabelList =
+    kindSelectorVisible && existingLabelsForKind
+      ? existingLabelsForKind(effectiveKind)
+      : (existingLabels ?? [])
+  const labelPrefix = isChant ? '召唤词' : '描述'
+  const nextSeq = useMemo(() => {
+    const prefix = `${labelPrefix}-`
+    let max = 0
+    for (const l of existingLabelList) {
+      if (!l.startsWith(prefix)) continue
+      const n = Number(l.slice(prefix.length))
+      if (Number.isInteger(n) && n > max) max = n
+    }
+    return max + 1
+  }, [existingLabelList, labelPrefix])
+  const defaultLabel = `${labelPrefix}-${nextSeq}`
   const [label, setLabel] = useState<string>(initial.label)
   const [text, setText] = useState<string>(initial.text)
   const [error, setError] = useState<string | null>(null)
@@ -52,8 +76,8 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   }, [onClose])
 
   const handleConfirm = async (): Promise<void> => {
-    const trimmedLabel = label.trim()
     const trimmedText = text.trim()
+    const trimmedLabel = label.trim() || (!isEdit ? defaultLabel : '')
     if (!trimmedLabel) {
       setError('请填写标题')
       return
@@ -63,19 +87,22 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
       return
     }
 
-    if (!isEdit && existingLabels.includes(trimmedLabel)) {
+    if (!isEdit && existingLabelList.includes(trimmedLabel)) {
       setError(`已存在「${trimmedLabel}」，保存会覆盖它`)
       return
     }
     setIsSaving(true)
-    const ok = await onSave(trimmedLabel, trimmedText)
+    const ok = await onSave(trimmedLabel, trimmedText, effectiveKind)
     setIsSaving(false)
     if (ok) onClose()
   }
 
+  const backdropClose = useBackdropClose(onClose)
+
   return (
     <div
-      onClick={onClose}
+      onMouseDown={backdropClose.onMouseDown}
+      onClick={backdropClose.onClick}
       className="fixed inset-0 z-[85] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
     >
       <div
@@ -102,12 +129,43 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
           </Button>
         </div>
 
+        {kindSelectorVisible && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-muted-foreground">类型</span>
+            <div className="flex items-center gap-1 p-0.5 rounded-md border border-border bg-muted/50">
+              {[
+                { k: 'chant' as CardNoteKind, label: '召唤词' },
+                { k: 'note' as CardNoteKind, label: '描述' }
+              ].map((opt) => (
+                <button
+                  key={opt.k}
+                  type="button"
+                  onClick={() => {
+                    setActiveKind(opt.k)
+                    setError(null)
+                  }}
+                  className={`flex-1 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                    effectiveKind === opt.k
+                      ? 'bg-background text-foreground shadow-xs font-semibold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-muted-foreground">标题</span>
+          <span className="text-xs font-semibold text-muted-foreground">
+            {isEdit ? '标题' : '标题（可选）'}
+          </span>
           <Input
             ref={labelRef}
             type="text"
             value={label}
+            placeholder={!isEdit ? `默认：${defaultLabel}` : undefined}
             onChange={(e) => {
               setLabel(e.target.value)
               setError(null)

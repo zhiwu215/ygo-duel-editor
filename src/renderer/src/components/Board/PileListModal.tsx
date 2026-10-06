@@ -771,13 +771,8 @@ const PileListContent: React.FC = () => {
           )}
         </div>
 
-        {/* 底部操作与说明栏 */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
-          <p className="text-[11px] text-muted-foreground leading-none">
-            {target.location === CardLocation.DECK
-              ? '提示：列表最左一张是卡组顶（下一抽，格子上显示的就是它）；左右拖动卡片可调整抽卡顺序；把卡片拖出列表即可移至场上。'
-              : '提示：左右拖动卡片可换位（目标位置留出空位）；把卡片拖出列表即可移至场上；右键或点击「···」可移至手牌/送墓/除外/回卡组。'}
-          </p>
+        {/* 底部确认栏 */}
+        <div className="flex items-center justify-end px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
           <Button size="sm" onClick={closePile} className="px-5 h-7 text-xs">
             确定
           </Button>

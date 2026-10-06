@@ -8,9 +8,14 @@ import {
 } from '../../utils/cardFormat'
 import { HelpCircle, ZoomIn, X, Copy, Check } from 'lucide-react'
 
+const MIN_IMAGE_ZOOM = 0.5
+const MAX_IMAGE_ZOOM = 3
+const IMAGE_ZOOM_FACTOR = 1.15
+
 export const CardDetailPanel: React.FC = () => {
   const { hoveredCard, selectedCardId, state } = useDuelStore()
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
+  const [imageZoom, setImageZoom] = useState<number>(1)
   const [copiedName, setCopiedName] = useState<boolean>(false)
 
   let currentCard = hoveredCard
@@ -19,6 +24,25 @@ export const CardDetailPanel: React.FC = () => {
     : undefined
   if (!currentCard && selectedFieldCard?.card) {
     currentCard = selectedFieldCard.card
+  }
+
+  const openImageModal = (): void => {
+    setImageZoom(1)
+    setShowImageModal(true)
+  }
+
+  const closeImageModal = (): void => {
+    setShowImageModal(false)
+    setImageZoom(1)
+  }
+
+  const handleImageWheel = (e: React.WheelEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.deltaY === 0) return
+
+    const factor = e.deltaY < 0 ? IMAGE_ZOOM_FACTOR : 1 / IMAGE_ZOOM_FACTOR
+    setImageZoom((zoom) => Math.min(MAX_IMAGE_ZOOM, Math.max(MIN_IMAGE_ZOOM, zoom * factor)))
   }
 
   useEffect(() => {
@@ -45,6 +69,7 @@ export const CardDetailPanel: React.FC = () => {
         e.stopPropagation()
         e.stopImmediatePropagation()
         setShowImageModal(false)
+        setImageZoom(1)
       }
     }
     window.addEventListener('keydown', handleKeyDown, { capture: true })
@@ -90,7 +115,7 @@ export const CardDetailPanel: React.FC = () => {
         <div className="pt-3 pb-2.5 px-4 flex flex-col items-center select-none shrink-0">
           <div
             className="group relative cursor-zoom-in rounded-md overflow-hidden shadow-md border border-border/80 bg-black/40"
-            onClick={() => setShowImageModal(true)}
+            onClick={openImageModal}
             title="点击放大查看卡图"
           >
             <img
@@ -149,8 +174,9 @@ export const CardDetailPanel: React.FC = () => {
 
       {showImageModal && (
         <div
-          className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 select-none animate-in fade-in"
-          onClick={() => setShowImageModal(false)}
+          className="fixed inset-0 z-[70] overflow-hidden bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 select-none animate-in fade-in"
+          onClick={closeImageModal}
+          onWheel={(e) => e.preventDefault()}
         >
           <div
             className="absolute top-4 right-4 flex items-center gap-3 z-10"
@@ -161,7 +187,7 @@ export const CardDetailPanel: React.FC = () => {
             </div>
             <button
               type="button"
-              onClick={() => setShowImageModal(false)}
+              onClick={closeImageModal}
               className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer"
               title="关闭 (Esc)"
             >
@@ -172,11 +198,13 @@ export const CardDetailPanel: React.FC = () => {
           <div
             className="relative max-h-[85vh] max-w-[90vw] flex items-center justify-center"
             onClick={(e) => e.stopPropagation()}
+            onWheel={handleImageWheel}
           >
             <img
               src={getCardImageUrl(currentCard.id)}
               alt={currentCard.name}
-              className="max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl border border-white/10"
+              className="max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl border border-white/10 transition-transform duration-100 ease-out"
+              style={{ transform: `scale(${imageZoom})` }}
               onError={(e) => {
                 const target = e.currentTarget
                 if (target.src !== CARD_BACK_IMAGE) {
@@ -186,7 +214,9 @@ export const CardDetailPanel: React.FC = () => {
             />
           </div>
 
-          <p className="mt-3 text-white/50 text-[11px]">按 Esc 或点击任意空白处关闭</p>
+          <p className="mt-3 text-white/50 text-[11px]">
+            滚轮缩放 {Math.round(imageZoom * 100)}% · 按 Esc 或点击任意空白处关闭
+          </p>
         </div>
       )}
     </>

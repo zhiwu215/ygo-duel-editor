@@ -2,7 +2,12 @@ import React, { useEffect } from 'react'
 import { useStore } from 'zustand'
 import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { MASTER_RULES, MasterRule, isExportableMatch } from '@shared/index'
+import {
+  MASTER_RULES,
+  MasterRule,
+  SELECTABLE_MASTER_RULES,
+  isExportableMatch
+} from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
@@ -219,17 +224,20 @@ export const Header: React.FC = () => {
             >
               <SelectTrigger
                 size="sm"
-                className="w-28 h-7 text-xs bg-background/60"
-                title="选择规则版本 (MR1~MR5)"
+                className="w-40 h-7 text-xs bg-background/60"
+                title="选择大师规则"
               >
-                <SelectValue>{MASTER_RULES[state.masterRule]?.shortName ?? 'MR5'}</SelectValue>
+                <SelectValue>{MASTER_RULES[state.masterRule]?.name ?? '大师规则（2020）'}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {Object.values(MASTER_RULES).map((info) => (
-                  <SelectItem key={info.rule} value={info.rule}>
-                    {info.shortName}
-                  </SelectItem>
-                ))}
+                {SELECTABLE_MASTER_RULES.map((rule) => {
+                  const info = MASTER_RULES[rule]
+                  return (
+                    <SelectItem key={info.rule} value={info.rule}>
+                      {info.name}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
           </div>

@@ -2,27 +2,10 @@ import { DuelPhase, DuelActionType, ACTION_TYPE_NAMES } from '../types/story'
 import { AgentStepProposal, AgentBoardZone } from '../types/ipc'
 import { AGENT_BOARD_ZONE_TO_LOCATION } from './boardSetup'
 
-/**
- * AI 决斗步骤提案的归一化层
- *
- * 面向「小说文本转写」场景：模型整理小说里的对局时会写出中文动作词
- * （「召唤」「盖卡」）、大小写混排的阶段缩写等，直接 `as DuelActionType`
- * 会把垃圾值静默带进台本。这里统一收口：
- * - 能明确映射的容错归一化（别名表）；
- * - 映射不到的返回 `ok: false` 与面向模型的报错文案，由调用方拼进
- *   工具返回值让模型下一批自我修正（对齐 opencode 的 InvalidArgumentsError
- *   文案思路：错误信息本身就是「请重写输入」的提示）。
- */
-
-/** 由 ACTION_TYPE_NAMES 生成的枚举名索引（保持单一事实来源） */
 const DUEL_ACTION_TYPE_KEYS: Record<string, true> = Object.fromEntries(
   (Object.keys(ACTION_TYPE_NAMES) as DuelActionType[]).map((k) => [k, true as const])
 )
 
-/**
- * 阶段别名 → DuelPhase
- * 查表前会做 trim + 去分隔符 + 大写归一，因此「m1」「bp.」这类写法也能命中
- */
 const PHASE_ALIASES: Record<string, DuelPhase> = {
   DP: 'DP',
   SP: 'SP',
@@ -40,11 +23,6 @@ const PHASE_ALIASES: Record<string, DuelPhase> = {
   ENDPHASE: 'EP'
 }
 
-/**
- * 动作别名 → DuelActionType
- * 覆盖模型在转写小说时最常写出的中文词；裸「召唤」归入 SPECIAL_SUMMON
- * （小说语境的出场演出绝大多数是特殊召唤，通常召唤会写全称）
- */
 const ACTION_TYPE_ALIASES: Record<string, DuelActionType> = {
   DRAW: 'DRAW',
   抽卡: 'DRAW',
@@ -141,20 +119,17 @@ const ACTION_TYPE_ALIASES: Record<string, DuelActionType> = {
   宣言: 'DIALOGUE'
 }
 
-/** 归一化成功：step 为可用提案；note 是降级说明（进了提案但不完全按原样） */
 export interface AgentStepNormalizeOk {
   ok: true
   step: AgentStepProposal
   note?: string
 }
 
-/** 归一化失败：error 是面向模型的修正提示 */
 export interface AgentStepNormalizeFail {
   ok: false
   error: string
 }
 
-/** 原文摘句上限：太长会把提案卡撑爆，核对只需要定位用的短句 */
 const MAX_SOURCE_QUOTE_LENGTH = 80
 
 function toFiniteNumber(value: unknown): number | undefined {
@@ -172,10 +147,6 @@ function cleanText(value: unknown): string | undefined {
   return trimmed || undefined
 }
 
-/**
- * 区域取值归一：接受区域字符串枚举（模型侧惯例），也宽容直接的
- * CardLocation 数字掩码；两者都识别不了返回 undefined
- */
 function resolveZone(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value)
   if (typeof value === 'string') {
@@ -187,7 +158,6 @@ function resolveZone(value: unknown): number | undefined {
   return undefined
 }
 
-/** 阶段缩写归一；无法识别返回 null（时序字段错值会带乱整个时间线，不做静默降级） */
 export function normalizeAgentDuelPhase(raw: unknown): DuelPhase | null {
   if (typeof raw !== 'string') return null
   const cleaned = raw
@@ -197,7 +167,6 @@ export function normalizeAgentDuelPhase(raw: unknown): DuelPhase | null {
   return PHASE_ALIASES[cleaned] ?? null
 }
 
-/** 动作类型归一：先精确匹配枚举名，再查中文别名表 */
 export function normalizeAgentDuelActionType(raw: unknown): DuelActionType | null {
   if (typeof raw !== 'string') return null
   const cleaned = raw.trim()
@@ -207,11 +176,6 @@ export function normalizeAgentDuelActionType(raw: unknown): DuelActionType | nul
   return ACTION_TYPE_ALIASES[cleaned] ?? ACTION_TYPE_ALIASES[upper] ?? null
 }
 
-/**
- * 归一化模型提交的单个决斗步骤提案
- *
- * @param input 模型填写的原始参数（未校验，字段可能是任意类型）
- */
 export function normalizeAgentStepProposal(
   input: unknown
 ): AgentStepNormalizeOk | AgentStepNormalizeFail {

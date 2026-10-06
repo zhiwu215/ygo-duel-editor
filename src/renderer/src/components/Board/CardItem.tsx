@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
 import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
+import { getLegalTargetIds } from '../../utils/duelActionTargets'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
@@ -29,6 +30,15 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     setHoveredInstanceId
   } = useDuelStore()
   const tacticalView = useDuelStore((s) => s.tacticalView)
+  const toggleActionTarget = useDuelStore((s) => s.toggleActionTarget)
+  const pendingRole = useDuelStore((s): 'none' | 'source' | 'chosen' | 'legal' | 'dim' => {
+    const p = s.pendingAction
+    if (!p) return 'none'
+    if (p.sourceId === card.instanceId) return 'source'
+    if (p.targetIds.includes(card.instanceId)) return 'chosen'
+    if (getLegalTargetIds(s.state.cards, p).includes(card.instanceId)) return 'legal'
+    return 'dim'
+  })
   const { openMenu } = useContextMenuStore()
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openPile = usePileListStore((s) => s.openPile)
@@ -139,6 +149,15 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       }}
       onClick={(e) => {
         e.stopPropagation()
+        if (pendingRole === 'source') {
+          useDuelStore.getState().cancelPendingAction()
+          return
+        }
+        if (pendingRole === 'legal' || pendingRole === 'chosen') {
+          toggleActionTarget(card.instanceId)
+          return
+        }
+        if (pendingRole === 'dim') return
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
         if (e.shiftKey) {
@@ -184,7 +203,11 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
             ? '双击查看卡片列表'
             : undefined
       }
-      className="w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none"
+      className={cn(
+        'w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none',
+        pendingRole === 'dim' && 'opacity-25',
+        pendingRole === 'legal' && 'cursor-crosshair'
+      )}
     >
       <div
         className={`relative ${
@@ -238,9 +261,15 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           animate={{ rotate: isDefense ? 90 : 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
           className={`relative w-full h-full rounded overflow-hidden shadow-md ${
-            isSelected
-              ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background'
-              : 'group-hover:ring-1 group-hover:ring-blue-400/50'
+            pendingRole === 'source'
+              ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background'
+              : pendingRole === 'chosen'
+                ? 'ring-2 ring-rose-500 ring-offset-1 ring-offset-background'
+                : pendingRole === 'legal'
+                  ? 'ring-2 ring-emerald-400/80 ring-offset-1 ring-offset-background'
+                  : isSelected
+                    ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background'
+                    : 'group-hover:ring-1 group-hover:ring-blue-400/50'
           }`}
           style={{ zIndex: (card.overlayMaterials?.length || 0) + 2 }}
         >

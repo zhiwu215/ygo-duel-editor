@@ -4,20 +4,31 @@ import {
   AGENT_BOARD_ZONE_TO_LOCATION,
   AgentBoardCardPlacement,
   AgentBoardSetupProposal,
+  AgentCardSwapProposal,
+  AgentContextCompactionState,
+  AgentHandoffRequest,
   AgentModelConfig,
   AgentNovelSourceRef,
   AgentProviderConfig,
   AgentProviderPreset,
   AgentStepProposal,
   AgentStreamEvent,
+  AgentTaskMode,
   CdbCard,
+  CardLocation,
+  CardPosition,
   DuelPuzzleState,
+  EngineDuelStep,
+  LightweightCardSnapshot,
+  ResolvedBoardPlacement,
   createProviderFromPreset,
   normalizeAgentApiFormat,
   normalizeAgentConfig,
   syncActiveFields
 } from '@shared/index'
 import { useDuelStore } from './useDuelStore'
+
+export type AgentContextCompaction = AgentContextCompactionState
 
 export interface AgentToolCallItem {
   id: string
@@ -31,17 +42,27 @@ export interface AgentChatMessage {
   role: 'user' | 'assistant'
   content: string
   thought?: string
-  /** 过程状态提示（重试、超时、会话重置等非正文信息） */
+
   status?: string
   toolCalls?: AgentToolCallItem[]
   proposals?: AgentStepProposal[]
-  /** AI 复盘出的场面布局提案，待用户在预览卡中确认后才写入决斗场 */
+
   boardSetup?: AgentBoardSetupProposal
-  /** 该条布局提案是否已被用户确认应用 */
+
+  cardSwap?: AgentCardSwapProposal
+
+  engineSteps?: EngineDuelStep[]
+  engineWinner?: 0 | 1 | null
+  engineInitialCards?: LightweightCardSnapshot[]
+
+  compaction?: AgentContextCompaction
+
+  error?: string
+
   boardSetupApplied?: boolean
-  /** 该条消息引用过的卡片（仅用于在记录中还原「AI 当时看到了什么」，不拼进 content） */
+
   attachedCards?: { id: number; name: string }[]
-  /** 该条消息附加的素材（仅标题与字数供气泡展示；正文经工具读取，id 与正文不进对话记录） */
+
   novelSource?: { title: string; wordCount?: number }
   createdAt: number
 }
@@ -55,7 +76,6 @@ interface AgentStoreState {
   cleanupListener: (() => void) | null
   width: number
 
-  // Actions
   setOpen: (open: boolean) => void
   setWidth: (width: number) => void
   updateConfig: (patch: Partial<AgentModelConfig>) => void
@@ -66,41 +86,32 @@ interface AgentStoreState {
   removeProvider: (providerId: string) => void
   reorderProviders: (fromId: string, toId: string) => void
   selectModel: (providerId: string, modelId: string) => void
-  /**
-   * 发送消息。`prompt` 是用户原始输入（用于对话记录展示），
-   * `injectedPrompt` 是拼入引用卡片等上下文后真正发给模型的内容；
-   * `attachedCards` 仅记录引用了哪些卡，供回看时展示，不进入正文；
-   * `novelSource` 是附加的小说素材定位器，正文由主进程经工具供给模型。
-   */
+
   sendMessage: (
     prompt: string,
     boardState?: DuelPuzzleState,
     injectedPrompt?: string,
     attachedCards?: { id: number; name: string }[],
-    novelSource?: AgentNovelSourceRef
+    novelSource?: AgentNovelSourceRef,
+    mode?: AgentTaskMode
   ) => Promise<void>
   abort: () => Promise<void>
-  /** 丢弃 AI 会话并重开（同时清空本地消息） */
+
   resetSession: () => Promise<void>
-  /**
-   * 把一条消息的整理提案（开局布局 + 步骤台本）应用进决斗场
-   *
-   * 布局与步骤是一个整体（每个步骤对应一个场面），一次应用：
-   * 布局清空重建 + 步骤经重放器补出逐步快照。「是否覆盖」的询问由
-   * 调用方在盘面已有布局时处理，这里不重复询问。
-   */
+
   applyDuelProposal: (
     setup: AgentBoardSetupProposal | null,
     proposals: AgentStepProposal[]
   ) => Promise<{ ok: boolean; error?: string }>
+
+  applyCardSwap: (proposal: AgentCardSwapProposal) => Promise<{ ok: boolean; error?: string }>
+
+  applyEngineSteps: (
+    steps: EngineDuelStep[],
+    initialCards?: LightweightCardSnapshot[]
+  ) => Promise<{ ok: boolean; error?: string }>
 }
 
-/**
- * 模型没给表示形式时的区域惯例。
- *
- * 与 `useDuelStore.addCardToZone` 的默认值保持一致，避免同一次布局里
- * 「显式填了的卡」和「没填的卡」表现规则不一致。
- */
 function defaultFacingForZone(zone: AgentBoardCardPlacement['location']): number {
   switch (zone) {
     case 'SZONE':
@@ -127,11 +138,6 @@ const DEFAULT_CONFIG: AgentModelConfig = {
   enableReasoning: false
 }
 
-/**
- * 首次使用时预置的常用供应商。
- * 只预置「空壳」（预设的 baseUrl + API 格式，没有 Key 和模型），
- * 用户填上 API Key 才算配置完成；删掉后由 providersSeeded 兜住，不会再自动补回。
- */
 const DEFAULT_PROVIDER_PRESET_IDS = ['deepseek', 'moonshot', 'dashscope']
 
 function seedDefaultProviders(
@@ -181,8 +187,17 @@ function buildProvidersFromLegacy(
   ]
 }
 
-/** 跨窗口配置广播只订阅一次（设置窗口改配置后，主窗口会话面板同步刷新） */
 let configUpdatedSubscribed = false
+let handoffSubscribed = false
+
+function applyHandoff(request: AgentHandoffRequest): void {
+  const store = useAgentStore.getState()
+  if (store.isGenerating) return
+  store.setOpen(true)
+  void useAgentStore
+    .getState()
+    .sendMessage(request.prompt, undefined, undefined, undefined, request.novelSource, request.mode)
+}
 
 export const useAgentStore = create<AgentStoreState>((set, get) => ({
   isOpen: false,
@@ -196,7 +211,6 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
   setOpen: (open) => {
     set({ isOpen: open })
     if (open && !get().cleanupListener && window.api?.onAgentEvent) {
-      // 注册事件流监听器
       const cleanup = window.api.onAgentEvent((event: AgentStreamEvent) => {
         const { messages } = get()
         const lastMsg = messages[messages.length - 1]
@@ -250,6 +264,18 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
               m.id === lastMsg.id ? { ...m, boardSetup: event.setup, boardSetupApplied: false } : m
             )
           })
+        } else if (event.type === 'card_swap_ready') {
+          set({
+            messages: messages.map((m) =>
+              m.id === lastMsg.id ? { ...m, cardSwap: event.proposal } : m
+            )
+          })
+        } else if (event.type === 'compaction') {
+          set({
+            messages: messages.map((m) =>
+              m.id === lastMsg.id ? { ...m, compaction: event.compaction } : m
+            )
+          })
         } else if (event.type === 'done') {
           set({
             isGenerating: false,
@@ -273,9 +299,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
                 ? {
                     ...m,
                     status: undefined,
-                    content: m.content
-                      ? `${m.content}\n\n[发生错误: ${event.message}]`
-                      : `[请求失败: ${event.message}]`
+                    error: event.message
                   }
                 : m
             )
@@ -315,6 +339,10 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
         void get().loadConfig()
       })
     }
+    if (!handoffSubscribed && window.api.onAgentHandoff) {
+      handoffSubscribed = true
+      window.api.onAgentHandoff(applyHandoff)
+    }
     try {
       const presets = await get().loadPresets()
       const cfg = await window.api.getConfig()
@@ -326,9 +354,6 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
           ? base.providers
           : buildProvidersFromLegacy(base, presets)
 
-      // 预置常用供应商：只在拿到预设列表后执行一次。
-      // 没有 providersSeeded 标记 = 老配置或全新安装，补上缺的那几家；
-      // 标记置位后就不再插手，用户删掉的不会自己回来。
       const canSeed = presets.length > 0
       if (canSeed && !base.providersSeeded) {
         providers = seedDefaultProviders(providers, presets)
@@ -341,7 +366,6 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       })
       set({ config: normalized })
 
-      // 自愈历史脏配置：迁移或清洗后与磁盘不一致时立即回写
       if (JSON.stringify(normalized) !== JSON.stringify(raw)) {
         void get().saveConfig()
       }
@@ -406,12 +430,10 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
     void get().saveConfig()
   },
 
-  sendMessage: async (prompt, boardState, injectedPrompt, attachedCards, novelSource) => {
+  sendMessage: async (prompt, boardState, injectedPrompt, attachedCards, novelSource, mode) => {
     if (!prompt.trim() && !injectedPrompt?.trim()) return
     if (get().isGenerating) return
 
-    // 对话记录只留用户原始输入，注入的上下文不污染记录（发给模型时才拼）；
-    // 素材只存展示字段，定位 id 与正文不进记录
     const userMessage: AgentChatMessage = {
       id: `msg_user_${Date.now()}`,
       role: 'user',
@@ -447,6 +469,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
         prompt: injectedPrompt?.trim() || prompt.trim(),
         boardState,
         novelSource,
+        mode,
         configOverride: get().config
       })
 
@@ -508,16 +531,6 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
     set({ messages: [], isGenerating: false })
   },
 
-  /**
-   * 把一条消息的整理提案（开局布局 + 步骤台本）应用进决斗场
-   *
-   * 卡密 → CdbCard 的解析放在这里而不是主进程：`addCardToZone` 体系要的是
-   * 完整卡对象（卡名、攻防、卡图都靠它），而主进程那边的布局提案刻意只带卡密，
-   * 避免把整张卡库塞进事件载荷。渲染层已有 `getCardsByIds` 通道，直接复用。
-   *
-   * 步骤草稿里的卡名会先经卡库反查补上卡密，让重放器能按卡密定位卡片；
-   * 反查不到的步骤保留原名，由重放器安静沿用上一帧。
-   */
   applyDuelProposal: async (setup, proposals) => {
     const placements: AgentBoardCardPlacement[] = setup?.cards ?? []
     const lpTargets = setup?.lp ?? []
@@ -538,8 +551,6 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
 
     const resolved = placements
       .map((p) => {
-        // 未知盖卡：没有卡面数据，构造一个只有 code:0 的空壳交给 store，
-        // 渲染层会按卡背显示。不走 getCardsByIds（查了也查不到）。
         if (p.isUnknown) {
           return {
             card: { id: 0, name: p.cardName || '未知盖卡' } as CdbCard,
@@ -573,8 +584,6 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       return { ok: false, error: '提案中的卡密在当前卡库里都查不到，无法应用' }
     }
 
-    // 卡名 → 卡密反查：转写步骤常只给卡名（轻量快照只认卡密），
-    // 用本批出现过的卡面字典反查；查不到就保留 undefined 由重放器降级
     const nameToCode = new Map<string, number>()
     Object.values(dict).forEach((c) => nameToCode.set(c.name, c.id))
     resolved.forEach((r) => nameToCode.set(r.card.name, r.card.id))
@@ -602,6 +611,129 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
         toSequence: p.toSequence,
         sourceQuote: p.sourceQuote,
         lpChange: p.lpChange
+      }))
+    })
+    return { ok: true }
+  },
+
+  applyCardSwap: async (proposal) => {
+    const placements = proposal.placements
+    if (placements.length === 0) return { ok: false, error: '提案里没有任何落位' }
+
+    const codes = placements.map((p) => p.code)
+    let dict: Record<number, CdbCard> = {}
+    try {
+      dict = await window.api.getCardsByIds(codes)
+    } catch (err) {
+      console.error('[useAgentStore] applyCardSwap 解析卡密失败:', err)
+      return { ok: false, error: '卡库查询失败，未能读取卡片数据' }
+    }
+
+    const missing = placements.filter((p) => !dict[p.code])
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        error: `卡密 ${missing.map((m) => m.code).join('、')} 在卡库里查不到，未做替换`
+      }
+    }
+
+    useDuelStore.setState((prev) => {
+      const cards = [...prev.state.cards]
+      for (const p of placements) {
+        const card = dict[p.code]
+        const slot = p.slot === 'HAND' ? CardLocation.HAND : CardLocation.SZONE
+        let targetIndex = cards.findIndex(
+          (c) => c.controller === p.side && c.location === slot && c.sequence === p.index
+        )
+        if (targetIndex === -1) {
+          targetIndex = cards.findIndex(
+            (c) =>
+              c.controller === p.side &&
+              c.location === slot &&
+              !cards
+                .slice(0, targetIndex)
+                .some((x) => x.sequence === p.index && x.location === slot)
+          )
+        }
+        if (targetIndex === -1) {
+          cards.push({
+            instanceId: `agent_swap_${p.side}_${p.slot}_${p.index}_${p.code}`,
+            code: p.code,
+            card,
+            controller: p.side,
+            owner: p.side,
+            location: slot,
+            sequence: p.index,
+            position: CardPosition.FACEDOWN,
+            overlayMaterials: []
+          })
+          continue
+        }
+        cards[targetIndex] = {
+          ...cards[targetIndex],
+          code: p.code,
+          card,
+          position: CardPosition.FACEDOWN
+        }
+      }
+      return { state: { ...prev.state, cards } }
+    })
+
+    return { ok: true }
+  },
+
+  applyEngineSteps: async (steps, initialCards) => {
+    if (steps.length === 0) return { ok: false, error: '引擎没有产出任何步骤' }
+
+    const codes = [
+      ...new Set([
+        ...steps.map((s) => s.cardCode).filter((c): c is number => typeof c === 'number'),
+        ...(initialCards ?? []).map((c) => c.code)
+      ])
+    ]
+
+    let dict: Record<number, CdbCard> = {}
+    if (codes.length > 0) {
+      try {
+        dict = await window.api.getCardsByIds(codes)
+      } catch (err) {
+        console.error('[useAgentStore] applyEngineSteps 解析卡密失败:', err)
+        return { ok: false, error: '卡库查询失败，未能读取卡片数据' }
+      }
+    }
+
+    const nameToCode = new Map<string, number>()
+    Object.values(dict).forEach((c) => nameToCode.set(c.name, c.id))
+
+    const known = (code: number | undefined): boolean =>
+      code !== undefined && dict[code] !== undefined
+
+    const snapshot = initialCards ?? []
+    const placements: ResolvedBoardPlacement[] = []
+    for (const card of snapshot) {
+      if (!known(card.code)) continue
+      placements.push({
+        card: dict[card.code],
+        controller: card.controller,
+        location: card.location,
+        sequence: card.sequence,
+        position: card.position,
+        duelistName: undefined
+      })
+    }
+
+    const { applyDuelScreenplay } = useDuelStore.getState()
+    applyDuelScreenplay({
+      lp: [],
+      cards: placements,
+      clearExisting: true,
+      steps: steps.map((s) => ({
+        ...s,
+        cardCode: known(s.cardCode)
+          ? s.cardCode
+          : s.cardName
+            ? nameToCode.get(s.cardName)
+            : undefined
       }))
     })
     return { ok: true }

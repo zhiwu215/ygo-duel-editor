@@ -19,9 +19,7 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
-  Play,
-  SkipBack,
-  SkipForward,
+  ArrowLeft,
   MessageSquare,
   BookOpen,
   Film,
@@ -674,36 +672,24 @@ export const StepSequencerPanel: React.FC = () => {
 
           <Button
             size="icon-xs"
-            variant="outline"
+            variant="ghost"
             disabled={steps.length === 0 || currentStepIndex === 0}
             onClick={handlePrevStep}
-            title="上一步 (◀)"
-            className="h-7 w-7"
+            title="上一步"
+            className="h-7 w-7 text-muted-foreground"
           >
-            <SkipBack className="w-3.5 h-3.5" />
-          </Button>
-
-          <Button
-            size="xs"
-            variant="default"
-            disabled={steps.length === 0}
-            onClick={handleNextStep}
-            title="推进至下一步 (▶)"
-            className="h-7 px-2.5 gap-1 font-semibold bg-blue-600 hover:bg-blue-500 text-white"
-          >
-            <Play className="w-3 h-3 fill-current" />
-            <span>下一步</span>
+            <ArrowLeft className="w-3.5 h-3.5" />
           </Button>
 
           <Button
             size="icon-xs"
             variant="ghost"
             disabled={steps.length === 0 || currentStepIndex === steps.length - 1}
-            onClick={() => previewStepBoard(steps.length - 1)}
-            title="跳至最后一步"
+            onClick={handleNextStep}
+            title="下一步"
             className="h-7 w-7 text-muted-foreground"
           >
-            <SkipForward className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3.5 h-3.5" />
           </Button>
         </div>
 

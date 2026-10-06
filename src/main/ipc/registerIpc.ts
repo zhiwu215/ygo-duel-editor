@@ -13,7 +13,6 @@ import { libraryService } from '../services/libraryService'
 import { cardNoteService } from '../services/cardNoteService'
 
 export function registerAllIpcHandlers(): void {
-  // CDB 数据库操作
   ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
     return cdbService.search(params)
   })
@@ -31,7 +30,6 @@ export function registerAllIpcHandlers(): void {
     }
   })
 
-  // Lua 脚本导入导出
   ipcMain.handle('file:export-lua', async (_, state: DuelPuzzleState, targetPath?: string) => {
     return fileService.exportLuaFile(state, targetPath)
   })
@@ -48,7 +46,6 @@ export function registerAllIpcHandlers(): void {
     return fileService.saveProjectToLibrary(state)
   })
 
-  // 小说素材（AI 编排对局的原料）
   ipcMain.handle('library:novel-list', async () => {
     return libraryService.getNovelList()
   })
@@ -63,7 +60,7 @@ export function registerAllIpcHandlers(): void {
       ]
     })
     if (picked.canceled || picked.filePaths.length === 0) {
-      return { success: false }
+      return { success: false, canceled: true }
     }
     return libraryService.importNovelFile(picked.filePaths)
   })
@@ -75,6 +72,20 @@ export function registerAllIpcHandlers(): void {
   ipcMain.handle('library:novel-chapter-content', async (_, novelId: string, chapterId: string) => {
     return libraryService.getNovelChapterContent(novelId, chapterId)
   })
+
+  ipcMain.handle(
+    'library:novel-chapter-update',
+    async (_, novelId: string, chapterId: string, content: string) => {
+      return libraryService.updateNovelChapterContent(novelId, chapterId, content)
+    }
+  )
+
+  ipcMain.handle(
+    'library:novel-chapter-title-update',
+    async (_, novelId: string, chapterId: string, title: string) => {
+      return libraryService.updateNovelChapterTitle(novelId, chapterId, title)
+    }
+  )
 
   ipcMain.handle('library:novel-delete', async (_, id: string) => {
     return libraryService.deleteNovel(id)
@@ -119,7 +130,6 @@ export function registerAllIpcHandlers(): void {
     }
   )
 
-  // 规则引擎校验与探针
   ipcMain.handle('ocgcore:test-run', async () => {
     try {
       const core = await ocgcoreService.getCore()
@@ -138,7 +148,6 @@ export function registerAllIpcHandlers(): void {
     }
   })
 
-  // 项目工程保存打开与决斗档案库
   ipcMain.handle('file:save-project', async (_, state: DuelPuzzleState) => {
     return fileService.saveProjectFile(state)
   })
@@ -179,7 +188,6 @@ export function registerAllIpcHandlers(): void {
     return fileService.selectProjectsDirectory()
   })
 
-  // 用户配置
   ipcMain.handle('config:get', async () => {
     return configService.get()
   })
@@ -208,17 +216,14 @@ export function registerAllIpcHandlers(): void {
     return { success: true, path: dir }
   })
 
-  // 本地卡图路径查询
   ipcMain.handle('image:get-path', async (_, code: number, small?: boolean) => {
     return imageService.findCardImagePath(code, !!small)
   })
 
-  // 卡组编辑器独立窗口与卡组文件
   ipcMain.handle('window:open-deck-editor', async () => {
     deckService.openDeckEditorWindow()
   })
 
-  // 全局设置独立窗口，可指定进入后停留的分区
   ipcMain.handle('window:open-settings', async (_, section) => {
     settingsWindowService.openSettingsWindow(section)
   })
@@ -271,7 +276,6 @@ export function registerAllIpcHandlers(): void {
     return deckService.applyDeckToDuel(params)
   })
 
-  // 卡片收藏夹
   ipcMain.handle('favorites:get', async () => {
     return deckService.getFavorites()
   })
@@ -280,9 +284,12 @@ export function registerAllIpcHandlers(): void {
     return deckService.toggleFavorite(code)
   })
 
-  // AI 决斗编排
   ipcMain.handle('agent:send-message', async (_, params) => {
     return agentService.sendMessage(params)
+  })
+
+  ipcMain.handle('agent:handoff', async (_, request) => {
+    return agentService.handoff(request)
   })
 
   ipcMain.handle('agent:abort', async () => {
@@ -301,7 +308,6 @@ export function registerAllIpcHandlers(): void {
     return agentService.getProviderPresets()
   })
 
-  // 通用宿主能力：用系统默认浏览器打开外部链接
   ipcMain.handle('app:open-external', async (_, url: string) => {
     const target = String(url ?? '').trim()
     if (!/^https?:\/\//i.test(target)) return false
@@ -309,7 +315,6 @@ export function registerAllIpcHandlers(): void {
     return true
   })
 
-  // 主窗口无边框 (frame: false) 后的自绘窗口控件
   const resolveSenderWindow = (event: IpcMainInvokeEvent): BrowserWindow | null =>
     BrowserWindow.fromWebContents(event.sender)
 

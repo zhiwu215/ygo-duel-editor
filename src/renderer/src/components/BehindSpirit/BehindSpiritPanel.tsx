@@ -422,9 +422,6 @@ export function BehindSpiritPanel(): JSX.Element {
                 <Bot className="w-7 h-7" />
               </div>
               <h3 className="text-xs font-bold text-foreground">我是您的决斗创作者背后灵</h3>
-              <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
-                把 txt / md 小说文件拖到这整栏任意位置，或点下方书本按钮从资料库选章节
-              </p>
               {!config.apiKey && (
                 <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
                   尚未连接模型提供商：点击窗口左下角的「设置」补全 Key，

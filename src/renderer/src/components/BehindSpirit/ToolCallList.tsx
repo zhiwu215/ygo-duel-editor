@@ -260,9 +260,6 @@ function ToolCallGroup({
       >
         <Sliders className="h-3 w-3 shrink-0 text-muted-foreground" />
         <span className="shrink-0 whitespace-nowrap font-medium text-foreground/80">工具调用</span>
-        <span className="shrink-0 rounded bg-muted px-1 py-px font-mono text-[10px] text-muted-foreground">
-          {calls.length}
-        </span>
         {runningCall ? (
           <>
             <span className="animated-gradient-text min-w-0 flex-1 truncate">

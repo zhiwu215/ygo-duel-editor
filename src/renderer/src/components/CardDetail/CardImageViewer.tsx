@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { X, RotateCcw } from 'lucide-react'
+import { useBackdropClose } from '../../hooks/useBackdropClose'
 
 const MIN_IMAGE_ZOOM = 0.5
 const MAX_IMAGE_ZOOM = 6
@@ -17,6 +18,7 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
   cardName,
   onClose
 }) => {
+  const backdropClose = useBackdropClose(onClose)
   const [imageZoom, setImageZoom] = useState<number>(1)
   const [imageOffset, setImageOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState<boolean>(false)
@@ -136,9 +138,10 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
   return (
     <div
       className="fixed inset-0 z-[90] overflow-hidden bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 select-none animate-in fade-in"
+      onMouseDown={backdropClose.onMouseDown}
       onClick={(e) => {
         if (lastPanMovedRef.current) return
-        if (e.target === e.currentTarget) onClose()
+        backdropClose.onClick(e)
       }}
       onWheel={(e) => e.preventDefault()}
     >

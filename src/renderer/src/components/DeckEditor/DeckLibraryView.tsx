@@ -132,6 +132,13 @@ export const DeckLibraryView: React.FC = () => {
 
   const ungroupedCount = useMemo(() => deckList.filter((d) => !d.group?.trim()).length, [deckList])
 
+  const getCoverCode = (deck: DeckData): number | undefined => {
+    if (deck.coverCard) return deck.coverCard
+    if (deck.extra && deck.extra.length > 0) return deck.extra[0]
+    if (deck.main && deck.main.length > 0) return deck.main[0]
+    return undefined
+  }
+
   const groupCounts = useMemo(() => {
     const map = new Map<string, number>()
     for (const g of deckGroups) map.set(g, 0)
@@ -169,13 +176,6 @@ export const DeckLibraryView: React.FC = () => {
     }
     return deckGroups.filter((g) => hit.has(g))
   }, [deckGroups, searchMatchedDecks])
-
-  const getCoverCode = (deck: DeckData): number | undefined => {
-    if (deck.coverCard) return deck.coverCard
-    if (deck.extra && deck.extra.length > 0) return deck.extra[0]
-    if (deck.main && deck.main.length > 0) return deck.main[0]
-    return undefined
-  }
 
   const handleContextMenu = (e: React.MouseEvent, deck: DeckData): void => {
     e.preventDefault()
@@ -333,10 +333,10 @@ export const DeckLibraryView: React.FC = () => {
           setContextMenu(null)
           setGroupMenu({ x: e.clientX, y: e.clientY, group: null })
         }}
-        className="flex-1 overflow-y-auto p-6 min-h-0 bg-background/50"
+        className="flex-1 overflow-y-auto p-5 min-h-0 bg-background/50"
       >
         {selectedGroup !== null && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-4">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-3">
             <button
               type="button"
               onClick={() => setSelectedGroup(null)}
@@ -354,15 +354,14 @@ export const DeckLibraryView: React.FC = () => {
         )}
 
         {selectedGroup === null && visibleGroups.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-2.5">
+          <div className="mb-5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-1.5 px-1">
               <Folder className="w-3.5 h-3.5" />
               <span>分组</span>
               <span className="font-mono text-[10px] opacity-70">({visibleGroups.length})</span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1">
               {visibleGroups.map((group) => {
-                const count = groupCounts.get(group) ?? 0
                 const isDropTarget = dragOverGroup === group
                 return (
                   <div
@@ -387,24 +386,21 @@ export const DeckLibraryView: React.FC = () => {
                       const deckId = e.dataTransfer.getData('text/deck-id')
                       if (deckId) void assignDeckGroup(deckId, group)
                     }}
+                    title={group}
                     className={cn(
-                      'group cursor-pointer rounded-lg border border-border/70 bg-card/60 hover:border-primary/60 hover:bg-card transition-all duration-150 px-3 py-2.5 flex items-center gap-2.5 min-w-0',
-                      isDropTarget &&
-                        'ring-2 ring-primary border-primary bg-primary/10 scale-[1.02]'
+                      'group cursor-pointer rounded-md px-2 py-2.5 flex flex-col items-center gap-1.5 min-w-0 transition-colors',
+                      isDropTarget
+                        ? 'bg-primary/15 ring-1 ring-inset ring-primary/50'
+                        : 'hover:bg-accent'
                     )}
                   >
                     <Folder
-                      className={cn(
-                        'w-9 h-9 shrink-0 transition-colors',
-                        isDropTarget ? 'text-primary' : 'text-amber-500/80'
-                      )}
+                      className="h-11 w-11 text-foreground/75 fill-foreground/5 transition-colors group-hover:text-foreground"
+                      strokeWidth={1.5}
                     />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-semibold text-foreground truncate">{group}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">
-                        {count} 个卡组
-                      </div>
-                    </div>
+                    <span className="max-w-full rounded-sm px-1 text-center text-[11px] leading-tight font-medium text-foreground line-clamp-2 break-words group-hover:bg-accent-foreground/10">
+                      {group}
+                    </span>
                   </div>
                 )
               })}
@@ -421,7 +417,7 @@ export const DeckLibraryView: React.FC = () => {
         )}
 
         {visibleDecks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
             {visibleDecks.map((deck) => {
               const coverCode = getCoverCode(deck)
               const coverCard = coverCode ? cardDetails[coverCode] : undefined
@@ -437,81 +433,79 @@ export const DeckLibraryView: React.FC = () => {
                   }}
                   onClick={() => void openDeck(deck)}
                   onContextMenu={(e) => handleContextMenu(e, deck)}
-                  className="group relative flex flex-col rounded-xl bg-card border border-border/70 hover:border-primary/60 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden cursor-pointer"
+                  className="group relative flex gap-3 rounded-lg bg-card border border-border/70 hover:border-primary/60 transition-all duration-200 hover:shadow-md overflow-hidden cursor-pointer p-2.5"
                 >
-                  <div className="h-44 w-full bg-slate-950/80 relative overflow-hidden flex items-center justify-center border-b border-border/40">
+                  <div className="relative h-20 w-14 shrink-0 rounded-md bg-slate-950/80 overflow-hidden flex items-center justify-center">
                     <img
                       src={getCardImageUrl(coverCode)}
                       alt={deck.name}
                       onError={(e) => {
                         e.currentTarget.src = CARD_BACK_IMAGE
                       }}
-                      className="h-full object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                      className="h-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
                     />
-
                     {deck.group?.trim() && (
-                      <div className="absolute top-2.5 left-2.5 max-w-[70%] flex items-center gap-1 bg-background/85 backdrop-blur-xs border border-border/60 text-[10px] font-semibold text-foreground/90 px-2 py-0.5 rounded-full shadow-xs">
-                        <Folder className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
+                      <div className="absolute top-1 left-1 right-1 flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-black/65 backdrop-blur-xs px-1 py-0.5 rounded">
+                        <Folder className="w-2 h-2 shrink-0" />
                         <span className="truncate">{deck.group.trim()}</span>
-                      </div>
-                    )}
-
-                    {coverCard && (
-                      <div className="absolute bottom-1.5 left-2 max-w-[85%] truncate text-[11px] font-medium text-white/90 bg-black/60 backdrop-blur-xs px-2 py-0.5 rounded">
-                        王牌: {coverCard.name}
                       </div>
                     )}
                   </div>
 
-                  <div className="p-3.5 flex flex-col flex-1 gap-2.5">
-                    <div>
-                      <h3
-                        className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1"
-                        title={deck.name}
-                      >
-                        {deck.name}
-                      </h3>
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-                        <Clock className="w-3 h-3" />
-                        <span>
-                          {deck.updatedAt
-                            ? new Date(deck.updatedAt).toLocaleDateString()
-                            : '未同步'}
-                        </span>
-                      </div>
-                    </div>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <h3
+                      className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1"
+                      title={deck.name}
+                    >
+                      {deck.name}
+                    </h3>
 
-                    {deck.tags && deck.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {deck.tags.map((t) => (
-                          <span
-                            key={t}
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted/80 text-muted-foreground border border-border/40"
-                          >
-                            #{t}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="text-xs text-muted-foreground line-clamp-2 min-h-8">
-                      {deck.description ? (
-                        <span>{deck.description}</span>
-                      ) : (
-                        <span className="italic text-muted-foreground/60">
-                          暂无背景描述或 Combo 说明
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>
+                        {deck.updatedAt ? new Date(deck.updatedAt).toLocaleDateString() : '未同步'}
+                      </span>
+                      {coverCard && (
+                        <span className="truncate ml-1" title={coverCard.name}>
+                          · {coverCard.name}
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] font-mono font-medium px-2 py-1.5 rounded-md bg-muted/40 border border-border/40 mt-auto">
+                    {deck.tags && deck.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-0.5 mt-1.5">
+                        {deck.tags.slice(0, 2).map((t) => (
+                          <span
+                            key={t}
+                            className="text-[9px] font-medium px-1 py-px rounded bg-muted/80 text-muted-foreground border border-border/40"
+                          >
+                            #{t}
+                          </span>
+                        ))}
+                        {deck.tags.length > 2 && (
+                          <span className="text-[9px] text-muted-foreground self-center">
+                            +{deck.tags.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="text-[10px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug">
+                      {deck.description ? (
+                        <span>{deck.description}</span>
+                      ) : (
+                        <span className="italic text-muted-foreground/60">暂无描述</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2.5 text-[10px] font-mono font-medium text-muted-foreground mt-auto pt-1.5">
                       <span className="text-foreground">
                         主 <span className="font-bold">{deck.main.length}</span>
                       </span>
                       <span className="text-foreground">
                         额外 <span className="font-bold">{deck.extra.length}</span>
                       </span>
-                      <span className="text-muted-foreground">
+                      <span>
                         副 <span>{deck.side.length}</span>
                       </span>
                     </div>
@@ -579,6 +573,12 @@ export const DeckLibraryView: React.FC = () => {
           </div>
         )}
       </main>
+
+      <footer className="h-7 shrink-0 border-t border-border/70 bg-muted/30 px-4 flex items-center gap-4 text-[11px] text-muted-foreground font-mono">
+        <span>{deckList.length} 个卡组</span>
+        <span>{deckGroups.length} 个分组</span>
+        {selectedGroup !== null && <span className="truncate">当前：{selectedGroup}</span>}
+      </footer>
 
       {contextMenu && (
         <div

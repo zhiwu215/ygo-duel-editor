@@ -108,13 +108,7 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
             placeholder={isRename ? '输入新的分组名' : '如：暗之游戏'}
             className="h-8 text-xs bg-muted/40 border-border/80 focus-visible:ring-1"
           />
-          {error ? (
-            <span className="text-[11px] text-destructive">{error}</span>
-          ) : (
-            <span className="text-[11px] text-muted-foreground leading-4">
-              分组可先建空组，之后再往里归类卡组。
-            </span>
-          )}
+          {error && <span className="text-[11px] text-destructive">{error}</span>}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">

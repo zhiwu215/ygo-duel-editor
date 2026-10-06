@@ -35,22 +35,11 @@ const LOCATION_META: Record<number, LocationMeta> = {
   [CardLocation.REMOVED]: { name: '除外区', short: '除外', icon: Ban }
 }
 
-/**
- * 堆叠区域（额外卡组 / 主卡组 / 墓地 / 除外区）的卡片列表查看与编排弹窗。
- * 还原并升级 YGOPro 实机的「查看列表」体验：
- * - 拖动卡片任意位置：在列表内左右推动实时调整叠放次序，目标位置留出空位；
- * - 拖出列表框：把指针移出列表即切到做场意图，自动关窗并允许放置到场上或手牌；
- * - 外部拖入：支持从搜索栏拖入卡片直接添加/插入到本卡堆；
- * - 右键菜单 / 更多按钮：支持移至手牌、送去墓地、除外、回到卡组、删除及灵摆表侧切换。
- */
 export const PileListModal: React.FC = () => {
   const { target, openSeq } = usePileListStore()
 
   if (!target) return null
 
-  // key 里带上 openSeq：仅用 controller_location 时，反复打开同一区域会命中同一个
-  // key，React 不重挂载组件，内部状态（如拖拽留下的 isOutsideList）会被下一次
-  // 打开继承。带上自增序号可保证每次打开都是干净的新实例。
   return <PileListContent key={`${openSeq}_${target.controller}_${target.location}`} />
 }
 
@@ -76,16 +65,12 @@ const PileListContent: React.FC = () => {
     index: number
     side: 'before' | 'after'
   } | null>(null)
-  /**
-   * 指针是否已移出卡片列表视窗。用于关窗时机判断与高亮清理，
-   * 实际放行判定一律走同步的 `isPointerOutsideList`（state 是异步的，事件里读会拿到旧值）。
-   */
+
   const [isOutsideList, setIsOutsideList] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  /** 列表视窗的实时矩形，dragover 里要判断指针是否越界 */
+
   const listRectRef = useRef<DOMRect | null>(null)
 
-  // 监听 Esc 键关闭弹窗
   useEffect(() => {
     if (!target) return
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -100,8 +85,6 @@ const PileListContent: React.FC = () => {
     }
   }, [target, closePile, setHoveredInstanceId])
 
-  // 兜底：拖拽在窗口外结束时浏览器可能不派发 dragend 到元素上，
-  // 统一用 capture 阶段的原生 dragend 清理，避免插入点高亮卡死。
   useEffect(() => {
     if (!target) return
     const handleDragEnd = (): void => {
@@ -115,14 +98,6 @@ const PileListContent: React.FC = () => {
     }
   }, [target])
 
-  /**
-   * 越界做场结束后关窗。
-   *
-   * 两个要点：
-   * 1) 必须放在 effect 里而**不能塞进 setState 的 updater**。updater 必须是纯函数，
-   *    StrictMode 下会重复求值且不保证被调用。
-   * 2) 延后一帧关窗：dragover 期间立即卸载会连带中断本次拖拽。
-   */
   useEffect(() => {
     if (!isOutsideList) return
     const timer = window.setTimeout(() => {
@@ -132,11 +107,9 @@ const PileListContent: React.FC = () => {
     return () => window.clearTimeout(timer)
   }, [isOutsideList, closePile])
 
-  // 当前区域的卡片列表（按 sequence 升序排序）
   const pileCards = useMemo(() => {
     if (!target) return []
-    // 与棋盘口径保持一致：多人时堆叠区按「当前查看的决斗者」收窄，
-    // 否则列表里会混进同阵营其他人的牌，且拖拽排序会作用到别人的牌上。
+
     const ownerScope =
       target &&
       state.duelists?.find((d) => d.id === activeDuelistId && d.team === target.controller)
@@ -152,7 +125,6 @@ const PileListContent: React.FC = () => {
       .sort((a, b) => a.sequence - b.sequence)
   }, [state.cards, state.duelists, activeDuelistId, target])
 
-  // 搜索过滤后的卡片
   const filteredCards = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) return pileCards
@@ -171,7 +143,7 @@ const PileListContent: React.FC = () => {
     icon: Layers
   }
   const IconComponent = meta.icon
-  // 多人时标题带上决斗者名字，避免两人同名卡组「我方主卡组」分不清
+
   const ownerDuelist =
     state.duelists?.find((d) => d.id === activeDuelistId && d.team === target.controller) || null
   const ctrlLabel = ownerDuelist ? ownerDuelist.name : target.controller === 0 ? '我方' : '对方'
@@ -189,14 +161,6 @@ const PileListContent: React.FC = () => {
     }
   }
 
-  /**
-   * 指针是否已越出卡片列表的可视框。
-   *
-   * 三个层级（滚动容器 / 视窗 / 全屏遮罩）都要用这个判断来决定
-   * 「拦住做换位高亮」还是「放行让棋盘接管做场」，所以必须是**同步**的
-   * 纯坐标比较——不能依赖 React state（setState 异步，事件里读到的还是旧值）。
-   * 列表容器在拖拽期间不会移动，故 dragStart 时缓存一次矩形即可。
-   */
   const isPointerOutsideList = (clientX: number, clientY: number): boolean => {
     const rect = listRectRef.current
     if (!rect) return false
@@ -269,7 +233,6 @@ const PileListContent: React.FC = () => {
     setDragOverInfo(null)
   }
 
-  // 处理外部卡片拖入（从检索区新增，或从场上/手牌移动入卡堆）
   const handleExternalCardDrop = (e: React.DragEvent, insertIndex: number): void => {
     e.preventDefault()
     e.stopPropagation()
@@ -295,17 +258,12 @@ const PileListContent: React.FC = () => {
       className="absolute inset-0 z-40 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-in fade-in"
       onClick={closePile}
       onDragOver={(e) => {
-        // 越界判定必须挂在**全屏遮罩**上，不能挂弹窗本体：
-        // dragover 只在指针所在元素的祖先链上冒泡，弹窗内的处理器在指针
-        // 移出弹窗后根本不会再触发，挂在里面等于死代码。
         if (!e.dataTransfer.types.includes('text/pile-reorder-id')) return
         if (!isPointerOutsideList(e.clientX, e.clientY)) {
-          // 回到列表范围内 → 恢复换位语义
           if (isOutsideList) setIsOutsideList(false)
           return
         }
-        // 不 preventDefault：让事件继续走。下面的 effect 会关窗，
-        // 弹窗卸载后棋盘格子接管本次 drop。
+
         if (!isOutsideList) {
           setIsOutsideList(true)
           setDragOverInfo(null)
@@ -316,7 +274,6 @@ const PileListContent: React.FC = () => {
         className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-4xl max-h-[92%] flex flex-col overflow-hidden animate-in zoom-in-95 duration-100"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 顶部标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
           <div className="flex items-center gap-2">
             <IconComponent className="w-4 h-4 text-blue-500" />
@@ -352,11 +309,8 @@ const PileListContent: React.FC = () => {
           </div>
         </div>
 
-        {/* 卡片横向滚动视窗 */}
         <div
           onDragOver={(e) => {
-            // 本列表内部拖拽且指针已越出列表框 → 放行给下方决斗盘（做场）。
-            // 这里不能 preventDefault，否则事件被视窗拦下，永远落不到棋盘上。
             if (
               e.dataTransfer.types.includes('text/pile-reorder-id') &&
               isPointerOutsideList(e.clientX, e.clientY)
@@ -425,7 +379,6 @@ const PileListContent: React.FC = () => {
             </div>
           ) : (
             <>
-              {/* 左侧快速翻动按钮 */}
               {filteredCards.length > 5 && (
                 <button
                   type="button"
@@ -437,7 +390,6 @@ const PileListContent: React.FC = () => {
                 </button>
               )}
 
-              {/* 卡片水平滑动条容器：支持滚轮横向滚动 */}
               <div
                 ref={scrollContainerRef}
                 onWheel={(e) => {
@@ -446,10 +398,7 @@ const PileListContent: React.FC = () => {
                   }
                 }}
                 onDragOver={(e) => {
-                  // 本列表自己发起的拖拽：按指针是否越出列表框切换语义。
-                  // 越界后**不** preventDefault，事件才能穿透到下方决斗盘完成做场。
                   if (e.dataTransfer.types.includes('text/pile-reorder-id')) {
-                    // 越界即放行：不preventDefault，让事件冒泡到遮罩直至棋盘格子
                     if (isPointerOutsideList(e.clientX, e.clientY)) return
                     e.preventDefault()
                     e.stopPropagation()
@@ -469,13 +418,11 @@ const PileListContent: React.FC = () => {
                   }
                 }}
                 onDragLeave={(e) => {
-                  // 指针彻底离开列表容器（含卡片之间的空隙）时回到列表内语义
                   if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                     if (isOutsideList) setIsOutsideList(false)
                   }
                 }}
                 onDrop={(e) => {
-                  // 自己的拖拽在列表内落位由各卡片的 onDrop 处理，这里不接
                   if (e.dataTransfer.types.includes('text/pile-reorder-id')) {
                     if (isPointerOutsideList(e.clientX, e.clientY)) return
                     const dropPosition = dragOverInfo ?? getPileInsertionAtX(e.clientX)
@@ -523,16 +470,10 @@ const PileListContent: React.FC = () => {
                   return (
                     <React.Fragment key={card.instanceId}>
                       {gapBefore && renderGap('before')}
-                      {/* 原生拖拽期间保留源节点和 flex 占位，只隐藏原位卡片，避免 Electron 中断拖拽。 */}
                       <div
                         draggable
                         data-pile-card-index={originalIndex}
                         onDragStart={(e) => {
-                          // 一次 dragstart 同时写好两类载荷：
-                          // - text/pile-reorder-id：列表内换位判定
-                          // - application/json + text/instanceId：移出列表后做场
-                          // HTML5 不允许拖拽中途改载荷，所以两者必须一起写，
-                          // 靠指针是否越出列表框决定当前语义。
                           e.dataTransfer.setData('text/pile-reorder-id', card.instanceId)
                           e.dataTransfer.setData('text/pile-reorder-index', String(originalIndex))
                           if (card.card) {
@@ -542,8 +483,6 @@ const PileListContent: React.FC = () => {
                           e.dataTransfer.effectAllowed = 'copyMove'
                           const sourceImage = e.currentTarget.querySelector('img')
                           if (sourceImage?.complete && sourceImage.naturalWidth > 0) {
-                            // 列表卡片包含标题、操作栏，直接作为拖拽预览会远大于场上卡片；
-                            // 用 64×92 的卡面画布作为原生预览，尺寸与牌堆中的场上卡片一致。
                             const preview = document.createElement('canvas')
                             preview.width = 64
                             preview.height = 92
@@ -554,8 +493,6 @@ const PileListContent: React.FC = () => {
                               context.drawImage(sourceImage, 0, 0, preview.width, preview.height)
                               document.body.appendChild(preview)
 
-                              // Electron/Chromium 无法从未挂载 DOM 的 canvas 捕获拖拽图；
-                              // 节点保留到 dragend，弹窗提前卸载时用定时器兜底清理。
                               const cleanupPreview = (): void => {
                                 preview.remove()
                                 document.removeEventListener('dragend', cleanupPreview, true)
@@ -583,9 +520,9 @@ const PileListContent: React.FC = () => {
                               sourceImage.height / 2
                             )
                           }
-                          // 等原生拖拽启动并捕获预览后再隐藏源卡片，保留原位空槽反馈。
+
                           window.requestAnimationFrame(() => setDraggingIndex(originalIndex))
-                          // 记录列表矩形，供 dragover 判断指针是否已越出列表框
+
                           listRectRef.current =
                             scrollContainerRef.current?.getBoundingClientRect() ?? null
                         }}
@@ -595,10 +532,6 @@ const PileListContent: React.FC = () => {
                             e.dataTransfer.types.includes('application/json') ||
                             e.dataTransfer.types.includes('text/instanceid')
                           if (isReorder || isExternal) {
-                            // 自己的拖拽且指针已越出列表 → 立刻放行。
-                            // 必须在 preventDefault / stopPropagation **之前**返回：
-                            // 这两个调用一旦执行，事件就被截断在卡片上，
-                            // 既到不了遮罩的越界判定，也到不了棋盘格子的 drop。
                             if (isReorder && isPointerOutsideList(e.clientX, e.clientY)) return
                             e.preventDefault()
                             e.stopPropagation()
@@ -655,7 +588,6 @@ const PileListContent: React.FC = () => {
                           if (card.card) setHoveredCard(card.card)
                         }}
                       >
-                        {/* 序号标签 (还原 YGOPro 额外[1] 风格) 与表示形式切换 */}
                         <div className="w-full flex items-center justify-between text-[11px] font-mono text-muted-foreground mb-1.5 px-0.5">
                           <span className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1">
                             <GripVertical className="w-3 h-3 opacity-40 group-hover:opacity-80 transition-opacity" />
@@ -691,8 +623,6 @@ const PileListContent: React.FC = () => {
                           )}
                         </div>
 
-                        {/* 卡片封面：拖拽手柄已上移到整张卡框，这里只负责卡面展示。
-                          保留 hover 放大反馈，让「整卡可拖」这件事在手感上可预期。 */}
                         <div className="relative w-32 h-[186px] rounded overflow-hidden shadow border border-border/80 bg-black/30 transition-transform duration-150 group-hover:scale-[1.02]">
                           <img
                             src={getCardImageUrl(card.code, true)}
@@ -707,7 +637,6 @@ const PileListContent: React.FC = () => {
                           />
                         </div>
 
-                        {/* 卡名 */}
                         <div className="w-full mt-2 text-center">
                           <p
                             className="text-xs font-medium text-foreground truncate px-1"
@@ -717,7 +646,6 @@ const PileListContent: React.FC = () => {
                           </p>
                         </div>
 
-                        {/* 操作工具条 (序号 + 更多操作 + 移除) */}
                         <div className="w-full flex items-center justify-between mt-2 pt-1.5 border-t border-border/50 text-muted-foreground">
                           <span className="text-[10px] font-mono text-muted-foreground/60 px-0.5">
                             #{originalIndex + 1}
@@ -756,7 +684,6 @@ const PileListContent: React.FC = () => {
                 })}
               </div>
 
-              {/* 右侧快速翻动按钮 */}
               {filteredCards.length > 5 && (
                 <button
                   type="button"
@@ -771,7 +698,6 @@ const PileListContent: React.FC = () => {
           )}
         </div>
 
-        {/* 底部确认栏 */}
         <div className="flex items-center justify-end px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
           <Button size="sm" onClick={closePile} className="px-5 h-7 text-xs">
             确定

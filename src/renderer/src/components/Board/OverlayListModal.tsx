@@ -7,13 +7,6 @@ import { Layers, Ghost, Ban, X, Trash2, Search, ArrowUpCircle, ArrowDownToLine }
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 
-/**
- * 超量怪兽叠放素材专属列表查看与编排弹窗
- * - 列表化查看当前怪兽下全部叠放的素材卡片（含卡图、密码、层级）；
- * - 支持一键「设为顶层主怪兽」（修复或自由切换谁在上谁在下）；
- * - 支持素材拔除到墓地、手牌、除外或直接移除；
- * - 支持外部卡片直接拖入本弹窗快速叠放新素材。
- */
 export const OverlayListModal: React.FC = () => {
   const { hostInstanceId, closeOverlayList } = useOverlayListStore()
   const {
@@ -32,7 +25,6 @@ export const OverlayListModal: React.FC = () => {
 
   const hostCard = hostInstanceId ? state.cards.find((c) => c.instanceId === hostInstanceId) : null
 
-  // 监听 Esc 键关闭弹窗并在关闭时清理悬停
   useEffect(() => {
     if (!hostInstanceId) return
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -47,7 +39,6 @@ export const OverlayListModal: React.FC = () => {
     }
   }, [hostInstanceId, closeOverlayList, setHoveredInstanceId])
 
-  // 异步获取素材的卡名展示 (通过 window.api.getCardsByIds)
   useEffect(() => {
     if (!hostCard?.overlayMaterials?.length) return
     const missingCodes = hostCard.overlayMaterials.filter((code) => !cardNames[code])
@@ -80,7 +71,6 @@ export const OverlayListModal: React.FC = () => {
   const materials = hostCard.overlayMaterials || []
   const hostName = hostCard.card?.name || `卡片 [${hostCard.code}]`
 
-  // 过滤素材列表
   const filteredMaterials = materials
     .map((code, index) => ({ code, index, name: cardNames[code] || String(code) }))
     .filter((item) => {
@@ -89,7 +79,6 @@ export const OverlayListModal: React.FC = () => {
       return item.name.toLowerCase().includes(q) || String(item.code).includes(q)
     })
 
-  // 接收从外部拖入的卡片作为新素材
   const handleDropNewMaterial = (e: React.DragEvent): void => {
     e.preventDefault()
     e.stopPropagation()
@@ -113,7 +102,6 @@ export const OverlayListModal: React.FC = () => {
     }
   }
 
-  // 将指定素材设为主怪兽，并异步加载其 CDB 详情
   const handleSwapHost = async (matIndex: number, matCode: number): Promise<void> => {
     swapHostWithMaterial(hostCard.instanceId, matIndex)
     try {
@@ -142,7 +130,6 @@ export const OverlayListModal: React.FC = () => {
         className="w-[94vw] max-w-5xl bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 顶部标题栏 */}
         <div className="px-5 py-3 border-b border-border bg-muted/40 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30">
@@ -157,7 +144,6 @@ export const OverlayListModal: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* 搜索过滤框 */}
             {materials.length > 4 && (
               <div className="relative w-44">
                 <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -182,7 +168,6 @@ export const OverlayListModal: React.FC = () => {
           </div>
         </div>
 
-        {/* 素材卡片横向滚动展示区 */}
         <div
           ref={scrollContainerRef}
           className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-6 flex items-center gap-4 bg-background/50"
@@ -211,14 +196,12 @@ export const OverlayListModal: React.FC = () => {
                   }}
                   className="flex flex-col items-center gap-2 p-2.5 rounded-lg border border-border/80 bg-card/70 hover:border-amber-400/50 hover:bg-card shadow-sm transition-all shrink-0 w-[140px] group"
                 >
-                  {/* 素材序号 */}
                   <div className="w-full flex items-center text-[10px] px-0.5">
                     <span className="font-mono text-muted-foreground font-semibold">
                       #{item.index + 1}
                     </span>
                   </div>
 
-                  {/* 卡图缩略图：支持直接点击卡片拔除至墓地 */}
                   <div
                     onClick={() =>
                       detachMaterialToLocation(hostCard.instanceId, item.index, CardLocation.GRAVE)
@@ -245,7 +228,6 @@ export const OverlayListModal: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 卡名 */}
                   <span
                     className="text-xs font-semibold text-center truncate w-full text-foreground group-hover:text-primary transition-colors leading-tight"
                     title={item.name}
@@ -253,7 +235,6 @@ export const OverlayListModal: React.FC = () => {
                     {item.name}
                   </span>
 
-                  {/* 操作按钮区 */}
                   <div className="w-full flex flex-col gap-1 pt-1 border-t border-border/50">
                     <div className="grid grid-cols-3 gap-1">
                       <Button

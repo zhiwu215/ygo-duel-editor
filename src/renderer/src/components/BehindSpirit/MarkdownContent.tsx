@@ -1,10 +1,12 @@
-import type { JSX } from 'react'
+import { memo, type JSX } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { usePacedText } from './usePacedText'
 
 interface MarkdownContentProps {
   content: string
   className?: string
+  isStreaming?: boolean
 }
 
 const components: Components = {
@@ -146,12 +148,20 @@ const components: Components = {
   }
 }
 
-export function MarkdownContent({ content, className }: MarkdownContentProps): JSX.Element {
+function MarkdownContentImpl({
+  content,
+  className,
+  isStreaming = false
+}: MarkdownContentProps): JSX.Element {
+  const rendered = usePacedText(content, isStreaming)
+
   return (
     <div className={className}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>
-        {content}
+        {rendered}
       </ReactMarkdown>
     </div>
   )
 }
+
+export const MarkdownContent = memo(MarkdownContentImpl)

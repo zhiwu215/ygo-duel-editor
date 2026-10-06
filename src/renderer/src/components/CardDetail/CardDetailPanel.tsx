@@ -203,6 +203,7 @@ export const CardDetailPanel: React.FC = () => {
             <img
               src={getCardImageUrl(currentCard.id)}
               alt={currentCard.name}
+              draggable={false}
               className="max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl border border-white/10 transition-transform duration-100 ease-out"
               style={{ transform: `scale(${imageZoom})` }}
               onError={(e) => {

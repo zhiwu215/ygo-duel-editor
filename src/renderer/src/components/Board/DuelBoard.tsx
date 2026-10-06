@@ -238,7 +238,7 @@ export const DuelBoard: React.FC = () => {
                 {/* Row 1: 对方后场行 (主卡组 - 魔陷5..1 - 额外卡组) */}
                 <div className="flex items-center gap-0">
                   {/* 对方主卡组 */}
-                  <div className="mr-3 shrink-0">
+                  <div className="w-[92px] flex justify-center shrink-0">
                     <ZoneSlot
                       label="主卡组"
                       controller={1}
@@ -250,8 +250,7 @@ export const DuelBoard: React.FC = () => {
                     />
                   </div>
 
-                  {/* 对方魔陷区 5 ~ 1 (红描边语义框：对方侧) */}
-                  <div className="flex items-center gap-2 px-2.5 pt-1.5 pb-0.5 rounded-t-lg border-t border-x border-red-500/35 dark:border-red-400/25 bg-red-500/[0.025] dark:bg-red-500/[0.04]">
+                  <div className="flex items-center gap-2 px-2.5 pt-1.5 pb-0.5">
                     {[4, 3, 2, 1, 0].map((seq) => (
                       <ZoneSlot
                         key={`opp_szone_${seq}`}
@@ -275,7 +274,7 @@ export const DuelBoard: React.FC = () => {
                   </div>
 
                   {/* 对方额外卡组 */}
-                  <div className="ml-3 shrink-0">
+                  <div className="w-[92px] flex justify-center shrink-0">
                     <ZoneSlot
                       label="额外卡组"
                       controller={1}
@@ -291,7 +290,7 @@ export const DuelBoard: React.FC = () => {
                 {/* Row 2: 对方前场行 (墓地 - 怪兽5..1 - 场地魔法) */}
                 <div className="flex items-center gap-0">
                   {/* 对方墓地 */}
-                  <div className="mr-3 shrink-0">
+                  <div className="w-[92px] flex justify-center shrink-0">
                     <ZoneSlot
                       label="墓地"
                       controller={1}
@@ -303,8 +302,7 @@ export const DuelBoard: React.FC = () => {
                     />
                   </div>
 
-                  {/* 对方怪兽区 5 ~ 1 (红描边语义框，与魔陷区无缝合璧) */}
-                  <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-0.5 rounded-b-lg border-b border-x border-red-500/35 dark:border-red-400/25 bg-red-500/[0.025] dark:bg-red-500/[0.04]">
+                  <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-0.5">
                     {[4, 3, 2, 1, 0].map((seq) => (
                       <ZoneSlot
                         key={`opp_mzone_${seq}`}
@@ -319,7 +317,7 @@ export const DuelBoard: React.FC = () => {
                   </div>
 
                   {/* 对方场地魔法 */}
-                  <div className="ml-3 shrink-0">
+                  <div className="w-[92px] flex justify-center shrink-0">
                     <ZoneSlot
                       label="场地魔法"
                       controller={1}
@@ -441,7 +439,7 @@ export const DuelBoard: React.FC = () => {
                 {/* Row 4: 我方前场行 (场地魔法 - 怪兽1..5 - 墓地) */}
                 <div className="flex items-center gap-0">
                   {/* 我方场地魔法 */}
-                  <div className="mr-3 shrink-0">
+                  <div className="w-[92px] flex justify-center shrink-0">
                     <ZoneSlot
                       label="场地魔法"
                       controller={0}
@@ -452,8 +450,7 @@ export const DuelBoard: React.FC = () => {
                     />
                   </div>
 
-                  {/* 我方怪兽区 1 ~ 5 (蓝描边语义框，与下方魔陷区无缝合璧) */}
-                  <div className="flex items-center gap-2 px-2.5 pt-1.5 pb-0.5 rounded-t-lg border-t border-x border-blue-500/35 dark:border-blue-400/25 bg-blue-500/[0.025] dark:bg-blue-500/[0.04]">
+                  <div className="flex items-center gap-2 px-2.5 pt-1.5 pb-0.5">
                     {[0, 1, 2, 3, 4].map((seq) => (
                       <ZoneSlot
                         key={`my_mzone_${seq}`}
@@ -468,7 +465,7 @@ export const DuelBoard: React.FC = () => {
                   </div>
 
                   {/* 我方墓地 */}
-                  <div className="ml-3 shrink-0">
+                  <div className="w-[92px] flex justify-center shrink-0">
                     <ZoneSlot
                       label="墓地"
                       controller={0}
@@ -484,7 +481,7 @@ export const DuelBoard: React.FC = () => {
                 {/* Row 5: 我方后场行 (额外卡组 - 魔陷1..5 - 主卡组) */}
                 <div className="flex items-center gap-0">
                   {/* 我方额外卡组 */}
-                  <div className="mr-3 shrink-0">
+                  <div className="w-[92px] flex justify-center shrink-0">
                     <ZoneSlot
                       label="额外卡组"
                       controller={0}
@@ -496,8 +493,7 @@ export const DuelBoard: React.FC = () => {
                     />
                   </div>
 
-                  {/* 我方魔陷区 1 ~ 5 (蓝描边语义框) */}
-                  <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-0.5 rounded-b-lg border-b border-x border-blue-500/35 dark:border-blue-400/25 bg-blue-500/[0.025] dark:bg-blue-500/[0.04]">
+                  <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-0.5">
                     {[0, 1, 2, 3, 4].map((seq) => (
                       <ZoneSlot
                         key={`my_szone_${seq}`}
@@ -521,7 +517,7 @@ export const DuelBoard: React.FC = () => {
                   </div>
 
                   {/* 我方主卡组 */}
-                  <div className="ml-3 shrink-0">
+                  <div className="w-[92px] flex justify-center shrink-0">
                     <ZoneSlot
                       label="主卡组"
                       controller={0}

@@ -96,7 +96,7 @@ const SearchCardItem: React.FC<SearchCardItemProps> = ({
               }}
             />
 
-            <CardPoolBadges pools={card.pools} width={22} />
+            <CardPoolBadges pools={card.pools} width={26} />
 
             {/* 悬停快捷加入图标 */}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
@@ -308,7 +308,7 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
               <span>正在检索卡片...</span>
             </div>
           ) : currentDisplayList.length > 0 ? (
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-3 gap-2.5">
               {currentDisplayList.map((card) => (
                 <SearchCardItem
                   key={`search_card_${card.id}`}

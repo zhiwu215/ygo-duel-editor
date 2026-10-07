@@ -497,7 +497,15 @@ export class CdbService {
     params: CardSearchParams,
     fetchLimit: number
   ): CardSearchResult {
-    let baseWhere = ' FROM datas d JOIN texts t ON d.id = t.id WHERE 1=1'
+    let baseWhere =
+      ' FROM datas d JOIN texts t ON d.id = t.id WHERE 1=1' +
+      " AND t.name NOT LIKE '%占位符%'" +
+      ' AND NOT (' +
+      ' (d.type & 7) = 0 AND d.atk = 0 AND d.def = 0 AND (d.level & 255) = 0' +
+      " AND (t.desc IS NULL OR trim(t.desc) = ''" +
+      " OR t.desc LIKE '%战斗包%' OR t.desc LIKE '%Battle Pack%'" +
+      " OR t.desc LIKE '%列表%' OR t.desc LIKE '%常见%' OR t.desc LIKE '%Common%')" +
+      ' )'
     const args: (string | number)[] = []
 
     const getSetcodeClause = (codes: number[]): string => {

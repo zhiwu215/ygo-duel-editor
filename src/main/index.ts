@@ -3,10 +3,12 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import unknownImage from '../../src/renderer/src/assets/textures/unknown.jpg?asset'
 import { registerAllIpcHandlers } from './ipc/registerIpc'
 import { configService } from './services/configService'
 import { cdbService } from './db/cdbService'
 import { imageService } from './services/imageService'
+import { customCardService } from './services/customCardService'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -88,6 +90,11 @@ app.whenReady().then(() => {
       const filePath = imageService.findCardImagePath(code, isSmall)
       if (filePath) {
         return await net.fetch(pathToFileURL(filePath).toString())
+      }
+      if (customCardService.getById(code)) {
+        return new Response(unknownImage, {
+          headers: { 'content-type': 'image/jpeg' }
+        })
       }
       return new Response('Image not found', { status: 404 })
     } catch (err) {

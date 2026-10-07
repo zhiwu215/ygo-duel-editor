@@ -9,7 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { CardNoteEditor } from './CardNoteEditor'
 
 interface CardNoteAdderProps {
-  onSave: (cardCode: number, kind: CardNoteKind, label: string, text: string) => Promise<boolean>
+  onSave: (
+    cardCode: number,
+    kind: CardNoteKind,
+    label: string,
+    text: string,
+    source?: string
+  ) => Promise<boolean>
 
   existingLabelsFor: (cardCode: number, kind: CardNoteKind) => string[]
   onClose: () => void
@@ -67,8 +73,8 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
         initial={{ label: '', text: '' }}
         kindEditable
         existingLabelsForKind={(k) => existingLabelsFor(picked.id, k)}
-        onSave={(label, text, k) =>
-          onSave(picked.id, k, label, text).then((ok) => {
+        onSave={(label, text, k, source) =>
+          onSave(picked.id, k, label, text, source).then((ok) => {
             if (ok) onClose()
             return ok
           })

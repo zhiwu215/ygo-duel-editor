@@ -2,17 +2,20 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useState, useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useCustomCardStore } from '../../stores/useCustomCardStore'
+import { confirmDialog } from '../../stores/useDialogStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import {
   formatCardTypeLine,
   formatCardStatsLine,
   formatCardSeriesLine
 } from '../../utils/cardFormat'
-import { HelpCircle, ZoomIn, Copy, Check } from 'lucide-react'
+import { HelpCircle, ZoomIn, Copy, Check, Pencil, Trash2 } from 'lucide-react'
 import { CardImageViewer } from './CardImageViewer'
 
 export const CardDetailPanel: React.FC = () => {
   const { hoveredCard, selectedCardId, state } = useDuelStore()
+  const { openEdit, remove } = useCustomCardStore()
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
   const [copiedName, setCopiedName] = useState<boolean>(false)
 
@@ -52,6 +55,23 @@ export const CardDetailPanel: React.FC = () => {
     }
   }
 
+  const handleEdit = (): void => {
+    if (!currentCard?.isCustom) return
+    openEdit(currentCard.id)
+  }
+
+  const handleDelete = async (): Promise<void> => {
+    if (!currentCard?.isCustom) return
+    const confirmed = await confirmDialog({
+      title: '删除自建卡',
+      description: `确定删除自建卡「${currentCard.name}」吗？已拖上场面的该卡不会受影响。`,
+      confirmText: '删除',
+      destructive: true
+    })
+    if (!confirmed) return
+    await remove(currentCard.id)
+  }
+
   if (!currentCard) {
     return (
       <div className="w-full h-full bg-card/30 flex flex-col select-none">
@@ -74,6 +94,38 @@ export const CardDetailPanel: React.FC = () => {
       <div className="w-full h-full bg-card/40 flex flex-col overflow-hidden">
         <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
           <span className="text-xs font-bold text-foreground">卡片详情</span>
+          {currentCard.isCustom && (
+            <div className="flex items-center gap-0.5">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={handleEdit}
+                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  }
+                />
+                <TooltipContent>编辑自建卡</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete()}
+                      className="p-1.5 rounded text-muted-foreground hover:text-red-500 hover:bg-muted/70 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  }
+                />
+                <TooltipContent>删除自建卡</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
         </div>
 
         <div className="pt-3 pb-2.5 px-4 flex flex-col items-center select-none shrink-0">
@@ -122,6 +174,11 @@ export const CardDetailPanel: React.FC = () => {
                     <span className="font-bold text-xs text-foreground truncate">
                       {currentCard.name}[{currentCard.id}]
                     </span>
+                    {currentCard.isCustom && (
+                      <span className="ml-1 px-1 py-px rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 text-[9px] font-bold shrink-0">
+                        自建
+                      </span>
+                    )}
                     <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">
                       {copiedName ? (
                         <Check className="w-3 h-3 text-emerald-500" />
@@ -146,6 +203,15 @@ export const CardDetailPanel: React.FC = () => {
             <div className="pt-1 text-xs text-foreground/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
               {currentCard.desc}
             </div>
+
+            {currentCard.isCustom && currentCard.note && currentCard.note.trim().length > 0 && (
+              <div className="mt-1 pt-2 border-t border-border/60 flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-muted-foreground">备注</span>
+                <div className="text-xs text-amber-600 dark:text-amber-400/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
+                  {currentCard.note}
+                </div>
+              </div>
+            )}
           </div>
         </ScrollArea>
       </div>

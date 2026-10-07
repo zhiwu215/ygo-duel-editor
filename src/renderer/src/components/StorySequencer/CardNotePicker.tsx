@@ -281,12 +281,13 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
           kind="chant"
           initial={{ label: '', text: '' }}
           existingLabels={chants.map((c) => c.label)}
-          onSave={async (label, text) => {
+          onSave={async (label, text, kind, source) => {
             const res = await window.api.saveCardNote({
               cardCode: code,
-              kind: 'chant',
+              kind,
               label,
-              text
+              text,
+              source
             })
             if (!res.success) {
               void alertDialog(res.error || '保存失败')

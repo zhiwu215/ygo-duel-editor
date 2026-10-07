@@ -24,6 +24,18 @@ const api: IpcApi = {
   getCardsByIds: (ids: number[]) => ipcRenderer.invoke('cdb:get-by-ids', ids),
   getCdbStatus: () => ipcRenderer.invoke('cdb:status'),
 
+  listCustomCards: () => ipcRenderer.invoke('customcard:list'),
+  saveCustomCard: (input) => ipcRenderer.invoke('customcard:save', input),
+  deleteCustomCard: (id) => ipcRenderer.invoke('customcard:delete', id),
+  pickCustomCardImage: (id) => ipcRenderer.invoke('customcard:pick-image', id),
+  onCustomCardsUpdated: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('custom-cards:updated', handler)
+    return () => {
+      ipcRenderer.removeListener('custom-cards:updated', handler)
+    }
+  },
+
   exportLuaFile: (state: DuelPuzzleState, targetPath?: string) =>
     ipcRenderer.invoke('file:export-lua', state, targetPath),
   importLuaFile: () => ipcRenderer.invoke('file:import-lua'),

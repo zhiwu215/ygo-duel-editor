@@ -5,7 +5,8 @@ import {
   DuelPuzzleState,
   AppConfig,
   CardNote,
-  CardNoteKind
+  CardNoteKind,
+  CustomCardInput
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
@@ -17,6 +18,7 @@ import { agentService } from '../services/agentService'
 import { settingsWindowService } from '../services/settingsWindowService'
 import { libraryService } from '../services/libraryService'
 import { cardNoteService } from '../services/cardNoteService'
+import { customCardService } from '../services/customCardService'
 
 const notifyCdbUpdated = (): void => {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -32,13 +34,41 @@ const enabledExtraPaths = (): string[] => {
 
 export function registerAllIpcHandlers(): void {
   ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
-    return cdbService.search(params)
+    return customCardService.mergeSearchResults(cdbService.search(params), params)
   })
 
   ipcMain.handle('cdb:search-filter-options', () => cdbService.getSearchFilterOptions())
 
   ipcMain.handle('cdb:get-by-ids', async (_, ids: number[]) => {
-    return cdbService.getCardsByIds(ids)
+    return customCardService.mergeCardsByIds(cdbService.getCardsByIds(ids), ids)
+  })
+
+  ipcMain.handle('customcard:list', () => {
+    return customCardService.list()
+  })
+
+  ipcMain.handle('customcard:save', (_, input: CustomCardInput) => {
+    try {
+      const card = customCardService.save(input)
+      return { success: true, card }
+    } catch (err) {
+      console.error('[registerIpc] customcard:save failed:', err)
+      return { success: false, error: err instanceof Error ? err.message : '保存失败' }
+    }
+  })
+
+  ipcMain.handle('customcard:delete', (_, id: number) => {
+    try {
+      customCardService.remove(id)
+      return { success: true }
+    } catch (err) {
+      console.error('[registerIpc] customcard:delete failed:', err)
+      return { success: false, error: err instanceof Error ? err.message : '删除失败' }
+    }
+  })
+
+  ipcMain.handle('customcard:pick-image', async (_, id: number) => {
+    return customCardService.pickImage(id)
   })
 
   ipcMain.handle('cdb:status', () => {

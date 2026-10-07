@@ -5,19 +5,30 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { cn } from '../../lib/utils'
 
 interface CardNoteEditorProps {
   cardName: string
   kind: CardNoteKind
 
-  initial: { label: string; text: string }
+  initial: { label: string; text: string; source?: string }
 
   existingLabels?: string[]
   existingLabelsForKind?: (kind: CardNoteKind) => string[]
   kindEditable?: boolean
-  onSave: (label: string, text: string, kind: CardNoteKind) => Promise<boolean>
+  onSave: (label: string, text: string, kind: CardNoteKind, source?: string) => Promise<boolean>
   onClose: () => void
 }
+
+interface CardNoteOrigin {
+  id: 'original' | 'borrowed'
+  label: string
+}
+
+const NOTE_ORIGINS: CardNoteOrigin[] = [
+  { id: 'original', label: '原创' },
+  { id: 'borrowed', label: '借鉴' }
+]
 
 export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   cardName,
@@ -52,6 +63,10 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   const defaultLabel = `${labelPrefix}-${nextSeq}`
   const [label, setLabel] = useState<string>(initial.label)
   const [text, setText] = useState<string>(initial.text)
+  const [origin, setOrigin] = useState<CardNoteOrigin['id']>(
+    initial.source && initial.source.length > 0 ? 'borrowed' : 'original'
+  )
+  const [source, setSource] = useState<string>(initial.source ?? '')
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const labelRef = useRef<HTMLInputElement>(null)
@@ -82,7 +97,8 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
       return
     }
     setIsSaving(true)
-    const ok = await onSave(trimmedLabel, trimmedText, effectiveKind)
+    const borrowedSource = isChant && origin === 'borrowed' ? source.trim() : ''
+    const ok = await onSave(trimmedLabel, trimmedText, effectiveKind, borrowedSource || undefined)
     setIsSaving(false)
     if (ok) onClose()
   }
@@ -138,6 +154,44 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {isChant && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-muted-foreground">来源</span>
+            <div className="flex items-center gap-1 p-0.5 rounded-md border border-border bg-muted/50">
+              {NOTE_ORIGINS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    setOrigin(opt.id)
+                    setError(null)
+                  }}
+                  className={cn(
+                    'flex-1 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer',
+                    origin === opt.id
+                      ? 'bg-background text-foreground shadow-xs font-semibold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {origin === 'borrowed' && (
+              <Input
+                type="text"
+                value={source}
+                placeholder="注明来源，如：动画台词 / 某解说视频"
+                onChange={(e) => {
+                  setSource(e.target.value)
+                  setError(null)
+                }}
+                className="h-8 text-xs bg-muted/40 border-border/80 focus-visible:ring-1"
+              />
+            )}
           </div>
         )}
 

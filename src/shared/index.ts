@@ -1,5 +1,6 @@
 export * from './types/rules'
 export * from './types/card'
+export * from './types/customCard'
 export * from './types/story'
 export * from './types/deck'
 export * from './types/duel'

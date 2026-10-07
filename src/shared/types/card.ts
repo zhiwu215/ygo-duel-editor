@@ -20,6 +20,8 @@ export interface CdbCard {
   pools?: string[] // 所属附加库卡池 id 列表（按卡片 ot 的扩展池位推导）
   markers?: number // 连接标记（箭头）位掩码，仅 Link 怪兽有意义
   limit?: 1 | 2 | 3 // 禁限等级，来自 lflists
+  isCustom?: boolean // 自建卡（存于 userData，不属于任何卡库）
+  note?: string // 自建卡备注（编排用元信息，与卡面效果文本无关）
 }
 
 /**

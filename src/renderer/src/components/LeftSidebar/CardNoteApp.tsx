@@ -1,6 +1,6 @@
 import { ScrollArea } from '../ui/scroll-area'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookMarked,
   MessageSquareQuote,
@@ -13,7 +13,9 @@ import {
   ChevronRight,
   Upload,
   Download,
-  GripVertical
+  GripVertical,
+  PenLine,
+  Library
 } from 'lucide-react'
 import {
   DndContext,
@@ -29,11 +31,13 @@ import { CardNoteEntry, CardNoteKind, CardNote } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
+import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover'
 import { CardImageViewer } from '../CardDetail/CardImageViewer'
 import { CardNoteEditor } from './CardNoteEditor'
 import { CardNoteAdder } from './CardNoteAdder'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
 import { confirmDialog } from '../../stores/useDialogStore'
+import { useCustomCardStore } from '../../stores/useCustomCardStore'
 
 function parseSortId(id: string): { kind: CardNoteKind; label: string } | null {
   const sep = id.indexOf('::')
@@ -47,7 +51,17 @@ function buildSortId(kind: CardNoteKind, label: string): string {
   return `${kind}::${label}`
 }
 
+interface DisplayEntry extends CardNoteEntry {
+  isCustom?: boolean
+}
+
 export const CardNoteApp: React.FC = () => {
+  const {
+    cards: customCards,
+    openCreate,
+    openEdit,
+    remove: removeCustomCard
+  } = useCustomCardStore()
   const [entries, setEntries] = useState<CardNoteEntry[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
@@ -58,10 +72,13 @@ export const CardNoteApp: React.FC = () => {
     cardCode: number
     cardName: string
     kind: CardNoteKind
-    initial: { label: string; text: string }
+    initial: { label: string; text: string; source?: string }
   } | null>(null)
   const [showAdder, setShowAdder] = useState(false)
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [previewCard, setPreviewCard] = useState<number | null>(null)
+
+  const customCardById = useMemo(() => new Map(customCards.map((c) => [c.id, c])), [customCards])
 
   const flash = useCallback((msg: string): void => {
     setFeedback(msg)
@@ -138,9 +155,42 @@ export const CardNoteApp: React.FC = () => {
     }
   }, [])
 
+  const displayEntries = useMemo<DisplayEntry[]>(() => {
+    const merged: DisplayEntry[] = entries.map((e) => {
+      const custom = customCardById.get(e.cardCode)
+      return custom ? { ...e, isCustom: true } : e
+    })
+    for (const card of customCards) {
+      if (!merged.some((e) => e.cardCode === card.id)) {
+        merged.push({
+          cardCode: card.id,
+          cardName: card.name,
+          variantCodes: [],
+          chants: [],
+          notes: [],
+          isCustom: true
+        })
+      }
+    }
+    return merged
+  }, [entries, customCards, customCardById])
+
+  const previousCustomIds = useRef<Set<number> | null>(null)
+  useEffect(() => {
+    const ids = new Set(customCards.map((c) => c.id))
+    const prev = previousCustomIds.current
+    previousCustomIds.current = ids
+    if (!prev) return
+    const added = [...ids].filter((id) => !prev.has(id))
+    if (added.length === 0) return
+    const latest = added[added.length - 1]
+    setExpanded((prevExpand) => ({ ...prevExpand, [latest]: true }))
+    flash('已新增自建卡，可在下方添加召唤词或描述')
+  }, [customCards, flash])
+
   const filtered = useMemo(
     () =>
-      entries.filter((e) => {
+      displayEntries.filter((e) => {
         if (!search.trim()) return true
         const kw = search.trim().toLowerCase()
         return (
@@ -151,12 +201,18 @@ export const CardNoteApp: React.FC = () => {
           )
         )
       }),
-    [entries, search]
+    [displayEntries, search]
   )
 
   const handleSave = useCallback(
-    async (cardCode: number, kind: CardNoteKind, label: string, text: string): Promise<boolean> => {
-      const res = await window.api.saveCardNote({ cardCode, kind, label, text })
+    async (
+      cardCode: number,
+      kind: CardNoteKind,
+      label: string,
+      text: string,
+      source?: string
+    ): Promise<boolean> => {
+      const res = await window.api.saveCardNote({ cardCode, kind, label, text, source })
       if (!res.success) {
         flash(res.error || '保存失败')
         return false
@@ -180,6 +236,38 @@ export const CardNoteApp: React.FC = () => {
       flash('已删除')
     },
     [fetchAll, flash]
+  )
+
+  const handleDeleteCustomCard = useCallback(
+    async (cardCode: number): Promise<void> => {
+      const card = customCardById.get(cardCode)
+      if (!card) return
+      const entry = entries.find((e) => e.cardCode === cardCode)
+      const hasNotes = entry && (entry.chants.length > 0 || entry.notes.length > 0)
+      const ok = await confirmDialog({
+        title: '删除自建卡',
+        description: hasNotes
+          ? `确定删除自建卡「${card.name}」吗？\n其图鉴里的召唤词与描述将一并删除。`
+          : `确定删除自建卡「${card.name}」吗？`,
+        confirmText: '删除',
+        destructive: true
+      })
+      if (!ok) return
+      if (entry) {
+        for (const chant of entry.chants) {
+          await window.api.deleteCardNote(cardCode, 'chant', chant.label)
+        }
+        for (const note of entry.notes) {
+          await window.api.deleteCardNote(cardCode, 'note', note.label)
+        }
+      }
+      const removed = await removeCustomCard(cardCode)
+      if (removed) {
+        await fetchAll()
+        flash('已删除自建卡')
+      }
+    },
+    [customCardById, entries, fetchAll, flash, removeCustomCard]
   )
 
   const existingLabelsFor = useCallback(
@@ -250,12 +338,11 @@ export const CardNoteApp: React.FC = () => {
             />
             <TooltipContent>把你的图鉴导出为 JSON 文件</TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
+          <Popover open={addMenuOpen} onOpenChange={setAddMenuOpen}>
+            <PopoverTrigger
               render={
                 <button
                   type="button"
-                  onClick={() => setShowAdder(true)}
                   className="flex items-center gap-1.5 px-2.5 h-7 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -263,8 +350,31 @@ export const CardNoteApp: React.FC = () => {
                 </button>
               }
             />
-            <TooltipContent>按卡名或卡密录入新的召唤词或描述</TooltipContent>
-          </Tooltip>
+            <PopoverContent align="end" className="w-48 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setAddMenuOpen(false)
+                  openCreate()
+                }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-foreground hover:bg-muted/70 transition-colors cursor-pointer text-left"
+              >
+                <PenLine className="w-3.5 h-3.5 text-violet-500" />
+                <span>新建自建卡</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddMenuOpen(false)
+                  setShowAdder(true)
+                }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-foreground hover:bg-muted/70 transition-colors cursor-pointer text-left"
+              >
+                <Library className="w-3.5 h-3.5 text-sky-500" />
+                <span>为现有卡录入图鉴</span>
+              </button>
+            </PopoverContent>
+          </Popover>
           <WindowControls />
         </div>
       </header>
@@ -369,6 +479,11 @@ export const CardNoteApp: React.FC = () => {
                           />
                           <TooltipContent>{entry.cardName}</TooltipContent>
                         </Tooltip>
+                        {entry.isCustom && (
+                          <span className="shrink-0 text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25">
+                            自建
+                          </span>
+                        )}
                         <Tooltip>
                           <TooltipTrigger
                             render={
@@ -415,6 +530,44 @@ export const CardNoteApp: React.FC = () => {
                           />
                           <TooltipContent>添加描述</TooltipContent>
                         </Tooltip>
+                        {entry.isCustom && (
+                          <>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openEdit(entry.cardCode)
+                                    }}
+                                    className="p-1 rounded text-violet-500/80 hover:text-violet-500 hover:bg-violet-500/10 transition-colors cursor-pointer shrink-0"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                }
+                              />
+                              <TooltipContent>编辑自建卡信息</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      void handleDeleteCustomCard(entry.cardCode)
+                                    }}
+                                    className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                }
+                              />
+                              <TooltipContent>删除自建卡</TooltipContent>
+                            </Tooltip>
+                          </>
+                        )}
                       </div>
                     </CollapsibleTrigger>
 
@@ -446,7 +599,11 @@ export const CardNoteApp: React.FC = () => {
                                         cardCode: entry.cardCode,
                                         cardName: entry.cardName,
                                         kind: 'chant',
-                                        initial: { label: chant.label, text: chant.text }
+                                        initial: {
+                                          label: chant.label,
+                                          text: chant.text,
+                                          source: chant.source
+                                        }
                                       })
                                     }
                                     onDelete={() =>
@@ -507,7 +664,9 @@ export const CardNoteApp: React.FC = () => {
           kind={editor.kind}
           initial={editor.initial}
           existingLabels={existingLabelsFor(editor.cardCode, editor.kind)}
-          onSave={(label, text) => handleSave(editor.cardCode, editor.kind, label, text)}
+          onSave={(label, text, kind, source) =>
+            handleSave(editor.cardCode, kind, label, text, source)
+          }
           onClose={() => setEditor(null)}
         />
       )}
@@ -585,7 +744,7 @@ function SortableChantRow({
         <span className="text-[10px] font-semibold text-foreground truncate flex-1">
           {chant.label}
         </span>
-        {chant.readonly && (
+        {chant.readonly ? (
           <Tooltip>
             <TooltipTrigger
               render={
@@ -595,6 +754,28 @@ function SortableChantRow({
               }
             />
             <TooltipContent>内置的经典条目，不可修改</TooltipContent>
+          </Tooltip>
+        ) : chant.source ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="shrink-0 text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25">
+                  借鉴
+                </span>
+              }
+            />
+            <TooltipContent>借鉴条目，出自：{chant.source}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="shrink-0 text-[9px] px-1 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                  原创
+                </span>
+              }
+            />
+            <TooltipContent>原创条目</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>

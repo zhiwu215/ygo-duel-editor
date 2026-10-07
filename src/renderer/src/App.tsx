@@ -8,6 +8,7 @@ import { DeckEditorApp } from './components/DeckEditor/DeckEditorApp'
 import { CardNoteApp } from './components/LeftSidebar/CardNoteApp'
 import { SettingsApp } from './components/Settings/SettingsApp'
 import { CdbSetupModal } from './components/CardSearch/CdbSetupModal'
+import { CustomCardEditorDialog } from './components/CustomCard/CustomCardEditorDialog'
 import { useConfigStore } from './stores/useConfigStore'
 
 export function App(): React.JSX.Element {
@@ -28,6 +29,7 @@ export function App(): React.JSX.Element {
     return (
       <>
         <CardNoteApp />
+        <CustomCardEditorDialog />
         <CdbSetupModal />
       </>
     )
@@ -37,6 +39,7 @@ export function App(): React.JSX.Element {
     return (
       <>
         <DeckEditorApp />
+        <CustomCardEditorDialog />
         <CdbSetupModal />
       </>
     )
@@ -55,6 +58,8 @@ export function App(): React.JSX.Element {
       </div>
 
       <DuelScreenplayModal />
+
+      <CustomCardEditorDialog />
 
       <CdbSetupModal />
     </div>

@@ -1,4 +1,5 @@
 import { CdbCard } from './card'
+import { CustomCard, CustomCardInput } from './customCard'
 import { DuelPuzzleState, DuelType } from './duel'
 import { DeckData, DeckLibrary } from './deck'
 import { DuelPhase, DuelActionType } from './story'
@@ -35,7 +36,8 @@ export interface CardSearchParams {
   markers?: number
   /** 禁限筛选：1=禁限一(禁止) 2=禁限二(准限制) 3=禁限三(限制)，读 lflists 得到 */
   limitFilter?: LimitFilter
-  sortField?: 'id' | 'atk' | 'def' | 'level' | 'name'
+  /** 对齐 YGOPro 的 cbSortType（strings 1370-1373）：level=星数↓ atk=攻击↓ def=守备↓ name=名称↑ */
+  sortField?: 'atk' | 'def' | 'level' | 'name'
   sortOrder?: 'ASC' | 'DESC'
   limit?: number
   offset?: number
@@ -76,6 +78,23 @@ export interface CdbStatusResult {
 export interface CdbSelectResult {
   success: boolean
   path?: string
+  error?: string
+}
+
+export interface CustomCardSaveResult {
+  success: boolean
+  card?: CustomCard
+  error?: string
+}
+
+export interface CustomCardDeleteResult {
+  success: boolean
+  error?: string
+}
+
+export interface CustomCardPickImageResult {
+  success: boolean
+  canceled?: boolean
   error?: string
 }
 
@@ -501,6 +520,12 @@ export interface IpcApi {
   getCardSearchFilterOptions: () => Promise<CardSearchFilterOptions>
   getCardsByIds: (ids: number[]) => Promise<Record<number, CdbCard>>
   getCdbStatus: () => Promise<CdbStatusResult>
+
+  listCustomCards: () => Promise<CustomCard[]>
+  saveCustomCard: (input: CustomCardInput) => Promise<CustomCardSaveResult>
+  deleteCustomCard: (id: number) => Promise<CustomCardDeleteResult>
+  pickCustomCardImage: (id: number) => Promise<CustomCardPickImageResult>
+  onCustomCardsUpdated: (callback: () => void) => () => void
 
   exportLuaFile: (
     state: DuelPuzzleState,

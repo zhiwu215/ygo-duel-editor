@@ -2,6 +2,7 @@ import { existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { configService } from './configService'
 import { cdbService } from '../db/cdbService'
+import { customCardService } from './customCardService'
 
 export class ImageService {
   /**
@@ -104,6 +105,9 @@ export class ImageService {
    */
   public findCardImagePath(code: number, small = false): string | null {
     if (!code || code <= 0) return null
+
+    const customPath = customCardService.findImagePath(code)
+    if (customPath) return customPath
 
     const picsDirs = this.getPicsDirectories()
     if (picsDirs.length === 0) return null

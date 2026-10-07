@@ -30,7 +30,7 @@ export interface CardSearchFilters {
   def: number | undefined // 守备力
   defOp: NumericCompareOp // 守备力比较符
   code: number | undefined // 精确卡密
-  sortField: 'id' | 'atk' | 'def' | 'level' | 'name'
+  sortField: 'atk' | 'def' | 'level' | 'name'
   sortOrder: 'ASC' | 'DESC'
 }
 
@@ -54,7 +54,7 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
   def: undefined,
   defOp: 'eq',
   code: undefined,
-  sortField: 'id',
+  sortField: 'level',
   sortOrder: 'DESC'
 }
 
@@ -75,7 +75,7 @@ export function countActiveFilters(filters: CardSearchFilters): number {
   if (filters.def !== undefined || filters.defOp === 'unknown') count++
   if (filters.code !== undefined) count++
   if (!filters.searchDesc) count++
-  if (filters.sortField !== 'id') count++
+  if (filters.sortField !== 'level') count++
   return count
 }
 
@@ -256,6 +256,16 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
 // 卡库在设置窗口里改动后必须由主进程广播，否则只有设置窗口那份 store 会刷新。
 if (typeof window !== 'undefined' && window.api?.onCdbUpdated) {
   window.api.onCdbUpdated(() => {
+    bumpCardImageVersion()
+    const state = useCardSearchStore.getState()
+    if (!state.hasSearched) return
+    void state.search()
+  })
+}
+
+// 自建卡增删改后同样需要重查检索结果并刷新卡图
+if (typeof window !== 'undefined' && window.api?.onCustomCardsUpdated) {
+  window.api.onCustomCardsUpdated(() => {
     bumpCardImageVersion()
     const state = useCardSearchStore.getState()
     if (!state.hasSearched) return

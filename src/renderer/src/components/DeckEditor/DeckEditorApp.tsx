@@ -41,10 +41,7 @@ import {
   Trash2,
   FilePlus2,
   Download,
-  Tag,
-  FileText,
-  Plus,
-  X
+  FileText
 } from 'lucide-react'
 
 export const DeckEditorApp: React.FC = () => {
@@ -61,8 +58,6 @@ export const DeckEditorApp: React.FC = () => {
     setDeckName,
     setDeckDescription,
     setDeckGroup,
-    addDeckTag,
-    removeDeckTag,
     setDeckCover,
     addCard,
     removeCard,
@@ -80,7 +75,6 @@ export const DeckEditorApp: React.FC = () => {
   } = useDeckEditorStore()
 
   const [showApplyModal, setShowApplyModal] = useState<boolean>(false)
-  const [newTagInput, setNewTagInput] = useState<string>('')
   const [saveToast, setSaveToast] = useState<string | null>(null)
   const [activeDrag, setActiveDrag] = useState<{
     code: number
@@ -194,13 +188,6 @@ export const DeckEditorApp: React.FC = () => {
       if (confirm('确认清空当前卡组的所有卡片？')) {
         clearDeck()
       }
-    }
-  }
-
-  const handleAddTag = (): void => {
-    if (newTagInput.trim()) {
-      addDeckTag(newTagInput.trim())
-      setNewTagInput('')
     }
   }
 
@@ -416,7 +403,7 @@ export const DeckEditorApp: React.FC = () => {
                   list="deck-group-options"
                   value={deck.group || ''}
                   onChange={(e) => setDeckGroup(e.target.value)}
-                  placeholder="剧情分组"
+                  placeholder="选择分组"
                   className="h-6.5 w-28 text-[11.5px] bg-background/60 border-border/60"
                 />
               }
@@ -425,62 +412,6 @@ export const DeckEditorApp: React.FC = () => {
               所属剧情分组：可从已有分组下拉选择，也可直接输入新名字（保存时自动创建）
             </TooltipContent>
           </Tooltip>
-        </div>
-
-        <Separator orientation="vertical" className="h-4" />
-
-        <div className="flex items-center gap-1.5 shrink-0 max-w-[420px] overflow-x-auto scrollbar-none">
-          <Tag className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-
-          {deck.tags &&
-            deck.tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-muted/80 text-foreground border border-border/60 shrink-0"
-              >
-                <span>#{tag}</span>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        onClick={() => removeDeckTag(tag)}
-                        className="text-muted-foreground hover:text-destructive cursor-pointer"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    }
-                  />
-                  <TooltipContent>移除标签</TooltipContent>
-                </Tooltip>
-              </span>
-            ))}
-
-          <div className="flex items-center gap-1">
-            <Input
-              type="text"
-              value={newTagInput}
-              onChange={(e) => setNewTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleAddTag()
-                }
-              }}
-              placeholder="+ 标签回车"
-              className="h-6 w-20 text-[11px] bg-background/60 border-border/60 px-1.5"
-            />
-            {newTagInput && (
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={handleAddTag}
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              >
-                <Plus className="w-3 h-3" />
-              </Button>
-            )}
-          </div>
         </div>
       </div>
 

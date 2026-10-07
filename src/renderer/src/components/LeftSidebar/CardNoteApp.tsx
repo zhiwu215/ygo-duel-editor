@@ -438,7 +438,9 @@ export const CardNoteApp: React.FC = () => {
                                   <SortableChantRow
                                     key={chant.label}
                                     chant={chant}
-                                    index={index}
+                                    blockedByReadonly={entry.chants
+                                      .slice(0, index)
+                                      .some((c) => c.readonly)}
                                     copyKey={`${entry.cardCode}:chant:${chant.label}`}
                                     copiedKey={copiedKey}
                                     onCopy={handleCopy}
@@ -472,7 +474,9 @@ export const CardNoteApp: React.FC = () => {
                                   <SortableNoteRow
                                     key={note.label}
                                     note={note}
-                                    index={index}
+                                    blockedByReadonly={entry.notes
+                                      .slice(0, index)
+                                      .some((n) => n.readonly)}
                                     copyKey={`${entry.cardCode}:note:${note.label}`}
                                     copiedKey={copiedKey}
                                     onCopy={handleCopy}
@@ -552,14 +556,14 @@ interface SortableRowProps {
 
 function SortableChantRow({
   chant,
-  index,
+  blockedByReadonly,
   copyKey,
   copiedKey,
   onCopy,
   onEdit,
   onDelete
-}: SortableRowProps & { chant: CardNote; index: number }): React.JSX.Element {
-  const draggable = !chant.readonly && index > 0
+}: SortableRowProps & { chant: CardNote; blockedByReadonly: boolean }): React.JSX.Element {
+  const draggable = !chant.readonly && !blockedByReadonly
   const id = buildSortId('chant', chant.label)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
@@ -671,14 +675,14 @@ function SortableChantRow({
 
 function SortableNoteRow({
   note,
-  index,
+  blockedByReadonly,
   copyKey,
   copiedKey,
   onCopy,
   onEdit,
   onDelete
-}: SortableRowProps & { note: CardNote; index: number }): React.JSX.Element {
-  const draggable = index > 0
+}: SortableRowProps & { note: CardNote; blockedByReadonly: boolean }): React.JSX.Element {
+  const draggable = !note.readonly && !blockedByReadonly
   const id = buildSortId('note', note.label)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,

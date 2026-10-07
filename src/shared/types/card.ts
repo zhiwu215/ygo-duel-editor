@@ -38,24 +38,41 @@ export const LINK_MARKERS: Array<{ mask: number; label: string }> = [
   { mask: 0x80, label: '↘' }
 ]
 
-/**
- * 卡池类型：由用户在设置里为每个附加卡库路径显式指定，不依赖文件名
- * id 为 none 表示不标记
- */
+export interface LimitMark {
+  id: 1 | 2 | 3
+  label: string
+  spriteX: number
+  spriteY: number
+}
+
+export const LIMIT_MARKS: LimitMark[] = [
+  { id: 1, label: '禁止', spriteX: 0, spriteY: 0 },
+  { id: 2, label: '限制', spriteX: 64, spriteY: 0 },
+  { id: 3, label: '准限制', spriteX: 0, spriteY: 64 }
+]
+
 export interface CardPoolOption {
   id: string
   label: string
+  spriteY: number | null
 }
 
 export const CARD_POOLS: CardPoolOption[] = [
-  { id: 'none', label: '无' },
-  { id: 'anime', label: '动画/漫画' },
-  { id: 'rush', label: '超速（Rush）' },
-  { id: 'tf', label: '卡片力量（TF）' }
+  { id: 'none', label: '无', spriteY: null },
+  { id: 'anime', label: '动画/漫画', spriteY: 192 },
+  { id: 'rush', label: '超速（Rush）', spriteY: 576 },
+  { id: 'tf', label: '卡片力量（TF）', spriteY: 320 }
 ]
+
+export const CARD_POOL_SPRITE_WIDTH = 128
+export const CARD_POOL_SPRITE_HEIGHT = 64
 
 export function cardPoolLabel(id: string): string {
   return CARD_POOLS.find((p) => p.id === id)?.label ?? ''
+}
+
+export function cardPoolSpriteY(id: string): number | null {
+  return CARD_POOLS.find((p) => p.id === id)?.spriteY ?? null
 }
 
 /**

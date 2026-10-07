@@ -83,12 +83,12 @@ const OP_OPTIONS: Array<{ value: NumericCompareOp; label: string; prefix: string
   { value: 'unknown', label: '未知 (?)', prefix: '?' }
 ]
 
-/** 禁限三档，取自 YGOPro 的 cbLimit 前三项（4 档以上是 ot 位，已由「赛区卡池」覆盖） */
+/** 禁限三档，文案与顺序对齐 YGOPro 的 lflist 选择（4 档以上是 ot 位，已由「赛区卡池」覆盖） */
 const LIMIT_OPTIONS: Array<{ value: LimitFilter; label: string }> = [
   { value: 0, label: '不限' },
-  { value: 1, label: '禁限一（禁止）' },
-  { value: 2, label: '禁限二（准限制）' },
-  { value: 3, label: '禁限三（限制）' }
+  { value: 1, label: '禁止' },
+  { value: 2, label: '限制' },
+  { value: 3, label: '准限制' }
 ]
 
 /** 箭头按 YGOPro 的 3×3 环形排布，中间格留空给「清除」 */

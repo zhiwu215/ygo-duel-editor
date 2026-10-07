@@ -14,12 +14,31 @@ import {
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { CdbCard, LINK_MARKERS, cardPoolLabel } from '@shared/index'
+import {
+  CdbCard,
+  CardUtils,
+  LIMIT_MARKS,
+  LINK_MARKERS,
+  cardPoolLabel,
+  cardPoolSpriteY,
+  CARD_POOL_SPRITE_WIDTH,
+  CARD_POOL_SPRITE_HEIGHT
+} from '@shared/index'
 import { getCardImageUrl, setCardDragImage, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
+import limitSprite from '../../assets/textures/lim.png'
+import cardPoolSprite from '../../assets/textures/ot.png'
+
+const LIMIT_SPRITE_SIZE = 64
+const LIMIT_BADGE_SIZE = 24
+const LIMIT_SPRITE_SCALE = LIMIT_BADGE_SIZE / LIMIT_SPRITE_SIZE
+
+const POOL_SPRITE_WIDTH = 32
+const POOL_SPRITE_SCALE = POOL_SPRITE_WIDTH / CARD_POOL_SPRITE_WIDTH
+const CARD_POOL_SPRITE_TOTAL_HEIGHT = CARD_POOL_SPRITE_HEIGHT * 10
 
 export const CardSearchPanel: React.FC = () => {
   const {
@@ -240,6 +259,11 @@ export const CardSearchPanel: React.FC = () => {
             {results.map((card) => {
               const line2 = formatSearchItemLine2(card)
               const line3 = formatSearchItemLine3(card)
+              const poolText =
+                card.pools && card.pools.length > 0
+                  ? card.pools.map((pool) => `[${cardPoolLabel(pool)}]`).join('')
+                  : ''
+              const isMonster = CardUtils.isMonster(card.type)
 
               return (
                 <div
@@ -248,40 +272,82 @@ export const CardSearchPanel: React.FC = () => {
                   onDragStart={(e) => handleDragStart(e, card)}
                   onMouseEnter={() => setHoveredCard(card)}
                   onClick={() => setHoveredCard(card)}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-amber-400/40 cursor-grab active:cursor-grabbing transition-all group shadow-2xs h-[64px]"
+                  className="flex items-center gap-3 px-2.5 py-1.5 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-amber-400/40 cursor-grab active:cursor-grabbing transition-all group shadow-2xs h-[100px]"
                 >
-                  <img
-                    src={getCardImageUrl(card.id, true)}
-                    alt={card.name}
-                    loading="lazy"
-                    className="w-[36px] h-[52px] object-cover rounded shrink-0 border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
-                    onError={(e) => {
-                      const target = e.currentTarget
-                      if (target.src !== CARD_BACK_IMAGE) {
-                        target.src = CARD_BACK_IMAGE
-                      }
-                    }}
-                  />
-
-                  <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 select-none py-0.5">
-                    <div className="flex items-baseline justify-between gap-1.5 min-w-0">
-                      <span className="text-xs font-semibold truncate text-foreground group-hover:text-primary transition-colors leading-tight">
-                        {card.name}
+                  <div className="relative shrink-0">
+                    <img
+                      src={getCardImageUrl(card.id)}
+                      alt={card.name}
+                      loading="lazy"
+                      className="w-[64px] h-[92px] object-cover rounded border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
+                      onError={(e) => {
+                        const target = e.currentTarget
+                        if (target.src !== CARD_BACK_IMAGE) {
+                          target.src = CARD_BACK_IMAGE
+                        }
+                      }}
+                    />
+                    {(() => {
+                      const mark = LIMIT_MARKS.find((m) => m.id === card.limit)
+                      if (!mark) return null
+                      return (
+                        <span
+                          className="absolute -left-1 -top-1 drop-shadow"
+                          style={{
+                            width: `${LIMIT_BADGE_SIZE}px`,
+                            height: `${LIMIT_BADGE_SIZE}px`,
+                            backgroundImage: `url(${limitSprite})`,
+                            backgroundSize: `${LIMIT_SPRITE_SIZE * 2 * LIMIT_SPRITE_SCALE}px ${LIMIT_SPRITE_SIZE * 2 * LIMIT_SPRITE_SCALE}px`,
+                            backgroundPosition: `-${mark.spriteX * LIMIT_SPRITE_SCALE}px -${mark.spriteY * LIMIT_SPRITE_SCALE}px`
+                          }}
+                          title={mark.label}
+                        />
+                      )
+                    })()}
+                    {card.pools && card.pools.some((p) => cardPoolSpriteY(p) !== null) && (
+                      <span className="absolute inset-x-0 bottom-0 flex justify-center">
+                        {card.pools.map((pool) => {
+                          const spriteY = cardPoolSpriteY(pool)
+                          if (spriteY === null) return null
+                          return (
+                            <span
+                              key={pool}
+                              className="block drop-shadow"
+                              style={{
+                                width: `${POOL_SPRITE_WIDTH}px`,
+                                height: `${CARD_POOL_SPRITE_HEIGHT * POOL_SPRITE_SCALE}px`,
+                                backgroundImage: `url(${cardPoolSprite})`,
+                                backgroundSize: `${CARD_POOL_SPRITE_WIDTH * POOL_SPRITE_SCALE}px ${CARD_POOL_SPRITE_TOTAL_HEIGHT * POOL_SPRITE_SCALE}px`,
+                                backgroundPosition: `0 -${spriteY * POOL_SPRITE_SCALE}px`
+                              }}
+                              title={cardPoolLabel(pool)}
+                            />
+                          )
+                        })}
                       </span>
-                      {card.pools && card.pools.length > 0 && (
-                        <span className="shrink-0 text-[10px] leading-tight text-muted-foreground font-normal">
-                          {card.pools.map((pool) => `[${cardPoolLabel(pool)}]`).join('')}
-                        </span>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0 flex flex-col justify-center gap-1 select-none">
+                    <span className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors leading-tight">
+                      {card.name}
+                    </span>
+
+                    <div className="text-xs text-foreground/80 leading-tight truncate">
+                      {line2}
+                      {!isMonster && poolText && (
+                        <span className="ml-1.5 text-muted-foreground font-normal">{poolText}</span>
                       )}
                     </div>
 
-                    <div className="text-[11px] text-foreground/80 leading-tight truncate">
-                      {line2}
-                    </div>
-
                     {line3 && (
-                      <div className="text-[11px] font-mono text-foreground/75 leading-tight truncate">
+                      <div className="text-xs font-mono text-foreground/75 leading-tight truncate">
                         {line3}
+                        {isMonster && poolText && (
+                          <span className="ml-1.5 font-sans text-muted-foreground font-normal">
+                            {poolText}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -300,20 +366,6 @@ export const CardSearchPanel: React.FC = () => {
                         />
                         <TooltipContent>连接标记（箭头）</TooltipContent>
                       </Tooltip>
-                    )}
-                    {card.limit !== undefined && (
-                      <span
-                        className={cn(
-                          'text-[9px] leading-none px-1 py-px rounded border',
-                          card.limit === 1
-                            ? 'text-rose-500 border-rose-500/40'
-                            : card.limit === 2
-                              ? 'text-amber-500 border-amber-500/40'
-                              : 'text-emerald-500 border-emerald-500/40'
-                        )}
-                      >
-                        禁{card.limit}
-                      </span>
                     )}
                   </div>
 

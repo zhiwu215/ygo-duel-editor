@@ -14,31 +14,18 @@ import {
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import {
-  CdbCard,
-  CardUtils,
-  LIMIT_MARKS,
-  LINK_MARKERS,
-  cardPoolLabel,
-  cardPoolSpriteY,
-  CARD_POOL_SPRITE_WIDTH,
-  CARD_POOL_SPRITE_HEIGHT
-} from '@shared/index'
+import { CdbCard, CardUtils, LIMIT_MARKS, LINK_MARKERS, cardPoolLabel } from '@shared/index'
 import { getCardImageUrl, setCardDragImage, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 import limitSprite from '../../assets/textures/lim.png'
-import cardPoolSprite from '../../assets/textures/ot.png'
+import { CardPoolBadges } from './CardPoolBadges'
 
 const LIMIT_SPRITE_SIZE = 64
 const LIMIT_BADGE_SIZE = 24
 const LIMIT_SPRITE_SCALE = LIMIT_BADGE_SIZE / LIMIT_SPRITE_SIZE
-
-const POOL_SPRITE_WIDTH = 32
-const POOL_SPRITE_SCALE = POOL_SPRITE_WIDTH / CARD_POOL_SPRITE_WIDTH
-const CARD_POOL_SPRITE_TOTAL_HEIGHT = CARD_POOL_SPRITE_HEIGHT * 10
 
 export const CardSearchPanel: React.FC = () => {
   const {
@@ -304,28 +291,7 @@ export const CardSearchPanel: React.FC = () => {
                         />
                       )
                     })()}
-                    {card.pools && card.pools.some((p) => cardPoolSpriteY(p) !== null) && (
-                      <span className="absolute inset-x-0 bottom-0 flex justify-center">
-                        {card.pools.map((pool) => {
-                          const spriteY = cardPoolSpriteY(pool)
-                          if (spriteY === null) return null
-                          return (
-                            <span
-                              key={pool}
-                              className="block drop-shadow"
-                              style={{
-                                width: `${POOL_SPRITE_WIDTH}px`,
-                                height: `${CARD_POOL_SPRITE_HEIGHT * POOL_SPRITE_SCALE}px`,
-                                backgroundImage: `url(${cardPoolSprite})`,
-                                backgroundSize: `${CARD_POOL_SPRITE_WIDTH * POOL_SPRITE_SCALE}px ${CARD_POOL_SPRITE_TOTAL_HEIGHT * POOL_SPRITE_SCALE}px`,
-                                backgroundPosition: `0 -${spriteY * POOL_SPRITE_SCALE}px`
-                              }}
-                              title={cardPoolLabel(pool)}
-                            />
-                          )
-                        })}
-                      </span>
-                    )}
+                    <CardPoolBadges pools={card.pools} />
                   </div>
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center gap-1 select-none">

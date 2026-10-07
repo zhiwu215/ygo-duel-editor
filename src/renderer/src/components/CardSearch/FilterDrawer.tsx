@@ -10,9 +10,11 @@ import {
   RACE_NAMES,
   CardPoolFilter,
   CardSearchFilterOptions,
+  LimitFilter,
+  LINK_MARKERS,
   NumericCompareOp
 } from '@shared/index'
-import { useCardSearchStore } from '../../stores/useCardSearchStore'
+import { CardSearchFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
@@ -81,6 +83,27 @@ const OP_OPTIONS: Array<{ value: NumericCompareOp; label: string; prefix: string
   { value: 'unknown', label: '未知 (?)', prefix: '?' }
 ]
 
+/** 禁限三档，取自 YGOPro 的 cbLimit 前三项（4 档以上是 ot 位，已由「赛区卡池」覆盖） */
+const LIMIT_OPTIONS: Array<{ value: LimitFilter; label: string }> = [
+  { value: 0, label: '不限' },
+  { value: 1, label: '禁限一（禁止）' },
+  { value: 2, label: '禁限二（准限制）' },
+  { value: 3, label: '禁限三（限制）' }
+]
+
+/** 箭头按 YGOPro 的 3×3 环形排布，中间格留空给「清除」 */
+const MARKER_GRID: Array<{ mask: number; label: string } | null> = [
+  LINK_MARKERS[0],
+  LINK_MARKERS[1],
+  LINK_MARKERS[2],
+  LINK_MARKERS[3],
+  null,
+  LINK_MARKERS[4],
+  LINK_MARKERS[5],
+  LINK_MARKERS[6],
+  LINK_MARKERS[7]
+]
+
 interface FilterFieldProps {
   label: string
   children: React.ReactNode
@@ -104,6 +127,7 @@ interface CompareRowProps {
   onValueChange: (value: number | undefined) => void
   mono?: boolean
   allowUnknown?: boolean
+  disabled?: boolean
 }
 
 /**
@@ -118,7 +142,8 @@ const CompareRow: React.FC<CompareRowProps> = ({
   onOpChange,
   onValueChange,
   mono,
-  allowUnknown = false
+  allowUnknown = false,
+  disabled = false
 }) => {
   const options = allowUnknown
     ? OP_OPTIONS
@@ -126,9 +151,17 @@ const CompareRow: React.FC<CompareRowProps> = ({
   const current = options.find((option) => option.value === op) ?? OP_OPTIONS[0]
   return (
     <div className="space-y-1">
-      <div className="text-[10px] font-medium text-muted-foreground/90">{label}</div>
+      <div
+        className={cn('text-[10px] font-medium text-muted-foreground/90', disabled && 'opacity-50')}
+      >
+        {label}
+      </div>
       <div className="flex items-center gap-1">
-        <Select value={op} onValueChange={(val) => onOpChange((val || 'eq') as NumericCompareOp)}>
+        <Select
+          value={op}
+          disabled={disabled}
+          onValueChange={(val) => onOpChange((val || 'eq') as NumericCompareOp)}
+        >
           <SelectTrigger size="sm" className="w-14 h-7 text-xs shrink-0">
             <SelectValue>{current.prefix}</SelectValue>
           </SelectTrigger>
@@ -144,7 +177,7 @@ const CompareRow: React.FC<CompareRowProps> = ({
         <Input
           type="number"
           placeholder={op === 'unknown' ? '未知 (?)' : placeholder}
-          disabled={op === 'unknown'}
+          disabled={disabled || op === 'unknown'}
           value={op === 'unknown' ? '' : value !== undefined ? value : ''}
           onChange={(e) => {
             const val = e.target.value.trim()
@@ -155,6 +188,19 @@ const CompareRow: React.FC<CompareRowProps> = ({
       </div>
     </div>
   )
+}
+
+/** Link 怪兽没有守备力，切到 Link 条件时顺手清掉已填的 DEF 避免筛出空集 */
+function clearDefIfLink(
+  nextMarkers: number,
+  nextSubType: number,
+  nextType: number
+): Pick<CardSearchFilters, 'def' | 'defOp'> | Record<string, never> {
+  const isLink =
+    nextSubType === (CardType.MONSTER | CardType.LINK) ||
+    (nextType !== 0 && (nextType & CardType.LINK) !== 0) ||
+    nextMarkers !== 0
+  return isLink ? { def: undefined, defOp: 'eq' } : {}
 }
 
 export const FilterDrawer: React.FC = () => {
@@ -169,6 +215,8 @@ export const FilterDrawer: React.FC = () => {
     scaleOp,
     effectCategoryMask,
     cardPool,
+    markers,
+    limitFilter,
     atk,
     atkOp,
     def,
@@ -215,6 +263,18 @@ export const FilterDrawer: React.FC = () => {
   const cardPoolLabel =
     ({ any: '全部卡池', ocg: 'OCG', tcg: 'TCG', both: 'OCG + TCG' } as const)[cardPool] ??
     '全部卡池'
+  const limitLabel = LIMIT_OPTIONS.find((o) => o.value === limitFilter)?.label ?? '不限'
+  const markerCount = LINK_MARKERS.filter((m) => (markers & m.mask) !== 0).length
+
+  const isLinkMonster = React.useMemo(() => {
+    if (subType === (CardType.MONSTER | CardType.LINK)) return true
+    if (type !== 0 && (type & CardType.LINK) !== 0) return true
+    return markers !== 0
+  }, [subType, type, markers])
+  const toggleMarker = (mask: number): void => {
+    const next = (markers & mask) !== 0 ? (markers & ~mask) >>> 0 : (markers | mask) >>> 0
+    setFilters({ markers: next, ...clearDefIfLink(next, subType, type) })
+  }
 
   const toggleEffectCategory = (mask: number): void => {
     const nextMask =
@@ -259,7 +319,11 @@ export const FilterDrawer: React.FC = () => {
               value={type}
               onValueChange={(val) => {
                 const num = val ? Number(val) : 0
-                setFilters({ type: num, subType: 0 })
+                setFilters({
+                  type: num,
+                  subType: 0,
+                  ...clearDefIfLink(markers, 0, num)
+                })
               }}
             >
               <SelectTrigger size="sm" className="w-full h-7 text-xs">
@@ -278,7 +342,10 @@ export const FilterDrawer: React.FC = () => {
           <FilterField label="细分类型">
             <Select
               value={subType}
-              onValueChange={(val) => setFilters({ subType: val ? Number(val) : 0 })}
+              onValueChange={(val) => {
+                const num = val ? Number(val) : 0
+                setFilters({ subType: num, ...clearDefIfLink(markers, num, type) })
+              }}
             >
               <SelectTrigger size="sm" className="w-full h-7 text-xs">
                 <SelectValue>{subTypeLabel}</SelectValue>
@@ -312,9 +379,69 @@ export const FilterDrawer: React.FC = () => {
             </Select>
           </FilterField>
 
+          <FilterField label="禁限">
+            <Select
+              value={String(limitFilter)}
+              onValueChange={(val) =>
+                setFilters({ limitFilter: (Number(val) || 0) as LimitFilter })
+              }
+            >
+              <SelectTrigger size="sm" className="w-full h-7 text-xs">
+                <SelectValue>{limitLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {LIMIT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={String(o.value)}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label={`连接标记${markerCount > 0 ? `（已选 ${markerCount}）` : ''}`}>
+            <div className="grid grid-cols-3 gap-1">
+              {MARKER_GRID.map((marker, index) =>
+                marker === null ? (
+                  <button
+                    key={`empty-${index}`}
+                    type="button"
+                    disabled={markerCount === 0}
+                    onClick={() => setFilters({ markers: 0 })}
+                    className="h-7 rounded text-[10px] text-muted-foreground bg-muted/30 transition-colors hover:bg-muted/70 hover:text-foreground disabled:opacity-35 disabled:pointer-events-none"
+                  >
+                    清除
+                  </button>
+                ) : (
+                  <Tooltip key={marker.mask}>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-pressed={(markers & marker.mask) !== 0}
+                          onClick={() => toggleMarker(marker.mask)}
+                          className={cn(
+                            'h-7 rounded text-sm leading-none transition-colors',
+                            (markers & marker.mask) !== 0
+                              ? 'bg-primary/20 text-primary'
+                              : 'bg-muted/30 text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                          )}
+                        >
+                          {marker.label}
+                        </button>
+                      }
+                    />
+                    <TooltipContent>
+                      {`箭头 ${marker.label}（需同时具备全部选中方向）`}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              )}
+            </div>
+          </FilterField>
+
           <Separator className="opacity-40" />
 
-          {/* 属性 / 种族 */}
           <div className="grid grid-cols-2 gap-1.5">
             <FilterField label="属性">
               <Select
@@ -395,6 +522,7 @@ export const FilterDrawer: React.FC = () => {
             onOpChange={(op) => setFilters({ defOp: op })}
             onValueChange={(val) => setFilters({ def: val })}
             allowUnknown
+            disabled={isLinkMonster}
           />
 
           <FilterField label="卡密">

@@ -17,6 +17,30 @@ export interface CdbCard {
   desc: string // 效果说明文本
   strings?: string[] // str1 ~ str16 效果提示字符串
   setnames?: string[] // 系列字段名称列表 (如 ['朱罗纪'], ['禁忌的'])
+  pools?: string[] // 所属卡池标记 (对应 CARD_POOLS 中的 id)，可命中多个
+}
+
+/**
+ * 卡池类型：由用户在设置里为每个附加卡库路径显式指定，不依赖文件名
+ * id 为 none 表示不标记
+ */
+export interface CardPoolOption {
+  id: string
+  label: string
+}
+
+export const CARD_POOLS: CardPoolOption[] = [
+  { id: 'none', label: '不标记' },
+  { id: 'anime', label: '动漫·漫画' },
+  { id: 'ocgtcg', label: 'OCG·TCG' },
+  { id: 'rush', label: '先行·超速' },
+  { id: 'kcg', label: 'KC·游戏' },
+  { id: 'other', label: '其它' }
+]
+
+export function cardPoolLabel(id: string): string {
+  if (id === 'none') return ''
+  return CARD_POOLS.find((p) => p.id === id)?.label ?? id
 }
 
 /**

@@ -381,6 +381,9 @@ export interface AppConfig {
   /** 已停用的附加卡库路径，仍保留在 extraCdbPaths 中但不参与加载 */
   disabledCdbPaths?: string[]
 
+  /** 附加卡库的卡池类型，key 为卡库路径，value 为 CARD_POOLS 中的 id (空串=不标记) */
+  cdbPoolTags?: Record<string, string>
+
   theme: 'dark' | 'light'
 
   favorites?: number[]
@@ -488,6 +491,8 @@ export interface IpcApi {
     cdbPath: string,
     picsDir: string | null
   ) => Promise<{ success: boolean; picsDir: string | null; cancelled?: boolean; error?: string }>
+  /** 为附加卡库指定卡池类型，传空串表示不标记 */
+  setCdbPoolTag: (cdbPath: string, poolId: string) => Promise<{ success: boolean; poolId: string }>
   searchCards: (params: CardSearchParams) => Promise<CardSearchResult>
   getCardSearchFilterOptions: () => Promise<CardSearchFilterOptions>
   getCardsByIds: (ids: number[]) => Promise<Record<number, CdbCard>>

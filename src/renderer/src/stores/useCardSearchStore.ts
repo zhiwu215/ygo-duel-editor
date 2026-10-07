@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import { CdbCard, CardPoolFilter, CardSearchParams, NumericCompareOp } from '@shared/index'
+import {
+  CdbCard,
+  CardPoolFilter,
+  CardSearchParams,
+  LimitFilter,
+  NumericCompareOp
+} from '@shared/index'
 import { bumpCardImageVersion } from '../utils/cardImage'
 
 const PAGE_SIZE = 40
@@ -17,6 +23,8 @@ export interface CardSearchFilters {
   scaleOp: NumericCompareOp // 灵摆刻度比较符
   effectCategoryMask: number // 效果分类位掩码
   cardPool: CardPoolFilter // OCG / TCG 卡池
+  markers: number // 连接标记（箭头）位掩码，0=不限
+  limitFilter: LimitFilter // 禁限等级，0=不限
   atk: number | undefined // 攻击力
   atkOp: NumericCompareOp // 攻击力比较符
   def: number | undefined // 守备力
@@ -39,6 +47,8 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
   scaleOp: 'eq',
   effectCategoryMask: 0,
   cardPool: 'any',
+  markers: 0,
+  limitFilter: 0,
   atk: undefined,
   atkOp: 'eq',
   def: undefined,
@@ -123,6 +133,9 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
           ? customParams.effectCategoryMask
           : state.effectCategoryMask,
       cardPool: customParams.cardPool !== undefined ? customParams.cardPool : state.cardPool,
+      markers: customParams.markers !== undefined ? customParams.markers : state.markers,
+      limitFilter:
+        customParams.limitFilter !== undefined ? customParams.limitFilter : state.limitFilter,
       atk: customParams.atk !== undefined ? customParams.atk : state.atk,
       atkOp: customParams.atkOp !== undefined ? customParams.atkOp : state.atkOp,
       def: customParams.def !== undefined ? customParams.def : state.def,
@@ -174,6 +187,8 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
         scaleOp: state.scaleOp,
         effectCategoryMask: state.effectCategoryMask,
         cardPool: state.cardPool,
+        markers: state.markers,
+        limitFilter: state.limitFilter,
         atk: state.atk,
         atkOp: state.atkOp,
         def: state.def,

@@ -126,7 +126,7 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="bg-transparent border-0 shadow-none p-0 max-w-none w-screen h-screen top-0 left-0 -translate-x-0 -translate-y-0 rounded-none overflow-hidden select-none"
+        className="bg-transparent border-0 shadow-none p-0 max-w-none sm:max-w-none w-screen h-screen top-0 left-0 -translate-x-0 -translate-y-0 rounded-none overflow-hidden select-none flex items-center justify-center"
         onWheel={(e) => e.preventDefault()}
         onClick={(e) => {
           if (lastPanMovedRef.current) return
@@ -141,7 +141,7 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
             <div className="text-white/90 text-xs font-medium bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15">
               {cardName}
             </div>
-            <div className="text-white/60 text-[11px] leading-tight text-right">
+            <div className="text-[11px] leading-tight text-right text-white/90 [text-shadow:0_1px_3px_rgba(0,0,0,0.95),0_0_8px_rgba(0,0,0,0.7)]">
               <div>滚轮缩放 {Math.round(imageZoom * 100)}%</div>
               {canPan && <div>按住拖动查看其它区域</div>}
               <div>按 Esc 或点击空白处关闭</div>
@@ -183,9 +183,13 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
         <div
           ref={stageRef}
           className={`relative max-h-[85vh] max-w-[90vw] flex items-center justify-center touch-none ${
-            canPan ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
+            canPan ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
           }`}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            if (e.target !== e.currentTarget) return
+            if (lastPanMovedRef.current) return
+            onClose()
+          }}
           onWheel={handleWheel}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -197,7 +201,9 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
             src={getCardImageUrl(cardCode)}
             alt={cardName}
             draggable={false}
-            className="max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl border border-white/10 transition-transform duration-100 ease-out"
+            className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl border border-white/10 transition-transform duration-100 ease-out ${
+              canPan ? '' : 'cursor-zoom-in'
+            }`}
             style={{
               transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageZoom})`,
               transformOrigin: 'center center'

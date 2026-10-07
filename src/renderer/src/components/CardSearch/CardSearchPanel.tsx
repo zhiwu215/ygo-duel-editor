@@ -158,9 +158,15 @@ export const CardSearchPanel: React.FC = () => {
             type="submit"
             size="sm"
             className="h-8 px-2.5 text-xs font-semibold shrink-0"
-            disabled={isLoading}
+            aria-busy={isLoading}
           >
-            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '搜索'}
+            <span>搜索</span>
+            <Loader2
+              className={cn(
+                'w-3.5 h-3.5 transition-opacity',
+                isLoading ? 'animate-spin opacity-100' : 'opacity-0'
+              )}
+            />
           </Button>
 
           <Tooltip>

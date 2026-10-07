@@ -25,6 +25,7 @@ const LEGACY_PRESET_DECK_IDS = new Set([
 
 export class DeckService {
   private deckWindow: BrowserWindow | null = null
+  private pendingEditDeck: DeckData | null = null
   private libraryFilePath: string
 
   constructor() {
@@ -220,17 +221,25 @@ export class DeckService {
   }
 
   /**
-   * 打开或聚焦卡组编辑器独立窗口
+   * 打开或聚焦卡组编辑器独立窗口。
+   *
+   * 传入 deckId 时直接进入该卡组的编辑台：窗口已存在就即时推送，
+   * 尚未创建则先暂存，等渲染层挂载后自行取走（见 consumePendingDeckToEdit）。
    */
-  public openDeckEditorWindow(): void {
+  public openDeckEditorWindow(deckId?: string): void {
+    const deck = deckId ? (this.getLibrary().decks.find((d) => d.id === deckId) ?? null) : null
+
     if (this.deckWindow && !this.deckWindow.isDestroyed()) {
       if (this.deckWindow.isMinimized()) {
         this.deckWindow.restore()
       }
       this.deckWindow.show()
       this.deckWindow.focus()
+      if (deck) this.deckWindow.webContents.send('deck:open-in-editor', deck)
       return
     }
+
+    this.pendingEditDeck = deck
 
     this.deckWindow = new BrowserWindow({
       width: 1280,
@@ -256,6 +265,7 @@ export class DeckService {
 
     this.deckWindow.on('closed', () => {
       this.deckWindow = null
+      this.pendingEditDeck = null
     })
 
     this.deckWindow.webContents.setWindowOpenHandler((details) => {
@@ -270,6 +280,15 @@ export class DeckService {
         hash: 'deck-editor'
       })
     }
+  }
+
+  /**
+   * 取走并清空「卡组编辑器待打开卡组」，供新建的编辑器窗口在挂载后消费一次
+   */
+  public consumePendingDeckToEdit(): DeckData | null {
+    const deck = this.pendingEditDeck
+    this.pendingEditDeck = null
+    return deck
   }
 
   /**

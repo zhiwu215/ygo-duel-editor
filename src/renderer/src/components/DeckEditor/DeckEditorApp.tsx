@@ -13,7 +13,14 @@ import {
   type DragEndEvent,
   type DragStartEvent
 } from '@dnd-kit/core'
-import { CardUtils, CdbCard, DeckSection, groupChildPath, groupLeafName } from '@shared/index'
+import {
+  CardUtils,
+  CdbCard,
+  DeckData,
+  DeckSection,
+  groupChildPath,
+  groupLeafName
+} from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import {
@@ -154,6 +161,18 @@ export const DeckEditorApp: React.FC = () => {
     },
     []
   )
+
+  useEffect(() => {
+    const openDeckInEditor = (targetDeck: DeckData): void => {
+      void useDeckEditorStore.getState().openDeck(targetDeck)
+    }
+
+    void window.api.consumePendingDeckToEdit().then((deck) => {
+      if (deck) openDeckInEditor(deck)
+    })
+
+    return window.api.onOpenDeckInEditor(openDeckInEditor)
+  }, [])
 
   const showRejectToast = useCallback((section: DeckSection): void => {
     if (rejectTimerRef.current) clearTimeout(rejectTimerRef.current)

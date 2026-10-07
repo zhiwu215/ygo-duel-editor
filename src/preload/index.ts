@@ -88,7 +88,15 @@ const api: IpcApi = {
   getCardImagePath: (code: number, small?: boolean) =>
     ipcRenderer.invoke('image:get-path', code, small),
 
-  openDeckEditor: () => ipcRenderer.invoke('window:open-deck-editor'),
+  openDeckEditor: (deckId?: string) => ipcRenderer.invoke('window:open-deck-editor', deckId),
+  consumePendingDeckToEdit: () => ipcRenderer.invoke('deck:consume-pending-edit'),
+  onOpenDeckInEditor: (callback) => {
+    const handler = (_: unknown, deck: DeckData): void => callback(deck)
+    ipcRenderer.on('deck:open-in-editor', handler)
+    return () => {
+      ipcRenderer.removeListener('deck:open-in-editor', handler)
+    }
+  },
   getDeckList: () => ipcRenderer.invoke('deck:get-list'),
 
   getDeckLibrary: () => ipcRenderer.invoke('deck:get-library'),

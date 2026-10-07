@@ -6,7 +6,7 @@ import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
-import { ArrowLeftRight, X, Search, Layers } from 'lucide-react'
+import { ArrowLeftRight, X, Search, Layers, SquarePen } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '../../lib/utils'
@@ -51,6 +51,8 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
   const drawCount: 0 | 5 = useConfigStore((s) => (s.config.deckLoadDrawCount === 5 ? 5 : 0))
   const setDeckLoadDrawCount = useConfigStore((s) => s.setDeckLoadDrawCount)
 
+  const [deckMenu, setDeckMenu] = useState<{ x: number; y: number; deck: DeckData } | null>(null)
+
   useEffect(() => {
     let cancelled = false
     window.api
@@ -77,6 +79,25 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [closeDeckSwitcher])
 
+  useEffect(() => {
+    if (!deckMenu) return
+    const close = (): void => setDeckMenu(null)
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      close()
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('resize', close)
+    window.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('keydown', handleKeyDown, { capture: true })
+    }
+  }, [deckMenu])
+
   const filteredDecks = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return decks
@@ -90,7 +111,22 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
     closeDeckSwitcher()
   }
 
+  const handleDeckContextMenu = (e: React.MouseEvent, deck: DeckData): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDeckMenu({ x: e.clientX, y: e.clientY, deck })
+  }
+
+  const openDeckInEditor = (deck: DeckData): void => {
+    setDeckMenu(null)
+    closeDeckSwitcher()
+    void window.api.openDeckEditor(deck.id)
+  }
+
   const ctrlLabel = targetDuelist ? targetDuelist.name : controller === 0 ? '我方' : '对方'
+  const menuDeck = deckMenu?.deck ?? null
+  const menuX = deckMenu ? Math.min(deckMenu.x, window.innerWidth - 200) : 0
+  const menuY = deckMenu ? Math.min(deckMenu.y, window.innerHeight - 100) : 0
 
   return (
     <div
@@ -191,6 +227,7 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
                       key={deck.id || deck.name}
                       type="button"
                       onClick={() => handleApply(deck)}
+                      onContextMenu={(e) => handleDeckContextMenu(e, deck)}
                       className="flex items-center gap-2.5 p-2 rounded-lg border border-border/70 hover:border-blue-500/70 hover:bg-blue-500/[0.06] text-left transition-colors cursor-pointer"
                     >
                       <img
@@ -233,6 +270,30 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
           </Button>
         </div>
       </div>
+
+      {/* 卡组卡片右键菜单：菜单必须挂在带 scale 动画的弹窗面板之外，否则 fixed 定位会被 transform 带偏 */}
+      {menuDeck?.id && (
+        <div
+          style={{ left: menuX, top: menuY }}
+          className="fixed z-[70] min-w-44 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44">
+            {menuDeck.name}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openDeckInEditor(menuDeck)}
+            className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
+          >
+            <SquarePen className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>进入卡组编辑</span>
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

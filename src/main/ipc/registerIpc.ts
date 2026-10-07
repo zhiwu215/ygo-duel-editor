@@ -307,8 +307,12 @@ export function registerAllIpcHandlers(): void {
     return imageService.findCardImagePath(code, !!small)
   })
 
-  ipcMain.handle('window:open-deck-editor', async () => {
-    deckService.openDeckEditorWindow()
+  ipcMain.handle('window:open-deck-editor', async (_, deckId?: string) => {
+    deckService.openDeckEditorWindow(deckId)
+  })
+
+  ipcMain.handle('deck:consume-pending-edit', async () => {
+    return deckService.consumePendingDeckToEdit()
   })
 
   ipcMain.handle('window:open-settings', async (_, section) => {

@@ -605,7 +605,9 @@ export interface IpcApi {
 
   getCardImagePath: (code: number, small?: boolean) => Promise<string | null>
 
-  openDeckEditor: () => Promise<void>
+  openDeckEditor: (deckId?: string) => Promise<void>
+  consumePendingDeckToEdit: () => Promise<DeckData | null>
+  onOpenDeckInEditor: (callback: (deck: DeckData) => void) => () => void
   getDeckList: () => Promise<DeckData[]>
 
   getDeckLibrary: () => Promise<DeckLibrary>

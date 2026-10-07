@@ -85,6 +85,10 @@ export interface DeckStats {
   synchroCount: number
   xyzCount: number
   linkCount: number
+  // 副卡组细分
+  sideMonsterCount: number
+  sideSpellCount: number
+  sideTrapCount: number
 }
 
 /**
@@ -252,6 +256,19 @@ export function calculateDeckStats(
     }
   }
 
+  let sideMonsterCount = 0
+  let sideSpellCount = 0
+  let sideTrapCount = 0
+
+  for (const code of deck.side) {
+    const card = getCard(code)
+    if (card) {
+      if (CardUtils.isMonster(card.type)) sideMonsterCount++
+      else if (CardUtils.isSpell(card.type)) sideSpellCount++
+      else if (CardUtils.isTrap(card.type)) sideTrapCount++
+    }
+  }
+
   return {
     mainCount: deck.main.length,
     extraCount: deck.extra.length,
@@ -262,6 +279,9 @@ export function calculateDeckStats(
     fusionCount,
     synchroCount,
     xyzCount,
-    linkCount
+    linkCount,
+    sideMonsterCount,
+    sideSpellCount,
+    sideTrapCount
   }
 }

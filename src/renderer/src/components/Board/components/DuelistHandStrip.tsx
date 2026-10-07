@@ -138,11 +138,17 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         hoverExpandTimerRef.current = null
       }
     }
+    const handleGlobalDropOutside = (e: DragEvent): void => {
+      if (e.target instanceof Node && stripRef.current?.contains(e.target)) return
+      handleGlobalDragEnd()
+    }
     window.addEventListener('dragend', handleGlobalDragEnd)
     window.addEventListener('drop', handleGlobalDragEnd)
+    window.addEventListener('drop', handleGlobalDropOutside, true)
     return () => {
       window.removeEventListener('dragend', handleGlobalDragEnd)
       window.removeEventListener('drop', handleGlobalDragEnd)
+      window.removeEventListener('drop', handleGlobalDropOutside, true)
       if (hideDraggedCardFrameRef.current !== null) {
         window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
       }

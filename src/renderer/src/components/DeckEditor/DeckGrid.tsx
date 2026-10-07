@@ -1,12 +1,12 @@
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import { canPlaceInSection, CdbCard, DeckData, DeckSection } from '@shared/index'
 import { DeckCardItem } from './DeckCardItem'
 import { DeckDragSourceData, DeckDropTargetData } from './deckDnd'
 import { cn } from '../../lib/utils'
-import { Ban, Plus, Check, ImageIcon, Eye, Trash2 } from 'lucide-react'
+import { Ban, Plus, Check, ImageIcon, Trash2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
 
@@ -90,9 +90,17 @@ const DeckZoneFeedback: React.FC<{
   )
 }
 
-const ZONE_CLASS = 'flex flex-col gap-1.5 p-2 rounded-lg bg-card/60 border border-border/60'
+const ZONE_CLASS = 'flex flex-col gap-1 px-1.5 py-1.5 rounded-lg bg-card/60 border border-border/60'
 const ZONE_HEADER_CLASS =
-  'flex items-center justify-between text-xs font-bold text-muted-foreground px-0.5'
+  'flex items-center justify-between text-[11px] font-bold text-muted-foreground px-0.5'
+
+const COLS = 10
+const ROW_GAP = 6
+const ZONE_CHROME = 32
+const ZONE_STACK_GAP = 8
+const H_SCROLLBAR_RESERVE = 10
+const MAX_CARD_WIDTH = 72
+const MIN_CARD_WIDTH = 22
 
 export const DeckGrid: React.FC<DeckGridProps> = ({
   deck,
@@ -106,6 +114,41 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
   onClearCover
 }) => {
   const [menu, setMenu] = useState<{ code: number; x: number; y: number } | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [cardWidth, setCardWidth] = useState<number>(MAX_CARD_WIDTH)
+  const cardWidthRef = useRef<number>(MAX_CARD_WIDTH)
+
+  const mainRows = Math.max(1, Math.ceil(deck.main.length / COLS))
+  const extraRows = Math.max(1, Math.ceil(deck.extra.length / COLS))
+  const sideRows = Math.max(1, Math.ceil(deck.side.length / COLS))
+
+  useLayoutEffect(() => {
+    const measure = (): void => {
+      const el = scrollRef.current
+      if (!el) return
+      const availH = el.clientHeight - H_SCROLLBAR_RESERVE
+      const availW = el.clientWidth
+      if (availH <= 0 || availW <= 0) return
+      const totalRows = mainRows + extraRows + sideRows
+      const chrome = ZONE_CHROME * 3 + ZONE_STACK_GAP * 2
+      const gaps = ROW_GAP * (totalRows - 3)
+      const byHeight = ((availH - chrome - gaps) / totalRows) * (59 / 86)
+      const byWidth = (availW - 24) / COLS
+      const next =
+        Math.round(Math.max(MIN_CARD_WIDTH, Math.min(MAX_CARD_WIDTH, byHeight, byWidth)) * 2) / 2
+      if (Math.abs(next - cardWidthRef.current) < 0.5) return
+      cardWidthRef.current = next
+      setCardWidth(next)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (scrollRef.current) ro.observe(scrollRef.current)
+    window.addEventListener('resize', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [mainRows, extraRows, sideRows])
 
   useEffect(() => {
     if (!menu) return
@@ -129,115 +172,119 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
     side: getSortableCards('side', deck.side)
   }
 
+  const gridStyle = {
+    gridTemplateColumns: `repeat(${COLS}, ${cardWidth}px)`,
+    gap: `${ROW_GAP}px`
+  }
+  const cardHeight = Math.round((cardWidth * 86) / 59)
+  const emptyBox = (text: string): React.ReactNode => (
+    <div
+      className="flex items-center justify-center border border-dashed border-border/60 rounded text-xs text-muted-foreground italic"
+      style={{ height: `${cardHeight}px` }}
+    >
+      {text}
+    </div>
+  )
+
   return (
     <div className="relative flex-1 flex flex-col min-h-0">
-      <ScrollArea className="flex-1 min-h-0" horizontal>
-        <div
-          className={cn(
-            'pr-1 flex flex-col gap-3 select-none min-w-[620px]',
-            isDragActive && 'pointer-events-none'
-          )}
-        >
-          {/* 1. 主卡组网格 (10 列) */}
-          <DeckZone section="main" className={ZONE_CLASS}>
-            <div className={ZONE_HEADER_CLASS}>
-              <span>主卡组 (10 列网格)</span>
-              <span className="text-[11px] font-normal">拖动调整，右键移出卡组</span>
-            </div>
-
-            {deck.main.length > 0 ? (
-              <SortableContext items={sortableCards.main} strategy={rectSortingStrategy}>
-                <div className="grid grid-cols-10 gap-1.5 w-full">
-                  {sortableCards.main.map(({ id, code }, index) => (
-                    <DeckCardItem
-                      key={id}
-                      sortableId={id}
-                      code={code}
-                      card={cardDetails[code]}
-                      section="main"
-                      index={index}
-                      isCover={coverCard === code}
-                      onSelect={onSelectCard}
-                      onHover={onHoverCard}
-                      onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            ) : (
-              <div className="h-28 flex items-center justify-center border border-dashed border-border/60 rounded text-xs text-muted-foreground italic">
-                {isDragActive ? '' : '主卡组为空，可从右侧拖入或点击卡片加入'}
+      <div ref={scrollRef} className="relative flex-1 min-h-0">
+        <ScrollArea className="size-full" horizontal>
+          <div
+            className={cn('flex flex-col gap-2 select-none', isDragActive && 'pointer-events-none')}
+          >
+            <DeckZone section="main" className={ZONE_CLASS}>
+              <div className={ZONE_HEADER_CLASS}>
+                <span>主卡组 (10 列网格)</span>
+                <span className="font-normal">拖动调整，右键移出卡组</span>
               </div>
-            )}
-          </DeckZone>
 
-          {/* 2. 额外卡组网格 (10 列) */}
-          <DeckZone section="extra" className={ZONE_CLASS}>
-            <div className={ZONE_HEADER_CLASS}>
-              <span>额外卡组</span>
-              <span className="text-[11px] font-normal">融合 / 同调 / 超量 / 连接</span>
-            </div>
+              {deck.main.length > 0 ? (
+                <SortableContext items={sortableCards.main} strategy={rectSortingStrategy}>
+                  <div className="grid" style={gridStyle}>
+                    {sortableCards.main.map(({ id, code }, index) => (
+                      <DeckCardItem
+                        key={id}
+                        sortableId={id}
+                        code={code}
+                        card={cardDetails[code]}
+                        section="main"
+                        index={index}
+                        isCover={coverCard === code}
+                        onSelect={onSelectCard}
+                        onHover={onHoverCard}
+                        onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              ) : (
+                emptyBox(isDragActive ? '' : '主卡组为空，可从右侧拖入或点击卡片加入')
+              )}
+            </DeckZone>
 
-            {deck.extra.length > 0 ? (
-              <SortableContext items={sortableCards.extra} strategy={rectSortingStrategy}>
-                <div className="grid grid-cols-10 gap-1.5 w-full">
-                  {sortableCards.extra.map(({ id, code }, index) => (
-                    <DeckCardItem
-                      key={id}
-                      sortableId={id}
-                      code={code}
-                      card={cardDetails[code]}
-                      section="extra"
-                      index={index}
-                      isCover={coverCard === code}
-                      onSelect={onSelectCard}
-                      onHover={onHoverCard}
-                      onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            ) : (
-              <div className="h-16 flex items-center justify-center border border-dashed border-border/60 rounded text-xs text-muted-foreground italic">
-                {isDragActive ? '' : '额外卡组为空'}
+            <DeckZone section="extra" className={ZONE_CLASS}>
+              <div className={ZONE_HEADER_CLASS}>
+                <span>额外卡组</span>
+                <span className="font-normal">融合 / 同调 / 超量 / 连接</span>
               </div>
-            )}
-          </DeckZone>
 
-          {/* 3. 副卡组网格 (10 列) */}
-          <DeckZone section="side" className={ZONE_CLASS}>
-            <div className={ZONE_HEADER_CLASS}>
-              <span>副卡组</span>
-              <span className="text-[11px] font-normal">备用卡</span>
-            </div>
+              {deck.extra.length > 0 ? (
+                <SortableContext items={sortableCards.extra} strategy={rectSortingStrategy}>
+                  <div className="grid" style={gridStyle}>
+                    {sortableCards.extra.map(({ id, code }, index) => (
+                      <DeckCardItem
+                        key={id}
+                        sortableId={id}
+                        code={code}
+                        card={cardDetails[code]}
+                        section="extra"
+                        index={index}
+                        isCover={coverCard === code}
+                        onSelect={onSelectCard}
+                        onHover={onHoverCard}
+                        onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              ) : (
+                emptyBox(isDragActive ? '' : '额外卡组为空')
+              )}
+            </DeckZone>
 
-            {deck.side.length > 0 ? (
-              <SortableContext items={sortableCards.side} strategy={rectSortingStrategy}>
-                <div className="grid grid-cols-10 gap-1.5 w-full">
-                  {sortableCards.side.map(({ id, code }, index) => (
-                    <DeckCardItem
-                      key={id}
-                      sortableId={id}
-                      code={code}
-                      card={cardDetails[code]}
-                      section="side"
-                      index={index}
-                      isCover={coverCard === code}
-                      onSelect={onSelectCard}
-                      onHover={onHoverCard}
-                      onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            ) : (
-              <div className="h-16 flex items-center justify-center border border-dashed border-border/60 rounded text-xs text-muted-foreground italic">
-                {isDragActive ? '' : '副卡组为空'}
+            <DeckZone section="side" className={ZONE_CLASS}>
+              <div className={ZONE_HEADER_CLASS}>
+                <span>副卡组</span>
+                <span className="font-normal">备用卡</span>
               </div>
-            )}
-          </DeckZone>
-        </div>
-      </ScrollArea>
+
+              {deck.side.length > 0 ? (
+                <SortableContext items={sortableCards.side} strategy={rectSortingStrategy}>
+                  <div className="grid" style={gridStyle}>
+                    {sortableCards.side.map(({ id, code }, index) => (
+                      <DeckCardItem
+                        key={id}
+                        sortableId={id}
+                        code={code}
+                        card={cardDetails[code]}
+                        section="side"
+                        index={index}
+                        isCover={coverCard === code}
+                        onSelect={onSelectCard}
+                        onHover={onHoverCard}
+                        onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              ) : (
+                emptyBox(isDragActive ? '' : '副卡组为空')
+              )}
+            </DeckZone>
+          </div>
+        </ScrollArea>
+      </div>
       <DeckZoneFeedback cardDetails={cardDetails} isDragActive={isDragActive} />
 
       {menu &&
@@ -283,19 +330,6 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
                   <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" />
                 )}
                 <span>{coverCard === menu.code ? '取消卡组封面' : '设为卡组封面'}</span>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (card) onSelectCard(card)
-                  setMenu(null)
-                }}
-                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
-              >
-                <Eye className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>查看详情</span>
               </Button>
 
               <Separator className="my-1" />

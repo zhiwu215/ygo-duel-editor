@@ -296,6 +296,7 @@ Board/
 - 无 `tailwind.config.ts`；全局变量定义在 `src/renderer/src/assets/globals.css`（`@theme` 指令）。
 - 类名**内联写在 JSX**，多条件合并用 `cn()`（`renderer/src/lib/utils.ts`）。
 - `components/ui/` 下的 shadcn/ui 组件由 CLI 生成，**不要修改内部实现**，定制一律从外部 `className` 覆盖。
+- **覆盖带响应式变体的默认类时，必须逐个变体补齐，或改用 `!` 重要修饰符。** 例如 `DialogContent` 默认类含 `sm:max-w-sm`，传 `max-w-none`（不带 `sm:`）**覆盖不掉**——tailwind-merge 视二者为不同组，两者都保留，且 Tailwind 中媒体查询规则优先级高于基础类，于是窗口 ≥640px 时 `max-width: 24rem` 生效，把全屏容器压成384px（曾导致 `CardImageViewer` 大图贴到屏幕左侧）。正确写法二选一：`max-w-none sm:max-w-none`，或 `!max-w-none`。改这类样式前可用 `node -e "const{twMerge}=require('tailwind-merge');console.log(twMerge('sm:max-w-sm','max-w-none sm:max-w-none'))"` 确认默认类是否被清掉。
 
 ### 8.5 状态管理（Zustand）
 

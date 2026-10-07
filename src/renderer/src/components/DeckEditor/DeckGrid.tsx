@@ -6,7 +6,7 @@ import { canPlaceInSection, CdbCard, DeckData, DeckSection, DeckStats } from '@s
 import { DeckCardItem } from './DeckCardItem'
 import { DeckDragSourceData, DeckDropTargetData } from './deckDnd'
 import { cn } from '../../lib/utils'
-import { Ban, Plus, Check, ImageIcon, Trash2, Layers, Sparkles, Copy } from 'lucide-react'
+import { Ban, Plus, Check, ImageIcon, Trash2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
 import cardTypeMonster from '../../assets/icons/cardtype/cardtype_1.png'
@@ -74,15 +74,13 @@ const TypeTallyBadge: React.FC<{ tally: TypeTally }> = ({ tally }) => (
 )
 
 const ZoneHeader: React.FC<{
-  icon: React.ReactNode
   title: string
   total: number
   tallies: TypeTally[]
   unit?: string
-}> = ({ icon, title, total, tallies, unit }) => (
-  <div className="flex items-center justify-between gap-3 h-7 pl-2 pr-2.5 rounded-md bg-black/25 dark:bg-white/8 border border-border/40">
+}> = ({ title, total, tallies, unit }) => (
+  <div className="flex items-center justify-between gap-3 h-7 pl-2 pr-2.5 rounded-md bg-neutral-500/15 dark:bg-neutral-500/20 border border-border/40">
     <div className="flex items-center gap-1.5 min-w-0 shrink-0">
-      <span className="text-muted-foreground shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">{icon}</span>
       <span className="text-xs font-bold text-foreground truncate">{title}</span>
       <span className="text-xs text-muted-foreground font-normal">
         {total} 张{unit}
@@ -313,36 +311,21 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
             {renderZone(
               'main',
               sortableCards.main,
-              <ZoneHeader
-                icon={<Layers />}
-                title="主卡组"
-                total={stats.mainCount}
-                tallies={mstTallies}
-              />,
+              <ZoneHeader title="主卡组" total={stats.mainCount} tallies={mstTallies} />,
               '主卡组为空，可从右侧拖入或点击卡片加入'
             )}
 
             {renderZone(
               'extra',
               sortableCards.extra,
-              <ZoneHeader
-                icon={<Sparkles />}
-                title="额外卡组"
-                total={stats.extraCount}
-                tallies={exTallies}
-              />,
+              <ZoneHeader title="额外卡组" total={stats.extraCount} tallies={exTallies} />,
               '额外卡组为空'
             )}
 
             {renderZone(
               'side',
               sortableCards.side,
-              <ZoneHeader
-                icon={<Copy />}
-                title="副卡组"
-                total={stats.sideCount}
-                tallies={mstTallies}
-              />,
+              <ZoneHeader title="副卡组" total={stats.sideCount} tallies={mstTallies} />,
               '副卡组为空'
             )}
           </div>

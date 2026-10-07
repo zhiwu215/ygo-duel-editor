@@ -311,7 +311,7 @@ export const FilterDrawer: React.FC = () => {
       </div>
 
       {/* 筛选表单：两列网格紧凑排布 */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-2.5 space-y-2.5 text-xs">
           {/* 类型 */}
           <FilterField label="卡片大类">
@@ -588,7 +588,7 @@ export const FilterDrawer: React.FC = () => {
               效果分类{effectCategoryMask !== 0 ? '（已启用）' : ''}
             </summary>
             {filterOptions.effectCategories.length > 0 ? (
-              <ScrollArea className="mt-2 max-h-40">
+              <div className="mt-2 max-h-40 overflow-y-auto pr-1.5">
                 <div className="grid grid-cols-2 gap-1">
                   {filterOptions.effectCategories.map((category) => {
                     const selected = (effectCategoryMask & category.mask) !== 0
@@ -616,7 +616,7 @@ export const FilterDrawer: React.FC = () => {
                     )
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             ) : (
               <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
                 当前卡库未提供分类名称。将游戏目录中的 strings.conf 放在 cards.cdb 同目录或

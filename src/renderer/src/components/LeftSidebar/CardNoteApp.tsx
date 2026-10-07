@@ -28,7 +28,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { CardNoteEntry, CardNoteKind, CardNote } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover'
@@ -50,6 +50,14 @@ function parseSortId(id: string): { kind: CardNoteKind; label: string } | null {
 function buildSortId(kind: CardNoteKind, label: string): string {
   return `${kind}::${label}`
 }
+
+type EntryFilterId = 'all' | 'custom' | 'library'
+
+const ENTRY_FILTERS: Array<{ id: EntryFilterId; label: string }> = [
+  { id: 'all', label: '全部' },
+  { id: 'custom', label: '自建卡' },
+  { id: 'library', label: '卡库卡' }
+]
 
 interface DisplayEntry extends CardNoteEntry {
   isCustom?: boolean
@@ -76,6 +84,7 @@ export const CardNoteApp: React.FC = () => {
   } | null>(null)
   const [showAdder, setShowAdder] = useState(false)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [originFilter, setOriginFilter] = useState<EntryFilterId>('all')
   const [previewCard, setPreviewCard] = useState<number | null>(null)
 
   const customCardById = useMemo(() => new Map(customCards.map((c) => [c.id, c])), [customCards])
@@ -185,12 +194,14 @@ export const CardNoteApp: React.FC = () => {
     if (added.length === 0) return
     const latest = added[added.length - 1]
     setExpanded((prevExpand) => ({ ...prevExpand, [latest]: true }))
-    flash('已新增自建卡，可在下方添加召唤词或描述')
+    flash('已新增自建卡，可在下方添加召唤词或备注')
   }, [customCards, flash])
 
   const filtered = useMemo(
     () =>
       displayEntries.filter((e) => {
+        if (originFilter === 'custom' && !e.isCustom) return false
+        if (originFilter === 'library' && e.isCustom) return false
         if (!search.trim()) return true
         const kw = search.trim().toLowerCase()
         return (
@@ -201,7 +212,7 @@ export const CardNoteApp: React.FC = () => {
           )
         )
       }),
-    [displayEntries, search]
+    [displayEntries, search, originFilter]
   )
 
   const handleSave = useCallback(
@@ -225,7 +236,7 @@ export const CardNoteApp: React.FC = () => {
 
   const handleDelete = useCallback(
     async (cardCode: number, kind: CardNoteKind, label: string): Promise<void> => {
-      const kindLabel = kind === 'chant' ? '召唤词' : '描述'
+      const kindLabel = kind === 'chant' ? '召唤词' : '备注'
       const ok = await confirmDialog({
         title: `删除${kindLabel}「${label}」`,
         confirmText: '删除'
@@ -247,7 +258,7 @@ export const CardNoteApp: React.FC = () => {
       const ok = await confirmDialog({
         title: '删除自建卡',
         description: hasNotes
-          ? `确定删除自建卡「${card.name}」吗？\n其图鉴里的召唤词与描述将一并删除。`
+          ? `确定删除自建卡「${card.name}」吗？\n其图鉴里的召唤词与备注将一并删除。`
           : `确定删除自建卡「${card.name}」吗？`,
         confirmText: '删除',
         destructive: true
@@ -379,8 +390,8 @@ export const CardNoteApp: React.FC = () => {
         </div>
       </header>
 
-      <div className="px-4 py-2.5 border-b border-border/60 shrink-0">
-        <div className="relative max-w-md">
+      <div className="px-4 py-2.5 border-b border-border/60 shrink-0 flex items-center gap-3">
+        <div className="relative flex-1 max-w-md">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <Input
             value={search}
@@ -388,6 +399,22 @@ export const CardNoteApp: React.FC = () => {
             placeholder="搜索卡名 / 卡密 / 图鉴内容"
             className="h-8 pl-8 text-xs bg-muted/40"
           />
+        </div>
+        <div className="flex items-center gap-1 p-0.5 rounded-md border border-border bg-muted/50 shrink-0 ml-auto">
+          {ENTRY_FILTERS.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setOriginFilter(opt.id)}
+              className={`py-1 px-2.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                originFilter === opt.id
+                  ? 'bg-background text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span>{opt.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -407,18 +434,27 @@ export const CardNoteApp: React.FC = () => {
                 <BookMarked className="w-5 h-5 text-muted-foreground/60" />
               </div>
               <p className="text-sm font-semibold text-foreground/85">
-                {search ? '没有匹配的召唤词' : '还没有录入任何召唤词'}
+                {search
+                  ? '没有匹配的召唤词'
+                  : originFilter === 'custom'
+                    ? '还没有自建卡'
+                    : '还没有录入任何召唤词'}
               </p>
               <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
                 {search
                   ? '换个关键词试试'
-                  : '卡库里没有召唤词和卡片描述。点右上角「新增卡片」开始。'}
+                  : originFilter === 'custom'
+                    ? '点右上角「新增卡片」→「新建自建卡」。'
+                    : '卡库里没有召唤词和卡片备注。点右上角「新增卡片」开始。'}
               </p>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
               {filtered.map((entry) => {
                 const isOpen = expanded[entry.cardCode] ?? false
+                const customNoteText = entry.isCustom
+                  ? (customCardById.get(entry.cardCode)?.note ?? '').trim()
+                  : ''
                 return (
                   <Collapsible
                     key={entry.cardCode}
@@ -461,7 +497,9 @@ export const CardNoteApp: React.FC = () => {
                                   className="w-8 h-11 object-cover rounded border border-border/60"
                                   onError={(e) => {
                                     const el = e.currentTarget
-                                    if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
+                                    if (el.src !== UNKNOWN_CARD_IMAGE) {
+                                      el.src = UNKNOWN_CARD_IMAGE
+                                    }
                                   }}
                                 />
                               </button>
@@ -528,7 +566,7 @@ export const CardNoteApp: React.FC = () => {
                               </button>
                             }
                           />
-                          <TooltipContent>添加描述</TooltipContent>
+                          <TooltipContent>添加备注</TooltipContent>
                         </Tooltip>
                         {entry.isCustom && (
                           <>
@@ -615,11 +653,60 @@ export const CardNoteApp: React.FC = () => {
                             </div>
                           )}
 
-                          {entry.notes.length > 0 && (
+                          {(entry.notes.length > 0 || customNoteText) && (
                             <div className="pt-1.5 mt-1.5 border-t border-border/50 space-y-1.5">
                               <div className="text-[10px] font-semibold text-muted-foreground">
-                                描述
+                                备注
                               </div>
+                              {customNoteText && (
+                                <div className="rounded border border-violet-500/30 bg-violet-500/5 px-2.5 py-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-300 truncate flex-1">
+                                      卡片备注
+                                    </span>
+                                    <Tooltip>
+                                      <TooltipTrigger
+                                        render={
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              void handleCopy(
+                                                `${entry.cardCode}:custom-note`,
+                                                customNoteText
+                                              )
+                                            }
+                                            className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                                          >
+                                            {copiedKey === `${entry.cardCode}:custom-note` ? (
+                                              <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="w-3.5 h-3.5" />
+                                            )}
+                                          </button>
+                                        }
+                                      />
+                                      <TooltipContent>复制</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                      <TooltipTrigger
+                                        render={
+                                          <button
+                                            type="button"
+                                            onClick={() => openEdit(entry.cardCode)}
+                                            className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                        }
+                                      />
+                                      <TooltipContent>在卡片信息中编辑</TooltipContent>
+                                    </Tooltip>
+                                  </div>
+                                  <p className="text-[11px] text-foreground/90 leading-relaxed whitespace-pre-wrap mt-1">
+                                    {customNoteText}
+                                  </p>
+                                </div>
+                              )}
                               <SortableContext
                                 items={entry.notes.map((n) => buildSortId('note', n.label))}
                                 strategy={verticalListSortingStrategy}
@@ -674,14 +761,14 @@ export const CardNoteApp: React.FC = () => {
       {showAdder && (
         <CardNoteAdder
           existingLabelsFor={existingLabelsFor}
-          onSave={async (cardCode, kind, label, text) => {
-            const res = await window.api.saveCardNote({ cardCode, kind, label, text })
+          onSave={async (cardCode, kind, label, text, source) => {
+            const res = await window.api.saveCardNote({ cardCode, kind, label, text, source })
             if (!res.success) {
               flash(res.error || '保存失败')
               return false
             }
             await fetchAll()
-            flash(kind === 'chant' ? '已录入召唤词' : '已添加描述')
+            flash(kind === 'chant' ? '已录入召唤词' : '已添加备注')
             return true
           }}
           onClose={() => setShowAdder(false)}
@@ -759,8 +846,11 @@ function SortableChantRow({
           <Tooltip>
             <TooltipTrigger
               render={
-                <span className="shrink-0 text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25">
-                  借鉴
+                <span
+                  title={`借鉴条目，出自：${chant.source}`}
+                  className="shrink-0 max-w-40 truncate text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25"
+                >
+                  {`借鉴：${chant.source}`}
                 </span>
               }
             />

@@ -67,8 +67,8 @@ export function registerAllIpcHandlers(): void {
     }
   })
 
-  ipcMain.handle('customcard:pick-image', async (_, id: number) => {
-    return customCardService.pickImage(id)
+  ipcMain.handle('customcard:pick-image', async () => {
+    return customCardService.pickImageSource()
   })
 
   ipcMain.handle('cdb:status', () => {

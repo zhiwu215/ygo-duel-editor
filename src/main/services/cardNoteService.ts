@@ -278,6 +278,8 @@ export class CardNoteService {
     const list = Array.isArray(lib.notes[key]) ? [...lib.notes[key]] : []
     const idx = list.findIndex((c) => c.kind === kind && c.label === label)
     const entry: CardNote = { cardCode: code, kind, label, text }
+    if (note.source && note.source.trim()) entry.source = note.source.trim()
+    if (note.user && note.user.trim()) entry.user = note.user.trim()
     if (idx >= 0) list.splice(idx, 1)
     list.unshift(entry)
 

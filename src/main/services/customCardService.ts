@@ -15,6 +15,7 @@ import {
   CardType,
   CustomCard,
   CustomCardInput,
+  CustomCardPickImageResult,
   CdbCard,
   customCardToCdbCard,
   CUSTOM_CARD_ID_MIN,
@@ -113,7 +114,6 @@ export class CustomCardService {
       id: existing ? existing.id : this.generateId(),
       name,
       desc: (input.desc || '').trim(),
-      note: (input.note || '').trim(),
       type: input.type || 0,
       attribute: input.attribute || 0,
       race: input.race || 0,
@@ -131,8 +131,31 @@ export class CustomCardService {
       this.cards.push(card)
     }
     this.persist()
+    this.applyImage(card.id, input.imageSourcePath)
     this.broadcast()
     return card
+  }
+
+  private applyImage(id: number, imageSourcePath: string | undefined): void {
+    if (!imageSourcePath) return
+    try {
+      if (!existsSync(imageSourcePath)) {
+        console.warn(`[CustomCardService] picked image not found: ${imageSourcePath}`)
+        return
+      }
+      mkdirSync(this.imageDir, { recursive: true })
+      for (const name of readdirSync(this.imageDir)) {
+        const ext = extname(name).toLocaleLowerCase()
+        if (!IMAGE_EXTENSIONS.includes(ext)) continue
+        if (name.slice(0, name.length - ext.length) === String(id)) {
+          rmSync(join(this.imageDir, name))
+        }
+      }
+      const targetExt = extname(imageSourcePath).toLocaleLowerCase() || '.jpg'
+      copyFileSync(imageSourcePath, join(this.imageDir, `${id}${targetExt}`))
+    } catch (err) {
+      console.error('[CustomCardService] apply image error:', err)
+    }
   }
 
   public remove(id: number): void {
@@ -157,10 +180,7 @@ export class CustomCardService {
     this.broadcast()
   }
 
-  public async pickImage(
-    id: number
-  ): Promise<{ success: boolean; canceled?: boolean; error?: string }> {
-    if (!this.getById(id)) return { success: false, error: '自建卡不存在' }
+  public async pickImageSource(): Promise<CustomCardPickImageResult> {
     const picked = await dialog.showOpenDialog(BrowserWindow.getFocusedWindow()!, {
       title: '导入自建卡图',
       properties: ['openFile'],
@@ -171,23 +191,23 @@ export class CustomCardService {
     })
     if (picked.canceled || picked.filePaths.length === 0) return { success: false, canceled: true }
     const source = picked.filePaths[0]
-    const targetExt = extname(source).toLocaleLowerCase() || '.jpg'
+    if (!existsSync(source)) return { success: false, error: '文件不存在' }
+    const ext = extname(source).toLocaleLowerCase()
+    const mime =
+      ext === '.png'
+        ? 'image/png'
+        : ext === '.webp'
+          ? 'image/webp'
+          : ext === '.gif'
+            ? 'image/gif'
+            : 'image/jpeg'
+    let previewDataUrl: string | undefined
     try {
-      mkdirSync(this.imageDir, { recursive: true })
-      for (const name of readdirSync(this.imageDir)) {
-        const ext = extname(name).toLocaleLowerCase()
-        if (!IMAGE_EXTENSIONS.includes(ext)) continue
-        if (name.slice(0, name.length - ext.length) === String(id)) {
-          rmSync(join(this.imageDir, name))
-        }
-      }
-      copyFileSync(source, join(this.imageDir, `${id}${targetExt}`))
-      this.broadcast()
-      return { success: true }
+      previewDataUrl = `data:${mime};base64,${readFileSync(source).toString('base64')}`
     } catch (err) {
-      console.error('[CustomCardService] copy image error:', err)
-      return { success: false, error: '图片复制失败' }
+      console.error('[CustomCardService] read picked image error:', err)
     }
+    return { success: true, filePath: source, previewDataUrl }
   }
 
   private matchNumeric(

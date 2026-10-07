@@ -95,6 +95,8 @@ export interface CustomCardDeleteResult {
 export interface CustomCardPickImageResult {
   success: boolean
   canceled?: boolean
+  filePath?: string
+  previewDataUrl?: string
   error?: string
 }
 
@@ -524,7 +526,7 @@ export interface IpcApi {
   listCustomCards: () => Promise<CustomCard[]>
   saveCustomCard: (input: CustomCardInput) => Promise<CustomCardSaveResult>
   deleteCustomCard: (id: number) => Promise<CustomCardDeleteResult>
-  pickCustomCardImage: (id: number) => Promise<CustomCardPickImageResult>
+  pickCustomCardImage: () => Promise<CustomCardPickImageResult>
   onCustomCardsUpdated: (callback: () => void) => () => void
 
   exportLuaFile: (

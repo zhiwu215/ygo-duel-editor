@@ -4,7 +4,6 @@ export interface CustomCard {
   id: number
   name: string
   desc: string
-  note: string
   type: number
   attribute: number
   race: number
@@ -19,13 +18,13 @@ export interface CustomCardInput {
   id?: number
   name: string
   desc: string
-  note?: string
   type: number
   attribute: number
   race: number
   level: number
   atk: number
   def: number
+  imageSourcePath?: string
 }
 
 export const CUSTOM_CARD_ID_MIN = 900000000
@@ -57,7 +56,6 @@ export function customCardToCdbCard(card: CustomCard): CdbCard {
     name: card.name,
     desc: card.desc,
     isCustom: true,
-    note: card.note || undefined,
     markers: isLink && card.def > 0 && card.def <= 0xff ? card.def : undefined
   }
 }

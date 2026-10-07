@@ -27,7 +27,7 @@ const api: IpcApi = {
   listCustomCards: () => ipcRenderer.invoke('customcard:list'),
   saveCustomCard: (input) => ipcRenderer.invoke('customcard:save', input),
   deleteCustomCard: (id) => ipcRenderer.invoke('customcard:delete', id),
-  pickCustomCardImage: (id) => ipcRenderer.invoke('customcard:pick-image', id),
+  pickCustomCardImage: () => ipcRenderer.invoke('customcard:pick-image'),
   onCustomCardsUpdated: (callback) => {
     const handler = (): void => callback()
     ipcRenderer.on('custom-cards:updated', handler)

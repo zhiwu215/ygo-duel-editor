@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { BookMarked, X } from 'lucide-react'
 import { CardNoteKind } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -49,7 +48,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
     kindSelectorVisible && existingLabelsForKind
       ? existingLabelsForKind(effectiveKind)
       : (existingLabels ?? [])
-  const labelPrefix = isChant ? '召唤词' : '描述'
+  const labelPrefix = isChant ? '召唤词' : '备注'
   const nextSeq = useMemo(() => {
     const prefix = `${labelPrefix}-`
     let max = 0
@@ -88,7 +87,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
       return
     }
     if (!trimmedText) {
-      setError(isChant ? '召唤词内容不能为空' : '描述内容不能为空')
+      setError(isChant ? '召唤词内容不能为空' : '备注内容不能为空')
       return
     }
 
@@ -109,24 +108,11 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
         showCloseButton={false}
         className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4 max-w-md w-full"
       >
-        <DialogHeader className="flex items-center justify-between border-b border-border/60 pb-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <BookMarked className="w-4 h-4 text-primary shrink-0" />
-            <div className="min-w-0">
-              <DialogTitle className="font-bold text-sm">
-                {isEdit ? '编辑' : isChant ? '录入召唤词' : '添加描述'}
-              </DialogTitle>
-              <div className="text-[10px] text-muted-foreground truncate">{cardName}</div>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onClose}
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+        <DialogHeader className="border-b border-border/60 pb-2">
+          <DialogTitle className="font-bold text-sm">
+            {isEdit ? '编辑' : isChant ? '录入召唤词' : '添加备注'}
+          </DialogTitle>
+          <div className="text-[10px] text-muted-foreground truncate">{cardName}</div>
         </DialogHeader>
 
         {kindSelectorVisible && (
@@ -135,7 +121,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
             <div className="flex items-center gap-1 p-0.5 rounded-md border border-border bg-muted/50">
               {[
                 { k: 'chant' as CardNoteKind, label: '召唤词' },
-                { k: 'note' as CardNoteKind, label: '描述' }
+                { k: 'note' as CardNoteKind, label: '备注' }
               ].map((opt) => (
                 <button
                   key={opt.k}
@@ -184,7 +170,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
               <Input
                 type="text"
                 value={source}
-                placeholder="注明来源，如：动画台词 / 某解说视频"
+                placeholder="注明来源"
                 onChange={(e) => {
                   setSource(e.target.value)
                   setError(null)
@@ -220,7 +206,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
 
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-semibold text-muted-foreground">
-            {isChant ? '召唤词' : '描述'}
+            {isChant ? '召唤词' : '备注'}
           </span>
           <Textarea
             ref={textRef}

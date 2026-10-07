@@ -55,6 +55,12 @@ const TRAP_SUBTYPES: Array<{ mask: number; label: string }> = [
   { mask: CardType.COUNTER, label: '反击' }
 ]
 
+const LINK_ARROW_GRID: Array<Array<{ mask: number; label: string } | null>> = [
+  [LINK_MARKERS[0], LINK_MARKERS[1], LINK_MARKERS[2]],
+  [LINK_MARKERS[3], null, LINK_MARKERS[4]],
+  [LINK_MARKERS[5], LINK_MARKERS[6], LINK_MARKERS[7]]
+]
+
 const STAT_UNKNOWN = -2
 
 function parseStat(value: string): number {
@@ -83,6 +89,7 @@ const CustomCardEditorBody: React.FC = () => {
   const [form, setForm] = useState<CustomCardEditorForm>(() =>
     editorFormFromCard(editingCard, prefillName)
   )
+  const [staged, setStaged] = useState<{ path: string; preview: string } | null>(null)
   const [imageFailed, setImageFailed] = useState<boolean>(false)
   const [error, setError] = useState<string>('')
   const [saving, setSaving] = useState<boolean>(false)
@@ -152,13 +159,16 @@ const CustomCardEditorBody: React.FC = () => {
 
   const spellSubValue = SPELL_SUBTYPES.find((s) => (form.type & s.mask) !== 0)?.mask ?? 'none'
   const trapSubValue = TRAP_SUBTYPES.find((s) => (form.type & s.mask) !== 0)?.mask ?? 'none'
+  const spellSubLabel = SPELL_SUBTYPES.find((s) => (form.type & s.mask) !== 0)?.label ?? '通常'
+  const trapSubLabel = TRAP_SUBTYPES.find((s) => (form.type & s.mask) !== 0)?.label ?? '通常'
 
   const buildInput = (): CustomCardInput => {
     const base = {
       id: editingId ?? undefined,
       name: form.name,
       desc: form.desc,
-      note: form.note
+      note: form.note,
+      imageSourcePath: staged?.path
     }
     if (isMonster) {
       const level = parseCount(form.level)
@@ -199,17 +209,25 @@ const CustomCardEditorBody: React.FC = () => {
   }
 
   const handlePickImage = async (): Promise<void> => {
-    if (editingId === null) return
     setPicking(true)
     try {
-      await window.api.pickCustomCardImage(editingId)
+      const res = await window.api.pickCustomCardImage()
+      if (!res.success && res.error) {
+        setError(res.error)
+      } else if (res.success && res.filePath) {
+        setStaged({ path: res.filePath, preview: res.previewDataUrl ?? '' })
+        setError('')
+      }
     } finally {
       setPicking(false)
     }
   }
 
-  const previewSrc =
-    editingId !== null && !imageFailed ? getCardImageUrl(editingId) : UNKNOWN_CARD_IMAGE
+  const previewSrc = staged
+    ? staged.preview
+    : editingId !== null && !imageFailed
+      ? getCardImageUrl(editingId)
+      : UNKNOWN_CARD_IMAGE
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? closeEditor() : undefined)}>
@@ -239,16 +257,22 @@ const CustomCardEditorBody: React.FC = () => {
               variant="outline"
               size="xs"
               className="w-full gap-1.5"
-              disabled={editingId === null || picking}
+              disabled={picking}
               onClick={() => void handlePickImage()}
             >
               <ImageUp className="w-3.5 h-3.5" />
-              <span>{editingId === null ? '保存后可导入卡图' : '导入卡图'}</span>
+              <span>{picking ? '选择中…' : '导入卡图'}</span>
             </Button>
-            {editingId === null && (
+            {staged ? (
               <p className="text-[10px] text-muted-foreground/70 text-center leading-tight">
-                未导入时默认使用 unknown 占位图
+                保存后生效
               </p>
+            ) : (
+              editingId === null && (
+                <p className="text-[10px] text-muted-foreground/70 text-center leading-tight">
+                  未导入时默认使用 unknown 占位图
+                </p>
+              )
             )}
           </div>
 
@@ -258,7 +282,6 @@ const CustomCardEditorBody: React.FC = () => {
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="输入卡名"
                 className="h-8 text-xs"
               />
             </div>
@@ -306,7 +329,7 @@ const CustomCardEditorBody: React.FC = () => {
                 <Label className="text-[11px] text-muted-foreground shrink-0">魔法细分</Label>
                 <Select value={String(spellSubValue)} onValueChange={(val) => setSpellSub(val)}>
                   <SelectTrigger size="sm" className="h-7 text-xs w-32">
-                    <SelectValue />
+                    <SelectValue>{spellSubLabel}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">通常</SelectItem>
@@ -325,7 +348,7 @@ const CustomCardEditorBody: React.FC = () => {
                 <Label className="text-[11px] text-muted-foreground shrink-0">陷阱细分</Label>
                 <Select value={String(trapSubValue)} onValueChange={(val) => setTrapSub(val)}>
                   <SelectTrigger size="sm" className="h-7 text-xs w-32">
-                    <SelectValue />
+                    <SelectValue>{trapSubLabel}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">通常</SelectItem>
@@ -348,7 +371,7 @@ const CustomCardEditorBody: React.FC = () => {
                     onValueChange={(val) => setForm((f) => ({ ...f, attribute: Number(val) }))}
                   >
                     <SelectTrigger size="sm" className="h-7 text-xs w-full">
-                      <SelectValue />
+                      <SelectValue>{ATTRIBUTE_NAMES[form.attribute] ?? '无'}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {Object.entries(ATTRIBUTE_NAMES).map(([mask, label]) => (
@@ -366,7 +389,7 @@ const CustomCardEditorBody: React.FC = () => {
                     onValueChange={(val) => setForm((f) => ({ ...f, race: Number(val) }))}
                   >
                     <SelectTrigger size="sm" className="h-7 text-xs w-full">
-                      <SelectValue />
+                      <SelectValue>{RACE_NAMES[form.race] ?? '未知'}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {Object.entries(RACE_NAMES).map(([mask, label]) => (
@@ -452,22 +475,40 @@ const CustomCardEditorBody: React.FC = () => {
             {isLink && (
               <div className="flex flex-col gap-1">
                 <Label className="text-[11px] text-muted-foreground">连接箭头（至少一个）</Label>
-                <div className="flex gap-1 flex-wrap">
-                  {LINK_MARKERS.map((m) => (
-                    <button
-                      key={m.mask}
-                      type="button"
-                      onClick={() => toggleMarker(m.mask)}
-                      className={cn(
-                        'w-7 h-7 rounded border text-xs transition-colors',
-                        (form.markers & m.mask) !== 0
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-secondary/60 text-muted-foreground hover:text-foreground'
-                      )}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-3 gap-1 w-fit">
+                  {LINK_ARROW_GRID.flat().map((cell) =>
+                    cell === null ? (
+                      <button
+                        key="clear-cell"
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, markers: 0 }))}
+                        disabled={form.markers === 0}
+                        title="清空已选箭头"
+                        className={cn(
+                          'w-8 h-8 rounded border text-[10px] font-semibold transition-colors',
+                          form.markers === 0
+                            ? 'bg-secondary/40 text-muted-foreground/50 border-border cursor-not-allowed'
+                            : 'bg-secondary/60 text-muted-foreground hover:text-foreground cursor-pointer'
+                        )}
+                      >
+                        清空
+                      </button>
+                    ) : (
+                      <button
+                        key={cell.mask}
+                        type="button"
+                        onClick={() => toggleMarker(cell.mask)}
+                        className={cn(
+                          'w-8 h-8 rounded border text-xs transition-colors',
+                          (form.markers & cell.mask) !== 0
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-secondary/60 text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {cell.label}
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             )}
@@ -480,18 +521,14 @@ const CustomCardEditorBody: React.FC = () => {
             <Textarea
               value={form.desc}
               onChange={(e) => setForm((f) => ({ ...f, desc: e.target.value }))}
-              placeholder="输入效果描述（支持按名字或效果搜索）"
               className="min-h-20 text-xs resize-none"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label className="text-[11px] text-muted-foreground">
-              备注（编排用，可写登场出处等）
-            </Label>
+            <Label className="text-[11px] text-muted-foreground">备注</Label>
             <Textarea
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-              placeholder="例如：动画第 2 部第 42 集登场"
               className="min-h-16 text-xs resize-none"
             />
           </div>

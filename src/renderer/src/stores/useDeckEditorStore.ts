@@ -27,6 +27,8 @@ interface DeckEditorState {
   deck: DeckData
   cardDetails: Record<number, CdbCard>
   selectedCard: CdbCard | null
+  /** 悬停预览的卡密；非空时详情面板优先展示它，不影响 selectedCard */
+  hoveredCardId: number | null
   testHandCards: number[] | null // 试抽手牌 (null 表示未开启试抽)
 
   // 动作：卡组库
@@ -52,6 +54,8 @@ interface DeckEditorState {
 
   // 动作：卡组单体编辑
   setSelectedCard: (card: CdbCard | null) => void
+  /** 悬停预览，不改写 selectedCard；传 null 恢复展示选中卡 */
+  setHoveredCardId: (code: number | null) => void
   setDeckName: (name: string) => void
   setDeckDescription: (desc: string) => void
   setDeckTags: (tags: string[]) => void
@@ -98,6 +102,7 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
   deck: { ...INITIAL_DECK },
   cardDetails: {},
   selectedCard: null,
+  hoveredCardId: null,
   testHandCards: null,
 
   setViewMode: (mode): void => {
@@ -199,6 +204,7 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
         side: []
       },
       selectedCard: null,
+      hoveredCardId: null,
       testHandCards: null,
       viewMode: 'editor'
     })
@@ -286,6 +292,10 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
     set({ selectedCard: card })
   },
 
+  setHoveredCardId: (code): void => {
+    set({ hoveredCardId: code })
+  },
+
   setDeckName: (name): void => {
     set((prev) => ({ deck: { ...prev.deck, name } }))
   },
@@ -339,7 +349,8 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
     set({
       deck: { ...deck, [section]: list },
       cardDetails: { ...cardDetails, [card.id]: card },
-      selectedCard: card
+      selectedCard: card,
+      hoveredCardId: null
     })
 
     return true
@@ -443,6 +454,7 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
       deck: newDeck,
       cardDetails: { ...prev.cardDetails, ...fetchedDetails },
       selectedCard: allCodes.length > 0 ? fetchedDetails[allCodes[0]] || null : null,
+      hoveredCardId: null,
       testHandCards: null
     }))
   },

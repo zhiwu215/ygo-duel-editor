@@ -27,6 +27,7 @@ interface DeckGridProps {
   cardDetails: Record<number, CdbCard>
   isDragActive: boolean
   onSelectCard: (card: CdbCard | null) => void
+  onHoverCard: (code: number | null) => void
   onRemoveCard: (section: DeckSection, index: number) => void
 }
 
@@ -93,6 +94,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
   cardDetails,
   isDragActive,
   onSelectCard,
+  onHoverCard,
   onRemoveCard
 }) => {
   const sortableCards = {
@@ -129,6 +131,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
                       section="main"
                       index={index}
                       onSelect={onSelectCard}
+                      onHover={onHoverCard}
                       onRemove={onRemoveCard}
                     />
                   ))}
@@ -160,6 +163,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
                       section="extra"
                       index={index}
                       onSelect={onSelectCard}
+                      onHover={onHoverCard}
                       onRemove={onRemoveCard}
                     />
                   ))}
@@ -191,6 +195,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
                       section="side"
                       index={index}
                       onSelect={onSelectCard}
+                      onHover={onHoverCard}
                       onRemove={onRemoveCard}
                     />
                   ))}

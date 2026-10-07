@@ -14,6 +14,7 @@ interface DeckCardItemProps {
   index: number
   sortableId: string
   onSelect: (card: CdbCard | null) => void
+  onHover: (code: number | null) => void
   onRemove: (section: DeckSection, index: number) => void
 }
 
@@ -24,6 +25,7 @@ export const DeckCardItem: React.FC<DeckCardItemProps> = ({
   index,
   sortableId,
   onSelect,
+  onHover,
   onRemove
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -34,8 +36,12 @@ export const DeckCardItem: React.FC<DeckCardItemProps> = ({
 
   const handleMouseEnter = (): void => {
     if (card) {
-      onSelect(card)
+      onHover(code)
     }
+  }
+
+  const handleMouseLeave = (): void => {
+    onHover(null)
   }
 
   const handleClick = (e: React.MouseEvent): void => {
@@ -61,17 +67,19 @@ export const DeckCardItem: React.FC<DeckCardItemProps> = ({
             {...listeners}
             onClick={handleClick}
             onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
             onContextMenu={handleContextMenu}
 
             style={{
               transform: CSS.Transform.toString(transform),
               transition,
-              zIndex: isDragging ? 10 : undefined
+              zIndex: isDragging ? 10 : undefined,
+              willChange: isDragging ? 'transform' : undefined
             }}
             className={cn(
               'group relative aspect-[59/86] w-full rounded overflow-hidden cursor-grab active:cursor-grabbing select-none border border-border/40',
               'hover:border-primary/80 hover:shadow-md transition-[border-color,box-shadow] duration-150 bg-background/50',
-              isDragging && 'z-10 opacity-0'
+              isDragging && 'opacity-30'
             )}
           >
             <img

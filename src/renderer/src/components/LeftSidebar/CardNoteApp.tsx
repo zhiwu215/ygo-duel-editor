@@ -334,6 +334,7 @@ export const CardNoteApp: React.FC = () => {
   const handleOpenCardMenu = useCallback((e: React.MouseEvent, entry: DisplayEntry): void => {
     e.preventDefault()
     e.stopPropagation()
+    setMenuVariants([])
     setCardMenu({
       cardCode: entry.cardCode,
       cardName: entry.cardName,
@@ -369,20 +370,16 @@ export const CardNoteApp: React.FC = () => {
   useEffect(() => {
     if (!cardMenu) return
     let cancelled = false
-    setMenuVariants([])
     void (async () => {
       try {
         const cfg = await window.api.getConfig()
         if (!cancelled) setMenuOverrides(cfg.cardImageOverrides ?? {})
         if (cardMenu.isCustom) return
-        const codes =
-          cardMenu.variantCodes.length > 0 ? cardMenu.variantCodes : [cardMenu.cardCode]
+        const codes = cardMenu.variantCodes.length > 0 ? cardMenu.variantCodes : [cardMenu.cardCode]
         const map = await window.api.getCardsByIds(codes)
         if (!cancelled) {
           setMenuVariants(
-            codes
-              .filter((c) => map[c])
-              .map((c) => ({ code: c, name: map[c]?.name ?? String(c) }))
+            codes.filter((c) => map[c]).map((c) => ({ code: c, name: map[c]?.name ?? String(c) }))
           )
         }
       } catch (err) {
@@ -599,7 +596,6 @@ export const CardNoteApp: React.FC = () => {
                           }
                         }}
                         className="flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none hover:bg-muted/40 transition-colors"
-                        onContextMenu={(e) => handleOpenCardMenu(e, entry)}
                       >
                         <ChevronRight
                           className={`w-3.5 h-3.5 shrink-0 -ml-1 text-muted-foreground transition-transform duration-300 ${
@@ -611,6 +607,7 @@ export const CardNoteApp: React.FC = () => {
                             render={
                               <button
                                 type="button"
+                                onContextMenu={(e) => handleOpenCardMenu(e, entry)}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   setPreviewCard(entry.cardCode)
@@ -912,7 +909,8 @@ export const CardNoteApp: React.FC = () => {
                 <p className="px-2 py-2 text-[10px] text-muted-foreground/70">正在读取变体卡图…</p>
               )}
               {menuVariants.map((v) => {
-                const active = (menuOverrides[String(cardMenu.cardCode)] ?? cardMenu.cardCode) === v.code
+                const active =
+                  (menuOverrides[String(cardMenu.cardCode)] ?? cardMenu.cardCode) === v.code
                 return (
                   <button
                     key={v.code}

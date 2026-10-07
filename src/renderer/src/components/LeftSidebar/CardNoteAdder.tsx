@@ -2,10 +2,10 @@ import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useRef, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { CardNoteKind, CdbCard } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { CardRowItem } from '../CardSearch/CardRowItem'
 import { CardNoteEditor } from './CardNoteEditor'
 
 interface CardNoteAdderProps {
@@ -118,7 +118,7 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
         </div>
 
         <ScrollArea className="h-72">
-          <div className="p-2">
+          <div className="p-2 space-y-1">
             {searching ? (
               <p className="text-[11px] text-muted-foreground text-center py-8">搜索中…</p>
             ) : results.length === 0 ? (
@@ -129,28 +129,7 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
               </div>
             ) : (
               results.map((card) => (
-                <button
-                  key={card.id}
-                  type="button"
-                  onClick={() => setPicked(card)}
-                  className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-primary/8 transition-colors cursor-pointer text-left"
-                >
-                  <img
-                    src={getCardImageUrl(card.id, true)}
-                    alt={card.name}
-                    className="w-7 h-10 object-cover rounded-sm shrink-0 border border-border/60"
-                    onError={(e) => {
-                      const el = e.currentTarget
-                      if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
-                    }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-medium text-foreground truncate">
-                      {card.name}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground font-mono">{card.id}</div>
-                  </div>
-                </button>
+                <CardRowItem key={card.id} card={card} compact onRowClick={() => setPicked(card)} />
               ))
             )}
           </div>

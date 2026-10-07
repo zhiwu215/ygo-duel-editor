@@ -31,11 +31,9 @@ import {
   RotateCcw,
   Trash2,
   X,
-  CircleDot,
   Swords,
   Shield,
   GripHorizontal,
-  Sparkles,
   Loader2
 } from 'lucide-react'
 import { useTokenStore, matchTokensByDesc } from '../../../stores/useTokenStore'
@@ -566,8 +564,7 @@ export const CardStatPopover: React.FC = () => {
       {/* 3. 当前已挂载指示物列表 */}
       <div className="flex flex-col gap-1.5 pt-1.5 border-t border-border/60">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-[11px] text-foreground/90 flex items-center gap-1">
-            <CircleDot className="w-3 h-3 text-primary" />
+          <span className="font-bold text-[11px] text-foreground/90">
             <span>当前指示物</span>
           </span>
           {activeCounters.length > 0 && (
@@ -677,8 +674,7 @@ export const CardStatPopover: React.FC = () => {
       {/* 5. 衍生物布置：按本体卡效果文本智能推荐，点击后进入待放置态再点棋盘空怪兽区 */}
       <div className="flex flex-col gap-1.5 pt-1.5 border-t border-border/60">
         <div className="flex items-center justify-between">
-          <span className="font-bold text-[11px] text-foreground/90 flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-emerald-500" />
+          <span className="font-bold text-[11px] text-foreground/90">
             <span>衍生物</span>
           </span>
           {pendingToken && (

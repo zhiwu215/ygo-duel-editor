@@ -143,7 +143,8 @@ const ZONE_STACK_GAP = 6
 const H_SCROLLBAR_RESERVE = 10
 const MAX_CARD_WIDTH = 72
 const MIN_CARD_WIDTH = 22
-const COLUMN_CANDIDATES = [10, 11, 12, 13, 14, 15, 16, 18, 20]
+const MIN_COLUMNS = 6
+const MAX_COLUMNS = 30
 
 interface Layout {
   cols: number
@@ -156,20 +157,57 @@ const pickLayout = (
   counts: { main: number; extra: number; side: number }
 ): Layout => {
   const budget = availH - ZONE_CHROME * 3 - ZONE_STACK_GAP * 2
+  const rowsAt = (cols: number): number =>
+    Math.max(1, Math.ceil(counts.main / cols)) +
+    Math.max(1, Math.ceil(counts.extra / cols)) +
+    Math.max(1, Math.ceil(counts.side / cols))
+  const widthAt = (cols: number): number =>
+    (availW - ZONE_PADDING * 2 - ROW_GAP * (cols - 1)) / cols
+  const heightCap = (cols: number): number =>
+    ((budget - ROW_GAP * (rowsAt(cols) - 3)) / rowsAt(cols)) * CARD_ASPECT
+  const spanOf = (cols: number, cardWidth: number): number =>
+    cols * cardWidth + ROW_GAP * (cols - 1)
+  const heightOf = (cols: number, cardWidth: number): number =>
+    (rowsAt(cols) * cardWidth) / CARD_ASPECT + ROW_GAP * (rowsAt(cols) - 3)
+
   let best: Layout | null = null
-  for (const cols of COLUMN_CANDIDATES) {
-    const rows =
-      Math.max(1, Math.ceil(counts.main / cols)) +
-      Math.max(1, Math.ceil(counts.extra / cols)) +
-      Math.max(1, Math.ceil(counts.side / cols))
-    const gapTotal = ROW_GAP * (rows - 3)
-    const byHeight = ((budget - gapTotal) / rows) * CARD_ASPECT
-    const byWidth = (availW - ZONE_PADDING * 2 - ROW_GAP * (cols - 1)) / cols
-    const cardWidth = Math.min(MAX_CARD_WIDTH, byHeight, byWidth)
-    if (cardWidth < MIN_CARD_WIDTH) continue
-    if (!best || cardWidth > best.cardWidth + 0.5) best = { cols, cardWidth }
+  let bestOverflow = 0
+  const consider = (cols: number, cardWidth: number): void => {
+    const overflow = Math.max(0, heightOf(cols, cardWidth) - budget)
+    if (!best) {
+      best = { cols, cardWidth }
+      bestOverflow = overflow
+      return
+    }
+    if (overflow < bestOverflow - 0.5) {
+      best = { cols, cardWidth }
+      bestOverflow = overflow
+      return
+    }
+    if (overflow > bestOverflow + 0.5) return
+    if (cardWidth > best.cardWidth + 0.5) {
+      best = { cols, cardWidth }
+      return
+    }
+    if (
+      cardWidth >= best.cardWidth - 0.5 &&
+      spanOf(cols, cardWidth) > spanOf(best.cols, best.cardWidth)
+    ) {
+      best = { cols, cardWidth }
+    }
   }
-  return best ?? { cols: COLUMN_CANDIDATES[0], cardWidth: MIN_CARD_WIDTH }
+
+  for (let cols = MIN_COLUMNS; cols <= MAX_COLUMNS; cols++) {
+    const cardWidth = Math.min(MAX_CARD_WIDTH, heightCap(cols), widthAt(cols))
+    if (cardWidth >= MIN_CARD_WIDTH) consider(cols, cardWidth)
+  }
+  if (best) return best
+
+  for (let cols = MIN_COLUMNS; cols <= MAX_COLUMNS; cols++) {
+    const cardWidth = Math.min(MAX_CARD_WIDTH, widthAt(cols))
+    if (cardWidth >= MIN_CARD_WIDTH) consider(cols, cardWidth)
+  }
+  return best ?? { cols: MIN_COLUMNS, cardWidth: MIN_CARD_WIDTH }
 }
 
 export const DeckGrid: React.FC<DeckGridProps> = ({

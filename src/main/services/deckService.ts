@@ -233,9 +233,9 @@ export class DeckService {
     }
 
     this.deckWindow = new BrowserWindow({
-      width: 1180,
-      height: 780,
-      minWidth: 900,
+      width: 1280,
+      height: 800,
+      minWidth: 960,
       minHeight: 560,
       show: false,
       autoHideMenuBar: true,

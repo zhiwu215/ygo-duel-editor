@@ -96,7 +96,7 @@ const SearchCardItem: React.FC<SearchCardItemProps> = ({
               }}
             />
 
-            <CardPoolBadges pools={card.pools} width={26} />
+            <CardPoolBadges pools={card.pools} width={34} />
 
             {/* 悬停快捷加入图标 */}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
@@ -234,7 +234,7 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
   const isLoading = activeTab === 'search' && loading
 
   return (
-    <SearchPanelDropZone className="relative w-[220px] lg:w-[250px] xl:w-[310px] h-full flex flex-col bg-card border-l border-border select-none shrink-0">
+    <SearchPanelDropZone className="relative w-[270px] lg:w-[320px] xl:w-[400px] h-full flex flex-col bg-card border-l border-border select-none shrink-0">
       {/* 1. 顶部 Tab 切换 */}
       <div className="flex items-center border-b border-border/80 p-1.5 gap-1 bg-muted/40">
         <button

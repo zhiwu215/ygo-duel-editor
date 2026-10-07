@@ -13,6 +13,7 @@ interface ConfigStoreState {
   removeExtraCdb: (cdbPath: string) => Promise<void>
   setExtraCdbEnabled: (cdbPath: string, enabled: boolean) => Promise<void>
   setExtraPicsDir: (cdbPath: string, picsDir: string | null) => Promise<void>
+  setCdbPoolTag: (cdbPath: string, poolId: string) => Promise<void>
 
   selectProjectsDir: () => Promise<string | null>
   setTheme: (theme: 'dark' | 'light') => Promise<void>
@@ -142,6 +143,17 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     } catch (err) {
       console.error('[useConfigStore] setExtraPicsDir error:', err)
     }
+  },
+
+  setCdbPoolTag: async (cdbPath, poolId) => {
+    set((state) => ({
+      config: {
+        ...state.config,
+        cdbPoolTags: { ...(state.config.cdbPoolTags || {}), [cdbPath]: poolId }
+      }
+    }))
+    await window.api.setCdbPoolTag(cdbPath, poolId)
+    await get().loadConfig()
   },
 
   selectProjectsDir: async () => {

@@ -191,6 +191,8 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const openZoneMenu = useContextMenuStore((s) => s.openZoneMenu)
   const pendingToken = useTokenStore((s) => s.pendingToken)
   const cancelPendingToken = useTokenStore((s) => s.cancelPending)
+  const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
+  const commitPlacement = useDuelStore((s) => s.commitPlacement)
   const [isOver, setIsOver] = useState(false)
   /** 待执行的「主卡组格单击抽卡」定时器 */
   const deckDrawTimer = useRef<number | null>(null)
@@ -212,6 +214,24 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   /** 待放置衍生物模式下，本格是否为合法的落点（序号 0~4 的空主怪兽区） */
   const isTokenDropTarget =
     pendingToken !== null && location === CardLocation.MZONE && !card && sequence <= 4
+
+  /** 「发动 / 盖放」待选模式下，本格命中的落点槽位定义 */
+  const placementSlot = pendingPlacement?.allowedSlots.find(
+    (s) => s.location === location && s.sequence === sequence && s.controller === controller
+  )
+
+  /** 「发动 / 盖放」待选模式下，本格是否为合法的落点（顶掉型槽位允许格内已有卡） */
+  const isPlacementTarget =
+    pendingPlacement !== null &&
+    placementSlot !== undefined &&
+    (!card || placementSlot.displaces === true)
+
+  /** 点击格子放置待选模式的源卡 */
+  const handlePlacementClick = (): boolean => {
+    if (!pendingPlacement || !isPlacementTarget) return false
+    commitPlacement({ location, sequence, controller })
+    return true
+  }
 
   /** 点击空怪兽区放入待放置的衍生物 */
   const handleTokenDrop = (): boolean => {
@@ -313,6 +333,15 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         }
       }
       if (movedInstanceId) {
+        // 「发动 / 盖放」待选模式下，拖到合法槽 = 直接落子 (顶掉型槽位允许格内已有卡)
+        if (
+          pendingPlacement &&
+          pendingPlacement.sourceId === movedInstanceId &&
+          isPlacementTarget
+        ) {
+          commitPlacement({ location, sequence, controller })
+          return
+        }
         const targetRect = e.currentTarget.getBoundingClientRect()
         const insertAfterTarget =
           location === CardLocation.HAND &&
@@ -429,8 +458,10 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onClick={() => {
         // 主卡组格已在捕获阶段处理完毕
         if (location === CardLocation.DECK) return
+        if (handlePlacementClick()) return
         if (handleTokenDrop()) return
-        if (!card) setSelectedCardId(null)
+        // 「发动 / 盖放」待选模式下，不要因为点空格就丢掉来源卡选中
+        if (!card && !pendingPlacement) setSelectedCardId(null)
       }}
       onDoubleClickCapture={(e) => {
         // 主卡组格：双击展开卡组列表。捕获阶段先取消待执行的「单击抽卡」，
@@ -468,19 +499,26 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         isTokenDropTarget
           ? 'ring-2 ring-emerald-400/80 bg-emerald-500/10 border-emerald-400/60 cursor-copy animate-pulse'
           : ''
+      } ${
+        // 「发动 / 盖放」待选模式的合法落点
+        isPlacementTarget
+          ? 'ring-2 ring-amber-400 bg-amber-500/10 border-amber-400/60 cursor-pointer animate-pulse'
+          : ''
       } ${className}`}
       title={
         isTokenDropTarget
           ? `点击放下「${pendingToken.name}」`
-          : location === CardLocation.DECK
-            ? '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
-            : card &&
-                ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
-                  (card.overlayMaterials && card.overlayMaterials.length > 0))
-              ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
-              : isPileZone && count !== undefined && count > 0
-                ? '双击直接查看列表'
-                : undefined
+          : isPlacementTarget
+            ? `点击把【${pendingPlacement?.sourceName}】放到此格 (${pendingPlacement?.mode === 'ACTIVATE' ? '发动' : '盖放'})`
+            : location === CardLocation.DECK
+              ? '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
+              : card &&
+                  ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
+                    (card.overlayMaterials && card.overlayMaterials.length > 0))
+                ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
+                : isPileZone && count !== undefined && count > 0
+                  ? '双击直接查看列表'
+                  : undefined
       }
     >
       {/* 堆叠张数徽标 (如卡组/墓地/额外卡组张数，支持点击直接打开查看列表) */}

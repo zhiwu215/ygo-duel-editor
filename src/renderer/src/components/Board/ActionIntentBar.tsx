@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { CardLocation } from '@shared/index'
+import { CardLocation, CardType } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import {
   isDefensePosition,
@@ -7,36 +7,47 @@ import {
   resolveDirectAttack,
   getLegalTargetIds
 } from '../../utils/duelActionTargets'
-import { Swords, Zap, ArrowDownToLine, Ban, Check, X, Crosshair } from 'lucide-react'
+import { Swords, Zap, ArrowDownToLine, Ban, Check, X, Crosshair, MapPin } from 'lucide-react'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
 export const ActionIntentBar: React.FC = () => {
   const pendingAction = useDuelStore((s) => s.pendingAction)
+  const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
   const selectedCardId = useDuelStore((s) => s.selectedCardId)
   const cards = useDuelStore((s) => s.state.cards)
   const beginAction = useDuelStore((s) => s.beginAction)
+  const beginPlacement = useDuelStore((s) => s.beginPlacement)
   const commitPendingAction = useDuelStore((s) => s.commitPendingAction)
   const cancelPendingAction = useDuelStore((s) => s.cancelPendingAction)
+  const cancelPlacement = useDuelStore((s) => s.cancelPlacement)
   const setActionTargetPlayer = useDuelStore((s) => s.setActionTargetPlayer)
   const executeActivateCard = useDuelStore((s) => s.executeActivateCard)
   const executeSendToGrave = useDuelStore((s) => s.executeSendToGrave)
   const executeBanishCard = useDuelStore((s) => s.executeBanishCard)
 
   useEffect(() => {
-    if (!pendingAction) return
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
-        e.preventDefault()
-        cancelPendingAction()
+        const s = useDuelStore.getState()
+        if (s.pendingAction) {
+          e.preventDefault()
+          s.cancelPendingAction()
+        } else if (s.pendingPlacement) {
+          e.preventDefault()
+          s.cancelPlacement()
+        }
       } else if (e.key === 'Enter') {
-        e.preventDefault()
-        commitPendingAction()
+        const s = useDuelStore.getState()
+        if (s.pendingAction) {
+          e.preventDefault()
+          s.commitPendingAction()
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [pendingAction, cancelPendingAction, commitPendingAction])
+  }, [])
 
   const selectedCard = selectedCardId
     ? cards.find((c) => c.instanceId === selectedCardId)
@@ -65,13 +76,23 @@ export const ActionIntentBar: React.FC = () => {
     selectedCard.location === CardLocation.MZONE &&
     !isDefensePosition(selectedCard.position)
 
-  if (!pendingAction && !selectedCard) return null
+  const isSelectedMonster =
+    !!selectedCard &&
+    selectedCard.location === CardLocation.HAND &&
+    selectedCard.card !== undefined &&
+    (selectedCard.card.type & CardType.MONSTER) !== 0
+
+  if (!pendingAction && !pendingPlacement && !selectedCard) return null
 
   return (
     <div
       className={cn(
         'absolute bottom-2 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs shadow-lg',
-        pendingAction ? 'border-amber-500/40 bg-popover' : 'border-border bg-popover'
+        pendingAction
+          ? 'border-amber-500/40 bg-popover'
+          : pendingPlacement
+            ? 'border-amber-400/60 bg-popover'
+            : 'border-border bg-popover'
       )}
     >
       {pendingAction ? (
@@ -126,6 +147,27 @@ export const ActionIntentBar: React.FC = () => {
             记录
           </Button>
         </>
+      ) : pendingPlacement ? (
+        <>
+          <MapPin className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+          <span className="shrink-0 font-medium">
+            【{pendingPlacement.sourceName}】
+            {pendingPlacement.mode === 'ACTIVATE'
+              ? '发动'
+              : pendingPlacement.mode === 'SET'
+                ? '盖放'
+                : '召唤'}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 shrink-0 px-1.5 text-[11px]"
+            onClick={cancelPlacement}
+          >
+            <X className="h-3 w-3" />
+            取消
+          </Button>
+        </>
       ) : (
         <>
           <span className="shrink-0 max-w-32 truncate font-medium">
@@ -142,11 +184,29 @@ export const ActionIntentBar: React.FC = () => {
               攻击
             </Button>
           )}
+          {selectedCard && selectedCard.location === CardLocation.HAND && isSelectedMonster && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 shrink-0 px-1.5 text-[11px]"
+              onClick={() => selectedCard && beginPlacement('SUMMON', selectedCard.instanceId)}
+            >
+              <Crosshair className="h-3 w-3" />
+              召唤
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
             className="h-6 shrink-0 px-1.5 text-[11px]"
-            onClick={() => selectedCard && executeActivateCard(selectedCard.instanceId)}
+            onClick={() => {
+              if (!selectedCard) return
+              if (selectedCard.location === CardLocation.HAND) {
+                beginPlacement('ACTIVATE', selectedCard.instanceId)
+              } else {
+                executeActivateCard(selectedCard.instanceId)
+              }
+            }}
           >
             <Zap className="h-3 w-3" />
             发动

@@ -59,7 +59,6 @@ export const CardContextMenu: React.FC = () => {
     executeAttackCard,
     executeNormalSummon,
     executeSpecialSummon,
-    executeSetCard,
     executeSendToGrave,
     executeBanishCard
   } = useDuelStore()
@@ -181,14 +180,23 @@ export const CardContextMenu: React.FC = () => {
   // 1. 发动效果 / 卡片 / 翻开发动
   if (isHand || isMonsterZone || isSpellTrapZone || card.location === CardLocation.GRAVE) {
     const isFacedownST = isSpellTrapZone && Boolean(card.position & CardPosition.FACEDOWN)
-    duelActionItems.push({
-      icon: <Zap className="w-3.5 h-3.5 text-amber-500" />,
-      label: isFacedownST
+    const activateLabel = isHand
+      ? '发动 (选位置)'
+      : isFacedownST
         ? `翻开发动 (Chain ${currentChain + 1})`
         : currentChain > 0
           ? `发动 (进入 Chain ${currentChain + 1})`
-          : '发动卡片/效果 (Chain 1)',
-      action: act(() => executeActivateCard(card.instanceId))
+          : '发动卡片/效果 (Chain 1)'
+    duelActionItems.push({
+      icon: <Zap className="w-3.5 h-3.5 text-amber-500" />,
+      label: activateLabel,
+      action: act(() => {
+        if (isHand) {
+          useDuelStore.getState().beginPlacement('ACTIVATE', card.instanceId)
+        } else {
+          executeActivateCard(card.instanceId)
+        }
+      })
     })
   }
 
@@ -239,15 +247,15 @@ export const CardContextMenu: React.FC = () => {
         },
         {
           icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
-          label: '里侧守备覆盖',
-          action: act(() => executeSetCard(card.instanceId))
+          label: '里侧守备覆盖 (选位置)',
+          action: act(() => useDuelStore.getState().beginPlacement('SET', card.instanceId))
         }
       )
     } else {
       duelActionItems.push({
         icon: <RotateCw className="w-3.5 h-3.5 text-emerald-400" />,
-        label: '覆盖到魔陷区',
-        action: act(() => executeSetCard(card.instanceId))
+        label: '覆盖到魔陷区 (选位置)',
+        action: act(() => useDuelStore.getState().beginPlacement('SET', card.instanceId))
       })
     }
   } else if (card.location === CardLocation.GRAVE || card.location === CardLocation.EXTRA) {

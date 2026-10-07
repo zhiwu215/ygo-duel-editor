@@ -11,6 +11,28 @@ export interface PendingAction {
   targetPlayer: 0 | 1 | null
 }
 
+/** 「发动 / 盖放 / 召唤」放置待选模式：用户先选卡，按钮后必须点击场上某个空格才落子 */
+export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON'
+
+export interface PendingPlacementSlot {
+  location: number
+  sequence: number
+  controller: 0 | 1
+  /** 该格已有卡时是否允许落子（落子 = 顶掉旧卡送去墓地）。场地魔法位为 true */
+  displaces?: boolean
+}
+
+export interface PendingPlacement {
+  sourceId: string
+  sourceName: string
+  sourceController: 0 | 1
+  mode: PendingPlacementMode
+  /** 卡片类型影响可选槽位集合（场地魔法只能去 SZONE seq 5） */
+  cardType: number
+  /** 当前可落子的所有空槽 (高亮显示 + 点击生效) */
+  allowedSlots: PendingPlacementSlot[]
+}
+
 export interface BattlePreview {
   attackerName: string
   attackerAtk: number

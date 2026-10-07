@@ -40,6 +40,19 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     if (getLegalTargetIds(s.state.cards, p).includes(card.instanceId)) return 'legal'
     return 'dim'
   })
+  const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
+  const isPlacementSource =
+    pendingPlacement !== null && pendingPlacement.sourceId === card.instanceId
+  /** 待选模式下本卡所在格是「顶掉型」落点：点它即落子，本卡被送去墓地 */
+  const isPlacementDisplaceTarget =
+    pendingPlacement !== null &&
+    pendingPlacement.allowedSlots.some(
+      (s) =>
+        s.displaces === true &&
+        s.location === card.location &&
+        s.sequence === card.sequence &&
+        s.controller === card.controller
+    )
   const { openMenu } = useContextMenuStore()
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openPile = usePileListStore((s) => s.openPile)
@@ -148,6 +161,20 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         e.stopPropagation()
         if (pendingRole === 'source') {
           useDuelStore.getState().cancelPendingAction()
+          return
+        }
+        if (isPlacementSource) {
+          useDuelStore.getState().cancelPlacement()
+          return
+        }
+        if (isPlacementDisplaceTarget) {
+          useDuelStore
+            .getState()
+            .commitPlacement({
+              location: card.location,
+              sequence: card.sequence,
+              controller: card.controller
+            })
           return
         }
         if (pendingRole === 'legal' || pendingRole === 'chosen') {

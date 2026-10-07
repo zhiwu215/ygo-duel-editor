@@ -29,9 +29,13 @@ import {
   allocateCustomCounterId
 } from '@shared/index'
 import { inferMoveAction, inferPositionChangeAction } from '../utils/duelActionInference'
+import { alertDialog } from './useDialogStore'
 import {
   PendingAction,
   PendingActionKind,
+  PendingPlacement,
+  PendingPlacementMode,
+  PendingPlacementSlot,
   resolveBattle,
   resolveDirectAttack
 } from '../utils/duelActionTargets'
@@ -44,6 +48,201 @@ interface BoardLayoutResult {
   initialSnapshot: LightweightCardSnapshot[] | null
   selectedInstanceId: string | null
   hoveredCard: CdbCard | null
+}
+
+export interface MoveCardParams {
+  instanceId: string
+  toLocation: number
+  toSequence: number
+  toController?: 0 | 1
+  customPos?: number
+  targetDuelistId?: string
+}
+
+/**
+ * 单张卡移动的纯计算：给定盘面返回「移动后」的状态片段，不主动 set。
+ * 抽出来的目的是让「顶掉旧卡 + 新卡落场」这类多步动作能在**一次 set** 内完成，
+ * 从而只产生一条撤销历史（分两次 set 会让 Ctrl+Z 要按两次）。
+ */
+function applyMoveCard(prev: DuelStoreState, params: MoveCardParams): Partial<DuelStoreState> {
+  const { instanceId, toLocation, toSequence, toController, customPos, targetDuelistId } = params
+  const targetCard = prev.state.cards.find((c) => c.instanceId === instanceId)
+  if (!targetCard) return {}
+
+  const ctrl = toController !== undefined ? toController : targetCard.controller
+
+  const isPileZone =
+    toLocation === CardLocation.HAND ||
+    toLocation === CardLocation.GRAVE ||
+    toLocation === CardLocation.DECK ||
+    toLocation === CardLocation.EXTRA ||
+    toLocation === CardLocation.REMOVED
+
+  let assignedDuelistId = targetDuelistId
+  if (isPileZone && !assignedDuelistId) {
+    const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === ctrl)
+    assignedDuelistId =
+      targetCard.duelistId ||
+      teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ||
+      teamDuelists[0]?.id ||
+      (ctrl === 0 ? 'duelist_0_0' : 'duelist_1_0')
+  }
+
+  let seq = toSequence
+  let updatedCards = prev.state.cards
+
+  if (isPileZone) {
+    const targetPiles = prev.state.cards
+      .filter((c) => {
+        if (c.controller !== ctrl || c.location !== toLocation || c.instanceId === instanceId) {
+          return false
+        }
+        if (isPileZone && assignedDuelistId) {
+          return c.duelistId === assignedDuelistId
+        }
+        return true
+      })
+      .sort((a, b) => a.sequence - b.sequence)
+
+    const insertIdx =
+      toSequence !== undefined && toSequence >= 0 && toSequence <= targetPiles.length
+        ? toSequence
+        : targetPiles.length
+    seq = insertIdx
+
+    if (insertIdx < targetPiles.length) {
+      const seqShiftMap = new Map<string, number>()
+      targetPiles.forEach((c, idx) => {
+        if (idx >= insertIdx) {
+          seqShiftMap.set(c.instanceId, idx + 1)
+        }
+      })
+      updatedCards = prev.state.cards.map((c) => {
+        if (seqShiftMap.has(c.instanceId)) {
+          return { ...c, sequence: seqShiftMap.get(c.instanceId)! }
+        }
+        return c
+      })
+    }
+  }
+
+  const sameZone = targetCard.location === toLocation
+  let newPos = targetCard.position
+  if (customPos !== undefined) {
+    newPos = customPos
+  } else if (!sameZone) {
+    if (toLocation === CardLocation.SZONE) {
+      newPos = CardPosition.FACEDOWN
+    } else if (toLocation === CardLocation.MZONE) {
+      newPos = CardPosition.FACEUP_ATTACK
+    } else if (toLocation === CardLocation.HAND) {
+      newPos = CardPosition.FACEDOWN
+    } else if (toLocation === CardLocation.DECK || toLocation === CardLocation.EXTRA) {
+      newPos = CardPosition.FACEDOWN
+    } else if (
+      toLocation === CardLocation.GRAVE ||
+      toLocation === CardLocation.REMOVED ||
+      toLocation === CardLocation.PZONE
+    ) {
+      newPos = CardPosition.FACEUP
+    }
+  }
+
+  const finalCards = updatedCards.map((c) => {
+    if (c.instanceId === instanceId) {
+      return {
+        ...c,
+        location: toLocation,
+        sequence: seq,
+        controller: ctrl,
+        position: newPos,
+        duelistId: isPileZone ? assignedDuelistId : c.duelistId
+      }
+    }
+    return c
+  })
+
+  let nextSteps = prev.state.steps || []
+  let nextChain = prev.currentChain
+
+  if (prev.isAutoRecording) {
+    const inferred = inferMoveAction({
+      fromLocation: targetCard.location,
+      fromSequence: targetCard.sequence,
+      toLocation,
+      toSequence: seq,
+      fromPosition: targetCard.position,
+      finalPosition: newPos,
+      actionPlayer: ctrl,
+      cardCode: targetCard.code,
+      cardName: targetCard.card?.name,
+      cardType: targetCard.card?.type,
+      currentPhase: prev.currentPhase,
+      currentChain: prev.currentChain
+    })
+
+    if (inferred) {
+      if (inferred.chainIndex) {
+        nextChain = inferred.chainIndex
+      }
+      const newStep: DuelStep = {
+        id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        turn: prev.currentTurn,
+        turnPlayer: prev.activeTurnPlayer,
+        phase: prev.currentPhase,
+        actionPlayer: ctrl,
+        actionType: inferred.actionType,
+        instanceId,
+        cardCode: targetCard.code,
+        cardName: targetCard.card?.name,
+        fromLocation: targetCard.location,
+        fromSequence: targetCard.sequence,
+        toLocation,
+        toSequence: seq,
+        chainIndex: inferred.chainIndex,
+        description: inferred.description,
+        boardAfter: createLightweightSnapshot(finalCards)
+      }
+      nextSteps = [...nextSteps, newStep]
+    }
+  }
+
+  return {
+    currentChain: nextChain,
+    state: {
+      ...prev.state,
+      cards: finalCards,
+      steps: nextSteps,
+      initialBoardSnapshot:
+        prev.state.initialBoardSnapshot || createLightweightSnapshot(prev.state.cards)
+    }
+  }
+}
+
+/** 场地魔法在本项目 MR1~3 约定里的落点：SZONE seq 5 */
+const FIELD_ZONE_SEQ = 5
+
+/** 判断一张卡是否为场地魔法（需 CDB 数据齐全，同时带 SPELL 与 FIELD 位） */
+function isFieldSpellCard(card: FieldCard): boolean {
+  if (!card.card) return false
+  const t = card.card.type
+  return (t & CardType.SPELL) !== 0 && (t & CardType.FIELD) !== 0
+}
+
+/** 找落点上原有的卡（仅场地魔法位需要「顶掉」，其余格子由拖拽/空位逻辑保证不重叠） */
+function findZoneOccupant(
+  cards: FieldCard[],
+  controller: 0 | 1,
+  location: number,
+  sequence: number
+): FieldCard | undefined {
+  if (location !== CardLocation.SZONE || sequence !== FIELD_ZONE_SEQ) return undefined
+  return cards.find(
+    (c) =>
+      c.controller === controller &&
+      c.location === CardLocation.SZONE &&
+      c.sequence === FIELD_ZONE_SEQ
+  )
 }
 
 function buildLayoutFromSetup(
@@ -194,6 +393,12 @@ interface DuelStoreState {
   setActionTargetPlayer: (player: 0 | 1) => void
   commitPendingAction: () => void
   cancelPendingAction: () => void
+
+  /** 「发动 / 盖放」放置待选模式：选择卡 → 点场上空槽才落子 */
+  pendingPlacement: PendingPlacement | null
+  beginPlacement: (mode: PendingPlacementMode, sourceId: string) => void
+  cancelPlacement: () => void
+  commitPlacement: (slot: PendingPlacementSlot) => void
   activeStatPopoverCardId: string | null
   statPopoverPosition: { x: number; y: number } | null
   hoveredCard: CdbCard | null
@@ -242,12 +447,18 @@ interface DuelStoreState {
     description?: string
   }) => void
 
-  executeActivateCard: (instanceId: string) => void
+  executeActivateCard: (
+    instanceId: string,
+    placement?: { location: number; sequence: number; controller?: 0 | 1; position?: number }
+  ) => void
   executeChainCard: (instanceId: string) => void
   executeAttackCard: (instanceId: string, targetInstanceId?: string) => void
   executeNormalSummon: (instanceId: string) => void
   executeSpecialSummon: (instanceId: string) => void
-  executeSetCard: (instanceId: string) => void
+  executeSetCard: (
+    instanceId: string,
+    placement?: { location: number; sequence: number; controller?: 0 | 1; position?: number }
+  ) => void
   executeDrawCard: (controller: 0 | 1) => void
   executeSendToGrave: (instanceId: string) => void
   executeBanishCard: (instanceId: string) => void
@@ -318,6 +529,8 @@ interface DuelStoreState {
     customPos?: number,
     targetDuelistId?: string
   ) => void
+  /** 一次 set 内完成多张卡的移动（如「顶掉旧卡 + 新卡落场」），撤销只需一步 */
+  moveCards: (moves: MoveCardParams[]) => void
   removeCard: (instanceId: string) => void
   updateCardPosition: (instanceId: string, position: number) => void
   addOverlayMaterial: (targetInstanceId: string, matCode: number) => void
@@ -383,6 +596,7 @@ export const useDuelStore = create<DuelStoreState>()(
       activeDuelistId: null,
       selectedCardId: null,
       pendingAction: null,
+      pendingPlacement: null,
       activeStatPopoverCardId: null,
       statPopoverPosition: null,
       hoveredCard: null,
@@ -606,6 +820,7 @@ export const useDuelStore = create<DuelStoreState>()(
           return {
             currentStepIndex: stepIndex,
             pendingAction: null,
+            pendingPlacement: null,
             currentTurn: targetStep.turn,
             currentPhase: targetStep.phase,
             currentChain: targetStep.chainIndex ?? 0,
@@ -684,7 +899,7 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         }),
 
-      cancelPendingAction: () => set({ pendingAction: null }),
+      cancelPendingAction: () => set({ pendingAction: null, pendingPlacement: null }),
 
       commitPendingAction: () => {
         const { pendingAction, executeAttackCard, executeActivateCard } = useDuelStore.getState()
@@ -694,20 +909,51 @@ export const useDuelStore = create<DuelStoreState>()(
         } else {
           executeActivateCard(pendingAction.sourceId)
         }
-        set({ pendingAction: null })
+        set({ pendingAction: null, pendingPlacement: null })
       },
 
-      executeActivateCard: (instanceId) => {
-        const { state, moveCard, updateCardPosition } = useDuelStore.getState()
+      executeActivateCard: (instanceId, placement) => {
+        const { state, moveCards, updateCardPosition } = useDuelStore.getState()
         const card = state.cards.find((c) => c.instanceId === instanceId)
         if (!card) return
 
         if (card.location === CardLocation.HAND) {
-          const occupiedSeqs = state.cards
-            .filter((c) => c.controller === card.controller && c.location === CardLocation.SZONE)
-            .map((c) => c.sequence)
-          const freeSeq = [0, 1, 2, 3, 4].find((s) => !occupiedSeqs.includes(s)) ?? 0
-          moveCard(instanceId, CardLocation.SZONE, freeSeq, undefined, CardPosition.FACEUP)
+          let targetLocation: number = CardLocation.SZONE
+          let targetSeq: number
+          if (placement) {
+            targetLocation = placement.location
+            targetSeq = placement.sequence
+          } else if (isFieldSpellCard(card)) {
+            // 场地魔法：固定去 SZONE seq 5 (本项目 MR1~3 约定)
+            targetSeq = FIELD_ZONE_SEQ
+          } else {
+            // 普通魔法/陷阱：取第一个空闲的 SZONE seq 0~4
+            const occupiedSeqs = state.cards
+              .filter((c) => c.controller === card.controller && c.location === CardLocation.SZONE)
+              .map((c) => c.sequence)
+            targetSeq = [0, 1, 2, 3, 4].find((s) => !occupiedSeqs.includes(s)) ?? 0
+          }
+
+          const targetController = placement?.controller ?? card.controller
+          const targetPos = placement?.position ?? CardPosition.FACEUP
+          const displaced = findZoneOccupant(state.cards, targetController, targetLocation, targetSeq)
+          const moves: MoveCardParams[] = []
+          if (displaced && displaced.instanceId !== instanceId) {
+            moves.push({
+              instanceId: displaced.instanceId,
+              toLocation: CardLocation.GRAVE,
+              toSequence: 999,
+              toController: displaced.controller
+            })
+          }
+          moves.push({
+            instanceId,
+            toLocation: targetLocation,
+            toSequence: targetSeq,
+            toController: placement?.controller,
+            customPos: targetPos
+          })
+          moveCards(moves)
         } else if (card.location === CardLocation.SZONE) {
           updateCardPosition(instanceId, CardPosition.FACEUP)
         } else {
@@ -746,6 +992,108 @@ export const useDuelStore = create<DuelStoreState>()(
 
       executeChainCard: (instanceId) => {
         useDuelStore.getState().executeActivateCard(instanceId)
+      },
+
+      beginPlacement: (mode, sourceId) => {
+        const { state } = useDuelStore.getState()
+        const card = state.cards.find((c) => c.instanceId === sourceId)
+        if (!card || card.location !== CardLocation.HAND) return
+
+        const cardType = card.card?.type ?? 0
+        const isMonster = card.card !== undefined ? (cardType & CardType.MONSTER) !== 0 : false
+
+        const allowedSlots: PendingPlacementSlot[] = []
+        const controller = card.controller
+
+        if (isFieldSpellCard(card)) {
+          // 场地魔法：仅 SZONE seq 5。该格已有卡也可选——落子时会顶掉旧卡送去墓地。
+          allowedSlots.push({
+            location: CardLocation.SZONE,
+            sequence: FIELD_ZONE_SEQ,
+            controller,
+            displaces: true
+          })
+        } else if (isMonster) {
+          // 怪兽：MZONE seq 0~4 中空位
+          for (let seq = 0; seq <= 4; seq++) {
+            const taken = state.cards.some(
+              (c) =>
+                c.controller === controller &&
+                c.location === CardLocation.MZONE &&
+                c.sequence === seq
+            )
+            if (!taken) {
+              allowedSlots.push({ location: CardLocation.MZONE, sequence: seq, controller })
+            }
+          }
+        } else {
+          // 魔法陷阱：SZONE seq 0~4 中空位
+          for (let seq = 0; seq <= 4; seq++) {
+            const taken = state.cards.some(
+              (c) =>
+                c.controller === controller &&
+                c.location === CardLocation.SZONE &&
+                c.sequence === seq
+            )
+            if (!taken) {
+              allowedSlots.push({ location: CardLocation.SZONE, sequence: seq, controller })
+            }
+          }
+        }
+
+        // 位置全满：怪兽/魔陷不允许顶掉已有卡，只能明确告知（场地魔法因可顶掉，永不为空）
+        if (allowedSlots.length === 0) {
+          void alertDialog(
+            isMonster
+              ? '怪兽区已占满\n5 个怪兽格都有卡，无法再召唤或覆盖怪兽。'
+              : '魔陷区已占满\n5 个魔陷格都有卡，无法再发动或盖放魔法/陷阱。'
+          )
+          return
+        }
+
+        set({
+          pendingAction: null,
+          pendingPlacement: {
+            sourceId,
+            sourceName: card.card?.name || String(card.code),
+            sourceController: controller,
+            mode,
+            cardType,
+            allowedSlots
+          },
+          selectedCardId: sourceId
+        })
+      },
+
+      cancelPlacement: () => set({ pendingPlacement: null }),
+
+      commitPlacement: (slot) => {
+        const { pendingPlacement } = useDuelStore.getState()
+        if (!pendingPlacement) return
+
+        if (pendingPlacement.mode === 'SUMMON') {
+          useDuelStore.getState().moveCard(
+            pendingPlacement.sourceId,
+            slot.location,
+            slot.sequence,
+            slot.controller,
+            CardPosition.FACEUP_ATTACK
+          )
+        } else if (pendingPlacement.mode === 'ACTIVATE') {
+          useDuelStore.getState().executeActivateCard(pendingPlacement.sourceId, {
+            location: slot.location,
+            sequence: slot.sequence,
+            controller: slot.controller,
+            position: CardPosition.FACEUP
+          })
+        } else {
+          useDuelStore.getState().executeSetCard(pendingPlacement.sourceId, {
+            location: slot.location,
+            sequence: slot.sequence,
+            controller: slot.controller
+          })
+        }
+        set({ pendingPlacement: null })
       },
 
       executeAttackCard: (instanceId, targetInstanceId) => {
@@ -798,6 +1146,7 @@ export const useDuelStore = create<DuelStoreState>()(
         set((prev) => ({
           currentChain: 0,
           pendingAction: null,
+          pendingPlacement: null,
           state: {
             ...prev.state,
             steps: [...(prev.state.steps || []), newStep],
@@ -841,26 +1190,73 @@ export const useDuelStore = create<DuelStoreState>()(
         moveCard(instanceId, CardLocation.MZONE, freeSeq, undefined, CardPosition.FACEUP_ATTACK)
       },
 
-      executeSetCard: (instanceId) => {
-        const { state, moveCard } = useDuelStore.getState()
+      executeSetCard: (instanceId, placement) => {
+        const { state, moveCards } = useDuelStore.getState()
         const card = state.cards.find((c) => c.instanceId === instanceId)
         if (!card) return
 
+        const cardType = card.card?.type ?? 0
         const isMonster = card.card
-          ? (card.card.type & CardType.MONSTER) !== 0
+          ? (cardType & CardType.MONSTER) !== 0
           : card.location === CardLocation.MZONE
-        const targetLocation = isMonster ? CardLocation.MZONE : CardLocation.SZONE
-        const targetPosition = isMonster ? CardPosition.FACEDOWN_DEFENSE : CardPosition.FACEDOWN
 
-        const occupiedSeqs = state.cards
-          .filter(
-            (c) =>
-              c.controller === card.controller && c.location === targetLocation && c.sequence <= 4
-          )
-          .map((c) => c.sequence)
-        const freeSeq = [2, 1, 3, 0, 4].find((s) => !occupiedSeqs.includes(s)) ?? 0
+        let targetLocation: number
+        let targetPosition: number
+        let defaultSeq: number
+        if (placement) {
+          targetLocation = placement.location
+          targetPosition = placement.position ?? CardPosition.FACEDOWN
+          defaultSeq = placement.sequence
+        } else if (isFieldSpellCard(card)) {
+          // 场地魔法：固定盖放到 SZONE seq 5 (本项目 MR1~3 约定)
+          targetLocation = CardLocation.SZONE
+          targetPosition = CardPosition.FACEDOWN
+          defaultSeq = FIELD_ZONE_SEQ
+        } else if (isMonster) {
+          targetLocation = CardLocation.MZONE
+          targetPosition = CardPosition.FACEDOWN_DEFENSE
+          const occupiedSeqs = state.cards
+            .filter(
+              (c) =>
+                c.controller === card.controller &&
+                c.location === CardLocation.MZONE &&
+                c.sequence <= 4
+            )
+            .map((c) => c.sequence)
+          defaultSeq = [2, 1, 3, 0, 4].find((s) => !occupiedSeqs.includes(s)) ?? 0
+        } else {
+          targetLocation = CardLocation.SZONE
+          targetPosition = CardPosition.FACEDOWN
+          const occupiedSeqs = state.cards
+            .filter(
+              (c) =>
+                c.controller === card.controller &&
+                c.location === CardLocation.SZONE &&
+                c.sequence <= 4
+            )
+            .map((c) => c.sequence)
+          defaultSeq = [2, 1, 3, 0, 4].find((s) => !occupiedSeqs.includes(s)) ?? 0
+        }
 
-        moveCard(instanceId, targetLocation, freeSeq, undefined, targetPosition)
+        const targetController = placement?.controller ?? card.controller
+        const displaced = findZoneOccupant(state.cards, targetController, targetLocation, defaultSeq)
+        const moves: MoveCardParams[] = []
+        if (displaced && displaced.instanceId !== instanceId) {
+          moves.push({
+            instanceId: displaced.instanceId,
+            toLocation: CardLocation.GRAVE,
+            toSequence: 999,
+            toController: displaced.controller
+          })
+        }
+        moves.push({
+          instanceId,
+          toLocation: targetLocation,
+          toSequence: defaultSeq,
+          toController: placement?.controller,
+          customPos: targetPosition
+        })
+        moveCards(moves)
       },
 
       executeSendToGrave: (instanceId) => {
@@ -1481,162 +1877,24 @@ export const useDuelStore = create<DuelStoreState>()(
         }),
 
       moveCard: (instanceId, toLocation, toSequence, toController, customPos, targetDuelistId) =>
-        set((prev) => {
-          const targetCard = prev.state.cards.find((c) => c.instanceId === instanceId)
-          if (!targetCard) return prev
-
-          const ctrl = toController !== undefined ? toController : targetCard.controller
-
-          const isPileZone =
-            toLocation === CardLocation.HAND ||
-            toLocation === CardLocation.GRAVE ||
-            toLocation === CardLocation.DECK ||
-            toLocation === CardLocation.EXTRA ||
-            toLocation === CardLocation.REMOVED
-
-          let assignedDuelistId = targetDuelistId
-          if (isPileZone && !assignedDuelistId) {
-            const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === ctrl)
-            assignedDuelistId =
-              targetCard.duelistId ||
-              teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ||
-              teamDuelists[0]?.id ||
-              (ctrl === 0 ? 'duelist_0_0' : 'duelist_1_0')
-          }
-
-          let seq = toSequence
-          let updatedCards = prev.state.cards
-
-          if (isPileZone) {
-            const targetPiles = prev.state.cards
-              .filter((c) => {
-                if (
-                  c.controller !== ctrl ||
-                  c.location !== toLocation ||
-                  c.instanceId === instanceId
-                ) {
-                  return false
-                }
-                if (isPileZone && assignedDuelistId) {
-                  return c.duelistId === assignedDuelistId
-                }
-                return true
-              })
-              .sort((a, b) => a.sequence - b.sequence)
-
-            const insertIdx =
-              toSequence !== undefined && toSequence >= 0 && toSequence <= targetPiles.length
-                ? toSequence
-                : targetPiles.length
-            seq = insertIdx
-
-            if (insertIdx < targetPiles.length) {
-              const seqShiftMap = new Map<string, number>()
-              targetPiles.forEach((c, idx) => {
-                if (idx >= insertIdx) {
-                  seqShiftMap.set(c.instanceId, idx + 1)
-                }
-              })
-              updatedCards = prev.state.cards.map((c) => {
-                if (seqShiftMap.has(c.instanceId)) {
-                  return { ...c, sequence: seqShiftMap.get(c.instanceId)! }
-                }
-                return c
-              })
-            }
-          }
-
-          const sameZone = targetCard.location === toLocation
-          let newPos = targetCard.position
-          if (customPos !== undefined) {
-            newPos = customPos
-          } else if (!sameZone) {
-            if (toLocation === CardLocation.SZONE) {
-              newPos = CardPosition.FACEDOWN
-            } else if (toLocation === CardLocation.MZONE) {
-              newPos = CardPosition.FACEUP_ATTACK
-            } else if (toLocation === CardLocation.HAND) {
-              newPos = CardPosition.FACEDOWN
-            } else if (toLocation === CardLocation.DECK || toLocation === CardLocation.EXTRA) {
-              newPos = CardPosition.FACEDOWN
-            } else if (
-              toLocation === CardLocation.GRAVE ||
-              toLocation === CardLocation.REMOVED ||
-              toLocation === CardLocation.PZONE
-            ) {
-              newPos = CardPosition.FACEUP
-            }
-          }
-
-          const finalCards = updatedCards.map((c) => {
-            if (c.instanceId === instanceId) {
-              return {
-                ...c,
-                location: toLocation,
-                sequence: seq,
-                controller: ctrl,
-                position: newPos,
-                duelistId: isPileZone ? assignedDuelistId : c.duelistId
-              }
-            }
-            return c
+        set((prev) =>
+          applyMoveCard(prev, {
+            instanceId,
+            toLocation,
+            toSequence,
+            toController,
+            customPos,
+            targetDuelistId
           })
+        ),
 
-          let nextSteps = prev.state.steps || []
-          let nextChain = prev.currentChain
-
-          if (prev.isAutoRecording) {
-            const inferred = inferMoveAction({
-              fromLocation: targetCard.location,
-              fromSequence: targetCard.sequence,
-              toLocation,
-              toSequence: seq,
-              fromPosition: targetCard.position,
-              finalPosition: newPos,
-              actionPlayer: ctrl,
-              cardCode: targetCard.code,
-              cardName: targetCard.card?.name,
-              cardType: targetCard.card?.type,
-              currentPhase: prev.currentPhase,
-              currentChain: prev.currentChain
-            })
-
-            if (inferred) {
-              if (inferred.chainIndex) {
-                nextChain = inferred.chainIndex
-              }
-              const newStep: DuelStep = {
-                id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                turn: prev.currentTurn,
-                turnPlayer: prev.activeTurnPlayer,
-                phase: prev.currentPhase,
-                actionPlayer: ctrl,
-                actionType: inferred.actionType,
-                instanceId,
-                cardCode: targetCard.code,
-                cardName: targetCard.card?.name,
-                fromLocation: targetCard.location,
-                fromSequence: targetCard.sequence,
-                toLocation,
-                toSequence: seq,
-                chainIndex: inferred.chainIndex,
-                description: inferred.description,
-                boardAfter: createLightweightSnapshot(finalCards)
-              }
-              nextSteps = [...nextSteps, newStep]
-            }
+      moveCards: (moves) =>
+        set((prev) => {
+          let acc = prev
+          for (const m of moves) {
+            acc = { ...acc, ...applyMoveCard(acc, m) }
           }
-
-          return {
-            currentChain: nextChain,
-            state: {
-              ...prev.state,
-              cards: finalCards,
-              steps: nextSteps,
-              initialBoardSnapshot:
-                prev.state.initialBoardSnapshot || createLightweightSnapshot(prev.state.cards)
-            }
-          }
+          return acc
         }),
 
       removeCard: (instanceId) =>
@@ -1647,7 +1905,9 @@ export const useDuelStore = create<DuelStoreState>()(
           },
           selectedCardId: prev.selectedCardId === instanceId ? null : prev.selectedCardId,
           hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredInstanceId,
-          pendingAction: prev.pendingAction?.sourceId === instanceId ? null : prev.pendingAction
+          pendingAction: prev.pendingAction?.sourceId === instanceId ? null : prev.pendingAction,
+          pendingPlacement:
+            prev.pendingPlacement?.sourceId === instanceId ? null : prev.pendingPlacement
         })),
 
       updateCardPosition: (instanceId, position) =>
@@ -2091,6 +2351,7 @@ export const useDuelStore = create<DuelStoreState>()(
           state: normalizeDuelState(newState),
           selectedCardId: null,
           pendingAction: null,
+          pendingPlacement: null,
           expandedDuelistId: null
         })),
 
@@ -2111,6 +2372,7 @@ export const useDuelStore = create<DuelStoreState>()(
             state: baseState,
             selectedCardId: null,
             pendingAction: null,
+            pendingPlacement: null,
             activeStatPopoverCardId: null,
             statPopoverPosition: null,
             hoveredCard: null,

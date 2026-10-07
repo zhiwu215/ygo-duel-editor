@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Check, Edit2 } from 'lucide-react'
@@ -302,14 +303,20 @@ const SingleHandTray: React.FC<{
             </button>
           </div>
         ) : (
-          <div
-            onClick={() => setEditingName(duelist.name)}
-            title="点击修改角色名称"
-            className="flex items-center gap-1 group cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded"
-          >
-            <span className="font-semibold text-foreground/90">{duelist.name}</span>
-            <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
-          </div>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <div
+                  onClick={() => setEditingName(duelist.name)}
+                  className="flex items-center gap-1 group cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded"
+                >
+                  <span className="font-semibold text-foreground/90">{duelist.name}</span>
+                  <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+                </div>
+              }
+            />
+            <TooltipContent>点击修改角色名称</TooltipContent>
+          </Tooltip>
         )}
 
         {/* 手牌张数 */}
@@ -358,9 +365,7 @@ const SingleHandTray: React.FC<{
 
           return (
             <React.Fragment key={c.instanceId}>
-              {isGapBefore && (
-                <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />
-              )}
+              {isGapBefore && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
               <motion.div
                 layout="position"
                 transition={{
@@ -383,9 +388,7 @@ const SingleHandTray: React.FC<{
                   duelistId={duelist.id}
                 />
               </motion.div>
-              {isGapAfter && (
-                <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />
-              )}
+              {isGapAfter && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
             </React.Fragment>
           )
         })}
@@ -508,31 +511,37 @@ const MultiHandTray: React.FC<{
               className="h-[18px] w-20 px-1 text-[10px] rounded border border-primary bg-background outline-none"
             />
           ) : (
-            <button
-              key={d.id}
-              type="button"
-              onClick={() => {
-                setActiveDuelistId(d.id)
-                scrollStripIntoView(d.id)
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                setRenamingId(d.id)
-                setRenameDraft(d.name)
-              }}
-              title={`左键查看 ${d.name} 的卡组 · 右键重命名`}
-              className={cn(
-                'px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
-                d.team === 1
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-blue-600 dark:text-blue-400',
-                activeDuelistId === d.id
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-muted/40 border-border hover:bg-muted'
-              )}
-            >
-              {d.name}
-            </button>
+            <Tooltip key={d.id}>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveDuelistId(d.id)
+                      scrollStripIntoView(d.id)
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      setRenamingId(d.id)
+                      setRenameDraft(d.name)
+                    }}
+
+                    className={cn(
+                      'px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
+                      d.team === 1
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-blue-600 dark:text-blue-400',
+                      activeDuelistId === d.id
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-muted/40 border-border hover:bg-muted'
+                    )}
+                  >
+                    {d.name}
+                  </button>
+                }
+              />
+              <TooltipContent>{`左键查看 ${d.name} 的卡组 · 右键重命名`}</TooltipContent>
+            </Tooltip>
           )
         )}
 
@@ -541,23 +550,29 @@ const MultiHandTray: React.FC<{
         </span>
 
         {/* 多人时提供队伍共用 LP 开关 */}
-        <button
-          type="button"
-          onClick={toggleSharedLp}
-          title={
-            isSharedLp
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={toggleSharedLp}
+                className={cn(
+                  'ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
+                  isSharedLp
+                    ? 'bg-primary/15 border-primary/40 text-primary'
+                    : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {isSharedLp ? '✓ 队伍共用 LP' : '独立 LP'}
+              </button>
+            }
+          />
+          <TooltipContent>
+            {isSharedLp
               ? '当前为队伍共用生命值，点击切换为每位决斗者独立生命值'
-              : '当前为独立生命值，点击切换为全队共用同一生命值'
-          }
-          className={cn(
-            'ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
-            isSharedLp
-              ? 'bg-primary/15 border-primary/40 text-primary'
-              : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
-          )}
-        >
-          {isSharedLp ? '✓ 队伍共用 LP' : '独立 LP'}
-        </button>
+              : '当前为独立生命值，点击切换为全队共用同一生命值'}
+          </TooltipContent>
+        </Tooltip>
 
         {/* 队伍共用 LP：仅在队伍共用模式下展示于队伍状态栏 (包含四则运算与无限设置计算器) */}
         {isSharedLp && (

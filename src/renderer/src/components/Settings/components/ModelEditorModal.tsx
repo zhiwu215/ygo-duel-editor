@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from 'react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
+import { ScrollArea } from '../../ui/scroll-area'
+import React, { useState } from 'react'
 import { Check, ChevronRight, Loader2, Lock, X } from 'lucide-react'
 import { AgentProviderConfig, AgentProviderModelConfig, cleanAgentApiKey } from '@shared/index'
 import { Button } from '../../ui/button'
 import { Switch } from '../../ui/switch'
 import { HelpTip } from './HelpTip'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog'
 import { cn } from '../../../lib/utils'
 
 interface ModelEditorModalProps {
@@ -103,17 +106,6 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
   const [detectNote, setDetectNote] = useState('')
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
   const detectModel = async (): Promise<void> => {
     const id = idValue.trim()
     if (!smart || !id || !provider.baseUrl.trim() || !window.api?.agentFetchModels) return
@@ -188,26 +180,30 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div className="w-full max-w-md max-h-[85vh] flex flex-col bg-card text-card-foreground border border-border rounded-xl shadow-2xl select-none animate-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between gap-3 px-5 pt-4">
-          <h3 className="text-xs font-semibold">{mode === 'add' ? '添加模型' : '编辑模型'}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            title="关闭 (Esc)"
-            className="text-muted-foreground hover:text-foreground rounded p-1 hover:bg-muted/80 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="!flex !flex-col !p-0 !bg-card !text-card-foreground !max-w-md border border-border rounded-xl shadow-2xl w-full max-h-[85vh] select-none"
+      >
+        <DialogHeader className="!flex !flex-row items-center justify-between gap-3 px-5 pt-4 space-y-0">
+          <DialogTitle className="text-xs font-semibold">
+            {mode === 'add' ? '添加模型' : '编辑模型'}
+          </DialogTitle>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-muted-foreground hover:text-foreground rounded p-1 hover:bg-muted/80 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              }
+            />
+            <TooltipContent>关闭 (Esc)</TooltipContent>
+          </Tooltip>
+        </DialogHeader>
 
         <div className="flex items-center gap-1.5 px-5 pt-3">
           <span className="text-[11px] font-medium">智能配置</span>
@@ -221,147 +217,149 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
           {detecting && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3.5">
-          <div>
-            <label className="mb-1 block text-[11px] text-muted-foreground">模型 ID</label>
-            <input
-              autoFocus
-              type="text"
-              value={idValue}
-              onChange={(e) => setIdValue(e.target.value)}
-              onBlur={() => void detectModel()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmit()
-              }}
-              placeholder="模型 ID"
-              spellCheck={false}
-              className={cn(FIELD_INPUT_CLASS, 'font-mono')}
-            />
-          </div>
-
-          <div>
-            <span className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              模型名称
-              <HelpTip text="仅用于界面展示，留空时显示模型 ID" />
-            </span>
-            <input
-              type="text"
-              value={nameValue}
-              onChange={(e) => setNameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmit()
-              }}
-              placeholder="可选"
-              className={FIELD_INPUT_CLASS}
-            />
-          </div>
-
-          <div>
-            <span className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              上下文窗口
-              <HelpTip text="模型单次能处理的最大 token 数，影响上下文自动压缩阈值" />
-            </span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={contextValue}
-              onChange={(e) => setContextValue(e.target.value.replace(/[^\d]/g, ''))}
-              placeholder="如 131072"
-              className={cn(FIELD_INPUT_CLASS, 'font-mono')}
-            />
-          </div>
-
-          <div>
-            <span className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              最大输出 Token
-              <HelpTip text="该模型单次回复的上限，留空则使用「对话设置」里的全局上限" />
-            </span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={maxTokensValue}
-              onChange={(e) => setMaxTokensValue(e.target.value.replace(/[^\d]/g, ''))}
-              placeholder="如 8192"
-              className={cn(FIELD_INPUT_CLASS, 'font-mono')}
-            />
-          </div>
-
-          <div>
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen((v) => !v)}
-              aria-expanded={advancedOpen}
-              className="flex w-fit items-center gap-1.5 py-1 text-[11px] font-medium text-foreground hover:text-muted-foreground transition-colors"
-            >
-              <ChevronRight
-                className={cn('w-3.5 h-3.5 transition-transform', advancedOpen && 'rotate-90')}
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-5 py-4 space-y-3.5">
+            <div>
+              <label className="mb-1 block text-[11px] text-muted-foreground">模型 ID</label>
+              <input
+                autoFocus
+                type="text"
+                value={idValue}
+                onChange={(e) => setIdValue(e.target.value)}
+                onBlur={() => void detectModel()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmit()
+                }}
+                placeholder="模型 ID"
+                spellCheck={false}
+                className={cn(FIELD_INPUT_CLASS, 'font-mono')}
               />
-              <span>高级配置</span>
-            </button>
+            </div>
 
-            {advancedOpen && (
-              <div className="mt-2 space-y-4 pl-5">
-                <div>
-                  <GroupLabel
-                    label="输入类型"
-                    help="该模型能接收的内容类型。文本是所有模型都支持的；图片需要模型本身具备视觉能力"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <OptionChip label="文本" selected locked />
-                    <OptionChip
-                      label="图片"
-                      selected={vision}
-                      onToggle={() => setVision((v) => !v)}
+            <div>
+              <span className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                模型名称
+                <HelpTip text="仅用于界面展示，留空时显示模型 ID" />
+              </span>
+              <input
+                type="text"
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmit()
+                }}
+                placeholder="可选"
+                className={FIELD_INPUT_CLASS}
+              />
+            </div>
+
+            <div>
+              <span className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                上下文窗口
+                <HelpTip text="模型单次能处理的最大 token 数，影响上下文自动压缩阈值" />
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={contextValue}
+                onChange={(e) => setContextValue(e.target.value.replace(/[^\d]/g, ''))}
+                placeholder="如 131072"
+                className={cn(FIELD_INPUT_CLASS, 'font-mono')}
+              />
+            </div>
+
+            <div>
+              <span className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                最大输出 Token
+                <HelpTip text="该模型单次回复的上限，留空则使用「对话设置」里的全局上限" />
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={maxTokensValue}
+                onChange={(e) => setMaxTokensValue(e.target.value.replace(/[^\d]/g, ''))}
+                placeholder="如 8192"
+                className={cn(FIELD_INPUT_CLASS, 'font-mono')}
+              />
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={() => setAdvancedOpen((v) => !v)}
+                aria-expanded={advancedOpen}
+                className="flex w-fit items-center gap-1.5 py-1 text-[11px] font-medium text-foreground hover:text-muted-foreground transition-colors"
+              >
+                <ChevronRight
+                  className={cn('w-3.5 h-3.5 transition-transform', advancedOpen && 'rotate-90')}
+                />
+                <span>高级配置</span>
+              </button>
+
+              {advancedOpen && (
+                <div className="mt-2 space-y-4 pl-5">
+                  <div>
+                    <GroupLabel
+                      label="输入类型"
+                      help="该模型能接收的内容类型。文本是所有模型都支持的；图片需要模型本身具备视觉能力"
                     />
+                    <div className="flex flex-wrap gap-2">
+                      <OptionChip label="文本" selected locked />
+                      <OptionChip
+                        label="图片"
+                        selected={vision}
+                        onToggle={() => setVision((v) => !v)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <GroupLabel
+                      label="模型能力"
+                      help="直接写进底层引擎的兼容性声明。只有确认模型确实支持时才开启，否则可能导致工具调用异常"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <OptionChip
+                        label="结构化输出"
+                        selected={structuredOutput}
+                        onToggle={() => setStructuredOutput((v) => !v)}
+                      />
+                      <OptionChip
+                        label="对话中系统消息"
+                        selected={midConversationSystem}
+                        onToggle={() => setMidConversationSystem((v) => !v)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <GroupLabel
+                      label="推理"
+                      help="开启后该模型会出现在「对话设置」的可推理模型里，并在模型列表打「推理」标记"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <OptionChip
+                        label="支持推理 / 思考链"
+                        selected={reasoning}
+                        onToggle={() => setReasoning((v) => !v)}
+                      />
+                    </div>
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div>
-                  <GroupLabel
-                    label="模型能力"
-                    help="直接写进底层引擎的兼容性声明。只有确认模型确实支持时才开启，否则可能导致工具调用异常"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <OptionChip
-                      label="结构化输出"
-                      selected={structuredOutput}
-                      onToggle={() => setStructuredOutput((v) => !v)}
-                    />
-                    <OptionChip
-                      label="对话中系统消息"
-                      selected={midConversationSystem}
-                      onToggle={() => setMidConversationSystem((v) => !v)}
-                    />
-                  </div>
-                </div>
+            {detectNote && <p className="text-[10px] text-muted-foreground">{detectNote}</p>}
 
-                <div>
-                  <GroupLabel
-                    label="推理"
-                    help="开启后该模型会出现在「对话设置」的可推理模型里，并在模型列表打「推理」标记"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <OptionChip
-                      label="支持推理 / 思考链"
-                      selected={reasoning}
-                      onToggle={() => setReasoning((v) => !v)}
-                    />
-                  </div>
-                </div>
+            {error && (
+              <div className="px-2 py-1.5 rounded border border-destructive/40 bg-destructive/10 text-[11px] text-destructive break-all">
+                {error}
               </div>
             )}
           </div>
+        </ScrollArea>
 
-          {detectNote && <p className="text-[10px] text-muted-foreground">{detectNote}</p>}
-
-          {error && (
-            <div className="px-2 py-1.5 rounded border border-destructive/40 bg-destructive/10 text-[11px] text-destructive break-all">
-              {error}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-2 px-5 pb-4 pt-1">
+        <DialogFooter className="!flex !flex-row !border-0 !bg-transparent !p-0 items-center justify-between gap-2 px-5 pb-4 pt-1">
           <button
             type="button"
             onClick={handleReset}
@@ -377,8 +375,8 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
               保存
             </Button>
           </div>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

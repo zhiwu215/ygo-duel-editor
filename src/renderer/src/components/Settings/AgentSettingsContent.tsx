@@ -1,3 +1,5 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { ScrollArea } from '../ui/scroll-area'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   DndContext,
@@ -41,6 +43,8 @@ import {
 import { useAgentStore } from '../../stores/useAgentStore'
 import { Button } from '../ui/button'
 import { Switch } from '../ui/switch'
+import { Textarea } from '../ui/textarea'
+import { Checkbox } from '../ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { ProviderLogo } from './components/ProviderLogo'
 import { ProviderTemplatePicker } from './components/ProviderTemplatePicker'
@@ -231,102 +235,106 @@ export const AgentSettingsContent: React.FC<AgentSettingsContentProps> = ({ sect
 
           <div className="overflow-hidden rounded-xl border border-border bg-card flex h-[520px]">
             <div className="w-44 shrink-0 border-r border-border flex flex-col">
-              <div className="flex-1 overflow-y-auto p-2 space-y-3">
-                <div>
-                  <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
-                    常用提供商
+              <ScrollArea className="flex-1">
+                <div className="p-2 space-y-3">
+                  <div>
+                    <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
+                      常用提供商
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      {presetProviders.length === 0 && (
+                        <p className="px-2 py-1 text-[10px] leading-4 text-muted-foreground/70">
+                          点右上角「添加供应商」从内置品牌中选择
+                        </p>
+                      )}
+                      {presetProviders.map((provider) => (
+                        <NavItem
+                          key={provider.id}
+                          active={!pickerOpen && effectiveSelection === provider.id}
+                          label={provider.name}
+                          status={resolveProviderStatus(provider)}
+                          presetId={provider.presetId}
+                          onClick={() => {
+                            setSelection(provider.id)
+                            setPickerOpen(false)
+                          }}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-0.5">
-                    {presetProviders.length === 0 && (
-                      <p className="px-2 py-1 text-[10px] leading-4 text-muted-foreground/70">
-                        点右上角「添加供应商」从内置品牌中选择
-                      </p>
-                    )}
-                    {presetProviders.map((provider) => (
-                      <NavItem
-                        key={provider.id}
-                        active={!pickerOpen && effectiveSelection === provider.id}
-                        label={provider.name}
-                        status={resolveProviderStatus(provider)}
-                        presetId={provider.presetId}
-                        onClick={() => {
-                          setSelection(provider.id)
-                          setPickerOpen(false)
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
 
-                <div>
-                  <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
-                    自定义供应商
-                  </div>
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleCustomReorder}
-                  >
-                    <SortableContext
-                      items={customProviders.map((p) => p.id)}
-                      strategy={verticalListSortingStrategy}
+                  <div>
+                    <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
+                      自定义供应商
+                    </div>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleCustomReorder}
                     >
-                      <div className="flex flex-col gap-0.5">
-                        {customProviders.length === 0 && (
-                          <p className="px-2 py-1 text-[10px] leading-4 text-muted-foreground/70">
-                            还没有自定义供应商
-                          </p>
-                        )}
-                        {customProviders.map((provider) => (
-                          <NavItem
-                            key={provider.id}
-                            active={!pickerOpen && effectiveSelection === provider.id}
-                            label={provider.name}
-                            status={resolveProviderStatus(provider)}
-                            presetId={provider.presetId}
-                            sortable
-                            sortId={provider.id}
-                            onClick={() => {
-                              setSelection(provider.id)
-                              setPickerOpen(false)
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
+                      <SortableContext
+                        items={customProviders.map((p) => p.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          {customProviders.length === 0 && (
+                            <p className="px-2 py-1 text-[10px] leading-4 text-muted-foreground/70">
+                              还没有自定义供应商
+                            </p>
+                          )}
+                          {customProviders.map((provider) => (
+                            <NavItem
+                              key={provider.id}
+                              active={!pickerOpen && effectiveSelection === provider.id}
+                              label={provider.name}
+                              status={resolveProviderStatus(provider)}
+                              presetId={provider.presetId}
+                              sortable
+                              sortId={provider.id}
+                              onClick={() => {
+                                setSelection(provider.id)
+                                setPickerOpen(false)
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  </div>
                 </div>
-              </div>
+              </ScrollArea>
             </div>
 
-            <div className="flex-1 min-w-0 overflow-y-auto p-4">
-              {pickerOpen ? (
-                <ProviderTemplatePicker
-                  presets={presets}
-                  onBack={() => setPickerOpen(false)}
-                  onPick={pickPreset}
-                  onCreateCustom={createCustomProvider}
-                />
-              ) : resolved ? (
-                <ProviderDetailPanel
-                  key={resolved.provider.id}
-                  provider={resolved.provider}
-                  preset={resolved.preset}
-                  activeProviderId={config.provider}
-                  activeModelId={config.model}
-                  onUpsert={upsertProvider}
-                  onRemove={() => requestDelete(resolved.provider.id, resolved.provider.name)}
-                  onSelectModel={selectModel}
-                />
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center gap-2 text-[11px] text-muted-foreground">
-                  <span>还没有添加任何供应商</span>
-                  <Button size="xs" variant="outline" onClick={() => setPickerOpen(true)}>
-                    添加供应商
-                  </Button>
-                </div>
-              )}
-            </div>
+            <ScrollArea className="flex-1 min-w-0">
+              <div className="p-4">
+                {pickerOpen ? (
+                  <ProviderTemplatePicker
+                    presets={presets}
+                    onBack={() => setPickerOpen(false)}
+                    onPick={pickPreset}
+                    onCreateCustom={createCustomProvider}
+                  />
+                ) : resolved ? (
+                  <ProviderDetailPanel
+                    key={resolved.provider.id}
+                    provider={resolved.provider}
+                    preset={resolved.preset}
+                    activeProviderId={config.provider}
+                    activeModelId={config.model}
+                    onUpsert={upsertProvider}
+                    onRemove={() => requestDelete(resolved.provider.id, resolved.provider.name)}
+                    onSelectModel={selectModel}
+                  />
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 text-[11px] text-muted-foreground">
+                    <span>还没有添加任何供应商</span>
+                    <Button size="xs" variant="outline" onClick={() => setPickerOpen(true)}>
+                      添加供应商
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
           </div>
         </div>
       )}
@@ -597,26 +605,38 @@ function ProviderDetailPanel({
             aria-label={provider.enabled !== false ? '禁用供应商' : '启用供应商'}
           />
           {isCustom && (
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={() => setRenaming(true)}
-              title="重命名"
-              className="text-muted-foreground"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={() => setRenaming(true)}
+                    className="text-muted-foreground"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>重命名</TooltipContent>
+            </Tooltip>
           )}
           <div className="relative" ref={menuRef}>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={() => setMenuOpen((v) => !v)}
-              title="更多操作"
-              className="text-muted-foreground"
-            >
-              <MoreHorizontal className="w-3.5 h-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={() => setMenuOpen((v) => !v)}
+                    className="text-muted-foreground"
+                  >
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>更多操作</TooltipContent>
+            </Tooltip>
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1 w-28 bg-popover border border-border rounded-md shadow-lg z-50 overflow-hidden">
                 {isCustom && (
@@ -709,14 +729,20 @@ function ProviderDetailPanel({
               spellCheck={false}
               className="w-full px-2.5 py-1.5 pr-8 rounded-lg border border-border bg-background text-[11px] font-mono"
             />
-            <button
-              type="button"
-              onClick={() => setShowKey((v) => !v)}
-              title={showKey ? '隐藏密钥' : '显示密钥'}
-              className="absolute top-1/2 right-1 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-            >
-              {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={() => setShowKey((v) => !v)}
+                    className="absolute top-1/2 right-1 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                  >
+                    {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                }
+              />
+              <TooltipContent>{showKey ? '隐藏密钥' : '显示密钥'}</TooltipContent>
+            </Tooltip>
           </div>
           <Button
             size="sm"
@@ -752,17 +778,24 @@ function ProviderDetailPanel({
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <span className="text-[11px] text-muted-foreground">模型列表</span>
           <div className="flex items-center gap-1.5">
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => void pullModels()}
-              disabled={modelsBusy || !urlDraft.trim()}
-              title="从厂商接口拉取当前可用模型"
-              className="gap-1"
-            >
-              <RefreshCw className={cn('w-3 h-3', modelsBusy && 'animate-spin')} />
-              <span>拉取模型</span>
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => void pullModels()}
+                    disabled={modelsBusy || !urlDraft.trim()}
+
+                    className="gap-1"
+                  >
+                    <RefreshCw className={cn('w-3 h-3', modelsBusy && 'animate-spin')} />
+                    <span>拉取模型</span>
+                  </Button>
+                }
+              />
+              <TooltipContent>从厂商接口拉取当前可用模型</TooltipContent>
+            </Tooltip>
             <Button
               size="xs"
               variant="secondary"
@@ -791,62 +824,83 @@ function ProviderDetailPanel({
                   key={model.id}
                   className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-muted/30 transition-colors"
                 >
-                  <button
-                    type="button"
-                    onClick={() => onSelectModel(provider.id, model.id)}
-                    disabled={!canActivate || !model.enabled}
-                    title={canActivate ? '设为当前使用模型' : '配置 API Key 后可选用'}
-                    className="min-w-0 flex-1 flex items-center gap-1.5 text-left disabled:cursor-not-allowed"
-                  >
-                    <span className="min-w-0 truncate text-[11px] font-medium">
-                      {model.name ?? model.id}
-                    </span>
-                    {model.name && model.name !== model.id && (
-                      <span className="font-mono text-[10px] text-muted-foreground truncate">
-                        {model.id}
-                      </span>
-                    )}
-                    {ctx && (
-                      <span className="text-[9px] px-1 py-0.5 rounded border border-border bg-muted text-muted-foreground shrink-0">
-                        {ctx}
-                      </span>
-                    )}
-                    {model.supportsVision && (
-                      <span className="text-[9px] px-1 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400 shrink-0 inline-flex items-center gap-0.5">
-                        <ImageIcon className="w-2.5 h-2.5" />
-                        视觉
-                      </span>
-                    )}
-                    {model.supportsReasoning && (
-                      <span className="text-[9px] px-1 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                        推理
-                      </span>
-                    )}
-                    {isActive && (
-                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 shrink-0 inline-flex items-center gap-0.5">
-                        <Check className="w-3 h-3" />
-                        使用中
-                      </span>
-                    )}
-                  </button>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => setModelModal({ mode: 'edit', initial: model })}
-                    title="编辑模型配置"
-                    className="shrink-0 text-muted-foreground"
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => removeModel(model.id)}
-                    title="删除模型"
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          onClick={() => onSelectModel(provider.id, model.id)}
+                          disabled={!canActivate || !model.enabled}
+
+                          className="min-w-0 flex-1 flex items-center gap-1.5 text-left disabled:cursor-not-allowed"
+                        >
+                          <span className="min-w-0 truncate text-[11px] font-medium">
+                            {model.name ?? model.id}
+                          </span>
+                          {model.name && model.name !== model.id && (
+                            <span className="font-mono text-[10px] text-muted-foreground truncate">
+                              {model.id}
+                            </span>
+                          )}
+                          {ctx && (
+                            <span className="text-[9px] px-1 py-0.5 rounded border border-border bg-muted text-muted-foreground shrink-0">
+                              {ctx}
+                            </span>
+                          )}
+                          {model.supportsVision && (
+                            <span className="text-[9px] px-1 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400 shrink-0 inline-flex items-center gap-0.5">
+                              <ImageIcon className="w-2.5 h-2.5" />
+                              视觉
+                            </span>
+                          )}
+                          {model.supportsReasoning && (
+                            <span className="text-[9px] px-1 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                              推理
+                            </span>
+                          )}
+                          {isActive && (
+                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 shrink-0 inline-flex items-center gap-0.5">
+                              <Check className="w-3 h-3" />
+                              使用中
+                            </span>
+                          )}
+                        </button>
+                      }
+                    />
+                    <TooltipContent>
+                      {canActivate ? '设为当前使用模型' : '配置 API Key 后可选用'}
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          onClick={() => setModelModal({ mode: 'edit', initial: model })}
+                          className="shrink-0 text-muted-foreground"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>编辑模型配置</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          size="icon-xs"
+                          variant="ghost"
+                          onClick={() => removeModel(model.id)}
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>删除模型</TooltipContent>
+                  </Tooltip>
                   <Switch
                     checked={model.enabled}
                     onCheckedChange={(v) => setModelEnabled(model.id, v)}
@@ -907,7 +961,7 @@ function ChatSection({ config, activeModelInfo }: ChatSectionProps): React.JSX.E
         <label className="block text-xs font-semibold mb-1.5">
           创作者补充背景设定 (System Instruction)
         </label>
-        <textarea
+        <Textarea
           value={promptValue}
           onChange={(e) => setPromptDraft(e.target.value)}
           onBlur={() => {
@@ -916,17 +970,15 @@ function ChatSection({ config, activeModelInfo }: ChatSectionProps): React.JSX.E
           }}
           placeholder="可填入决斗双方的角色性格（如海马的高傲狂妄、暗游戏的稳重热血）、作品同人世界观设定等..."
           rows={5}
-          className="w-full px-2.5 py-2 rounded-lg border border-border bg-background text-xs resize-none leading-relaxed"
+          className="resize-none bg-background text-xs leading-relaxed"
         />
       </div>
 
       {reasoningSupported ? (
         <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={Boolean(config.enableReasoning)}
-            onChange={(e) => apply({ enableReasoning: e.target.checked })}
-            className="rounded border-border text-amber-500 focus:ring-amber-500"
+            onCheckedChange={(checked) => apply({ enableReasoning: checked })}
           />
           <span>启用模型推理 / 思考链 (Reasoning)</span>
         </label>

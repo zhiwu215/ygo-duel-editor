@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
@@ -135,11 +136,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         if (card.location === CardLocation.HAND) {
           e.dataTransfer.setData(HAND_REORDER_DRAG_TYPE, card.instanceId)
           const rect = e.currentTarget.getBoundingClientRect()
-          e.dataTransfer.setDragImage(
-            e.currentTarget,
-            e.clientX - rect.left,
-            e.clientY - rect.top
-          )
+          e.dataTransfer.setDragImage(e.currentTarget, e.clientX - rect.left, e.clientY - rect.top)
         }
         e.dataTransfer.setData('text/instanceId', card.instanceId)
         if (card.card) {
@@ -325,34 +322,40 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
 
       {/* 超量素材叠放标识 (外层无旋转容器，横置自适应右下角，超量怪兽即使 0 素材也显示 0) */}
       {showOverlayBadge && (
-        <motion.div
-          initial={false}
-          animate={{ bottom: oruPos.bottom, right: oruPos.right }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="absolute z-20 pointer-events-auto cursor-pointer group/oru"
-          onClick={(e) => {
-            e.stopPropagation()
-            openOverlayList(card.instanceId)
-          }}
-          title={`点击查看超量素材列表 (当前 ${materialCount} 张)`}
-        >
-          <div
-            className={cn(
-              'font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full border shadow-md flex items-center gap-1 select-none whitespace-nowrap transition-transform group-hover/oru:scale-110 active:scale-95',
-              materialCount > 0
-                ? 'bg-black/90 group-hover/oru:bg-black text-amber-400 border-amber-400/50 group-hover/oru:border-amber-300'
-                : 'bg-black/85 group-hover/oru:bg-black text-amber-400/80 border-amber-400/40 group-hover/oru:border-amber-300/80'
-            )}
-          >
-            <span
-              className={cn(
-                'w-1.5 h-1.5 rounded-full bg-amber-400 inline-block',
-                materialCount > 0 ? 'animate-pulse' : 'opacity-70'
-              )}
-            />
-            <span>{materialCount}</span>
-          </div>
-        </motion.div>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <motion.div
+                initial={false}
+                animate={{ bottom: oruPos.bottom, right: oruPos.right }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                className="absolute z-20 pointer-events-auto cursor-pointer group/oru"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openOverlayList(card.instanceId)
+                }}
+              >
+                <div
+                  className={cn(
+                    'font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full border shadow-md flex items-center gap-1 select-none whitespace-nowrap transition-transform group-hover/oru:scale-110 active:scale-95',
+                    materialCount > 0
+                      ? 'bg-black/90 group-hover/oru:bg-black text-amber-400 border-amber-400/50 group-hover/oru:border-amber-300'
+                      : 'bg-black/85 group-hover/oru:bg-black text-amber-400/80 border-amber-400/40 group-hover/oru:border-amber-300/80'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'w-1.5 h-1.5 rounded-full bg-amber-400 inline-block',
+                      materialCount > 0 ? 'animate-pulse' : 'opacity-70'
+                    )}
+                  />
+                  <span>{materialCount}</span>
+                </div>
+              </motion.div>
+            }
+          />
+          <TooltipContent>{`点击查看超量素材列表 (当前 ${materialCount} 张)`}</TooltipContent>
+        </Tooltip>
       )}
 
       {/* 战术全息状态 HUD (Tab 战术透视或鼠标悬停有状态卡片时显示) */}

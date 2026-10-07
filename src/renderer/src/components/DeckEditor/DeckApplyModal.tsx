@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Button } from '../ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Swords, Check, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -51,18 +52,15 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
   }
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4 max-w-[420px] w-full animate-in zoom-in-95 duration-100"
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4 max-w-[420px] w-full animate-in zoom-in-95 duration-100 ring-0 sm:max-w-[420px]"
       >
-        <div className="flex items-center justify-between border-b border-border/60 pb-2">
+        <DialogHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b border-border/60 pb-2">
           <div className="flex items-center gap-2">
             <Swords className="w-4 h-4 text-blue-500" />
-            <span className="font-bold text-sm">将卡组载入决斗盘</span>
+            <DialogTitle className="text-sm font-bold">将卡组载入决斗盘</DialogTitle>
           </div>
           <Button
             variant="ghost"
@@ -72,7 +70,7 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
           >
             <X className="w-3.5 h-3.5" />
           </Button>
-        </div>
+        </DialogHeader>
 
         {isDone ? (
           <div className="py-6 flex flex-col items-center justify-center gap-2 text-emerald-500">
@@ -162,7 +160,7 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50">
+            <DialogFooter className="flex-row items-center justify-end gap-2 pt-2 border-t border-border/50">
               <Button variant="ghost" size="sm" onClick={onClose} disabled={isApplying}>
                 取消
               </Button>
@@ -176,10 +174,10 @@ export const DeckApplyModal: React.FC<DeckApplyModalProps> = ({
                 <Swords className="w-3.5 h-3.5" />
                 <span>{isApplying ? '正在载入...' : '确认载入'}</span>
               </Button>
-            </div>
+            </DialogFooter>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

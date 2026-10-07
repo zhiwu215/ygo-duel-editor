@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useRef, useEffect } from 'react'
 import { useStore } from 'zustand'
 import {
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react'
 import appIcon from '../../assets/app-icon.png'
 import { Button } from '../ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { cn } from '../../lib/utils'
 
@@ -315,22 +317,28 @@ export const MenuBar: React.FC<MenuBarProps> = ({
       </div>
 
       {showShortcutsDialog && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-md w-full p-5 space-y-3 animate-in fade-in">
-            <div className="flex items-center justify-between border-b border-border pb-2.5">
-              <h3 className="font-semibold text-sm flex items-center gap-2">
+        <Dialog open onOpenChange={(open) => !open && setShowShortcutsDialog(false)}>
+          <DialogContent showCloseButton={false} className="max-w-md space-y-3 p-5">
+            <DialogHeader className="flex-row items-center justify-between space-y-0 border-b border-border pb-2.5">
+              <DialogTitle className="flex items-center gap-2 font-semibold text-sm">
                 <Keyboard className="w-4 h-4 text-muted-foreground" />
                 快捷键参考
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowShortcutsDialog(false)}
-                title="关闭"
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+              </DialogTitle>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={() => setShowShortcutsDialog(false)}
+                      className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  }
+                />
+                <TooltipContent>关闭</TooltipContent>
+              </Tooltip>
+            </DialogHeader>
             <div className="space-y-1 text-xs">
               {[
                 ['删除卡片', 'Delete / Del'],
@@ -346,21 +354,27 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {showAboutDialog && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="relative bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-sm w-full p-5 space-y-3 animate-in fade-in">
-            <button
-              type="button"
-              onClick={() => setShowAboutDialog(false)}
-              title="关闭"
-              className="absolute top-3 right-3 text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+        <Dialog open onOpenChange={(open) => !open && setShowAboutDialog(false)}>
+          <DialogContent showCloseButton={false} className="max-w-sm space-y-3 p-5">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={() => setShowAboutDialog(false)}
+                    className="absolute top-3 right-3 text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                }
+              />
+              <TooltipContent>关闭</TooltipContent>
+            </Tooltip>
 
             <div className="text-center space-y-1">
               <img
@@ -401,44 +415,56 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                       {text}
                     </a>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => void handleCopyField(label!, text!)}
-                      title="点击复制"
-                      className="group flex items-center gap-1.5 truncate hover:text-foreground transition-colors"
-                    >
-                      <span className="truncate">{text}</span>
-                      {copiedField === label ? (
-                        <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                      ) : (
-                        <Copy className="w-3 h-3 opacity-0 group-hover:opacity-60 shrink-0 transition-opacity" />
-                      )}
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyField(label!, text!)}
+                            className="group flex items-center gap-1.5 truncate hover:text-foreground transition-colors"
+                          >
+                            <span className="truncate">{text}</span>
+                            {copiedField === label ? (
+                              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                            ) : (
+                              <Copy className="w-3 h-3 opacity-0 group-hover:opacity-60 shrink-0 transition-opacity" />
+                            )}
+                          </button>
+                        }
+                      />
+                      <TooltipContent>点击复制</TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {showSupportDialog && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-popover text-popover-foreground border border-border rounded-md shadow-xl max-w-sm w-full p-5 space-y-4 animate-in fade-in">
-            <div className="flex items-center justify-between border-b border-border pb-2.5">
-              <h3 className="font-semibold text-sm flex items-center gap-2">
+        <Dialog open onOpenChange={(open) => !open && setShowSupportDialog(false)}>
+          <DialogContent showCloseButton={false} className="max-w-sm space-y-4 p-5">
+            <DialogHeader className="flex-row items-center justify-between space-y-0 border-b border-border pb-2.5">
+              <DialogTitle className="flex items-center gap-2 font-semibold text-sm">
                 <Coffee className="w-4 h-4 text-muted-foreground" />
                 支持作者
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowSupportDialog(false)}
-                title="关闭"
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+              </DialogTitle>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={() => setShowSupportDialog(false)}
+                      className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  }
+                />
+                <TooltipContent>关闭</TooltipContent>
+              </Tooltip>
+            </DialogHeader>
 
             <p className="text-xs text-muted-foreground leading-relaxed text-center">
               如果 YGO Duel Editor 对你有帮助，欢迎请作者喝杯咖啡
@@ -457,8 +483,8 @@ export const MenuBar: React.FC<MenuBarProps> = ({
             <p className="text-[11px] text-muted-foreground/90 leading-relaxed text-center px-1 py-1.5 rounded-md bg-muted/50 border border-border/60">
               全部功能免费开放，赞助仅作自愿支持，不影响任何功能
             </p>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   )

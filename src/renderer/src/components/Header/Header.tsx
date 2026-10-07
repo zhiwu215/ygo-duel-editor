@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useEffect } from 'react'
 import { useStore } from 'zustand'
 import appIcon from '../../assets/app-icon.png'
@@ -173,14 +174,20 @@ export const Header: React.FC = () => {
         <div className="flex-1 h-full" />
 
         <div className="flex items-center gap-2 shrink-0 [-webkit-app-region:no-drag]">
-          <Input
-            type="text"
-            value={state.title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="未命名对局"
-            className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
-            title="对局标题（保存时可配置工程分类和注释）"
-          />
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Input
+                  type="text"
+                  value={state.title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="未命名对局"
+                  className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
+                />
+              }
+            />
+            <TooltipContent>对局标题（保存时可配置工程分类和注释）</TooltipContent>
+          </Tooltip>
 
           <Separator orientation="vertical" className="h-5" />
 
@@ -201,15 +208,18 @@ export const Header: React.FC = () => {
                 if (val !== null) setMasterRule(val as MasterRule)
               }}
             >
-              <SelectTrigger
-                size="sm"
-                className="w-40 h-7 text-xs bg-background/60"
-                title="选择大师规则"
-              >
-                <SelectValue>
-                  {MASTER_RULES[state.masterRule]?.name ?? '大师规则（2020）'}
-                </SelectValue>
-              </SelectTrigger>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <SelectTrigger size="sm" className="w-40 h-7 text-xs bg-background/60">
+                      <SelectValue>
+                        {MASTER_RULES[state.masterRule]?.name ?? '大师规则（2020）'}
+                      </SelectValue>
+                    </SelectTrigger>
+                  }
+                />
+                <TooltipContent>选择大师规则</TooltipContent>
+              </Tooltip>
               <SelectContent>
                 {SELECTABLE_MASTER_RULES.map((rule) => {
                   const info = MASTER_RULES[rule]
@@ -231,23 +241,35 @@ export const Header: React.FC = () => {
 
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-bold text-foreground">第{currentTurn}回合</span>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={nextPhase}
-              title="点击推进至下一阶段 (DP → SP → M1 → BP → M2 → EP)"
-              className="h-7 px-1.5 text-[11px] font-extrabold bg-muted border-border text-foreground hover:bg-muted/80"
-            >
-              {currentPhase}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={nextPhase}
+                    className="h-7 px-1.5 text-[11px] font-extrabold bg-muted border-border text-foreground hover:bg-muted/80"
+                  >
+                    {currentPhase}
+                  </Button>
+                }
+              />
+              <TooltipContent>点击推进至下一阶段 (DP → SP → M1 → BP → M2 → EP)</TooltipContent>
+            </Tooltip>
             {currentChain > 0 && (
-              <span
-                onClick={resetChain}
-                title="当前处于连锁中，点击结算重置"
-                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 cursor-pointer animate-pulse"
-              >
-                C{currentChain} 结算
-              </span>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span
+                      onClick={resetChain}
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 cursor-pointer animate-pulse"
+                    >
+                      C{currentChain} 结算
+                    </span>
+                  }
+                />
+                <TooltipContent>当前处于连锁中，点击结算重置</TooltipContent>
+              </Tooltip>
             )}
           </div>
         </div>

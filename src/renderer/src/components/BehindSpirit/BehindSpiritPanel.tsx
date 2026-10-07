@@ -1,3 +1,5 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { ScrollArea } from '../ui/scroll-area'
 import React, { useState, useEffect, useRef, useMemo, JSX } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -30,6 +32,7 @@ import { MarkdownContent } from './MarkdownContent'
 import { NovelSourcePicker } from './NovelSourcePicker'
 import { ToolCallList } from './ToolCallList'
 import { Button } from '../ui/button'
+import { Textarea } from '../ui/textarea'
 import { cn } from '../../lib/utils'
 
 const MANAGE_KEY = 'action:manage'
@@ -350,14 +353,20 @@ export function BehindSpiritPanel(): JSX.Element {
 
         <div className="flex items-center gap-1 shrink-0">
           {messages.length > 0 && (
-            <button
-              type="button"
-              onClick={() => void resetSession()}
-              title="清空对话并重置 AI 会话"
-              className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={() => void resetSession()}
+                    className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                }
+              />
+              <TooltipContent>清空对话并重置 AI 会话</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -443,9 +452,11 @@ export function BehindSpiritPanel(): JSX.Element {
                         )}
                       </button>
                       {expandedThoughts[msg.id] && (
-                        <div className="mt-1.5 p-2 rounded bg-neutral-100 dark:bg-neutral-900/80 font-mono text-[11px] text-muted-foreground whitespace-pre-wrap max-h-48 overflow-y-auto border border-border/30">
-                          {msg.thought}
-                        </div>
+                        <ScrollArea className="mt-1.5 rounded bg-neutral-100 max-h-48 border border-border/30">
+                          <div className="p-2 dark:bg-neutral-900/80 font-mono text-[11px] text-muted-foreground whitespace-pre-wrap">
+                            {msg.thought}
+                          </div>
+                        </ScrollArea>
                       )}
                     </div>
                   )}
@@ -463,18 +474,24 @@ export function BehindSpiritPanel(): JSX.Element {
 
                   {msg.role === 'user' && msg.novelSource && (
                     <div className="mb-1.5 flex items-center gap-1.5">
-                      <span
-                        title="已附加的小说素材，正文经 read_novel_source 工具读取"
-                        className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground min-w-0"
-                      >
-                        <BookOpen className="w-3 h-3 shrink-0" />
-                        <span className="truncate max-w-64">{msg.novelSource.title}</span>
-                        {msg.novelSource.wordCount ? (
-                          <span className="shrink-0 font-mono">
-                            约 {msg.novelSource.wordCount} 字
-                          </span>
-                        ) : null}
-                      </span>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground min-w-0">
+                              <BookOpen className="w-3 h-3 shrink-0" />
+                              <span className="truncate max-w-64">{msg.novelSource.title}</span>
+                              {msg.novelSource.wordCount ? (
+                                <span className="shrink-0 font-mono">
+                                  约 {msg.novelSource.wordCount} 字
+                                </span>
+                              ) : null}
+                            </span>
+                          }
+                        />
+                        <TooltipContent>
+                          已附加的小说素材，正文经 read_novel_source 工具读取
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                   )}
 
@@ -482,13 +499,16 @@ export function BehindSpiritPanel(): JSX.Element {
                     <div className="mb-1.5 flex flex-wrap items-center gap-1">
                       <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
                       {msg.attachedCards.map((c) => (
-                        <span
-                          key={c.id}
-                          title={`卡密 ${c.id}`}
-                          className="rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                        >
-                          {c.name}
-                        </span>
+                        <Tooltip key={c.id}>
+                          <TooltipTrigger
+                            render={
+                              <span className="rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                {c.name}
+                              </span>
+                            }
+                          />
+                          <TooltipContent>{`卡密 ${c.id}`}</TooltipContent>
+                        </Tooltip>
                       ))}
                     </div>
                   )}
@@ -549,14 +569,20 @@ export function BehindSpiritPanel(): JSX.Element {
                         {CardUtils.getCardTypeLabel(c.type)} · {c.id}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeAttachedCard(c.id)}
-                      title="移除这张卡片"
-                      className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            type="button"
+                            onClick={() => removeAttachedCard(c.id)}
+                            className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        }
+                      />
+                      <TooltipContent>移除这张卡片</TooltipContent>
+                    </Tooltip>
                   </div>
                 ))}
               </div>
@@ -574,19 +600,25 @@ export function BehindSpiritPanel(): JSX.Element {
                       {attachedNovel.wordCount ? `约 ${attachedNovel.wordCount} 字` : '文本素材'}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setAttachedNovel(null)}
-                    title="移除这本小说素材"
-                    className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          onClick={() => setAttachedNovel(null)}
+                          className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      }
+                    />
+                    <TooltipContent>移除这本小说素材</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
             )}
 
-            <textarea
+            <Textarea
               value={inputPrompt}
               onChange={(e) => setInputPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -598,26 +630,34 @@ export function BehindSpiritPanel(): JSX.Element {
                     : '输入消息...（enter发送，shift+enter换行）'
               }
               rows={2}
-              className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
+              className="resize-none rounded-md border-border bg-background text-xs leading-relaxed focus-visible:ring-1"
             />
           </div>
 
           <div className="flex items-center justify-between gap-1.5" ref={toolbarRef}>
             <div className="flex items-center gap-1 min-w-0 flex-1">
               <div ref={novelPickerAnchorRef} className="shrink-0">
-                <button
-                  type="button"
-                  onClick={openNovelPicker}
-                  title="附加素材：从资料库选章节；也可以把 txt / md 文件拖到面板任意位置"
-                  className={cn(
-                    'w-6 h-6 rounded flex items-center justify-center transition-colors',
-                    novelPickerOpen
-                      ? 'bg-muted text-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                  )}
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={openNovelPicker}
+                        className={cn(
+                          'w-6 h-6 rounded flex items-center justify-center transition-colors',
+                          novelPickerOpen
+                            ? 'bg-muted text-foreground'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                        )}
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent>
+                    附加素材：从资料库选章节；也可以把 txt / md 文件拖到面板任意位置
+                  </TooltipContent>
+                </Tooltip>
               </div>
               <div className="relative min-w-0 flex-1">
                 <button
@@ -728,41 +768,43 @@ export function BehindSpiritPanel(): JSX.Element {
             </div>
 
             {openProviderKey && openProviderKey !== MANAGE_KEY && (
-              <div className="absolute bottom-0 left-full ml-0.5 w-52 max-w-[calc(100vw-2rem)] max-h-72 overflow-y-auto bg-popover border border-border rounded-md shadow-lg py-1">
-                {openProviderModels.length === 0 ? (
-                  <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
-                    该供应商暂无可用模型，去「管理模型」拉取后即可选用
-                  </div>
-                ) : (
-                  openProviderModels.map((model) => {
-                    const isCurrent =
-                      openProviderKey === config.provider && config.model === model.id
-                    return (
-                      <button
-                        key={model.id}
-                        type="button"
-                        onClick={() => pickModel(openProviderKey, model.id)}
-                        className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left hover:bg-muted/60 transition-colors"
-                      >
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-[11px] font-medium truncate">
-                            {model.name ?? model.id}
+              <ScrollArea className="absolute bottom-0 left-full ml-0.5 w-52 max-w-[calc(100vw-2rem)] max-h-72 bg-popover border border-border rounded-md shadow-lg">
+                <div className="py-1">
+                  {openProviderModels.length === 0 ? (
+                    <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
+                      该供应商暂无可用模型，去「管理模型」拉取后即可选用
+                    </div>
+                  ) : (
+                    openProviderModels.map((model) => {
+                      const isCurrent =
+                        openProviderKey === config.provider && config.model === model.id
+                      return (
+                        <button
+                          key={model.id}
+                          type="button"
+                          onClick={() => pickModel(openProviderKey, model.id)}
+                          className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left hover:bg-muted/60 transition-colors"
+                        >
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-[11px] font-medium truncate">
+                              {model.name ?? model.id}
+                            </span>
+                            <span className="block font-mono text-[10px] text-muted-foreground truncate">
+                              {model.id}
+                            </span>
                           </span>
-                          <span className="block font-mono text-[10px] text-muted-foreground truncate">
-                            {model.id}
-                          </span>
-                        </span>
-                        {model.supportsReasoning && (
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
-                            推理
-                          </span>
-                        )}
-                        {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
-                      </button>
-                    )
-                  })
-                )}
-              </div>
+                          {model.supportsReasoning && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
+                              推理
+                            </span>
+                          )}
+                          {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              </ScrollArea>
             )}
           </div>,
           document.body

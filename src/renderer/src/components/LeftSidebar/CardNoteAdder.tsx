@@ -1,11 +1,12 @@
+import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useRef, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { CardNoteKind, CdbCard } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { CardNoteEditor } from './CardNoteEditor'
-import { useBackdropClose } from '../../hooks/useBackdropClose'
 
 interface CardNoteAdderProps {
   onSave: (cardCode: number, kind: CardNoteKind, label: string, text: string) => Promise<boolean>
@@ -19,7 +20,6 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
   existingLabelsFor,
   onClose
 }) => {
-  const backdropClose = useBackdropClose(onClose)
   const [keyword, setKeyword] = useState('')
 
   const [resultState, setResultState] = useState<{ kw: string; list: CdbCard[] }>({
@@ -34,17 +34,6 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
   useEffect(() => {
     searchRef.current?.focus()
   }, [])
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
 
   useEffect(() => {
     const kw = keyword.trim()
@@ -90,18 +79,14 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
   }
 
   return (
-    <div
-      onMouseDown={backdropClose.onMouseDown}
-      onClick={backdropClose.onClick}
-      className="fixed inset-0 z-[85] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in zoom-in-95 duration-100"
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in zoom-in-95 duration-100 ring-0 sm:max-w-lg"
       >
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60 shrink-0">
+        <DialogHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b border-border/60 px-4 py-3 shrink-0">
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-sm">选择卡片</div>
+            <DialogTitle className="text-sm font-bold">选择卡片</DialogTitle>
           </div>
           <Button
             variant="ghost"
@@ -111,7 +96,7 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
           >
             <X className="w-4 h-4" />
           </Button>
-        </div>
+        </DialogHeader>
 
         <div className="px-4 py-2.5 border-b border-border/60 shrink-0">
           <div className="relative">
@@ -126,43 +111,45 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
           </div>
         </div>
 
-        <div className="h-72 overflow-y-auto p-2">
-          {searching ? (
-            <p className="text-[11px] text-muted-foreground text-center py-8">搜索中…</p>
-          ) : results.length === 0 ? (
-            <div className="py-6 px-4 text-center">
-              <p className="text-[11px] text-muted-foreground">
-                {keyword.trim() ? '没有匹配的卡' : '先在上方搜索卡名'}
-              </p>
-            </div>
-          ) : (
-            results.map((card) => (
-              <button
-                key={card.id}
-                type="button"
-                onClick={() => setPicked(card)}
-                className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-primary/8 transition-colors cursor-pointer text-left"
-              >
-                <img
-                  src={getCardImageUrl(card.id, true)}
-                  alt={card.name}
-                  className="w-7 h-10 object-cover rounded-sm shrink-0 border border-border/60"
-                  onError={(e) => {
-                    const el = e.currentTarget
-                    if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
-                  }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-medium text-foreground truncate">
-                    {card.name}
+        <ScrollArea className="h-72">
+          <div className="p-2">
+            {searching ? (
+              <p className="text-[11px] text-muted-foreground text-center py-8">搜索中…</p>
+            ) : results.length === 0 ? (
+              <div className="py-6 px-4 text-center">
+                <p className="text-[11px] text-muted-foreground">
+                  {keyword.trim() ? '没有匹配的卡' : '先在上方搜索卡名'}
+                </p>
+              </div>
+            ) : (
+              results.map((card) => (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => setPicked(card)}
+                  className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-primary/8 transition-colors cursor-pointer text-left"
+                >
+                  <img
+                    src={getCardImageUrl(card.id, true)}
+                    alt={card.name}
+                    className="w-7 h-10 object-cover rounded-sm shrink-0 border border-border/60"
+                    onError={(e) => {
+                      const el = e.currentTarget
+                      if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
+                    }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-medium text-foreground truncate">
+                      {card.name}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-mono">{card.id}</div>
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-mono">{card.id}</div>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
+                </button>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   )
 }

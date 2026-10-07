@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { FolderPlus, Pencil, X } from 'lucide-react'
 import { groupChildPath, groupLeafName } from '@shared/index'
 
@@ -31,17 +32,6 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
     inputRef.current?.select()
   }, [])
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
   const handleConfirm = async (): Promise<void> => {
     const trimmed = name.trim()
     if (!trimmed) {
@@ -69,24 +59,21 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
   }
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-[80] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4 max-w-sm w-full animate-in zoom-in-95 duration-100"
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4 max-w-sm w-full animate-in zoom-in-95 duration-100 ring-0"
       >
-        <div className="flex items-center justify-between border-b border-border/60 pb-2">
+        <DialogHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b border-border/60 pb-2">
           <div className="flex items-center gap-2 min-w-0">
             {isRename ? (
               <Pencil className="w-4 h-4 text-primary shrink-0" />
             ) : (
               <FolderPlus className="w-4 h-4 text-primary shrink-0" />
             )}
-            <span className="font-bold text-sm">
+            <DialogTitle className="text-sm font-bold">
               {isRename ? '重命名分组' : parent ? '新建子分组' : '新建分组'}
-            </span>
+            </DialogTitle>
           </div>
           <Button
             variant="ghost"
@@ -96,7 +83,7 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
           >
             <X className="w-4 h-4" />
           </Button>
-        </div>
+        </DialogHeader>
 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
@@ -127,7 +114,7 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
           {error && <span className="text-[11px] text-destructive">{error}</span>}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+        <DialogFooter className="flex-row items-center justify-end gap-2 border-t border-border/60 pt-3">
           <Button
             variant="outline"
             size="sm"
@@ -145,8 +132,8 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
           >
             {isRename ? '保存' : '创建'}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

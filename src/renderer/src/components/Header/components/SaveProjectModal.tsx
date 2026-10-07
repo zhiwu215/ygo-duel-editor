@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
+import React, { useState } from 'react'
 import { X, Save, Plus } from 'lucide-react'
 import { DuelType, DuelPuzzleState } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { useConfigStore } from '../../../stores/useConfigStore'
 import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
+import { Textarea } from '../../ui/textarea'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { SeriesNameDialog } from '../../LeftSidebar/SeriesNameDialog'
 import { cn } from '../../../lib/utils'
@@ -40,20 +43,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
   const [showNewSeries, setShowNewSeries] = useState(false)
 
   const seriesNames = (config.projectSeries || []).filter((n) => n && n.trim())
-
-  useEffect(() => {
-    if (!open) return
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, onClose])
-
-  if (!open) return null
 
   const handleConfirmSave = async (): Promise<void> => {
     if (isSaving) return
@@ -92,25 +81,21 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !isSaving) onClose()
-      }}
-    >
-      <div className="relative w-full max-w-md bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4.5 select-none animate-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">保存决斗工程</h3>
-          <button
+    <Dialog open={open} onOpenChange={(next) => !next && !isSaving && onClose()}>
+      <DialogContent showCloseButton={false} className="max-w-md gap-4 p-5">
+        <DialogHeader className="flex-row items-center justify-between space-y-0">
+          <DialogTitle className="text-sm font-semibold text-foreground">保存决斗工程</DialogTitle>
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             onClick={onClose}
             disabled={isSaving}
-            className="text-muted-foreground hover:text-foreground rounded p-1 hover:bg-muted/80 transition-colors disabled:opacity-50"
-            title="关闭 (Esc)"
+            className="text-muted-foreground hover:text-foreground"
           >
             <X className="w-4 h-4" />
-          </button>
-        </div>
+          </Button>
+        </DialogHeader>
 
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-foreground">工程分类</label>
@@ -158,16 +143,22 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-xs"
-              onClick={() => setShowNewSeries(true)}
-              title="新建分类"
-              className="h-8 w-8 shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-xs"
+                    onClick={() => setShowNewSeries(true)}
+                    className="h-8 w-8 shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                }
+              />
+              <TooltipContent>新建分类</TooltipContent>
+            </Tooltip>
           </div>
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             按来源归类，例如把同一本小说里的对局都放进同一个作品分类
@@ -199,17 +190,17 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
           <label htmlFor="save-project-hint" className="text-xs font-medium text-foreground">
             注释
           </label>
-          <textarea
+          <Textarea
             id="save-project-hint"
             value={localHint}
             onChange={(e) => setLocalHint(e.target.value)}
             rows={4}
             disabled={isSaving}
-            className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-y min-h-[88px] max-h-[200px] leading-relaxed transition-colors"
+            className="resize-y min-h-[88px] max-h-[200px] leading-relaxed"
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+        <DialogFooter className="flex-row items-center justify-end gap-2 border-t border-border/60 pt-2">
           <Button
             type="button"
             variant="outline"
@@ -230,8 +221,8 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
             <Save className="w-3.5 h-3.5" />
             <span>{isSaving ? '正在保存...' : '保存工程'}</span>
           </Button>
-        </div>
-      </div>
+        </DialogFooter>
+      </DialogContent>
 
       {showNewSeries && (
         <SeriesNameDialog
@@ -247,6 +238,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
           onClose={() => setShowNewSeries(false)}
         />
       )}
-    </div>
+    </Dialog>
   )
 }

@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { memo, useState, type JSX } from 'react'
 import {
   BookOpen,
@@ -148,12 +149,16 @@ function StatusWord({
 }): JSX.Element {
   if (status === 'failed' && tooltip) {
     return (
-      <span
-        title={tooltip}
-        className="shrink-0 cursor-help whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
-      >
-        {STATUS_TEXT[status]}
-      </span>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span className="shrink-0 cursor-help whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2">
+              {STATUS_TEXT[status]}
+            </span>
+          }
+        />
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
     )
   }
   if (status === 'running') {
@@ -260,37 +265,46 @@ function ToolCallGroup({
 
   return (
     <div className="mb-2 min-w-0">
-      <button
-        type="button"
-        aria-expanded={open}
-        title={countSummary}
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-1 text-left text-[11px] transition-colors hover:bg-muted/60"
-      >
-        <Sliders className="h-3 w-3 shrink-0 text-muted-foreground" />
-        <span className="shrink-0 whitespace-nowrap font-medium text-foreground/80">工具调用</span>
-        {runningCall ? (
-          <>
-            <span className="animated-gradient-text min-w-0 flex-1 truncate">
-              {getToolLabel(runningCall.toolName)}
-            </span>
-            <StatusWord status="running" />
-          </>
-        ) : (
-          <>
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-              {calls.length} 个工具
-              {failedCount > 0 ? ` · ${failedCount} 个失败` : ''}
-            </span>
-          </>
-        )}
-        <ChevronRight
-          className={cn(
-            'h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200',
-            open && 'rotate-90'
-          )}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-expanded={open}
+
+              onClick={() => setOpen((current) => !current)}
+              className="flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-1 text-left text-[11px] transition-colors hover:bg-muted/60"
+            >
+              <Sliders className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="shrink-0 whitespace-nowrap font-medium text-foreground/80">
+                工具调用
+              </span>
+              {runningCall ? (
+                <>
+                  <span className="animated-gradient-text min-w-0 flex-1 truncate">
+                    {getToolLabel(runningCall.toolName)}
+                  </span>
+                  <StatusWord status="running" />
+                </>
+              ) : (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                    {calls.length} 个工具
+                    {failedCount > 0 ? ` · ${failedCount} 个失败` : ''}
+                  </span>
+                </>
+              )}
+              <ChevronRight
+                className={cn(
+                  'h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200',
+                  open && 'rotate-90'
+                )}
+              />
+            </button>
+          }
         />
-      </button>
+        <TooltipContent>{countSummary}</TooltipContent>
+      </Tooltip>
 
       {open && (
         <div className="mt-0.5 space-y-0.5">

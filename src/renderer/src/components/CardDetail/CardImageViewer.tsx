@@ -1,7 +1,8 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { X, RotateCcw } from 'lucide-react'
-import { useBackdropClose } from '../../hooks/useBackdropClose'
+import { Dialog, DialogContent } from '../ui/dialog'
 
 const MIN_IMAGE_ZOOM = 0.5
 const MAX_IMAGE_ZOOM = 6
@@ -18,7 +19,6 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
   cardName,
   onClose
 }) => {
-  const backdropClose = useBackdropClose(onClose)
   const [imageZoom, setImageZoom] = useState<number>(1)
   const [imageOffset, setImageOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState<boolean>(false)
@@ -47,19 +47,6 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
     if (!stage || !img) return
     setCanPan(img.offsetWidth > stage.clientWidth || img.offsetHeight > stage.clientHeight)
   }, [imageZoom, cardCode])
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopPropagation()
-        e.stopImmediatePropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown, { capture: true })
-    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
-  }, [onClose])
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>): void => {
     e.preventDefault()
@@ -136,80 +123,94 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[90] overflow-hidden bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 select-none animate-in fade-in"
-      onMouseDown={backdropClose.onMouseDown}
-      onClick={(e) => {
-        if (lastPanMovedRef.current) return
-        backdropClose.onClick(e)
-      }}
-      onWheel={(e) => e.preventDefault()}
-    >
-      <div
-        className="absolute top-4 right-4 flex items-start gap-3 z-10"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="bg-transparent border-0 shadow-none p-0 max-w-none w-screen h-screen top-0 left-0 -translate-x-0 -translate-y-0 rounded-none overflow-hidden select-none"
+        onWheel={(e) => e.preventDefault()}
+        onClick={(e) => {
+          if (lastPanMovedRef.current) return
+          if (e.target === e.currentTarget) onClose()
+        }}
       >
-        <div className="flex flex-col items-end gap-1.5">
-          <div className="text-white/90 text-xs font-medium bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15">
-            {cardName}
+        <div
+          className="absolute top-4 right-4 flex items-start gap-3 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="text-white/90 text-xs font-medium bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15">
+              {cardName}
+            </div>
+            <div className="text-white/60 text-[11px] leading-tight text-right">
+              <div>滚轮缩放 {Math.round(imageZoom * 100)}%</div>
+              {canPan && <div>按住拖动查看其它区域</div>}
+              <div>按 Esc 或点击空白处关闭</div>
+            </div>
           </div>
-          <div className="text-white/60 text-[11px] leading-tight text-right">
-            <div>滚轮缩放 {Math.round(imageZoom * 100)}%</div>
-            {canPan && <div>按住拖动查看其它区域</div>}
-            <div>按 Esc 或点击空白处关闭</div>
+          <div className="flex flex-col items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={resetImageView}
+                    disabled={imageZoom === 1 && imageOffset.x === 0 && imageOffset.y === 0}
+                    className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 disabled:opacity-40 disabled:cursor-not-allowed text-white/80 hover:text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                }
+              />
+              <TooltipContent>复位视图</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                }
+              />
+              <TooltipContent>关闭 (Esc)</TooltipContent>
+            </Tooltip>
           </div>
         </div>
-        <div className="flex flex-col items-center gap-2">
-          <button
-            type="button"
-            onClick={resetImageView}
-            disabled={imageZoom === 1 && imageOffset.x === 0 && imageOffset.y === 0}
-            className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 disabled:opacity-40 disabled:cursor-not-allowed text-white/80 hover:text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer"
-            title="复位视图"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer"
-            title="关闭 (Esc)"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
 
-      <div
-        ref={stageRef}
-        className={`relative max-h-[85vh] max-w-[90vw] flex items-center justify-center touch-none ${
-          canPan ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-        onWheel={handleWheel}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={endPan}
-        onPointerCancel={endPan}
-      >
-        <img
-          ref={imageRef}
-          src={getCardImageUrl(cardCode)}
-          alt={cardName}
-          draggable={false}
-          className="max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl border border-white/10 transition-transform duration-100 ease-out"
-          style={{
-            transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageZoom})`,
-            transformOrigin: 'center center'
-          }}
-          onError={(e) => {
-            const target = e.currentTarget
-            if (target.src !== CARD_BACK_IMAGE) {
-              target.src = CARD_BACK_IMAGE
-            }
-          }}
-        />
-      </div>
-    </div>
+        <div
+          ref={stageRef}
+          className={`relative max-h-[85vh] max-w-[90vw] flex items-center justify-center touch-none ${
+            canPan ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+          onWheel={handleWheel}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endPan}
+          onPointerCancel={endPan}
+        >
+          <img
+            ref={imageRef}
+            src={getCardImageUrl(cardCode)}
+            alt={cardName}
+            draggable={false}
+            className="max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl border border-white/10 transition-transform duration-100 ease-out"
+            style={{
+              transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageZoom})`,
+              transformOrigin: 'center center'
+            }}
+            onError={(e) => {
+              const target = e.currentTarget
+              if (target.src !== CARD_BACK_IMAGE) {
+                target.src = CARD_BACK_IMAGE
+              }
+            }}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

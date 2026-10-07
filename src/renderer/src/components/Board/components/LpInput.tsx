@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React, { useState, useRef, useEffect } from 'react'
 import { isInfiniteVal, INFINITY_VALUE } from '@shared/index'
 import {
@@ -136,50 +137,56 @@ export const LpInput: React.FC<LpInputProps> = ({
       )}
 
       {/* 纯净数字输入框 (无原生微调箭头，等宽字体右对齐) */}
-      <input
-        ref={inputRef}
-        type="text"
-        inputMode="text"
-        value={displayValue}
-        onFocus={(e) => {
-          setIsFocused(true)
-          const initialText = isInfiniteVal(lp) ? '无限' : String(lp)
-          setText(initialText)
-          textRef.current = initialText
-          e.currentTarget.select()
-        }}
-        onBlur={() => {
-          handleCommit()
-        }}
-        onChange={(e) => {
-          setText(e.target.value)
-          textRef.current = e.target.value
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            handleCommit()
-          } else if (e.key === 'Escape') {
-            e.preventDefault()
-            handleCancel()
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="text"
+              value={displayValue}
+              onFocus={(e) => {
+                setIsFocused(true)
+                const initialText = isInfiniteVal(lp) ? '无限' : String(lp)
+                setText(initialText)
+                textRef.current = initialText
+                e.currentTarget.select()
+              }}
+              onBlur={() => {
+                handleCommit()
+              }}
+              onChange={(e) => {
+                setText(e.target.value)
+                textRef.current = e.target.value
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleCommit()
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  handleCancel()
+                }
+              }}
+              className={cn(
+                size === 'sm' ? 'w-14 h-4.5 text-[10px] px-1' : 'w-16 h-6 text-xs px-1.5',
+                'rounded border border-border/60 bg-background/60 text-right font-mono font-medium select-all text-foreground',
+                'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 transition-colors',
+                isInfiniteVal(lp) && !isFocused && 'font-bold',
+                isFocused &&
+                  parseResult.valid &&
+                  parseResult.result !== lp &&
+                  'border-blue-400/80 bg-blue-500/5'
+              )}
+            />
           }
-        }}
-        className={cn(
-          size === 'sm' ? 'w-14 h-4.5 text-[10px] px-1' : 'w-16 h-6 text-xs px-1.5',
-          'rounded border border-border/60 bg-background/60 text-right font-mono font-medium select-all text-foreground',
-          'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 transition-colors',
-          isInfiniteVal(lp) && !isFocused && 'font-bold',
-          isFocused &&
-            parseResult.valid &&
-            parseResult.result !== lp &&
-            'border-blue-400/80 bg-blue-500/5'
-        )}
-        title={
-          label
+        />
+        <TooltipContent>
+          {label
             ? `${label}：${isInfiniteVal(lp) ? '无限' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`
-            : `生命值：${isInfiniteVal(lp) ? '无限' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`
-        }
-      />
+            : `生命值：${isInfiniteVal(lp) ? '无限' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`}
+        </TooltipContent>
+      </Tooltip>
 
       {/* 聚焦时浮出的四则运算选择面板与实时算式预览 */}
       {isFocused && (
@@ -203,49 +210,58 @@ export const LpInput: React.FC<LpInputProps> = ({
             </div>
             <div className="grid grid-cols-6 gap-1">
               {OP_BUTTONS.map((btn) => (
-                <button
-                  key={btn.op}
-                  type="button"
-                  onClick={() => {
-                    if (btn.op === 'inf') {
-                      setText('无限')
-                      textRef.current = '无限'
-                      commitValue(INFINITY_VALUE)
-                      return
+                <Tooltip key={btn.op}>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (btn.op === 'inf') {
+                            setText('无限')
+                            textRef.current = '无限'
+                            commitValue(INFINITY_VALUE)
+                            return
+                          }
+                          const nextText = switchOperator(displayValue, btn.op, lp)
+                          setText(nextText)
+                          textRef.current = nextText
+                          inputRef.current?.focus()
+                          setTimeout(() => {
+                            if (inputRef.current) {
+                              const len = inputRef.current.value.length
+                              inputRef.current.setSelectionRange(len, len)
+                            }
+                          }, 0)
+                        }}
+                        className={cn(
+                          'py-0.5 text-[10px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap',
+                          activeOp === btn.op
+                            ? btn.activeClass
+                            : 'border-border/60 bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {btn.label}
+                      </button>
                     }
-                    const nextText = switchOperator(displayValue, btn.op, lp)
-                    setText(nextText)
-                    textRef.current = nextText
-                    inputRef.current?.focus()
-                    setTimeout(() => {
-                      if (inputRef.current) {
-                        const len = inputRef.current.value.length
-                        inputRef.current.setSelectionRange(len, len)
-                      }
-                    }, 0)
-                  }}
-                  className={cn(
-                    'py-0.5 text-[10px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap',
-                    activeOp === btn.op
-                      ? btn.activeClass
-                      : 'border-border/60 bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground'
-                  )}
-                  title={`切换为 ${btn.label} 模式`}
-                >
-                  {btn.label}
-                </button>
+                  />
+                  <TooltipContent>{`切换为 ${btn.label} 模式`}</TooltipContent>
+                </Tooltip>
               ))}
             </div>
           </div>
 
           {/* 实时算式解析状态 */}
           <div className="flex items-center justify-between text-[11px] font-mono px-2 py-0.5 rounded bg-muted/60 border border-border/40">
-            <span
-              className="text-muted-foreground truncate max-w-[120px]"
-              title={parseResult.formula}
-            >
-              {parseResult.formula}
-            </span>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="text-muted-foreground truncate max-w-[120px]">
+                    {parseResult.formula}
+                  </span>
+                }
+              />
+              <TooltipContent>{parseResult.formula}</TooltipContent>
+            </Tooltip>
             <span
               className={cn(
                 'font-bold shrink-0 ml-1.5',

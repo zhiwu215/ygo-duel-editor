@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { memo, useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import { AlertTriangle, BookOpen, Check, Copy, Loader2, Paperclip, Sliders } from 'lucide-react'
 import type { AgentChatMessage } from '../../stores/useAgentStore'
@@ -132,16 +133,22 @@ function ChatMessageItemImpl({
         <span>{new Date(message.createdAt).toLocaleTimeString()}</span>
         {isStreaming && <span className="animated-gradient-text">生成中</span>}
         {message.content && (
-          <button
-            type="button"
-            onClick={handleCopy}
-            title="复制这条消息"
-            aria-label="复制这条消息"
-            className="ml-auto flex shrink-0 items-center gap-1 rounded px-1 py-0.5 opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/msg:opacity-100"
-          >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            <span>{copied ? '已复制' : '复制'}</span>
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  aria-label="复制这条消息"
+                  className="ml-auto flex shrink-0 items-center gap-1 rounded px-1 py-0.5 opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/msg:opacity-100"
+                >
+                  {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  <span>{copied ? '已复制' : '复制'}</span>
+                </button>
+              }
+            />
+            <TooltipContent>复制这条消息</TooltipContent>
+          </Tooltip>
         )}
       </div>
 
@@ -170,16 +177,22 @@ function ChatMessageItemImpl({
 
           {isUser && message.novelSource && (
             <div className="mb-1.5 flex items-center gap-1.5">
-              <span
-                title="已附加的小说素材，正文经 read_novel_source 工具读取"
-                className="flex min-w-0 items-center gap-1 rounded bg-background/70 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-              >
-                <BookOpen className="h-3 w-3 shrink-0" />
-                <span className="max-w-64 truncate">{message.novelSource.title}</span>
-                {message.novelSource.wordCount ? (
-                  <span className="shrink-0 font-mono">约 {message.novelSource.wordCount} 字</span>
-                ) : null}
-              </span>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="flex min-w-0 items-center gap-1 rounded bg-background/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      <BookOpen className="h-3 w-3 shrink-0" />
+                      <span className="max-w-64 truncate">{message.novelSource.title}</span>
+                      {message.novelSource.wordCount ? (
+                        <span className="shrink-0 font-mono">
+                          约 {message.novelSource.wordCount} 字
+                        </span>
+                      ) : null}
+                    </span>
+                  }
+                />
+                <TooltipContent>已附加的小说素材，正文经 read_novel_source 工具读取</TooltipContent>
+              </Tooltip>
             </div>
           )}
 
@@ -187,13 +200,16 @@ function ChatMessageItemImpl({
             <div className="mb-1.5 flex flex-wrap items-center gap-1">
               <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
               {message.attachedCards.map((c) => (
-                <span
-                  key={c.id}
-                  title={`卡密 ${c.id}`}
-                  className="rounded bg-background/70 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                >
-                  {c.name}
-                </span>
+                <Tooltip key={c.id}>
+                  <TooltipTrigger
+                    render={
+                      <span className="rounded bg-background/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        {c.name}
+                      </span>
+                    }
+                  />
+                  <TooltipContent>{`卡密 ${c.id}`}</TooltipContent>
+                </Tooltip>
               ))}
             </div>
           )}
@@ -272,12 +288,16 @@ function ChatMessageItemImpl({
               </div>
 
               {message.cardSwap.warnings.length > 0 && (
-                <div
-                  title={message.cardSwap.warnings.join('\n')}
-                  className="text-[10px] text-amber-500"
-                >
-                  {message.cardSwap.warnings.length} 条落位提示
-                </div>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <div className="text-[10px] text-amber-500">
+                        {message.cardSwap.warnings.length} 条落位提示
+                      </div>
+                    }
+                  />
+                  <TooltipContent>{message.cardSwap.warnings.join('\n')}</TooltipContent>
+                </Tooltip>
               )}
             </div>
           )}

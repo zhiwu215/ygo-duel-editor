@@ -4,6 +4,14 @@ import { useDuelStore } from '../../../stores/useDuelStore'
 import { MatchConfig } from '@shared/index'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { Button } from '../../ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../../ui/dialog'
 
 export const MatchSelector: React.FC = () => {
   const { state, switchMatchConfig } = useDuelStore()
@@ -82,85 +90,84 @@ export const MatchSelector: React.FC = () => {
       </div>
 
       {/* 自定义人数对话框 (双独立数字输入框，上限 6 人) */}
-      {showCustomModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-sm rounded-lg bg-card border border-border shadow-xl p-4 flex flex-col gap-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-primary" />
-                <h3 className="text-sm font-semibold">自定义对阵人数</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCustomModal(false)}
-                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+      <Dialog open={showCustomModal} onOpenChange={(open) => !open && setShowCustomModal(false)}>
+        <DialogContent showCloseButton={false} className="max-w-sm gap-4 p-4">
+          <DialogHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b border-border pb-2">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              <DialogTitle className="text-sm font-semibold">自定义对阵人数</DialogTitle>
             </div>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setShowCustomModal(false)}
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </DialogHeader>
 
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              请分别指定我方与对方的决斗者人数。不同人数配置将作为独立的决斗场景保留，互不相干。
-            </p>
+          <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+            请分别指定我方与对方的决斗者人数。不同人数配置将作为独立的决斗场景保留，互不相干。
+          </DialogDescription>
 
-            <div className="grid grid-cols-2 gap-3 py-1">
-              {/* 我方人数 */}
-              <div className="flex flex-col gap-1.5 p-2.5 rounded border border-blue-500/20 bg-blue-500/5">
-                <label className="text-xs font-semibold text-blue-500 dark:text-blue-400">
-                  我方人数 (1 ~ 6)
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    min={1}
-                    max={6}
-                    value={team0Input}
-                    onChange={(e) => setTeam0Input(parseInt(e.target.value, 10) || 1)}
-                    className="w-full h-8 px-2 rounded border border-border bg-background text-sm font-semibold focus:outline-none focus:border-blue-500 text-center"
-                  />
-                  <span className="text-xs text-muted-foreground">人</span>
-                </div>
-              </div>
-
-              {/* 对方人数 */}
-              <div className="flex flex-col gap-1.5 p-2.5 rounded border border-red-500/20 bg-red-500/5">
-                <label className="text-xs font-semibold text-red-500 dark:text-red-400">
-                  对方人数 (1 ~ 6)
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    min={1}
-                    max={6}
-                    value={team1Input}
-                    onChange={(e) => setTeam1Input(parseInt(e.target.value, 10) || 1)}
-                    className="w-full h-8 px-2 rounded border border-border bg-background text-sm font-semibold focus:outline-none focus:border-red-500 text-center"
-                  />
-                  <span className="text-xs text-muted-foreground">人</span>
-                </div>
+          <div className="grid grid-cols-2 gap-3 py-1">
+            {/* 我方人数 */}
+            <div className="flex flex-col gap-1.5 p-2.5 rounded border border-blue-500/20 bg-blue-500/5">
+              <label className="text-xs font-semibold text-blue-500 dark:text-blue-400">
+                我方人数 (1 ~ 6)
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={1}
+                  max={6}
+                  value={team0Input}
+                  onChange={(e) => setTeam0Input(parseInt(e.target.value, 10) || 1)}
+                  className="w-full h-8 px-2 rounded border border-border bg-background text-sm font-semibold focus:outline-none focus:border-blue-500 text-center"
+                />
+                <span className="text-xs text-muted-foreground">人</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCustomModal(false)}
-                className="text-xs h-7"
-              >
-                取消
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleConfirmCustom}
-                className="text-xs h-7 bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                确定切换
-              </Button>
+            {/* 对方人数 */}
+            <div className="flex flex-col gap-1.5 p-2.5 rounded border border-red-500/20 bg-red-500/5">
+              <label className="text-xs font-semibold text-red-500 dark:text-red-400">
+                对方人数 (1 ~ 6)
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={1}
+                  max={6}
+                  value={team1Input}
+                  onChange={(e) => setTeam1Input(parseInt(e.target.value, 10) || 1)}
+                  className="w-full h-8 px-2 rounded border border-border bg-background text-sm font-semibold focus:outline-none focus:border-red-500 text-center"
+                />
+                <span className="text-xs text-muted-foreground">人</span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+
+          <DialogFooter className="flex-row items-center justify-end gap-2 border-t border-border pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowCustomModal(false)}
+              className="text-xs h-7"
+            >
+              取消
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleConfirmCustom}
+              className="text-xs h-7 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              确定切换
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

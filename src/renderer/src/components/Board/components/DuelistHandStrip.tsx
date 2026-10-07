@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React, { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Crown, Plus } from 'lucide-react'
@@ -334,66 +335,75 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     const currentOrder = duelist.turnOrder ?? (duelist.isFirst ? 1 : 2)
     const isFirst = currentOrder === 1
     return (
-      <div
-        ref={ref}
-        onClick={() => {
-          focusAsViewer()
-          onExpand()
-        }}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        title={`点击展开 ${duelist.name} 的全部手牌（${cards.length} 张，行动顺位：第 ${currentOrder} 位）`}
-        className={cn(
-          'w-9 shrink-0 h-[136px] rounded border-2 transition-all cursor-pointer select-none flex flex-col items-center justify-between py-1 px-0.5',
-          isActiveViewer && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
-          isDragOver
-            ? isOpponent
-              ? 'border-red-500 ring-2 ring-red-500/30 bg-red-500/10'
-              : 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10'
-            : isOpponent
-              ? 'border-red-500/30 bg-red-500/5 hover:bg-red-500/15 hover:border-red-500/50'
-              : 'border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/50'
-        )}
-      >
-        <div className="flex flex-col items-center gap-0.5">
-          <span
-            className={cn(
-              'w-2 h-2 rounded-full shrink-0',
-              isOpponent ? 'bg-red-500' : 'bg-blue-500'
-            )}
-          />
-          {isFirst ? (
-            <Crown className="w-3 h-3 text-amber-500 shrink-0" />
-          ) : (
-            <span className="text-[9px] font-mono font-bold text-muted-foreground">
-              #{currentOrder}
-            </span>
-          )}
-        </div>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <div
+              ref={ref}
+              onClick={() => {
+                focusAsViewer()
+                onExpand()
+              }}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
 
-        {/* 竖排名字 */}
-        <span
-          className={cn(
-            'text-[10px] font-semibold tracking-wider text-center leading-tight line-clamp-3 my-auto',
-            isOpponent ? 'text-red-400' : 'text-blue-400'
-          )}
-          style={{ writingMode: 'vertical-rl' }}
-        >
-          {duelist.name}
-        </span>
+              className={cn(
+                'w-9 shrink-0 h-[136px] rounded border-2 transition-all cursor-pointer select-none flex flex-col items-center justify-between py-1 px-0.5',
+                isActiveViewer && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
+                isDragOver
+                  ? isOpponent
+                    ? 'border-red-500 ring-2 ring-red-500/30 bg-red-500/10'
+                    : 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10'
+                  : isOpponent
+                    ? 'border-red-500/30 bg-red-500/5 hover:bg-red-500/15 hover:border-red-500/50'
+                    : 'border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/50'
+              )}
+            >
+              <div className="flex flex-col items-center gap-0.5">
+                <span
+                  className={cn(
+                    'w-2 h-2 rounded-full shrink-0',
+                    isOpponent ? 'bg-red-500' : 'bg-blue-500'
+                  )}
+                />
+                {isFirst ? (
+                  <Crown className="w-3 h-3 text-amber-500 shrink-0" />
+                ) : (
+                  <span className="text-[9px] font-mono font-bold text-muted-foreground">
+                    #{currentOrder}
+                  </span>
+                )}
+              </div>
 
-        {/* 手牌张数徽标 */}
-        <span
-          className={cn(
-            'text-[9px] font-mono font-bold px-1 py-0.5 rounded-full shrink-0',
-            cards.length > 0 ? 'bg-muted-foreground/20 text-foreground' : 'text-muted-foreground/60'
-          )}
-        >
-          {cards.length}
-        </span>
-      </div>
+              {/* 竖排名字 */}
+              <span
+                className={cn(
+                  'text-[10px] font-semibold tracking-wider text-center leading-tight line-clamp-3 my-auto',
+                  isOpponent ? 'text-red-400' : 'text-blue-400'
+                )}
+                style={{ writingMode: 'vertical-rl' }}
+              >
+                {duelist.name}
+              </span>
+
+              {/* 手牌张数徽标 */}
+              <span
+                className={cn(
+                  'text-[9px] font-mono font-bold px-1 py-0.5 rounded-full shrink-0',
+                  cards.length > 0
+                    ? 'bg-muted-foreground/20 text-foreground'
+                    : 'text-muted-foreground/60'
+                )}
+              >
+                {cards.length}
+              </span>
+            </div>
+          }
+        />
+        <TooltipContent>{`点击展开 ${duelist.name} 的全部手牌（${cards.length} 张，行动顺位：第 ${currentOrder} 位）`}</TooltipContent>
+      </Tooltip>
     )
   }
 
@@ -426,52 +436,59 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
       )}
     >
       {/* 头部信息条：手牌张数、LP、顺位选择；单击切换查看归属，双击展开/收起 */}
-      <div
-        onDoubleClick={handleHeaderDoubleClick}
-        onClick={(e) => {
-          const target = e.target as HTMLElement | null
-          if (target?.closest('input, select, textarea, button, a, [data-no-expand]')) return
-          focusAsViewer()
-        }}
-        title={
-          isActiveViewer
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <div
+              onDoubleClick={handleHeaderDoubleClick}
+              onClick={(e) => {
+                const target = e.target as HTMLElement | null
+                if (target?.closest('input, select, textarea, button, a, [data-no-expand]')) return
+                focusAsViewer()
+              }}
+
+              className="flex items-center justify-between text-xs px-0.5 shrink-0 gap-1 h-5 cursor-pointer"
+            >
+              <div className="flex items-center gap-1 min-w-0">
+                {/* 手牌张数（角色名统一在顶栏名字芯片展示，本栏不再重复） */}
+                <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
+                  ({cards.length})
+                </span>
+              </div>
+
+              {/* 右侧：LP 编辑（仅在独立 LP 模式下显示）、顺位选择 */}
+              <div className="flex items-center gap-1 shrink-0" data-no-expand>
+                {/* LP 修改 (仅在独立 LP 时由决斗者各自持有；队伍共用 LP 时属于队伍统一管理) */}
+                {!isSharedLp && (
+                  // 一律向下展开：本栏处于 MultiHandTray 的横向滚动行内，该行是 overflow-y-hidden，
+                  // 向上弹出的弹层会整块被裁掉（此前「下方我方栏看不到弹层」的根因）；向下展开则
+                  // 落在本栏 136px 高度内，上下两方都能正常看到与点击。
+                  <LpInput
+                    lp={duelist.lp}
+                    label="LP"
+                    size="sm"
+                    player={controller}
+                    popoverPlacement="bottom"
+                    onLpChange={(newLp) => updateDuelist(duelist.id, { lp: newLp })}
+                  />
+                )}
+
+                {/* 行动顺位下拉选择 */}
+                <TurnOrderBadge duelist={duelist} totalCount={totalCount || 2} />
+              </div>
+            </div>
+          }
+        />
+        <TooltipContent>
+          {isActiveViewer
             ? isOnlyOne
               ? `正在查看 ${duelist.name} 的卡组`
               : `正在查看 ${duelist.name} 的卡组 · 双击收起为并排展示`
             : isOnlyOne
               ? `点击切换：棋盘卡组区显示 ${duelist.name} 的`
-              : `点击切换查看 ${duelist.name} 的卡组 · 双击展开占满整行`
-        }
-        className="flex items-center justify-between text-xs px-0.5 shrink-0 gap-1 h-5 cursor-pointer"
-      >
-        <div className="flex items-center gap-1 min-w-0">
-          {/* 手牌张数（角色名统一在顶栏名字芯片展示，本栏不再重复） */}
-          <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
-            ({cards.length})
-          </span>
-        </div>
-
-        {/* 右侧：LP 编辑（仅在独立 LP 模式下显示）、顺位选择 */}
-        <div className="flex items-center gap-1 shrink-0" data-no-expand>
-          {/* LP 修改 (仅在独立 LP 时由决斗者各自持有；队伍共用 LP 时属于队伍统一管理) */}
-          {!isSharedLp && (
-            // 一律向下展开：本栏处于 MultiHandTray 的横向滚动行内，该行是 overflow-y-hidden，
-            // 向上弹出的弹层会整块被裁掉（此前「下方我方栏看不到弹层」的根因）；向下展开则
-            // 落在本栏 136px 高度内，上下两方都能正常看到与点击。
-            <LpInput
-              lp={duelist.lp}
-              label="LP"
-              size="sm"
-              player={controller}
-              popoverPlacement="bottom"
-              onLpChange={(newLp) => updateDuelist(duelist.id, { lp: newLp })}
-            />
-          )}
-
-          {/* 行动顺位下拉选择 */}
-          <TurnOrderBadge duelist={duelist} totalCount={totalCount || 2} />
-        </div>
-      </div>
+              : `点击切换查看 ${duelist.name} 的卡组 · 双击展开占满整行`}
+        </TooltipContent>
+      </Tooltip>
 
       {/* 手牌卡片排布横向滚动槽位 (永远不换行)。
           onClickCapture：点卡面即切换查看归属。必须用 capture——格内 CardItem 的
@@ -508,9 +525,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
 
           return (
             <React.Fragment key={c.instanceId}>
-              {isGapBefore && (
-                <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />
-              )}
+              {isGapBefore && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
               <motion.div
                 layout="position"
                 transition={{
@@ -533,9 +548,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
                   duelistId={duelist.id}
                 />
               </motion.div>
-              {isGapAfter && (
-                <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />
-              )}
+              {isGapAfter && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
             </React.Fragment>
           )
         })}

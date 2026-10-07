@@ -1,3 +1,5 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { ScrollArea } from '../ui/scroll-area'
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Search,
@@ -268,15 +270,21 @@ export const DuelArchivesPanel: React.FC = () => {
     <div className="h-full flex flex-col bg-background/50 select-none overflow-hidden">
       <div className="h-10 px-3 border-b border-border/80 flex items-center justify-between shrink-0 bg-muted/20">
         <span className="text-xs font-semibold text-foreground tracking-wide">决斗档案</span>
-        <button
-          type="button"
-          onClick={() => setNameDialog({ mode: 'create' })}
-          title="新建分类"
-          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <FolderPlus className="w-3.5 h-3.5" />
-          <span>分类</span>
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => setNameDialog({ mode: 'create' })}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <FolderPlus className="w-3.5 h-3.5" />
+                <span>分类</span>
+              </button>
+            }
+          />
+          <TooltipContent>新建分类</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="p-2 border-b border-border/60 flex flex-col gap-2 shrink-0 bg-card/30">
@@ -320,185 +328,224 @@ export const DuelArchivesPanel: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
-        {totalCount === 0 && groups.every((g) => g.items.length === 0) ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-4 text-muted-foreground">
-            <Layers className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
-            <p className="text-xs font-medium">暂无匹配的对局档案</p>
-          </div>
-        ) : (
-          groups.map((group) => {
-            const isCollapsed = collapsed.has(group.key)
-            const isUnfiled = group.key === UNFILED_KEY
-            return (
-              <div key={group.key} className="flex flex-col">
-                <div
-                  onClick={() => toggleGroup(group.key)}
-                  className="group/series flex items-center gap-1.5 px-1.5 py-1.5 rounded-md cursor-pointer hover:bg-muted/60 transition-colors"
-                >
-                  {isCollapsed ? (
-                    <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                  ) : (
-                    <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
-                  )}
-                  {isUnfiled ? (
-                    <Inbox className="w-3.5 h-3.5 text-muted-foreground/70 shrink-0" />
-                  ) : (
-                    <Library className="w-3.5 h-3.5 text-primary/80 shrink-0" />
-                  )}
-                  <span
-                    className={cn(
-                      'text-[11px] font-semibold truncate flex-1',
-                      isUnfiled ? 'text-muted-foreground' : 'text-foreground'
-                    )}
+      <ScrollArea className="flex-1">
+        <div className="p-2 flex flex-col gap-1.5">
+          {totalCount === 0 && groups.every((g) => g.items.length === 0) ? (
+            <div className="h-full flex flex-col items-center justify-center text-center p-4 text-muted-foreground">
+              <Layers className="w-8 h-8 stroke-1 text-muted-foreground/40 mb-2" />
+              <p className="text-xs font-medium">暂无匹配的对局档案</p>
+            </div>
+          ) : (
+            groups.map((group) => {
+              const isCollapsed = collapsed.has(group.key)
+              const isUnfiled = group.key === UNFILED_KEY
+              return (
+                <div key={group.key} className="flex flex-col">
+                  <div
+                    onClick={() => toggleGroup(group.key)}
+                    className="group/series flex items-center gap-1.5 px-1.5 py-1.5 rounded-md cursor-pointer hover:bg-muted/60 transition-colors"
                   >
-                    {group.label}
-                  </span>
+                    {isCollapsed ? (
+                      <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
+                    )}
+                    {isUnfiled ? (
+                      <Inbox className="w-3.5 h-3.5 text-muted-foreground/70 shrink-0" />
+                    ) : (
+                      <Library className="w-3.5 h-3.5 text-primary/80 shrink-0" />
+                    )}
+                    <span
+                      className={cn(
+                        'text-[11px] font-semibold truncate flex-1',
+                        isUnfiled ? 'text-muted-foreground' : 'text-foreground'
+                      )}
+                    >
+                      {group.label}
+                    </span>
 
-                  {!isUnfiled && (
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover/series:opacity-100 transition-opacity shrink-0">
-                      <button
-                        type="button"
-                        title="重命名分类"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setNameDialog({ mode: 'rename', oldName: group.key })
-                        }}
-                        className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        title="删除分类"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          void handleDeleteSeries(group)
-                        }}
-                        className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                    {!isUnfiled && (
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover/series:opacity-100 transition-opacity shrink-0">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setNameDialog({ mode: 'rename', oldName: group.key })
+                                }}
+                                className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            }
+                          />
+                          <TooltipContent>重命名分类</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void handleDeleteSeries(group)
+                                }}
+                                className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            }
+                          />
+                          <TooltipContent>删除分类</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    )}
+                  </div>
+
+                  {!isCollapsed && (
+                    <div className="flex flex-col gap-1 pl-2 ml-2 border-l border-border/60">
+                      {group.items.length === 0 ? (
+                        <p className="text-[10px] text-muted-foreground/70 py-1 pl-1">
+                          该分类下还没有对局
+                        </p>
+                      ) : (
+                        group.items.map((item) => {
+                          const isCurrentlyLoaded =
+                            lastLoadedPath === item.filePath || currentState.title === item.title
+                          return (
+                            <div
+                              key={item.filePath}
+                              onClick={() => handleLoadProject(item)}
+                              className={cn(
+                                'group relative flex flex-col p-2.5 rounded-lg border transition-all cursor-pointer text-left',
+                                isCurrentlyLoaded
+                                  ? 'bg-accent/40 border-primary/40 shadow-xs'
+                                  : 'bg-card/60 hover:bg-muted/50 border-border/70 hover:border-border'
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-1.5">
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  <span
+                                    className={cn(
+                                      'px-1.5 py-0.2 rounded text-[10px] font-semibold tracking-wider shrink-0 border select-none',
+                                      item.duelType === 'combo'
+                                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
+                                        : item.duelType === 'puzzle'
+                                          ? 'bg-teal-500/10 text-teal-400 border-teal-500/30'
+                                          : 'bg-muted text-muted-foreground border-border/80'
+                                    )}
+                                  >
+                                    {item.duelType === 'combo'
+                                      ? 'COMBO'
+                                      : item.duelType === 'puzzle'
+                                        ? '残局'
+                                        : '整局'}
+                                  </span>
+                                  <span className="text-xs font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                                    {item.title}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleReveal(e, item)}
+                                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                        </button>
+                                      }
+                                    />
+                                    <TooltipContent>在文件资源管理器中定位</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setPickerTarget({
+                                              filePath: item.filePath,
+                                              rect: e.currentTarget.getBoundingClientRect()
+                                            })
+                                          }}
+
+                                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                                        >
+                                          <FolderInput className="w-3 h-3" />
+                                        </button>
+                                      }
+                                    />
+                                    <TooltipContent>归入作品分类</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleDuplicate(e, item)}
+                                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                                        >
+                                          <Copy className="w-3 h-3" />
+                                        </button>
+                                      }
+                                    />
+                                    <TooltipContent>创建档案副本</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleDelete(e, item)}
+                                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      }
+                                    />
+                                    <TooltipContent>删除此档案</TooltipContent>
+                                  </Tooltip>
+                                </div>
+                              </div>
+
+                              {item.hint && item.hint.trim() && (
+                                <p className="text-[11px] text-muted-foreground/90 line-clamp-2 leading-relaxed mt-1.5 font-normal">
+                                  {item.hint.trim()}
+                                </p>
+                              )}
+
+                              <div className="flex items-center justify-between text-[10px] text-muted-foreground/75 mt-2 pt-1.5 border-t border-border/40">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono">MR{item.masterRule}</span>
+                                  {item.stepCount && item.stepCount > 0 ? (
+                                    <span>{item.stepCount} 步</span>
+                                  ) : null}
+                                </div>
+
+                                <div className="flex items-center gap-1 font-mono text-[9.5px]">
+                                  <Clock className="w-2.5 h-2.5 opacity-70" />
+                                  <span>{formatDate(item.updatedAt)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
                     </div>
                   )}
                 </div>
-
-                {!isCollapsed && (
-                  <div className="flex flex-col gap-1 pl-2 ml-2 border-l border-border/60">
-                    {group.items.length === 0 ? (
-                      <p className="text-[10px] text-muted-foreground/70 py-1 pl-1">
-                        该分类下还没有对局
-                      </p>
-                    ) : (
-                      group.items.map((item) => {
-                        const isCurrentlyLoaded =
-                          lastLoadedPath === item.filePath || currentState.title === item.title
-                        return (
-                          <div
-                            key={item.filePath}
-                            onClick={() => handleLoadProject(item)}
-                            className={cn(
-                              'group relative flex flex-col p-2.5 rounded-lg border transition-all cursor-pointer text-left',
-                              isCurrentlyLoaded
-                                ? 'bg-accent/40 border-primary/40 shadow-xs'
-                                : 'bg-card/60 hover:bg-muted/50 border-border/70 hover:border-border'
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-1.5">
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                <span
-                                  className={cn(
-                                    'px-1.5 py-0.2 rounded text-[10px] font-semibold tracking-wider shrink-0 border select-none',
-                                    item.duelType === 'combo'
-                                      ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
-                                      : item.duelType === 'puzzle'
-                                        ? 'bg-teal-500/10 text-teal-400 border-teal-500/30'
-                                        : 'bg-muted text-muted-foreground border-border/80'
-                                  )}
-                                >
-                                  {item.duelType === 'combo'
-                                    ? 'COMBO'
-                                    : item.duelType === 'puzzle'
-                                      ? '残局'
-                                      : '整局'}
-                                </span>
-                                <span className="text-xs font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                                  {item.title}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleReveal(e, item)}
-                                  title="在文件资源管理器中定位"
-                                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setPickerTarget({
-                                      filePath: item.filePath,
-                                      rect: e.currentTarget.getBoundingClientRect()
-                                    })
-                                  }}
-                                  title="归入作品分类"
-                                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-                                >
-                                  <FolderInput className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleDuplicate(e, item)}
-                                  title="创建档案副本"
-                                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleDelete(e, item)}
-                                  title="删除此档案"
-                                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {item.hint && item.hint.trim() && (
-                              <p className="text-[11px] text-muted-foreground/90 line-clamp-2 leading-relaxed mt-1.5 font-normal">
-                                {item.hint.trim()}
-                              </p>
-                            )}
-
-                            <div className="flex items-center justify-between text-[10px] text-muted-foreground/75 mt-2 pt-1.5 border-t border-border/40">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono">MR{item.masterRule}</span>
-                                {item.stepCount && item.stepCount > 0 ? (
-                                  <span>{item.stepCount} 步</span>
-                                ) : null}
-                              </div>
-
-                              <div className="flex items-center gap-1 font-mono text-[9.5px]">
-                                <Clock className="w-2.5 h-2.5 opacity-70" />
-                                <span>{formatDate(item.updatedAt)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })
-        )}
-      </div>
+              )
+            })
+          )}
+        </div>
+      </ScrollArea>
 
       <div className="p-2 border-t border-border/60 bg-muted/20 shrink-0 flex flex-col gap-1.5">
         <Button
@@ -511,25 +558,35 @@ export const DuelArchivesPanel: React.FC = () => {
           <span>从小说提取对局</span>
         </Button>
         <div className="flex items-center justify-between text-[10px] text-muted-foreground/80">
-          <span
-            className="truncate max-w-[190px]"
-            title={
-              config.projectsDirectory
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="truncate max-w-[190px]">
+                  目录: {config.projectsDirectory || '默认 (AppData)'}
+                </span>
+              }
+            />
+            <TooltipContent>
+              {config.projectsDirectory
                 ? `当前存储目录: ${config.projectsDirectory}`
-                : '默认保存在系统 AppData 目录'
-            }
-          >
-            目录: {config.projectsDirectory || '默认 (AppData)'}
-          </span>
+                : '默认保存在系统 AppData 目录'}
+            </TooltipContent>
+          </Tooltip>
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleSelectDir}
-              className="text-primary hover:underline font-medium cursor-pointer"
-              title="更换保存目录"
-            >
-              更换目录
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={handleSelectDir}
+                    className="text-primary hover:underline font-medium cursor-pointer"
+                  >
+                    更换目录
+                  </button>
+                }
+              />
+              <TooltipContent>更换保存目录</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>

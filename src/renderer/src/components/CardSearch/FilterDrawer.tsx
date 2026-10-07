@@ -1,3 +1,5 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { ScrollArea } from '../ui/scroll-area'
 import React from 'react'
 import { SlidersHorizontal, RotateCcw, CheckSquare, Square, Search } from 'lucide-react'
 import {
@@ -207,9 +209,9 @@ export const FilterDrawer: React.FC = () => {
   const attributeLabel = attribute !== 0 ? `${ATTRIBUTE_NAMES[attribute]}属性` : '全部属性'
   const raceLabel = race !== 0 ? RACE_NAMES[race] : '全部种族'
   const sortFieldLabel =
-    { id: '按卡密', atk: '按攻击力', def: '按守备力', level: '按等级', name: '按卡名' }[
+    { id: 'YGOPro 默认', atk: '按攻击力', def: '按守备力', level: '按等级', name: '按卡名' }[
       sortField
-    ] ?? '按卡密'
+    ] ?? 'YGOPro 默认'
   const cardPoolLabel =
     ({ any: '全部卡池', ocg: 'OCG', tcg: 'TCG', both: 'OCG + TCG' } as const)[cardPool] ??
     '全部卡池'
@@ -230,267 +232,286 @@ export const FilterDrawer: React.FC = () => {
           <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
           <span className="truncate">筛选条件</span>
         </div>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={resetFilters}
-          className="h-6 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-1.5 shrink-0"
-          title="重置所有筛选条件"
-        >
-          <RotateCcw className="w-3 h-3" />
-          <span>重置</span>
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={resetFilters}
+                className="h-6 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-1.5 shrink-0"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>重置</span>
+              </Button>
+            }
+          />
+          <TooltipContent>重置所有筛选条件</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* 筛选表单：两列网格紧凑排布 */}
-      <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5 text-xs">
-        {/* 类型 */}
-        <FilterField label="卡片大类">
-          <Select
-            value={type}
-            onValueChange={(val) => {
-              const num = val ? Number(val) : 0
-              setFilters({ type: num, subType: 0 })
-            }}
-          >
-            <SelectTrigger size="sm" className="w-full h-7 text-xs">
-              <SelectValue>{typeLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {MAIN_TYPES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
-
-        <FilterField label="细分类型">
-          <Select
-            value={subType}
-            onValueChange={(val) => setFilters({ subType: val ? Number(val) : 0 })}
-          >
-            <SelectTrigger size="sm" className="w-full h-7 text-xs">
-              <SelectValue>{subTypeLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {currentSubTypes.map((st) => (
-                <SelectItem key={st.value} value={st.value}>
-                  {st.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
-
-        <FilterField label="赛区卡池">
-          <Select
-            value={cardPool}
-            onValueChange={(value) => setFilters({ cardPool: (value || 'any') as CardPoolFilter })}
-          >
-            <SelectTrigger size="sm" className="w-full h-7 text-xs">
-              <SelectValue>{cardPoolLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any">全部卡池</SelectItem>
-              <SelectItem value="ocg">OCG 可用</SelectItem>
-              <SelectItem value="tcg">TCG 可用</SelectItem>
-              <SelectItem value="both">OCG 与 TCG 均可用</SelectItem>
-            </SelectContent>
-          </Select>
-        </FilterField>
-
-        <Separator className="opacity-40" />
-
-        {/* 属性 / 种族 */}
-        <div className="grid grid-cols-2 gap-1.5">
-          <FilterField label="属性">
+      <ScrollArea className="flex-1">
+        <div className="p-2.5 space-y-2.5 text-xs">
+          {/* 类型 */}
+          <FilterField label="卡片大类">
             <Select
-              value={attribute}
-              onValueChange={(val) => setFilters({ attribute: val ? Number(val) : 0 })}
-            >
-              <SelectTrigger size="sm" className="w-full h-7 text-xs">
-                <SelectValue>{attributeLabel}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={0}>全部属性</SelectItem>
-                {Object.entries(CardAttribute).map(([key, val]) => (
-                  <SelectItem key={key} value={val}>
-                    {ATTRIBUTE_NAMES[val]}属性
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
-
-          <FilterField label="种族">
-            <Select
-              value={race}
-              onValueChange={(val) => setFilters({ race: val ? Number(val) : 0 })}
-            >
-              <SelectTrigger size="sm" className="w-full h-7 text-xs">
-                <SelectValue>{raceLabel}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={0}>全部种族</SelectItem>
-                {Object.entries(CardRace).map(([key, val]) => (
-                  <SelectItem key={key} value={val}>
-                    {RACE_NAMES[val]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
-        </div>
-
-        {/* 星级：条件 + 数值 */}
-        <CompareRow
-          label="等级 / 阶级 / 连接"
-          op={levelOp}
-          value={level !== 0 ? level : undefined}
-          placeholder="1 - 13"
-          onOpChange={(op) => setFilters({ levelOp: op })}
-          onValueChange={(val) => setFilters({ level: val ?? 0 })}
-        />
-
-        <CompareRow
-          label="灵摆刻度（左侧）"
-          op={scaleOp}
-          value={scale}
-          placeholder="如 8"
-          onOpChange={(op) => setFilters({ scaleOp: op })}
-          onValueChange={(val) => setFilters({ scale: val })}
-        />
-
-        <Separator className="opacity-40" />
-
-        {/* 攻防：各带条件 */}
-        <CompareRow
-          label="攻击力 ATK"
-          op={atkOp}
-          value={atk}
-          placeholder="如 3000"
-          onOpChange={(op) => setFilters({ atkOp: op })}
-          onValueChange={(val) => setFilters({ atk: val })}
-          allowUnknown
-        />
-
-        <CompareRow
-          label="守备力 DEF"
-          op={defOp}
-          value={def}
-          placeholder="如 2000"
-          onOpChange={(op) => setFilters({ defOp: op })}
-          onValueChange={(val) => setFilters({ def: val })}
-          allowUnknown
-        />
-
-        <FilterField label="卡密">
-          <div className="relative">
-            <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
-            <Input
-              type="number"
-              placeholder="8 位数字"
-              value={code !== undefined ? code : ''}
-              onChange={(e) => {
-                const val = e.target.value.trim()
-                setFilters({ code: val === '' ? undefined : parseInt(val, 10) })
+              value={type}
+              onValueChange={(val) => {
+                const num = val ? Number(val) : 0
+                setFilters({ type: num, subType: 0 })
               }}
-              className="h-7 pl-7 text-xs font-mono"
-            />
-          </div>
-        </FilterField>
+            >
+              <SelectTrigger size="sm" className="w-full h-7 text-xs">
+                <SelectValue>{typeLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {MAIN_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
 
-        <Separator className="opacity-40" />
-
-        {/* 排序 */}
-        <FilterField label="排序">
-          <div className="grid grid-cols-2 gap-1.5">
+          <FilterField label="细分类型">
             <Select
-              value={sortField}
-              onValueChange={(val) =>
-                setFilters({
-                  sortField: (val || 'id') as 'id' | 'atk' | 'def' | 'level' | 'name'
-                })
+              value={subType}
+              onValueChange={(val) => setFilters({ subType: val ? Number(val) : 0 })}
+            >
+              <SelectTrigger size="sm" className="w-full h-7 text-xs">
+                <SelectValue>{subTypeLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {currentSubTypes.map((st) => (
+                  <SelectItem key={st.value} value={st.value}>
+                    {st.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="赛区卡池">
+            <Select
+              value={cardPool}
+              onValueChange={(value) =>
+                setFilters({ cardPool: (value || 'any') as CardPoolFilter })
               }
             >
-              <SelectTrigger size="sm" className="w-full h-7 text-[11px]">
-                <SelectValue>{sortFieldLabel}</SelectValue>
+              <SelectTrigger size="sm" className="w-full h-7 text-xs">
+                <SelectValue>{cardPoolLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="id">按卡密</SelectItem>
-                <SelectItem value="atk">按攻击力</SelectItem>
-                <SelectItem value="def">按守备力</SelectItem>
-                <SelectItem value="level">按等级</SelectItem>
-                <SelectItem value="name">按卡名</SelectItem>
+                <SelectItem value="any">全部卡池</SelectItem>
+                <SelectItem value="ocg">OCG 可用</SelectItem>
+                <SelectItem value="tcg">TCG 可用</SelectItem>
+                <SelectItem value="both">OCG 与 TCG 均可用</SelectItem>
               </SelectContent>
             </Select>
+          </FilterField>
 
-            <Select
-              value={sortOrder}
-              onValueChange={(val) => setFilters({ sortOrder: (val || 'DESC') as 'ASC' | 'DESC' })}
-            >
-              <SelectTrigger size="sm" className="w-full h-7 text-[11px]">
-                <SelectValue>{sortOrder === 'ASC' ? '升序' : '降序'}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="DESC">降序（高→低）</SelectItem>
-                <SelectItem value="ASC">升序（低→高）</SelectItem>
-              </SelectContent>
-            </Select>
+          <Separator className="opacity-40" />
+
+          {/* 属性 / 种族 */}
+          <div className="grid grid-cols-2 gap-1.5">
+            <FilterField label="属性">
+              <Select
+                value={attribute}
+                onValueChange={(val) => setFilters({ attribute: val ? Number(val) : 0 })}
+              >
+                <SelectTrigger size="sm" className="w-full h-7 text-xs">
+                  <SelectValue>{attributeLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={0}>全部属性</SelectItem>
+                  {Object.entries(CardAttribute).map(([key, val]) => (
+                    <SelectItem key={key} value={val}>
+                      {ATTRIBUTE_NAMES[val]}属性
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
+
+            <FilterField label="种族">
+              <Select
+                value={race}
+                onValueChange={(val) => setFilters({ race: val ? Number(val) : 0 })}
+              >
+                <SelectTrigger size="sm" className="w-full h-7 text-xs">
+                  <SelectValue>{raceLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={0}>全部种族</SelectItem>
+                  {Object.entries(CardRace).map(([key, val]) => (
+                    <SelectItem key={key} value={val}>
+                      {RACE_NAMES[val]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterField>
           </div>
-        </FilterField>
 
-        <details className="rounded-md border border-border/50 px-2 py-1.5">
-          <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground hover:text-foreground">
-            效果分类{effectCategoryMask !== 0 ? '（已启用）' : ''}
-          </summary>
-          {filterOptions.effectCategories.length > 0 ? (
-            <div className="mt-2 grid max-h-40 grid-cols-2 gap-1 overflow-y-auto">
-              {filterOptions.effectCategories.map((category) => {
-                const selected = (effectCategoryMask & category.mask) !== 0
-                return (
-                  <button
-                    key={category.mask}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => toggleEffectCategory(category.mask)}
-                    className={cn(
-                      'truncate rounded px-1.5 py-1 text-left text-[10px] transition-colors',
-                      selected
-                        ? 'bg-primary/15 text-primary'
-                        : 'bg-muted/30 text-muted-foreground hover:bg-muted/70 hover:text-foreground'
-                    )}
-                    title={category.label}
-                  >
-                    {category.label}
-                  </button>
-                )
-              })}
+          {/* 星级：条件 + 数值 */}
+          <CompareRow
+            label="等级 / 阶级 / 连接"
+            op={levelOp}
+            value={level !== 0 ? level : undefined}
+            placeholder="1 - 13"
+            onOpChange={(op) => setFilters({ levelOp: op })}
+            onValueChange={(val) => setFilters({ level: val ?? 0 })}
+          />
+
+          <CompareRow
+            label="灵摆刻度（左侧）"
+            op={scaleOp}
+            value={scale}
+            placeholder="如 8"
+            onOpChange={(op) => setFilters({ scaleOp: op })}
+            onValueChange={(val) => setFilters({ scale: val })}
+          />
+
+          <Separator className="opacity-40" />
+
+          {/* 攻防：各带条件 */}
+          <CompareRow
+            label="攻击力 ATK"
+            op={atkOp}
+            value={atk}
+            placeholder="如 3000"
+            onOpChange={(op) => setFilters({ atkOp: op })}
+            onValueChange={(val) => setFilters({ atk: val })}
+            allowUnknown
+          />
+
+          <CompareRow
+            label="守备力 DEF"
+            op={defOp}
+            value={def}
+            placeholder="如 2000"
+            onOpChange={(op) => setFilters({ defOp: op })}
+            onValueChange={(val) => setFilters({ def: val })}
+            allowUnknown
+          />
+
+          <FilterField label="卡密">
+            <div className="relative">
+              <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
+              <Input
+                type="number"
+                placeholder="8 位数字"
+                value={code !== undefined ? code : ''}
+                onChange={(e) => {
+                  const val = e.target.value.trim()
+                  setFilters({ code: val === '' ? undefined : parseInt(val, 10) })
+                }}
+                className="h-7 pl-7 text-xs font-mono"
+              />
             </div>
-          ) : (
-            <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-              当前卡库未提供分类名称。将游戏目录中的 strings.conf 放在 cards.cdb 同目录或 expansions
-              子目录后重载卡库。
-            </p>
-          )}
-        </details>
+          </FilterField>
 
-        {/* 描述检索开关 */}
-        <button
-          type="button"
-          onClick={() => setFilters({ searchDesc: !searchDesc })}
-          className="flex items-center gap-1.5 w-full px-1.5 py-1 rounded-md hover:bg-muted/40 cursor-pointer text-muted-foreground hover:text-foreground transition-colors text-left"
-        >
-          {searchDesc ? (
-            <CheckSquare className="w-3.5 h-3.5 text-primary shrink-0" />
-          ) : (
-            <Square className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          )}
-          <span className="text-[11px]">检索效果描述文本</span>
-        </button>
-      </div>
+          <Separator className="opacity-40" />
+
+          {/* 排序 */}
+          <FilterField label="排序">
+            <div className="grid grid-cols-2 gap-1.5">
+              <Select
+                value={sortField}
+                onValueChange={(val) =>
+                  setFilters({
+                    sortField: (val || 'id') as 'id' | 'atk' | 'def' | 'level' | 'name'
+                  })
+                }
+              >
+                <SelectTrigger size="sm" className="w-full h-7 text-[11px]">
+                  <SelectValue>{sortFieldLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="id">YGOPro 默认</SelectItem>
+                  <SelectItem value="atk">按攻击力</SelectItem>
+                  <SelectItem value="def">按守备力</SelectItem>
+                  <SelectItem value="level">按等级</SelectItem>
+                  <SelectItem value="name">按卡名</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={sortOrder}
+                onValueChange={(val) =>
+                  setFilters({ sortOrder: (val || 'DESC') as 'ASC' | 'DESC' })
+                }
+              >
+                <SelectTrigger size="sm" className="w-full h-7 text-[11px]">
+                  <SelectValue>{sortOrder === 'ASC' ? '升序' : '降序'}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DESC">降序（高→低）</SelectItem>
+                  <SelectItem value="ASC">升序（低→高）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </FilterField>
+
+          <details className="rounded-md border border-border/50 px-2 py-1.5">
+            <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground hover:text-foreground">
+              效果分类{effectCategoryMask !== 0 ? '（已启用）' : ''}
+            </summary>
+            {filterOptions.effectCategories.length > 0 ? (
+              <ScrollArea className="mt-2 max-h-40">
+                <div className="grid grid-cols-2 gap-1">
+                  {filterOptions.effectCategories.map((category) => {
+                    const selected = (effectCategoryMask & category.mask) !== 0
+                    return (
+                      <Tooltip key={category.mask}>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() => toggleEffectCategory(category.mask)}
+                              className={cn(
+                                'truncate rounded px-1.5 py-1 text-left text-[10px] transition-colors',
+                                selected
+                                  ? 'bg-primary/15 text-primary'
+                                  : 'bg-muted/30 text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                              )}
+                            >
+                              {category.label}
+                            </button>
+                          }
+                        />
+                        <TooltipContent>{category.label}</TooltipContent>
+                      </Tooltip>
+                    )
+                  })}
+                </div>
+              </ScrollArea>
+            ) : (
+              <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+                当前卡库未提供分类名称。将游戏目录中的 strings.conf 放在 cards.cdb 同目录或
+                expansions 子目录后重载卡库。
+              </p>
+            )}
+          </details>
+
+          {/* 描述检索开关 */}
+          <button
+            type="button"
+            onClick={() => setFilters({ searchDesc: !searchDesc })}
+            className="flex items-center gap-1.5 w-full px-1.5 py-1 rounded-md hover:bg-muted/40 cursor-pointer text-muted-foreground hover:text-foreground transition-colors text-left"
+          >
+            {searchDesc ? (
+              <CheckSquare className="w-3.5 h-3.5 text-primary shrink-0" />
+            ) : (
+              <Square className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            )}
+            <span className="text-[11px]">检索效果描述文本</span>
+          </button>
+        </div>
+      </ScrollArea>
     </div>
   )
 }

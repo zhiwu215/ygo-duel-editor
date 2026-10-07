@@ -4,6 +4,8 @@ import { Component, ErrorInfo, ReactNode, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { Button } from './components/ui/button'
+import { ConfirmDialogHost } from './components/ui/ConfirmDialogHost'
+import { TooltipProvider } from './components/ui/tooltip'
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -48,7 +50,11 @@ class ErrorBoundary extends Component<
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <TooltipProvider>
+        <ConfirmDialogHost>
+          <App />
+        </ConfirmDialogHost>
+      </TooltipProvider>
     </ErrorBoundary>
   </StrictMode>
 )

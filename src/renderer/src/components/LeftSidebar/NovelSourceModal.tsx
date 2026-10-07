@@ -1,3 +1,5 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { ScrollArea } from '../ui/scroll-area'
 import React, { useCallback, useEffect, useState } from 'react'
 import {
   BookOpen,
@@ -14,6 +16,8 @@ import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { Checkbox } from '../ui/checkbox'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
 import { cn } from '../../lib/utils'
 
 interface NovelSourceModalProps {
@@ -70,17 +74,6 @@ export const NovelSourceModal: React.FC<NovelSourceModalProps> = ({ onClose, onS
       cancelled = true
     }
   }, [])
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
 
   const handleImport = async (): Promise<void> => {
     setBusy(true)
@@ -188,21 +181,18 @@ ${materials}`
   )
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-[80] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-100"
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="!flex !flex-col !p-0 !bg-card !text-card-foreground !max-w-2xl border border-border rounded-xl shadow-2xl w-full max-h-[80vh] overflow-hidden select-none"
       >
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60 shrink-0">
+        <DialogHeader className="!flex !flex-row items-center gap-2 px-4 py-3 border-b border-border/60 shrink-0 space-y-0">
           <BookOpen className="w-4 h-4 text-primary shrink-0" />
           <div className="min-w-0 flex-1">
-            <div className="font-bold text-sm">从小说提取对局</div>
-            <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+            <DialogTitle className="font-bold text-sm">从小说提取对局</DialogTitle>
+            <DialogDescription className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
               导入原文、挑选章节交给背后灵，编排完成并存入对局档案
-            </div>
+            </DialogDescription>
           </div>
           <Button
             variant="ghost"
@@ -212,7 +202,7 @@ ${materials}`
           >
             <X className="w-4 h-4" />
           </Button>
-        </div>
+        </DialogHeader>
 
         <div className="px-4 py-2.5 border-b border-border/60 flex items-center gap-2 shrink-0">
           <div className="relative flex-1">
@@ -246,78 +236,86 @@ ${materials}`
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
-          {filtered.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-[11px] font-semibold text-foreground">
-                {search ? '没有匹配的小说' : '还没有导入小说'}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed px-6">
-                {search
-                  ? '换个关键词试试'
-                  : '支持 txt / md / epub。导入后按章节拆分，勾选需要的章节交给背后灵改写成决斗。'}
-              </p>
-            </div>
-          ) : (
-            filtered.map((item) => {
-              const chapters = expanded[item.id]
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-lg border border-border/70 bg-background/40 p-2.5"
-                >
-                  <div className="flex items-start gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void toggleChapters(item)}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <div className="flex items-center gap-1">
-                        {chapters ? (
-                          <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
-                        ) : (
-                          <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                        )}
-                        <span className="text-xs font-semibold text-foreground truncate">
-                          {item.title}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 ml-4 text-[10px] text-muted-foreground">
-                        <span className="font-mono">
-                          {(item.wordCount || 0).toLocaleString()} 字
-                        </span>
-                        {item.chapterCount !== undefined && (
-                          <span className="font-mono">{item.chapterCount} 章</span>
-                        )}
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      title="删除"
-                      onClick={(e) => void handleDelete(e, item)}
-                      className={cn(
-                        'p-1 rounded transition-colors cursor-pointer shrink-0',
-                        'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
-                      )}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-3 space-y-2">
+            {filtered.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-[11px] font-semibold text-foreground">
+                  {search ? '没有匹配的小说' : '还没有导入小说'}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed px-6">
+                  {search
+                    ? '换个关键词试试'
+                    : '支持 txt / md / epub。导入后按章节拆分，勾选需要的章节交给背后灵改写成决斗。'}
+                </p>
+              </div>
+            ) : (
+              filtered.map((item) => {
+                const chapters = expanded[item.id]
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-border/70 bg-background/40 p-2.5"
+                  >
+                    <div className="flex items-start gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void toggleChapters(item)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="flex items-center gap-1">
+                          {chapters ? (
+                            <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
+                          )}
+                          <span className="text-xs font-semibold text-foreground truncate">
+                            {item.title}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 ml-4 text-[10px] text-muted-foreground">
+                          <span className="font-mono">
+                            {(item.wordCount || 0).toLocaleString()} 字
+                          </span>
+                          {item.chapterCount !== undefined && (
+                            <span className="font-mono">{item.chapterCount} 章</span>
+                          )}
+                        </div>
+                      </button>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              onClick={(e) => void handleDelete(e, item)}
+                              className={cn(
+                                'p-1 rounded transition-colors cursor-pointer shrink-0',
+                                'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
+                              )}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          }
+                        />
+                        <TooltipContent>删除</TooltipContent>
+                      </Tooltip>
+                    </div>
 
-                  {chapters && (
-                    <ChapterPicker
-                      chapters={chapters}
-                      busy={isGenerating}
-                      onSend={(picked) => void handleSend(item, picked)}
-                    />
-                  )}
-                </div>
-              )
-            })
-          )}
-        </div>
-      </div>
-    </div>
+                    {chapters && (
+                      <ChapterPicker
+                        chapters={chapters}
+                        busy={isGenerating}
+                        onSend={(picked) => void handleSend(item, picked)}
+                      />
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -379,25 +377,26 @@ function ChapterPicker({ chapters, busy, onSend }: ChapterPickerProps): React.JS
         </span>
       </div>
 
-      <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1 mt-1">
-        {chapters.map((c) => (
-          <label
-            key={c.id}
-            className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer py-0.5"
-          >
-            <input
-              type="checkbox"
-              checked={picked.has(c.id)}
-              onChange={() => toggle(c.id)}
-              className="w-3 h-3 accent-primary shrink-0"
-            />
-            <span className="truncate flex-1">{c.title}</span>
-            <span className="font-mono opacity-70 shrink-0">
-              {(c.wordCount || 0).toLocaleString()}
-            </span>
-          </label>
-        ))}
-      </div>
+      <ScrollArea className="max-h-52 mt-1">
+        <div className="space-y-0.5 pr-1">
+          {chapters.map((c) => (
+            <label
+              key={c.id}
+              className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer py-0.5"
+            >
+              <Checkbox
+                checked={picked.has(c.id)}
+                onCheckedChange={() => toggle(c.id)}
+                className="w-3 h-3 shrink-0"
+              />
+              <span className="truncate flex-1">{c.title}</span>
+              <span className="font-mono opacity-70 shrink-0">
+                {(c.wordCount || 0).toLocaleString()}
+              </span>
+            </label>
+          ))}
+        </div>
+      </ScrollArea>
 
       <Button
         size="xs"

@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useEffect, useRef } from 'react'
 import { CardLocation, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -6,6 +7,7 @@ import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Layers, Ghost, Ban, X, Trash2, Search, ArrowUpCircle, ArrowDownToLine } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 
 export const OverlayListModal: React.FC = () => {
   const { hostInstanceId, closeOverlayList } = useOverlayListStore()
@@ -26,18 +28,10 @@ export const OverlayListModal: React.FC = () => {
   const hostCard = hostInstanceId ? state.cards.find((c) => c.instanceId === hostInstanceId) : null
 
   useEffect(() => {
-    if (!hostInstanceId) return
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        closeOverlayList()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
       setHoveredInstanceId(null)
     }
-  }, [hostInstanceId, closeOverlayList, setHoveredInstanceId])
+  }, [setHoveredInstanceId])
 
   useEffect(() => {
     if (!hostCard?.overlayMaterials?.length) return
@@ -117,26 +111,25 @@ export const OverlayListModal: React.FC = () => {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-      onClick={closeOverlayList}
-      onDragOver={(e) => {
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'copy'
-      }}
-      onDrop={handleDropNewMaterial}
-    >
-      <div
-        className="w-[94vw] max-w-5xl bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open onOpenChange={(open) => !open && closeOverlayList()}>
+      <DialogContent
+        showCloseButton={false}
+        className="w-[94vw] max-w-5xl bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] p-0"
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+        }}
+        onDrop={handleDropNewMaterial}
       >
-        <div className="px-5 py-3 border-b border-border bg-muted/40 flex items-center justify-between shrink-0">
+        <DialogHeader className="px-5 py-3 border-b border-border bg-muted/40 flex flex-row items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30">
               <Layers className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-foreground">超量素材列表 — {hostName}</h3>
+              <DialogTitle className="font-bold text-sm text-foreground">
+                超量素材列表 — {hostName}
+              </DialogTitle>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 可自由选择任意素材拔除至墓地、手牌或直接删除；点击「设为主怪兽」可切换置顶
               </p>
@@ -156,17 +149,23 @@ export const OverlayListModal: React.FC = () => {
               </div>
             )}
 
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={closeOverlayList}
-              className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
-              title="关闭 (Esc)"
-            >
-              <X className="w-4 h-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={closeOverlayList}
+                    className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>关闭 (Esc)</TooltipContent>
+            </Tooltip>
           </div>
-        </div>
+        </DialogHeader>
 
         <div
           ref={scrollContainerRef}
@@ -202,104 +201,142 @@ export const OverlayListModal: React.FC = () => {
                     </span>
                   </div>
 
-                  <div
-                    onClick={() =>
-                      detachMaterialToLocation(hostCard.instanceId, item.index, CardLocation.GRAVE)
-                    }
-                    className="relative w-[110px] h-[160px] rounded overflow-hidden shadow border border-border bg-black/40 cursor-pointer group/img hover:ring-2 hover:ring-amber-500/80 hover:scale-[1.02] transition-all"
-                    title="点击直接拔除此卡至墓地"
-                  >
-                    <img
-                      src={getCardImageUrl(item.code, true)}
-                      alt={item.name}
-                      className="w-full h-full object-cover select-none"
-                      onError={(e) => {
-                        const target = e.currentTarget
-                        if (target.src !== CARD_BACK_IMAGE) {
-                          target.src = CARD_BACK_IMAGE
-                        }
-                      }}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <div
+                          onClick={() =>
+                            detachMaterialToLocation(
+                              hostCard.instanceId,
+                              item.index,
+                              CardLocation.GRAVE
+                            )
+                          }
+                          className="relative w-[110px] h-[160px] rounded overflow-hidden shadow border border-border bg-black/40 cursor-pointer group/img hover:ring-2 hover:ring-amber-500/80 hover:scale-[1.02] transition-all"
+                        >
+                          <img
+                            src={getCardImageUrl(item.code, true)}
+                            alt={item.name}
+                            className="w-full h-full object-cover select-none"
+                            onError={(e) => {
+                              const target = e.currentTarget
+                              if (target.src !== CARD_BACK_IMAGE) {
+                                target.src = CARD_BACK_IMAGE
+                              }
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity backdrop-blur-[1px]">
+                            <Ghost className="w-5 h-5 text-amber-400 drop-shadow" />
+                            <span className="text-[10px] font-bold text-amber-300 drop-shadow px-1.5 py-0.5 bg-black/60 rounded">
+                              拔除至墓地
+                            </span>
+                          </div>
+                        </div>
+                      }
                     />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity backdrop-blur-[1px]">
-                      <Ghost className="w-5 h-5 text-amber-400 drop-shadow" />
-                      <span className="text-[10px] font-bold text-amber-300 drop-shadow px-1.5 py-0.5 bg-black/60 rounded">
-                        拔除至墓地
-                      </span>
-                    </div>
-                  </div>
+                    <TooltipContent>点击直接拔除此卡至墓地</TooltipContent>
+                  </Tooltip>
 
-                  <span
-                    className="text-xs font-semibold text-center truncate w-full text-foreground group-hover:text-primary transition-colors leading-tight"
-                    title={item.name}
-                  >
-                    {item.name}
-                  </span>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <span className="text-xs font-semibold text-center truncate w-full text-foreground group-hover:text-primary transition-colors leading-tight">
+                          {item.name}
+                        </span>
+                      }
+                    />
+                    <TooltipContent>{item.name}</TooltipContent>
+                  </Tooltip>
 
                   <div className="w-full flex flex-col gap-1 pt-1 border-t border-border/50">
                     <div className="grid grid-cols-3 gap-1">
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={() =>
-                          detachMaterialToLocation(
-                            hostCard.instanceId,
-                            item.index,
-                            CardLocation.HAND
-                          )
-                        }
-                        className="h-5 px-1 text-[9px] gap-0.5"
-                        title="拔除并加入手牌"
-                      >
-                        <ArrowDownToLine className="w-2.5 h-2.5 text-muted-foreground" />
-                        <span>手牌</span>
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="secondary"
+                              size="xs"
+                              onClick={() =>
+                                detachMaterialToLocation(
+                                  hostCard.instanceId,
+                                  item.index,
+                                  CardLocation.HAND
+                                )
+                              }
+                              className="h-5 px-1 text-[9px] gap-0.5"
+                            >
+                              <ArrowDownToLine className="w-2.5 h-2.5 text-muted-foreground" />
+                              <span>手牌</span>
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>拔除并加入手牌</TooltipContent>
+                      </Tooltip>
 
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={() =>
-                          detachMaterialToLocation(
-                            hostCard.instanceId,
-                            item.index,
-                            CardLocation.REMOVED
-                          )
-                        }
-                        className="h-5 px-1 text-[9px] gap-0.5"
-                        title="拔除并除外"
-                      >
-                        <Ban className="w-2.5 h-2.5 text-muted-foreground" />
-                        <span>除外</span>
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="secondary"
+                              size="xs"
+                              onClick={() =>
+                                detachMaterialToLocation(
+                                  hostCard.instanceId,
+                                  item.index,
+                                  CardLocation.REMOVED
+                                )
+                              }
+                              className="h-5 px-1 text-[9px] gap-0.5"
+                            >
+                              <Ban className="w-2.5 h-2.5 text-muted-foreground" />
+                              <span>除外</span>
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>拔除并除外</TooltipContent>
+                      </Tooltip>
 
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={() => removeOverlayMaterial(hostCard.instanceId, item.index)}
-                        className="h-5 px-1 text-[9px] text-muted-foreground hover:text-rose-400 gap-0.5"
-                        title="直接删除此素材（不送去任何区域）"
-                      >
-                        <Trash2 className="w-2.5 h-2.5" />
-                        <span>删除</span>
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="secondary"
+                              size="xs"
+                              onClick={() => removeOverlayMaterial(hostCard.instanceId, item.index)}
+                              className="h-5 px-1 text-[9px] text-muted-foreground hover:text-rose-400 gap-0.5"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                              <span>删除</span>
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>直接删除此素材（不送去任何区域）</TooltipContent>
+                      </Tooltip>
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => handleSwapHost(item.index, item.code)}
-                      className="w-full h-5 text-[9px] text-muted-foreground hover:text-foreground gap-1"
-                      title="将此卡作为顶层主怪兽，原怪兽退为超量素材"
-                    >
-                      <ArrowUpCircle className="w-2.5 h-2.5" />
-                      <span>设为主怪兽</span>
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => handleSwapHost(item.index, item.code)}
+                            className="w-full h-5 text-[9px] text-muted-foreground hover:text-foreground gap-1"
+                          >
+                            <ArrowUpCircle className="w-2.5 h-2.5" />
+                            <span>设为主怪兽</span>
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>将此卡作为顶层主怪兽，原怪兽退为超量素材</TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
               )
             })
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

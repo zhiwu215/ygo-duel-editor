@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2, RefreshCw, Search, Upload } from 'lucide-react'
 import { NovelMeta } from '@shared/index'
@@ -98,7 +99,7 @@ export const NovelLibraryApp: React.FC = () => {
       return
     }
     await refresh()
-    setOpenNovel((prev) => (prev?.id === novel.id ? res.novel ?? null : prev))
+    setOpenNovel((prev) => (prev?.id === novel.id ? (res.novel ?? null) : prev))
     flash(`《${novel.title}》已重新拆分为 ${res.novel?.chapterCount ?? 0} 章`)
   }
 
@@ -135,28 +136,41 @@ export const NovelLibraryApp: React.FC = () => {
           </div>
           <div className="flex-1" />
           <div className="[-webkit-app-region:no-drag] flex items-center gap-2 -mr-3">
-            <button
-              type="button"
-              onClick={() => void refresh()}
-              title="刷新列表"
-              className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-md transition-colors cursor-pointer"
-            >
-              <RefreshCw className={cnRefresh(loading)} />
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleImport()}
-              disabled={importing}
-              title="导入本地小说文件（txt / md / epub），自动按章节拆分"
-              className="flex items-center gap-1.5 px-2.5 h-8 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
-            >
-              {importing ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Upload className="w-3.5 h-3.5" />
-              )}
-              <span>导入小说</span>
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={() => void refresh()}
+                    className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-md transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className={cnRefresh(loading)} />
+                  </button>
+                }
+              />
+              <TooltipContent>刷新列表</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={() => void handleImport()}
+                    disabled={importing}
+
+                    className="flex items-center gap-1.5 px-2.5 h-8 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+                  >
+                    {importing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    <span>导入小说</span>
+                  </button>
+                }
+              />
+              <TooltipContent>导入本地小说文件（txt / md / epub），自动按章节拆分</TooltipContent>
+            </Tooltip>
             <WindowControls />
           </div>
         </div>

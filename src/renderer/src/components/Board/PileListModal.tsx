@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { CardLocation, CardPosition, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -298,14 +299,20 @@ const PileListContent: React.FC = () => {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={closePile}
-              className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
-              title="关闭 (Esc)"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={closePile}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                }
+              />
+              <TooltipContent>关闭 (Esc)</TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -380,14 +387,20 @@ const PileListContent: React.FC = () => {
           ) : (
             <>
               {filteredCards.length > 5 && (
-                <button
-                  type="button"
-                  onClick={handleScrollLeft}
-                  className="absolute left-2 z-20 w-8 h-8 rounded-full bg-background/80 hover:bg-background border border-border shadow-md flex items-center justify-center text-foreground/80 hover:text-foreground transition-all cursor-pointer"
-                  title="向左滚动"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={handleScrollLeft}
+                        className="absolute left-2 z-20 w-8 h-8 rounded-full bg-background/80 hover:bg-background border border-border shadow-md flex items-center justify-center text-foreground/80 hover:text-foreground transition-all cursor-pointer"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent>向左滚动</TooltipContent>
+                </Tooltip>
               )}
 
               <div
@@ -599,27 +612,33 @@ const PileListContent: React.FC = () => {
                             )}
                           </span>
                           {target.location === CardLocation.EXTRA && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                updateCardPosition(
-                                  card.instanceId,
-                                  card.position === CardPosition.FACEUP
-                                    ? CardPosition.FACEDOWN
-                                    : CardPosition.FACEUP
-                                )
-                              }}
-                              className={cn(
-                                'text-[9px] px-1 py-0.5 rounded font-sans transition-colors cursor-pointer border leading-none',
-                                card.position === CardPosition.FACEUP
-                                  ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/40 font-semibold'
-                                  : 'bg-muted/80 text-muted-foreground border-border hover:text-foreground'
-                              )}
-                              title="点击切换 表侧 / 里侧 表示形式"
-                            >
-                              {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
-                            </button>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      updateCardPosition(
+                                        card.instanceId,
+                                        card.position === CardPosition.FACEUP
+                                          ? CardPosition.FACEDOWN
+                                          : CardPosition.FACEUP
+                                      )
+                                    }}
+                                    className={cn(
+                                      'text-[9px] px-1 py-0.5 rounded font-sans transition-colors cursor-pointer border leading-none',
+                                      card.position === CardPosition.FACEUP
+                                        ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/40 font-semibold'
+                                        : 'bg-muted/80 text-muted-foreground border-border hover:text-foreground'
+                                    )}
+                                  >
+                                    {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
+                                  </button>
+                                }
+                              />
+                              <TooltipContent>点击切换 表侧 / 里侧 表示形式</TooltipContent>
+                            </Tooltip>
                           )}
                         </div>
 
@@ -638,12 +657,16 @@ const PileListContent: React.FC = () => {
                         </div>
 
                         <div className="w-full mt-2 text-center">
-                          <p
-                            className="text-xs font-medium text-foreground truncate px-1"
-                            title={card.card?.name || String(card.code)}
-                          >
-                            {card.card?.name || `卡密: ${card.code}`}
-                          </p>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <p className="text-xs font-medium text-foreground truncate px-1">
+                                  {card.card?.name || `卡密: ${card.code}`}
+                                </p>
+                              }
+                            />
+                            <TooltipContent>{card.card?.name || String(card.code)}</TooltipContent>
+                          </Tooltip>
                         </div>
 
                         <div className="w-full flex items-center justify-between mt-2 pt-1.5 border-t border-border/50 text-muted-foreground">
@@ -652,29 +675,43 @@ const PileListContent: React.FC = () => {
                           </span>
 
                           <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                openContextMenu(card, rect.left, rect.bottom + 4)
-                              }}
-                              className="p-1 rounded hover:bg-muted hover:text-foreground text-muted-foreground transition-colors cursor-pointer"
-                              title="更多操作 (手牌/墓地/除外/回卡组，也可右键卡片)"
-                            >
-                              <MoreHorizontal className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                removeCard(card.instanceId)
-                              }}
-                              className="p-1 rounded hover:bg-rose-500/10 hover:text-rose-500 text-muted-foreground transition-colors cursor-pointer"
-                              title="从决斗中移除"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      openContextMenu(card, rect.left, rect.bottom + 4)
+                                    }}
+                                    className="p-1 rounded hover:bg-muted hover:text-foreground text-muted-foreground transition-colors cursor-pointer"
+                                  >
+                                    <MoreHorizontal className="w-3.5 h-3.5" />
+                                  </button>
+                                }
+                              />
+                              <TooltipContent>
+                                更多操作 (手牌/墓地/除外/回卡组，也可右键卡片)
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      removeCard(card.instanceId)
+                                    }}
+                                    className="p-1 rounded hover:bg-rose-500/10 hover:text-rose-500 text-muted-foreground transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                }
+                              />
+                              <TooltipContent>从决斗中移除</TooltipContent>
+                            </Tooltip>
                           </div>
                         </div>
                       </div>
@@ -685,14 +722,20 @@ const PileListContent: React.FC = () => {
               </div>
 
               {filteredCards.length > 5 && (
-                <button
-                  type="button"
-                  onClick={handleScrollRight}
-                  className="absolute right-2 z-20 w-8 h-8 rounded-full bg-background/80 hover:bg-background border border-border shadow-md flex items-center justify-center text-foreground/80 hover:text-foreground transition-all cursor-pointer"
-                  title="向右滚动"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={handleScrollRight}
+                        className="absolute right-2 z-20 w-8 h-8 rounded-full bg-background/80 hover:bg-background border border-border shadow-md flex items-center justify-center text-foreground/80 hover:text-foreground transition-all cursor-pointer"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    }
+                  />
+                  <TooltipContent>向右滚动</TooltipContent>
+                </Tooltip>
               )}
             </>
           )}

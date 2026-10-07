@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React, { useMemo } from 'react'
 import { ArrowLeft, ChevronRight, Plus } from 'lucide-react'
 import { AgentProviderPreset, AgentProviderCategory } from '@shared/index'
@@ -55,9 +56,16 @@ export const ProviderTemplatePicker: React.FC<ProviderTemplatePickerProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Button size="icon-sm" variant="ghost" onClick={onBack} title="返回">
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button size="icon-sm" variant="ghost" onClick={onBack}>
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+            }
+          />
+          <TooltipContent>返回</TooltipContent>
+        </Tooltip>
         <h2 className="text-xs font-semibold">添加供应商</h2>
       </div>
 
@@ -105,15 +113,21 @@ interface TemplateCardProps {
 
 function TemplateCard({ label, icon, onClick }: TemplateCardProps): React.JSX.Element {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      className="flex min-h-14 min-w-0 items-center gap-2.5 px-3 py-2 rounded-lg border border-border bg-background text-left transition-colors outline-none hover:border-ring/40 hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
-    >
-      {icon}
-      <span className="min-w-0 flex-1 truncate text-[11px] font-medium">{label}</span>
-      <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60" />
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            onClick={onClick}
+            className="flex min-h-14 min-w-0 items-center gap-2.5 px-3 py-2 rounded-lg border border-border bg-background text-left transition-colors outline-none hover:border-ring/40 hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+          >
+            {icon}
+            <span className="min-w-0 flex-1 truncate text-[11px] font-medium">{label}</span>
+            <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60" />
+          </button>
+        }
+      />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   )
 }

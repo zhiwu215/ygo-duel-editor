@@ -1,3 +1,5 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useState, JSX } from 'react'
 import {
   X,
@@ -334,15 +336,21 @@ export function SettingsApp(): JSX.Element {
       {/* 顶部拖拽区：无边框窗口用于移动窗口；右侧留出关闭按钮的位置 (不重叠才能点击) */}
       <div className="absolute top-0 left-0 right-16 h-10 z-50 [-webkit-app-region:drag]" />
       {/* 右上角关闭按钮：设置子窗口唯一窗口控制 (无边框窗口，无最小化/最大化) */}
-      <button
-        type="button"
-        onClick={() => window.close()}
-        aria-label="关闭设置"
-        title="关闭"
-        className="absolute top-2 right-2 z-50 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-      >
-        <X className="w-4 h-4" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              onClick={() => window.close()}
+              aria-label="关闭设置"
+              className="absolute top-2 right-2 z-50 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          }
+        />
+        <TooltipContent>关闭</TooltipContent>
+      </Tooltip>
 
       {/* 左侧导航 */}
       <aside className="w-56 shrink-0 border-r border-border bg-muted/30 flex flex-col p-3">
@@ -351,41 +359,43 @@ export function SettingsApp(): JSX.Element {
           自定义外观、路径与背后灵行为
         </div>
 
-        <nav className="mt-4 flex flex-col gap-3 overflow-y-auto">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.title}>
-              <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
-                {group.title}
+        <ScrollArea className="mt-4 flex-1 min-h-0">
+          <div className="flex flex-col gap-3">
+            {NAV_GROUPS.map((group) => (
+              <div key={group.title}>
+                <div className="px-2 mb-1 text-[10px] font-semibold text-muted-foreground/80">
+                  {group.title}
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {group.items.map((item) => {
+                    const Icon = item.icon
+                    const active = section === item.id
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSection(item.id)}
+                        className={cn(
+                          'flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium text-left transition-colors',
+                          active
+                            ? 'bg-accent/70 text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                        )}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span>{item.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-              <div className="flex flex-col gap-0.5">
-                {group.items.map((item) => {
-                  const Icon = item.icon
-                  const active = section === item.id
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setSection(item.id)}
-                      className={cn(
-                        'flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-medium text-left transition-colors',
-                        active
-                          ? 'bg-accent/70 text-foreground shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                      )}
-                    >
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
+            ))}
+          </div>
+        </ScrollArea>
       </aside>
 
       {/* 右侧内容 */}
-      <main className="flex-1 overflow-y-auto">
+      <ScrollArea className="flex-1 min-h-0">
         <div
           className={cn(
             'mx-auto px-8 py-8',
@@ -410,7 +420,7 @@ export function SettingsApp(): JSX.Element {
             <AgentSettingsContent section={section} />
           )}
         </div>
-      </main>
+      </ScrollArea>
     </div>
   )
 }

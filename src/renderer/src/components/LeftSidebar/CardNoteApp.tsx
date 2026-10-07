@@ -1,3 +1,5 @@
+import { ScrollArea } from '../ui/scroll-area'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   BookMarked,
@@ -220,31 +222,49 @@ export const CardNoteApp: React.FC = () => {
         <BookMarked className="w-4 h-4 text-primary shrink-0" />
         <span className="font-bold text-sm tracking-wide">卡牌图鉴</span>
         <div className="ml-auto flex items-center gap-1.5 [-webkit-app-region:no-drag]">
-          <button
-            type="button"
-            onClick={() => void handleImport()}
-            title="从 JSON 文件导入"
-            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleExport()}
-            title="把你的图鉴导出为 JSON 文件"
-            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-          >
-            <Upload className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdder(true)}
-            title="按卡名或卡密录入新的召唤词或描述"
-            className="flex items-center gap-1.5 px-2.5 h-7 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>新增卡片</span>
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={() => void handleImport()}
+                  className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              }
+            />
+            <TooltipContent>从 JSON 文件导入</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={() => void handleExport()}
+                  className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />
+                </button>
+              }
+            />
+            <TooltipContent>把你的图鉴导出为 JSON 文件</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={() => setShowAdder(true)}
+                  className="flex items-center gap-1.5 px-2.5 h-7 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>新增卡片</span>
+                </button>
+              }
+            />
+            <TooltipContent>按卡名或卡密录入新的召唤词或描述</TooltipContent>
+          </Tooltip>
           <WindowControls />
         </div>
       </header>
@@ -267,192 +287,221 @@ export const CardNoteApp: React.FC = () => {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3 min-h-0 [scrollbar-gutter:stable]">
-        {loading ? (
-          <p className="text-xs text-muted-foreground text-center py-16">读取中…</p>
-        ) : filtered.length === 0 ? (
-          <div className="py-20 text-center px-6">
-            <div className="w-12 h-12 rounded-xl bg-muted/50 border border-border/60 flex items-center justify-center mx-auto mb-3">
-              <BookMarked className="w-5 h-5 text-muted-foreground/60" />
+      <ScrollArea className="flex-1 min-h-0 [scrollbar-gutter:stable]">
+        <div className="px-4 pb-4 pt-3">
+          {loading ? (
+            <p className="text-xs text-muted-foreground text-center py-16">读取中…</p>
+          ) : filtered.length === 0 ? (
+            <div className="py-20 text-center px-6">
+              <div className="w-12 h-12 rounded-xl bg-muted/50 border border-border/60 flex items-center justify-center mx-auto mb-3">
+                <BookMarked className="w-5 h-5 text-muted-foreground/60" />
+              </div>
+              <p className="text-sm font-semibold text-foreground/85">
+                {search ? '没有匹配的召唤词' : '还没有录入任何召唤词'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                {search
+                  ? '换个关键词试试'
+                  : '卡库里没有召唤词和卡片描述。点右上角「新增卡片」开始。'}
+              </p>
             </div>
-            <p className="text-sm font-semibold text-foreground/85">
-              {search ? '没有匹配的召唤词' : '还没有录入任何召唤词'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-              {search ? '换个关键词试试' : '卡库里没有召唤词和卡片描述。点右上角「新增卡片」开始。'}
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {filtered.map((entry) => {
-              const isOpen = expanded[entry.cardCode] ?? false
-              return (
-                <Collapsible
-                  key={entry.cardCode}
-                  open={isOpen}
-                  onOpenChange={(o) => setExpanded((prev) => ({ ...prev, [entry.cardCode]: o }))}
-                  className="rounded-lg border border-border/70 bg-card/40 overflow-hidden"
-                >
-                  <CollapsibleTrigger asChild>
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          setExpanded((prev) => ({ ...prev, [entry.cardCode]: !isOpen }))
-                        }
-                      }}
-                      className="flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none hover:bg-muted/40 transition-colors"
-                    >
-                      <ChevronRight
-                        className={`w-3.5 h-3.5 shrink-0 -ml-1 text-muted-foreground transition-transform duration-300 ${
-                          isOpen ? 'rotate-90' : ''
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setPreviewCard(entry.cardCode)
+          ) : (
+            <div className="flex flex-col gap-2">
+              {filtered.map((entry) => {
+                const isOpen = expanded[entry.cardCode] ?? false
+                return (
+                  <Collapsible
+                    key={entry.cardCode}
+                    open={isOpen}
+                    onOpenChange={(o) => setExpanded((prev) => ({ ...prev, [entry.cardCode]: o }))}
+                    className="rounded-lg border border-border/70 bg-card/40 overflow-hidden"
+                  >
+                    <CollapsibleTrigger asChild>
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setExpanded((prev) => ({ ...prev, [entry.cardCode]: !isOpen }))
+                          }
                         }}
-                        title="放大查看卡图"
-                        className="shrink-0 cursor-zoom-in rounded transition-transform duration-150 hover:scale-105"
+                        className="flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none hover:bg-muted/40 transition-colors"
                       >
-                        <img
-                          src={getCardImageUrl(entry.cardCode, true)}
-                          alt={entry.cardName}
-                          className="w-8 h-11 object-cover rounded border border-border/60"
-                          onError={(e) => {
-                            const el = e.currentTarget
-                            if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
-                          }}
+                        <ChevronRight
+                          className={`w-3.5 h-3.5 shrink-0 -ml-1 text-muted-foreground transition-transform duration-300 ${
+                            isOpen ? 'rotate-90' : ''
+                          }`}
                         />
-                      </button>
-                      <span
-                        className="min-w-0 flex-1 text-xs font-semibold text-foreground truncate"
-                        title={entry.cardName}
-                      >
-                        {entry.cardName}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditor({
-                            cardCode: entry.cardCode,
-                            cardName: entry.cardName,
-                            kind: 'chant',
-                            initial: { label: '', text: '' }
-                          })
-                        }}
-                        title="添加召唤词"
-                        className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditor({
-                            cardCode: entry.cardCode,
-                            cardName: entry.cardName,
-                            kind: 'note',
-                            initial: { label: '', text: '' }
-                          })
-                        }}
-                        title="添加描述"
-                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-                      >
-                        <MessageSquareQuote className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </CollapsibleTrigger>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setPreviewCard(entry.cardCode)
+                                }}
 
-                  <CollapsibleContent>
-                    <div className="px-2.5 pb-2.5 pt-0.5 space-y-2">
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleEntryDragEnd(entry.cardCode)}
-                      >
-                        {entry.chants.length > 0 && (
-                          <div className="space-y-1.5">
-                            <div className="text-[10px] font-semibold text-muted-foreground">
-                              召唤词
-                            </div>
-                            <SortableContext
-                              items={entry.chants.map((c) => buildSortId('chant', c.label))}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              {entry.chants.map((chant, index) => (
-                                <SortableChantRow
-                                  key={chant.label}
-                                  chant={chant}
-                                  index={index}
-                                  copyKey={`${entry.cardCode}:chant:${chant.label}`}
-                                  copiedKey={copiedKey}
-                                  onCopy={handleCopy}
-                                  onEdit={() =>
-                                    setEditor({
-                                      cardCode: entry.cardCode,
-                                      cardName: entry.cardName,
-                                      kind: 'chant',
-                                      initial: { label: chant.label, text: chant.text }
-                                    })
-                                  }
-                                  onDelete={() =>
-                                    void handleDelete(entry.cardCode, 'chant', chant.label)
-                                  }
+                                className="shrink-0 cursor-zoom-in rounded transition-transform duration-150 hover:scale-105"
+                              >
+                                <img
+                                  src={getCardImageUrl(entry.cardCode, true)}
+                                  alt={entry.cardName}
+                                  className="w-8 h-11 object-cover rounded border border-border/60"
+                                  onError={(e) => {
+                                    const el = e.currentTarget
+                                    if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
+                                  }}
                                 />
-                              ))}
-                            </SortableContext>
-                          </div>
-                        )}
+                              </button>
+                            }
+                          />
+                          <TooltipContent>放大查看卡图</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <span className="min-w-0 flex-1 text-xs font-semibold text-foreground truncate">
+                                {entry.cardName}
+                              </span>
+                            }
+                          />
+                          <TooltipContent>{entry.cardName}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditor({
+                                    cardCode: entry.cardCode,
+                                    cardName: entry.cardName,
+                                    kind: 'chant',
+                                    initial: { label: '', text: '' }
+                                  })
+                                }}
 
-                        {entry.notes.length > 0 && (
-                          <div className="pt-1.5 mt-1.5 border-t border-border/50 space-y-1.5">
-                            <div className="text-[10px] font-semibold text-muted-foreground">
-                              描述
+                                className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            }
+                          />
+                          <TooltipContent>添加召唤词</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditor({
+                                    cardCode: entry.cardCode,
+                                    cardName: entry.cardName,
+                                    kind: 'note',
+                                    initial: { label: '', text: '' }
+                                  })
+                                }}
+
+                                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                              >
+                                <MessageSquareQuote className="w-3.5 h-3.5" />
+                              </button>
+                            }
+                          />
+                          <TooltipContent>添加描述</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </CollapsibleTrigger>
+
+                    <CollapsibleContent>
+                      <div className="px-2.5 pb-2.5 pt-0.5 space-y-2">
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={handleEntryDragEnd(entry.cardCode)}
+                        >
+                          {entry.chants.length > 0 && (
+                            <div className="space-y-1.5">
+                              <div className="text-[10px] font-semibold text-muted-foreground">
+                                召唤词
+                              </div>
+                              <SortableContext
+                                items={entry.chants.map((c) => buildSortId('chant', c.label))}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                {entry.chants.map((chant, index) => (
+                                  <SortableChantRow
+                                    key={chant.label}
+                                    chant={chant}
+                                    index={index}
+                                    copyKey={`${entry.cardCode}:chant:${chant.label}`}
+                                    copiedKey={copiedKey}
+                                    onCopy={handleCopy}
+                                    onEdit={() =>
+                                      setEditor({
+                                        cardCode: entry.cardCode,
+                                        cardName: entry.cardName,
+                                        kind: 'chant',
+                                        initial: { label: chant.label, text: chant.text }
+                                      })
+                                    }
+                                    onDelete={() =>
+                                      void handleDelete(entry.cardCode, 'chant', chant.label)
+                                    }
+                                  />
+                                ))}
+                              </SortableContext>
                             </div>
-                            <SortableContext
-                              items={entry.notes.map((n) => buildSortId('note', n.label))}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              {entry.notes.map((note, index) => (
-                                <SortableNoteRow
-                                  key={note.label}
-                                  note={note}
-                                  index={index}
-                                  copyKey={`${entry.cardCode}:note:${note.label}`}
-                                  copiedKey={copiedKey}
-                                  onCopy={handleCopy}
-                                  onEdit={() =>
-                                    setEditor({
-                                      cardCode: entry.cardCode,
-                                      cardName: entry.cardName,
-                                      kind: 'note',
-                                      initial: { label: note.label, text: note.text }
-                                    })
-                                  }
-                                  onDelete={() =>
-                                    void handleDelete(entry.cardCode, 'note', note.label)
-                                  }
-                                />
-                              ))}
-                            </SortableContext>
-                          </div>
-                        )}
-                      </DndContext>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              )
-            })}
-          </div>
-        )}
-      </div>
+                          )}
+
+                          {entry.notes.length > 0 && (
+                            <div className="pt-1.5 mt-1.5 border-t border-border/50 space-y-1.5">
+                              <div className="text-[10px] font-semibold text-muted-foreground">
+                                描述
+                              </div>
+                              <SortableContext
+                                items={entry.notes.map((n) => buildSortId('note', n.label))}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                {entry.notes.map((note, index) => (
+                                  <SortableNoteRow
+                                    key={note.label}
+                                    note={note}
+                                    index={index}
+                                    copyKey={`${entry.cardCode}:note:${note.label}`}
+                                    copiedKey={copiedKey}
+                                    onCopy={handleCopy}
+                                    onEdit={() =>
+                                      setEditor({
+                                        cardCode: entry.cardCode,
+                                        cardName: entry.cardName,
+                                        kind: 'note',
+                                        initial: { label: note.label, text: note.text }
+                                      })
+                                    }
+                                    onDelete={() =>
+                                      void handleDelete(entry.cardCode, 'note', note.label)
+                                    }
+                                  />
+                                ))}
+                              </SortableContext>
+                            </div>
+                          )}
+                        </DndContext>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
 
       {editor && (
         <CardNoteEditor
@@ -540,43 +589,65 @@ function SortableChantRow({
           {chant.label}
         </span>
         {chant.readonly && (
-          <span
-            className="shrink-0 text-[9px] px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25"
-            title="内置的经典条目，不可修改"
-          >
-            内置
-          </span>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="shrink-0 text-[9px] px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+                  内置
+                </span>
+              }
+            />
+            <TooltipContent>内置的经典条目，不可修改</TooltipContent>
+          </Tooltip>
         )}
-        <button
-          type="button"
-          onClick={() => void onCopy(copyKey, chant.text)}
-          title="复制"
-          className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-        >
-          {copiedKey === copyKey ? (
-            <Check className="w-3.5 h-3.5 text-emerald-500" />
-          ) : (
-            <Copy className="w-3.5 h-3.5" />
-          )}
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => void onCopy(copyKey, chant.text)}
+                className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+              >
+                {copiedKey === copyKey ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </button>
+            }
+          />
+          <TooltipContent>复制</TooltipContent>
+        </Tooltip>
         {!chant.readonly && (
           <>
-            <button
-              type="button"
-              onClick={onEdit}
-              title="编辑"
-              className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={onDelete}
-              title="删除"
-              className="p-1 rounded text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={onEdit}
+                    className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                }
+              />
+              <TooltipContent>编辑</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="p-1 rounded text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                }
+              />
+              <TooltipContent>删除</TooltipContent>
+            </Tooltip>
           </>
         )}
       </div>
@@ -636,34 +707,52 @@ function SortableNoteRow({
         <span className="text-[10px] font-semibold text-foreground/80 truncate flex-1">
           {note.label}
         </span>
-        <button
-          type="button"
-          onClick={() => void onCopy(copyKey, note.text)}
-          title="复制"
-          className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-        >
-          {copiedKey === copyKey ? (
-            <Check className="w-3.5 h-3.5 text-emerald-500" />
-          ) : (
-            <Copy className="w-3.5 h-3.5" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onEdit}
-          title="编辑"
-          className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          title="删除"
-          className="p-1 rounded text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => void onCopy(copyKey, note.text)}
+                className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+              >
+                {copiedKey === copyKey ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </button>
+            }
+          />
+          <TooltipContent>复制</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={onEdit}
+                className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            }
+          />
+          <TooltipContent>编辑</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={onDelete}
+                className="p-1 rounded text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            }
+          />
+          <TooltipContent>删除</TooltipContent>
+        </Tooltip>
       </div>
       <p className="text-[11px] text-foreground/90 leading-relaxed whitespace-pre-wrap mt-1">
         {note.text}

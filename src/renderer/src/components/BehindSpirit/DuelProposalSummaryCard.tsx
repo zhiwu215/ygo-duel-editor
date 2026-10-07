@@ -1,3 +1,5 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { ScrollArea } from '../ui/scroll-area'
 import { useState, type JSX } from 'react'
 import { Check, ChevronDown, ChevronRight, Loader2, Sliders } from 'lucide-react'
 import {
@@ -82,9 +84,12 @@ export function DuelProposalSummaryCard({
         )}
         {placements.length > 0 && <span>开局布局 {placements.length} 张卡</span>}
         {warnings.length > 0 && (
-          <span title={warnings.join('\n')} className="text-amber-500">
-            {warnings.length} 条落位警告
-          </span>
+          <Tooltip>
+            <TooltipTrigger
+              render={<span className="text-amber-500">{warnings.length} 条落位警告</span>}
+            />
+            <TooltipContent>{warnings.join('\n')}</TooltipContent>
+          </Tooltip>
         )}
       </div>
 
@@ -106,70 +111,72 @@ export function DuelProposalSummaryCard({
           </button>
 
           {expanded && (
-            <div className="mt-1.5 space-y-2 max-h-64 overflow-y-auto rounded border border-border/50 p-2 bg-muted/20">
-              {placements.length > 0 && (
-                <div className="space-y-0.5">
-                  <p className="text-[10px] font-semibold text-foreground/80">开局布局</p>
-                  {placements.map((c, i) => (
-                    <div
-                      key={i}
-                      className="text-[10px] text-muted-foreground flex items-center gap-1.5 min-w-0"
-                    >
-                      <span className="truncate flex-1 min-w-0">
-                        {c.isUnknown ? '未知盖卡' : c.cardName || `卡密 ${c.code}`}
-                      </span>
-                      <span className="shrink-0">
-                        {(c.side === 0 ? '我方' : '对方') +
-                          ' ' +
-                          (AGENT_BOARD_ZONE_NAMES[c.location] || c.location) +
-                          (c.sequence ? `[${c.sequence}]` : '')}
-                      </span>
-                      {c.position && (
-                        <span className="shrink-0 text-muted-foreground/70">
-                          {AGENT_BOARD_FACING_NAMES[c.position]}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {steps.length > 0 && (
-                <div className="space-y-0.5">
-                  <p className="text-[10px] font-semibold text-foreground/80">步骤台本</p>
-                  {steps.map((p, i) => (
-                    <div
-                      key={i}
-                      className="text-[10px] text-muted-foreground flex items-center gap-1.5 min-w-0"
-                    >
-                      <span className="font-mono shrink-0">{i + 1}</span>
-                      <span
-                        className={cn(
-                          'shrink-0',
-                          p.actionPlayer === 0 ? 'text-blue-400' : 'text-rose-400'
-                        )}
+            <ScrollArea className="mt-1.5 max-h-64 rounded border border-border/50 bg-muted/20">
+              <div className="space-y-2 p-2">
+                {placements.length > 0 && (
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] font-semibold text-foreground/80">开局布局</p>
+                    {placements.map((c, i) => (
+                      <div
+                        key={i}
+                        className="text-[10px] text-muted-foreground flex items-center gap-1.5 min-w-0"
                       >
-                        {p.actionPlayer === 0 ? '我方' : '对方'}
-                      </span>
-                      <span className="shrink-0 text-muted-foreground/70">
-                        T{p.turn}·{PHASE_SHORT_NAMES[p.phase] || p.phase}
-                      </span>
-                      <span className="shrink-0">
-                        {ACTION_TYPE_NAMES[p.actionType] || p.actionType}
-                      </span>
-                      {p.cardName && (
-                        <span className="shrink-0 font-medium text-foreground/90">
-                          {p.cardName}
+                        <span className="truncate flex-1 min-w-0">
+                          {c.isUnknown ? '未知盖卡' : c.cardName || `卡密 ${c.code}`}
                         </span>
-                      )}
-                      {p.dialogue && (
-                        <span className="truncate italic min-w-0">「{p.dialogue}」</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                        <span className="shrink-0">
+                          {(c.side === 0 ? '我方' : '对方') +
+                            ' ' +
+                            (AGENT_BOARD_ZONE_NAMES[c.location] || c.location) +
+                            (c.sequence ? `[${c.sequence}]` : '')}
+                        </span>
+                        {c.position && (
+                          <span className="shrink-0 text-muted-foreground/70">
+                            {AGENT_BOARD_FACING_NAMES[c.position]}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {steps.length > 0 && (
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] font-semibold text-foreground/80">步骤台本</p>
+                    {steps.map((p, i) => (
+                      <div
+                        key={i}
+                        className="text-[10px] text-muted-foreground flex items-center gap-1.5 min-w-0"
+                      >
+                        <span className="font-mono shrink-0">{i + 1}</span>
+                        <span
+                          className={cn(
+                            'shrink-0',
+                            p.actionPlayer === 0 ? 'text-blue-400' : 'text-rose-400'
+                          )}
+                        >
+                          {p.actionPlayer === 0 ? '我方' : '对方'}
+                        </span>
+                        <span className="shrink-0 text-muted-foreground/70">
+                          T{p.turn}·{PHASE_SHORT_NAMES[p.phase] || p.phase}
+                        </span>
+                        <span className="shrink-0">
+                          {ACTION_TYPE_NAMES[p.actionType] || p.actionType}
+                        </span>
+                        {p.cardName && (
+                          <span className="shrink-0 font-medium text-foreground/90">
+                            {p.cardName}
+                          </span>
+                        )}
+                        {p.dialogue && (
+                          <span className="truncate italic min-w-0">「{p.dialogue}」</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
           )}
         </div>
       )}

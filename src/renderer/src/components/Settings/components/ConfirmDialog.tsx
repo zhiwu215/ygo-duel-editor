@@ -1,8 +1,15 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
 import { Button } from '../../ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../../ui/dialog'
 import { cn } from '../../../lib/utils'
-import { useBackdropClose } from '../../../hooks/useBackdropClose'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -29,29 +36,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   onCancel
 }) => {
-  const backdropClose = useBackdropClose(onCancel)
-  useEffect(() => {
-    if (!open) return
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, onCancel])
-
-  if (!open) return null
-
   return (
-    <div
-      onMouseDown={backdropClose.onMouseDown}
-      onClick={backdropClose.onClick}
-      className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-[380px] max-w-full bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4 animate-in zoom-in-95 duration-100"
-      >
-        <div className="flex items-start gap-3">
+    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent showCloseButton={false} className="max-w-[380px] gap-4 p-5">
+        <DialogHeader className="flex-row items-start gap-3 space-y-0">
           <div
             className={cn(
               'w-8 h-8 rounded-lg flex items-center justify-center shrink-0',
@@ -61,23 +49,18 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             {icon === 'info' ? <Info className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
           </div>
           <div className="min-w-0 pt-0.5">
-            <h3 className="text-sm font-semibold leading-tight">{title}</h3>
+            <DialogTitle className="text-sm font-semibold leading-tight">{title}</DialogTitle>
             {description && (
-              <p className="text-xs text-muted-foreground leading-relaxed mt-1.5 whitespace-pre-line">
+              <DialogDescription className="text-xs leading-relaxed mt-1.5 whitespace-pre-line">
                 {description}
-              </p>
+              </DialogDescription>
             )}
           </div>
-        </div>
+        </DialogHeader>
 
-        <div className="flex items-center justify-end gap-2">
+        <DialogFooter className="flex-row justify-end gap-2 border-t bg-transparent p-0 pt-3">
           {showCancel && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onCancel}
-              className="h-7 text-xs font-medium"
-            >
+            <Button variant="outline" size="sm" onClick={onCancel} className="h-7 text-xs">
               {cancelText}
             </Button>
           )}
@@ -89,8 +72,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           >
             {confirmText}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

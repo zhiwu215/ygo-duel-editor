@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import React from 'react'
 import { CdbCard } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Dices, X } from 'lucide-react'
 
 interface DeckTestHandModalProps {
@@ -17,30 +19,16 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
   onRedraw,
   onClose
 }) => {
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-4 flex flex-col gap-4 max-w-[820px] w-full animate-in zoom-in-95 duration-100"
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-4 flex flex-col gap-4 max-w-[820px] w-full animate-in zoom-in-95 duration-100 ring-0 sm:max-w-[820px]"
       >
-        <div className="flex items-center justify-between border-b border-border/60 pb-2">
+        <DialogHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b border-border/60 pb-2">
           <div className="flex items-center gap-2">
             <Dices className="w-4 h-4 text-primary" />
-            <span className="font-bold text-sm">手牌起手模拟测试 (5 张)</span>
+            <DialogTitle className="text-sm font-bold">手牌起手模拟测试 (5 张)</DialogTitle>
           </div>
 
           <div className="flex items-center gap-2">
@@ -63,7 +51,7 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
               <X className="w-4 h-4" />
             </Button>
           </div>
-        </div>
+        </DialogHeader>
 
         <div className="grid grid-cols-5 gap-3 py-2">
           {cards.map((code, idx) => {
@@ -83,17 +71,21 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
                     }}
                   />
                 </div>
-                <span
-                  className="text-[11px] font-medium text-foreground text-center truncate w-full"
-                  title={card?.name || String(code)}
-                >
-                  {card?.name || code}
-                </span>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="text-[11px] font-medium text-foreground text-center truncate w-full">
+                        {card?.name || code}
+                      </span>
+                    }
+                  />
+                  <TooltipContent>{card?.name || String(code)}</TooltipContent>
+                </Tooltip>
               </div>
             )
           })}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

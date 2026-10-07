@@ -3,7 +3,8 @@ import { BookMarked, X } from 'lucide-react'
 import { CardNoteKind } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { useBackdropClose } from '../../hooks/useBackdropClose'
+import { Textarea } from '../ui/textarea'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 
 interface CardNoteEditorProps {
   cardName: string
@@ -64,17 +65,6 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
     }
   }, [isEdit])
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
   const handleConfirm = async (): Promise<void> => {
     const trimmedText = text.trim()
     const trimmedLabel = label.trim() || (!isEdit ? defaultLabel : '')
@@ -97,25 +87,19 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
     if (ok) onClose()
   }
 
-  const backdropClose = useBackdropClose(onClose)
-
   return (
-    <div
-      onMouseDown={backdropClose.onMouseDown}
-      onClick={backdropClose.onClick}
-      className="fixed inset-0 z-[85] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-100 select-none"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4 max-w-md w-full animate-in zoom-in-95 duration-100"
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-5 flex flex-col gap-4 max-w-md w-full"
       >
-        <div className="flex items-center justify-between border-b border-border/60 pb-2">
+        <DialogHeader className="flex items-center justify-between border-b border-border/60 pb-2">
           <div className="flex items-center gap-2 min-w-0">
             <BookMarked className="w-4 h-4 text-primary shrink-0" />
             <div className="min-w-0">
-              <div className="font-bold text-sm">
+              <DialogTitle className="font-bold text-sm">
                 {isEdit ? '编辑' : isChant ? '录入召唤词' : '添加描述'}
-              </div>
+              </DialogTitle>
               <div className="text-[10px] text-muted-foreground truncate">{cardName}</div>
             </div>
           </div>
@@ -127,7 +111,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
           >
             <X className="w-4 h-4" />
           </Button>
-        </div>
+        </DialogHeader>
 
         {kindSelectorVisible && (
           <div className="flex flex-col gap-1.5">
@@ -184,7 +168,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
           <span className="text-xs font-semibold text-muted-foreground">
             {isChant ? '召唤词' : '描述'}
           </span>
-          <textarea
+          <Textarea
             ref={textRef}
             value={text}
             onChange={(e) => {
@@ -217,7 +201,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
             {isEdit ? '保存' : '添加'}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

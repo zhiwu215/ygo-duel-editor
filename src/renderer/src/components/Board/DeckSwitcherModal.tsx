@@ -1,3 +1,5 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useMemo, useState } from 'react'
 import { DeckData } from '@shared/index'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
@@ -116,14 +118,20 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={closeDeckSwitcher}
-            className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
-            title="关闭 (Esc)"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={closeDeckSwitcher}
+                  className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              }
+            />
+            <TooltipContent>关闭 (Esc)</TooltipContent>
+          </Tooltip>
         </div>
 
         {/* 工具条：载入手牌 + 卡组库搜索 */}
@@ -161,57 +169,62 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
         </div>
 
         {/* 卡组库列表 */}
-        <div className="flex-1 min-h-[240px] overflow-y-auto p-4">
-          {isLoading ? (
-            <p className="text-xs text-muted-foreground py-12 text-center">正在读取卡组库...</p>
-          ) : filteredDecks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
-              <Layers className="w-9 h-9 opacity-25 stroke-[1.5]" />
-              <p className="text-xs">
-                {decks.length === 0
-                  ? '卡组库还是空的 —— 先在「卡组」窗口里创建并保存一副卡组吧'
-                  : '没有匹配的卡组'}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
-              {filteredDecks.map((deck) => {
-                const cover = deck.coverCard || deck.extra[0] || deck.main[0]
-                return (
-                  <button
-                    key={deck.id || deck.name}
-                    type="button"
-                    onClick={() => handleApply(deck)}
-                    className="flex items-center gap-2.5 p-2 rounded-lg border border-border/70 hover:border-blue-500/70 hover:bg-blue-500/[0.06] text-left transition-colors cursor-pointer"
-                  >
-                    <img
-                      src={getCardImageUrl(cover, true)}
-                      alt={deck.name}
-                      className="w-8 h-[46px] object-cover rounded shrink-0 border border-border/60"
-                      onError={(e) => {
-                        const el = e.currentTarget
-                        if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold truncate" title={deck.name}>
-                        {deck.name}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                        主 {deck.main.length} / 额外 {deck.extra.length}
-                      </p>
-                      {(deck.group || (deck.tags && deck.tags.length > 0)) && (
-                        <p className="text-[10px] text-muted-foreground/80 truncate mt-0.5">
-                          {[deck.group, ...(deck.tags || [])].filter(Boolean).join(' · ')}
+        <ScrollArea className="flex-1 min-h-[240px]">
+          <div className="p-4">
+            {isLoading ? (
+              <p className="text-xs text-muted-foreground py-12 text-center">正在读取卡组库...</p>
+            ) : filteredDecks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
+                <Layers className="w-9 h-9 opacity-25 stroke-[1.5]" />
+                <p className="text-xs">
+                  {decks.length === 0
+                    ? '卡组库还是空的 —— 先在「卡组」窗口里创建并保存一副卡组吧'
+                    : '没有匹配的卡组'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
+                {filteredDecks.map((deck) => {
+                  const cover = deck.coverCard || deck.extra[0] || deck.main[0]
+                  return (
+                    <button
+                      key={deck.id || deck.name}
+                      type="button"
+                      onClick={() => handleApply(deck)}
+                      className="flex items-center gap-2.5 p-2 rounded-lg border border-border/70 hover:border-blue-500/70 hover:bg-blue-500/[0.06] text-left transition-colors cursor-pointer"
+                    >
+                      <img
+                        src={getCardImageUrl(cover, true)}
+                        alt={deck.name}
+                        className="w-8 h-[46px] object-cover rounded shrink-0 border border-border/60"
+                        onError={(e) => {
+                          const el = e.currentTarget
+                          if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={<p className="text-xs font-semibold truncate">{deck.name}</p>}
+                          />
+                          <TooltipContent>{deck.name}</TooltipContent>
+                        </Tooltip>
+                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                          主 {deck.main.length} / 额外 {deck.extra.length}
                         </p>
-                      )}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+                        {(deck.group || (deck.tags && deck.tags.length > 0)) && (
+                          <p className="text-[10px] text-muted-foreground/80 truncate mt-0.5">
+                            {[deck.group, ...(deck.tags || [])].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
 
         {/* 底部操作栏 */}
         <div className="flex items-center justify-end px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">

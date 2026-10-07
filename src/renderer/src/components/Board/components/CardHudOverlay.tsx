@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React from 'react'
 import {
   FieldCard,
@@ -52,9 +53,16 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
   return (
     <div className="absolute z-40 pointer-events-none select-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] min-w-[110px] max-w-[124px] bg-black/85 backdrop-blur-xs border border-white/20 rounded shadow-2xl p-1.5 flex flex-col gap-0.5 text-[10px] leading-tight text-white font-sans animate-in fade-in zoom-in-95 duration-100">
       {/* 卡名 */}
-      <div className="font-bold text-center truncate text-[11px] text-white/95" title={cardName}>
-        {cardName}
-      </div>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <div className="font-bold text-center truncate text-[11px] text-white/95">
+              {cardName}
+            </div>
+          }
+        />
+        <TooltipContent>{cardName}</TooltipContent>
+      </Tooltip>
 
       {/* 攻守数值行 (仅怪兽，支持无限与变动高亮) */}
       {isMonster && (
@@ -117,13 +125,16 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
 
       {/* 指示物全称列表行 */}
       {counterEntries.map((c) => (
-        <div
-          key={c.id}
-          className="text-[9.5px] font-semibold text-center text-amber-300 truncate"
-          title={`[${c.name}]: ${c.count}`}
-        >
-          [{c.name}]: {c.count}
-        </div>
+        <Tooltip key={c.id}>
+          <TooltipTrigger
+            render={
+              <div className="text-[9.5px] font-semibold text-center text-amber-300 truncate">
+                [{c.name}]: {c.count}
+              </div>
+            }
+          />
+          <TooltipContent>{`[${c.name}]: ${c.count}`}</TooltipContent>
+        </Tooltip>
       ))}
     </div>
   )

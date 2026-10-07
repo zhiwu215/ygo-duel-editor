@@ -1,3 +1,5 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
   DeckData,
@@ -303,17 +305,23 @@ export const DeckLibraryView: React.FC = () => {
 
         <div className="flex items-center gap-2 [-webkit-app-region:no-drag]">
           <div className="relative">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setImportMenuOpen((v) => !v)}
-              title="导入 YDK 卡组"
-              className="h-8 text-xs gap-1.5 font-medium"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
-              <span>导入 YDK</span>
-              <ChevronDown className="w-3 h-3 opacity-60" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setImportMenuOpen((v) => !v)}
+                    className="h-8 text-xs gap-1.5 font-medium"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>导入 YDK</span>
+                    <ChevronDown className="w-3 h-3 opacity-60" />
+                  </Button>
+                }
+              />
+              <TooltipContent>导入 YDK 卡组</TooltipContent>
+            </Tooltip>
 
             {importMenuOpen && (
               <div
@@ -404,231 +412,252 @@ export const DeckLibraryView: React.FC = () => {
           )}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5">
-          {visibleGroups.length > 0 && (
-            <div className="mb-5">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-1.5 px-1">
-                <Folder className="w-3.5 h-3.5" />
-                <span>{selectedGroup === null ? '分组' : '子分组'}</span>
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-5 pb-5">
+            {visibleGroups.length > 0 && (
+              <div className="mb-5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-1.5 px-1">
+                  <Folder className="w-3.5 h-3.5" />
+                  <span>{selectedGroup === null ? '分组' : '子分组'}</span>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1">
+                  {visibleGroups.map((group) => {
+                    const isDropTarget = dragOverGroup === group
+                    return (
+                      <Tooltip key={group}>
+                        <TooltipTrigger
+                          render={
+                            <div
+                              data-deck-folder
+                              onClick={() => setSelectedGroup(group)}
+                              onContextMenu={(e) => handleGroupContextMenu(e, group)}
+                              onDragOver={(e) => {
+                                if (!e.dataTransfer.types.includes('text/deck-id')) return
+                                e.preventDefault()
+                                e.dataTransfer.dropEffect = 'move'
+                                if (dragOverGroup !== group) setDragOverGroup(group)
+                              }}
+                              onDragLeave={(e) => {
+                                if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                                if (dragOverGroup === group) setDragOverGroup(null)
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setDragOverGroup(null)
+                                const deckId = e.dataTransfer.getData('text/deck-id')
+                                if (deckId) void assignDeckGroup(deckId, group)
+                              }}
+
+                              className={cn(
+                                'group cursor-pointer rounded-md px-2 py-2.5 flex flex-col items-center gap-1.5 min-w-0 transition-colors',
+                                isDropTarget
+                                  ? 'bg-primary/15 ring-1 ring-inset ring-primary/50'
+                                  : 'hover:bg-accent'
+                              )}
+                            >
+                              <Folder
+                                className="h-11 w-11 text-foreground/75 fill-foreground/5 transition-colors group-hover:text-foreground"
+                                strokeWidth={1.5}
+                              />
+                              <span className="max-w-full rounded-sm px-1 text-center text-[11px] leading-tight font-medium text-foreground line-clamp-2 break-words group-hover:bg-accent-foreground/10">
+                                {groupLeafName(group)}
+                              </span>
+                            </div>
+                          }
+                        />
+                        <TooltipContent>{group}</TooltipContent>
+                      </Tooltip>
+                    )
+                  })}
+                </div>
               </div>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1">
-                {visibleGroups.map((group) => {
-                  const isDropTarget = dragOverGroup === group
+            )}
+
+            {selectedGroup === null && visibleDecks.length > 0 && ungroupedCount > 0 && (
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-2.5">
+                <Inbox className="w-3.5 h-3.5" />
+                <span>未分组</span>
+                <span className="font-mono text-[10px] opacity-70">({ungroupedCount})</span>
+              </div>
+            )}
+
+            {visibleDecks.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+                {visibleDecks.map((deck) => {
+                  const coverCode = getCoverCode(deck)
+                  const coverCard = coverCode ? cardDetails[coverCode] : undefined
+
                   return (
                     <div
-                      key={group}
-                      data-deck-folder
-                      onClick={() => setSelectedGroup(group)}
-                      onContextMenu={(e) => handleGroupContextMenu(e, group)}
-                      onDragOver={(e) => {
-                        if (!e.dataTransfer.types.includes('text/deck-id')) return
-                        e.preventDefault()
-                        e.dataTransfer.dropEffect = 'move'
-                        if (dragOverGroup !== group) setDragOverGroup(group)
+                      key={deck.id || deck.name}
+                      data-deck-card
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/deck-id', deck.id || '')
+                        e.dataTransfer.effectAllowed = 'move'
                       }}
-                      onDragLeave={(e) => {
-                        if (e.currentTarget.contains(e.relatedTarget as Node)) return
-                        if (dragOverGroup === group) setDragOverGroup(null)
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setDragOverGroup(null)
-                        const deckId = e.dataTransfer.getData('text/deck-id')
-                        if (deckId) void assignDeckGroup(deckId, group)
-                      }}
-                      title={group}
-                      className={cn(
-                        'group cursor-pointer rounded-md px-2 py-2.5 flex flex-col items-center gap-1.5 min-w-0 transition-colors',
-                        isDropTarget
-                          ? 'bg-primary/15 ring-1 ring-inset ring-primary/50'
-                          : 'hover:bg-accent'
-                      )}
+                      onClick={() => void openDeck(deck)}
+                      onContextMenu={(e) => handleContextMenu(e, deck)}
+                      className="group relative flex gap-3 rounded-lg bg-card border border-border/70 hover:border-primary/60 transition-all duration-200 hover:shadow-md overflow-hidden cursor-pointer p-2.5"
                     >
-                      <Folder
-                        className="h-11 w-11 text-foreground/75 fill-foreground/5 transition-colors group-hover:text-foreground"
-                        strokeWidth={1.5}
-                      />
-                      <span className="max-w-full rounded-sm px-1 text-center text-[11px] leading-tight font-medium text-foreground line-clamp-2 break-words group-hover:bg-accent-foreground/10">
-                        {groupLeafName(group)}
-                      </span>
+                      <div className="relative h-20 w-14 shrink-0 rounded-md bg-slate-950/80 overflow-hidden flex items-center justify-center">
+                        <img
+                          src={getCardImageUrl(coverCode)}
+                          alt={deck.name}
+                          onError={(e) => {
+                            e.currentTarget.src = CARD_BACK_IMAGE
+                          }}
+                          className="h-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
+                        />
+                        {deck.group?.trim() && (
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <div className="absolute top-1 left-1 right-1 flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-black/65 backdrop-blur-xs px-1 py-0.5 rounded">
+                                  <Folder className="w-2 h-2 shrink-0" />
+                                  <span className="truncate">
+                                    {groupLeafName(deck.group.trim())}
+                                  </span>
+                                </div>
+                              }
+                            />
+                            <TooltipContent>{deck.group.trim()}</TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                                {deck.name}
+                              </h3>
+                            }
+                          />
+                          <TooltipContent>{deck.name}</TooltipContent>
+                        </Tooltip>
+
+                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>
+                            {deck.updatedAt
+                              ? new Date(deck.updatedAt).toLocaleDateString()
+                              : '未同步'}
+                          </span>
+                          {coverCard && (
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={<span className="truncate ml-1">· {coverCard.name}</span>}
+                              />
+                              <TooltipContent>{coverCard.name}</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+
+                        {deck.tags && deck.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-0.5 mt-1.5">
+                            {deck.tags.slice(0, 2).map((t) => (
+                              <span
+                                key={t}
+                                className="text-[9px] font-medium px-1 py-px rounded bg-muted/80 text-muted-foreground border border-border/40"
+                              >
+                                #{t}
+                              </span>
+                            ))}
+                            {deck.tags.length > 2 && (
+                              <span className="text-[9px] text-muted-foreground self-center">
+                                +{deck.tags.length - 2}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="text-[10px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug">
+                          {deck.description ? (
+                            <span>{deck.description}</span>
+                          ) : (
+                            <span className="italic text-muted-foreground/60">暂无描述</span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2.5 text-[10px] font-mono font-medium text-muted-foreground mt-auto pt-1.5">
+                          <span className="text-foreground">
+                            主 <span className="font-bold">{deck.main.length}</span>
+                          </span>
+                          <span className="text-foreground">
+                            额外 <span className="font-bold">{deck.extra.length}</span>
+                          </span>
+                          <span>
+                            副 <span>{deck.side.length}</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   )
                 })}
               </div>
-            </div>
-          )}
-
-          {selectedGroup === null && visibleDecks.length > 0 && ungroupedCount > 0 && (
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground mb-2.5">
-              <Inbox className="w-3.5 h-3.5" />
-              <span>未分组</span>
-              <span className="font-mono text-[10px] opacity-70">({ungroupedCount})</span>
-            </div>
-          )}
-
-          {visibleDecks.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-              {visibleDecks.map((deck) => {
-                const coverCode = getCoverCode(deck)
-                const coverCard = coverCode ? cardDetails[coverCode] : undefined
-
-                return (
-                  <div
-                    key={deck.id || deck.name}
-                    data-deck-card
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/deck-id', deck.id || '')
-                      e.dataTransfer.effectAllowed = 'move'
-                    }}
-                    onClick={() => void openDeck(deck)}
-                    onContextMenu={(e) => handleContextMenu(e, deck)}
-                    className="group relative flex gap-3 rounded-lg bg-card border border-border/70 hover:border-primary/60 transition-all duration-200 hover:shadow-md overflow-hidden cursor-pointer p-2.5"
-                  >
-                    <div className="relative h-20 w-14 shrink-0 rounded-md bg-slate-950/80 overflow-hidden flex items-center justify-center">
-                      <img
-                        src={getCardImageUrl(coverCode)}
-                        alt={deck.name}
-                        onError={(e) => {
-                          e.currentTarget.src = CARD_BACK_IMAGE
-                        }}
-                        className="h-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
-                      />
-                      {deck.group?.trim() && (
-                        <div
-                          className="absolute top-1 left-1 right-1 flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-black/65 backdrop-blur-xs px-1 py-0.5 rounded"
-                          title={deck.group.trim()}
-                        >
-                          <Folder className="w-2 h-2 shrink-0" />
-                          <span className="truncate">{groupLeafName(deck.group.trim())}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <h3
-                        className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1"
-                        title={deck.name}
-                      >
-                        {deck.name}
-                      </h3>
-
-                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
-                        <Clock className="w-2.5 h-2.5" />
-                        <span>
-                          {deck.updatedAt
-                            ? new Date(deck.updatedAt).toLocaleDateString()
-                            : '未同步'}
-                        </span>
-                        {coverCard && (
-                          <span className="truncate ml-1" title={coverCard.name}>
-                            · {coverCard.name}
-                          </span>
-                        )}
-                      </div>
-
-                      {deck.tags && deck.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-0.5 mt-1.5">
-                          {deck.tags.slice(0, 2).map((t) => (
-                            <span
-                              key={t}
-                              className="text-[9px] font-medium px-1 py-px rounded bg-muted/80 text-muted-foreground border border-border/40"
-                            >
-                              #{t}
-                            </span>
-                          ))}
-                          {deck.tags.length > 2 && (
-                            <span className="text-[9px] text-muted-foreground self-center">
-                              +{deck.tags.length - 2}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="text-[10px] text-muted-foreground line-clamp-2 mt-1.5 leading-snug">
-                        {deck.description ? (
-                          <span>{deck.description}</span>
-                        ) : (
-                          <span className="italic text-muted-foreground/60">暂无描述</span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2.5 text-[10px] font-mono font-medium text-muted-foreground mt-auto pt-1.5">
-                        <span className="text-foreground">
-                          主 <span className="font-bold">{deck.main.length}</span>
-                        </span>
-                        <span className="text-foreground">
-                          额外 <span className="font-bold">{deck.extra.length}</span>
-                        </span>
-                        <span>
-                          副 <span>{deck.side.length}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="py-16 flex flex-col items-center justify-center text-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground">
-                <BookOpen className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  {searchKeyword
-                    ? '没有找到匹配的卡组'
-                    : selectedGroup
-                      ? '该分组内还没有卡组'
-                      : '还没有卡组'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {searchKeyword
-                    ? '尝试清除搜索关键词'
-                    : selectedGroup
-                      ? '把卡组拖进来，或在卡组右键菜单里选择「移动到分组」'
-                      : '点击上方按钮新建或导入 YDK 卡组；右键空白处可新建分组'}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                {(searchKeyword || selectedGroup) && (
+            ) : (
+              <div className="py-16 flex flex-col items-center justify-center text-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {searchKeyword
+                      ? '没有找到匹配的卡组'
+                      : selectedGroup
+                        ? '该分组内还没有卡组'
+                        : '还没有卡组'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {searchKeyword
+                      ? '尝试清除搜索关键词'
+                      : selectedGroup
+                        ? '把卡组拖进来，或在卡组右键菜单里选择「移动到分组」'
+                        : '点击上方按钮新建或导入 YDK 卡组；右键空白处可新建分组'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  {(searchKeyword || selectedGroup) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSearchKeyword('')
+                        setSelectedGroup(null)
+                      }}
+                      className="h-8 text-xs"
+                    >
+                      {searchKeyword ? '清除搜索' : '返回全部'}
+                    </Button>
+                  )}
+                  {!searchKeyword && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openGroupModal(null)}
+                      className="h-8 text-xs gap-1.5"
+                    >
+                      <FolderPlus className="w-3.5 h-3.5" />
+                      <span>{selectedGroup ? '新建子分组' : '新建分组'}</span>
+                    </Button>
+                  )}
                   <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
-                    onClick={() => {
-                      setSearchKeyword('')
-                      setSelectedGroup(null)
-                    }}
-                    className="h-8 text-xs"
-                  >
-                    {searchKeyword ? '清除搜索' : '返回全部'}
-                  </Button>
-                )}
-                {!searchKeyword && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openGroupModal(null)}
+                    onClick={createNewDeck}
                     className="h-8 text-xs gap-1.5"
                   >
-                    <FolderPlus className="w-3.5 h-3.5" />
-                    <span>{selectedGroup ? '新建子分组' : '新建分组'}</span>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>新建卡组</span>
                   </Button>
-                )}
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={createNewDeck}
-                  className="h-8 text-xs gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>新建卡组</span>
-                </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        </ScrollArea>
       </main>
 
       <footer className="h-7 shrink-0 border-t border-border/70 bg-muted/30 px-4 flex items-center gap-4 text-[11px] text-muted-foreground font-mono">
@@ -706,60 +735,67 @@ export const DeckLibraryView: React.FC = () => {
             </Button>
 
             {moveMenuDeckId === contextMenu.deck.id && (
-              <div className="absolute left-full top-0 z-[70] min-w-40 max-h-72 overflow-y-auto bg-popover/95 backdrop-blur-md border border-border rounded-lg shadow-2xl p-1 text-xs">
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() => {
-                    const id = contextMenu.deck.id
-                    setContextMenu(null)
-                    setMoveMenuDeckId(null)
-                    if (id) void assignDeckGroup(id, '')
-                  }}
-                  className={cn(
-                    'w-full px-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
-                    !contextMenu.deck.group?.trim()
-                      ? 'bg-primary/15 text-primary font-semibold'
-                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+              <ScrollArea className="absolute left-full top-0 z-[70] min-w-40 max-h-72 bg-popover/95 backdrop-blur-md border border-border rounded-lg shadow-2xl">
+                <div className="p-1 text-xs">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      const id = contextMenu.deck.id
+                      setContextMenu(null)
+                      setMoveMenuDeckId(null)
+                      if (id) void assignDeckGroup(id, '')
+                    }}
+                    className={cn(
+                      'w-full px-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
+                      !contextMenu.deck.group?.trim()
+                        ? 'bg-primary/15 text-primary font-semibold'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    )}
+                  >
+                    <Inbox className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">未分组</span>
+                  </button>
+
+                  {[...deckGroups]
+                    .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+                    .map((g) => (
+                      <Tooltip key={g}>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={() => {
+                                const id = contextMenu.deck.id
+                                setContextMenu(null)
+                                setMoveMenuDeckId(null)
+                                if (id) void assignDeckGroup(id, g)
+                              }}
+                              style={{ paddingLeft: `${8 + (groupDepth(g) - 1) * 12}px` }}
+                              className={cn(
+                                'w-full pr-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
+                                contextMenu.deck.group === g
+                                  ? 'bg-primary/15 text-primary font-semibold'
+                                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                              )}
+                            >
+                              <Folder className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{groupLeafName(g)}</span>
+                            </button>
+                          }
+                        />
+                        <TooltipContent>{g}</TooltipContent>
+                      </Tooltip>
+                    ))}
+
+                  {deckGroups.length === 0 && (
+                    <p className="px-2 py-1.5 text-[10px] text-muted-foreground/70 leading-relaxed">
+                      还没有分组。右键空白处可新建。
+                    </p>
                   )}
-                >
-                  <Inbox className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">未分组</span>
-                </button>
-
-                {[...deckGroups]
-                  .sort((a, b) => a.localeCompare(b, 'zh-CN'))
-                  .map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={() => {
-                        const id = contextMenu.deck.id
-                        setContextMenu(null)
-                        setMoveMenuDeckId(null)
-                        if (id) void assignDeckGroup(id, g)
-                      }}
-                      style={{ paddingLeft: `${8 + (groupDepth(g) - 1) * 12}px` }}
-                      title={g}
-                      className={cn(
-                        'w-full pr-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
-                        contextMenu.deck.group === g
-                          ? 'bg-primary/15 text-primary font-semibold'
-                          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                      )}
-                    >
-                      <Folder className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">{groupLeafName(g)}</span>
-                    </button>
-                  ))}
-
-                {deckGroups.length === 0 && (
-                  <p className="px-2 py-1.5 text-[10px] text-muted-foreground/70 leading-relaxed">
-                    还没有分组。右键空白处可新建。
-                  </p>
-                )}
-              </div>
+                </div>
+              </ScrollArea>
             )}
           </div>
 
@@ -813,12 +849,16 @@ export const DeckLibraryView: React.FC = () => {
             </>
           ) : (
             <>
-              <div
-                className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44"
-                title={groupMenu.group}
-              >
-                {groupLeafName(groupMenu.group)}
-              </div>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44">
+                      {groupLeafName(groupMenu.group)}
+                    </div>
+                  }
+                />
+                <TooltipContent>{groupMenu.group}</TooltipContent>
+              </Tooltip>
               <Button
                 variant="ghost"
                 size="sm"

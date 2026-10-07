@@ -1,3 +1,4 @@
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { memo, type JSX } from 'react'
 import { Archive } from 'lucide-react'
 import type { AgentContextCompaction } from '../../stores/useAgentStore'
@@ -38,24 +39,32 @@ function ContextCompactBlockImpl({
       )}
       {tokenText && <span className="min-w-0 truncate text-muted-foreground">{tokenText}</span>}
       {compaction.error && (
-        <span
-          title={compaction.error}
-          className="shrink-0 cursor-help whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2"
-        >
-          详情
-        </span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span className="shrink-0 cursor-help whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2">
+                详情
+              </span>
+            }
+          />
+          <TooltipContent>{compaction.error}</TooltipContent>
+        </Tooltip>
       )}
       {!compaction.running && !compaction.error && (
-        <span
-          title={
-            isOverflow
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+                {isOverflow ? '超限抢救' : '自动压缩'}
+              </span>
+            }
+          />
+          <TooltipContent>
+            {isOverflow
               ? '上下文已超出模型窗口，SDK 抢救式压缩了早期对话'
-              : '对话接近上下文窗口上限，SDK 把早期对话总结成一条摘要以腾出预算'
-          }
-          className="shrink-0 whitespace-nowrap text-muted-foreground"
-        >
-          {isOverflow ? '超限抢救' : '自动压缩'}
-        </span>
+              : '对话接近上下文窗口上限，SDK 把早期对话总结成一条摘要以腾出预算'}
+          </TooltipContent>
+        </Tooltip>
       )}
     </div>
   )

@@ -470,6 +470,10 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               如果 YGO Duel Editor 对你有帮助，欢迎请作者喝杯咖啡
             </p>
 
+            <p className="text-[11px] text-muted-foreground/90 leading-relaxed text-center px-1 py-1.5 rounded-md bg-muted/50 border border-border/60">
+              全部功能免费开放，赞助仅作自愿支持，不影响任何功能
+            </p>
+
             <Button
               onClick={() => {
                 setShowSupportDialog(false)
@@ -479,10 +483,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
             >
               <span>打开爱发电主页</span>
             </Button>
-
-            <p className="text-[11px] text-muted-foreground/90 leading-relaxed text-center px-1 py-1.5 rounded-md bg-muted/50 border border-border/60">
-              全部功能免费开放，赞助仅作自愿支持，不影响任何功能
-            </p>
           </DialogContent>
         </Dialog>
       )}

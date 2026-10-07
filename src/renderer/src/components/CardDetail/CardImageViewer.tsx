@@ -23,6 +23,7 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
   const [imageOffset, setImageOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState<boolean>(false)
   const [canPan, setCanPan] = useState<boolean>(false)
+  const [baseScale, setBaseScale] = useState<number>(1)
 
   const stageRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
@@ -47,6 +48,13 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
     if (!stage || !img) return
     setCanPan(img.offsetWidth > stage.clientWidth || img.offsetHeight > stage.clientHeight)
   }, [imageZoom, cardCode])
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>): void => {
+    const img = e.currentTarget
+    if (img.naturalHeight <= 0) return
+    const rendered = img.getBoundingClientRect().height / (imageZoom || 1)
+    setBaseScale(rendered > 0 ? rendered / img.naturalHeight : 1)
+  }
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>): void => {
     e.preventDefault()
@@ -123,11 +131,7 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
   }
 
   return (
-    <Dialog
-      open
-      disablePointerDismissal={false}
-      onOpenChange={(open) => !open && onClose()}
-    >
+    <Dialog open disablePointerDismissal={false} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
         className="bg-transparent border-0 shadow-none p-0 max-w-none sm:max-w-none w-screen h-screen top-0 left-0 -translate-x-0 -translate-y-0 rounded-none overflow-hidden select-none flex items-center justify-center"
@@ -146,7 +150,7 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
               {cardName}
             </div>
             <div className="text-[11px] leading-tight text-right text-white/90 [text-shadow:0_1px_3px_rgba(0,0,0,0.95),0_0_8px_rgba(0,0,0,0.7)]">
-              <div>滚轮缩放 {Math.round(imageZoom * 100)}%</div>
+              <div>滚轮缩放 {Math.round(baseScale * imageZoom * 100)}%</div>
               {canPan && <div>按住拖动查看其它区域</div>}
               <div>按 Esc 或点击空白处关闭</div>
             </div>
@@ -205,7 +209,8 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
             src={getCardImageUrl(cardCode)}
             alt={cardName}
             draggable={false}
-            className={`max-h-[82vh] max-w-[85vw] object-contain rounded-lg shadow-2xl border border-white/10 transition-transform duration-100 ease-out ${
+            onLoad={handleImageLoad}
+            className={`h-[580px] max-h-[82vh] max-w-[85vw] w-auto object-contain rounded-lg shadow-2xl border border-white/10 transition-transform duration-100 ease-out ${
               canPan ? '' : 'cursor-zoom-in'
             }`}
             style={{

@@ -15,7 +15,7 @@ import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
 import { CdbCard, LINK_MARKERS, cardPoolLabel } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, setCardDragImage, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
@@ -123,6 +123,7 @@ export const CardSearchPanel: React.FC = () => {
   const handleDragStart = (e: React.DragEvent, card: CdbCard): void => {
     e.dataTransfer.setData('application/json', JSON.stringify(card))
     e.dataTransfer.effectAllowed = 'copy'
+    setCardDragImage(e.dataTransfer, e.currentTarget)
   }
 
   return (

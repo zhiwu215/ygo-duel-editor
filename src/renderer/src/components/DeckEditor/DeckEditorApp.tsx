@@ -3,6 +3,7 @@ import React, { useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   PointerSensor,
   pointerWithin,
   useSensor,
@@ -10,7 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent
 } from '@dnd-kit/core'
-import { DeckSection } from '@shared/index'
+import { CdbCard, DeckSection } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import {
@@ -52,9 +53,11 @@ export const DeckEditorApp: React.FC = () => {
     deck,
     cardDetails,
     selectedCard,
+    hoveredCardId,
     testHandCards,
     deckGroups,
     setSelectedCard,
+    setHoveredCardId,
     setDeckName,
     setDeckDescription,
     setDeckGroup,
@@ -98,6 +101,9 @@ export const DeckEditorApp: React.FC = () => {
   }
 
   const stats = getStats()
+
+  // 悬停预览优先于选中卡：鼠标滑到左侧面板时仍停留在刚看过的那张
+  const detailCard = (hoveredCardId !== null ? cardDetails[hoveredCardId] : null) ?? selectedCard
 
   const showRejectToast = (section: DeckSection): void => {
     if (rejectTimerRef.current) clearTimeout(rejectTimerRef.current)
@@ -198,13 +204,20 @@ export const DeckEditorApp: React.FC = () => {
     }
   }
 
+  const handleSelectCard = (card: CdbCard | null): void => {
+    setSelectedCard(card)
+    setHoveredCardId(null)
+  }
+
   const handleToggleCover = (): void => {
-    if (!selectedCard) return
-    if (deck.coverCard === selectedCard.id) {
+    if (!detailCard) return
+    if (deck.coverCard === detailCard.id) {
       setDeckCover(undefined)
     } else {
-      setDeckCover(selectedCard.id)
+      setDeckCover(detailCard.id)
     }
+    setSelectedCard(detailCard)
+    setHoveredCardId(null)
   }
 
   return (
@@ -485,14 +498,15 @@ export const DeckEditorApp: React.FC = () => {
       <DndContext
         sensors={sensors}
         collisionDetection={pointerWithin}
+        measuring={{ droppable: { strategy: MeasuringStrategy.BeforeDragging } }}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
         <div className="flex-1 flex overflow-hidden min-h-0">
           <DeckDetailCard
-            card={selectedCard}
-            isCover={selectedCard ? deck.coverCard === selectedCard.id : false}
+            card={detailCard}
+            isCover={detailCard ? deck.coverCard === detailCard.id : false}
             onToggleCover={handleToggleCover}
           />
 
@@ -502,7 +516,8 @@ export const DeckEditorApp: React.FC = () => {
               deck={deck}
               cardDetails={cardDetails}
               isDragActive={activeDrag !== null}
-              onSelectCard={setSelectedCard}
+              onSelectCard={handleSelectCard}
+              onHoverCard={setHoveredCardId}
               onRemoveCard={removeCard}
             />
 
@@ -515,7 +530,7 @@ export const DeckEditorApp: React.FC = () => {
             )}
           </main>
 
-          <DeckSearchPanel onSelectCard={setSelectedCard} onAddCard={(card) => addCard(card)} />
+          <DeckSearchPanel onSelectCard={handleSelectCard} onAddCard={(card) => addCard(card)} />
         </div>
 
         <DragOverlay dropAnimation={null}>

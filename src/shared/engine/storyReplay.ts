@@ -176,10 +176,9 @@ export function replayStepsBoard(
   initial: LightweightCardSnapshot[],
   steps: DuelStep[]
 ): DuelStep[] {
-  let board = cloneSnap(initial)
+  const board = cloneSnap(initial)
   return steps.map((step) => {
     applyStepToBoard(board, step)
-    board = cloneSnap(board)
-    return { ...step, boardAfter: board }
+    return { ...step, boardAfter: cloneSnap(board) }
   })
 }

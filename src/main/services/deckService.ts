@@ -233,10 +233,10 @@ export class DeckService {
     }
 
     this.deckWindow = new BrowserWindow({
-      width: 1360,
-      height: 880,
-      minWidth: 1080,
-      minHeight: 700,
+      width: 1080,
+      height: 760,
+      minWidth: 760,
+      minHeight: 520,
       show: false,
       autoHideMenuBar: true,
       // 与主窗口 / 设置窗一致：无边框，标题栏由渲染层自绘

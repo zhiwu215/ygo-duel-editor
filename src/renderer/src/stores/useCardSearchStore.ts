@@ -22,7 +22,7 @@ export interface CardSearchFilters {
   scale: number | undefined // 左侧灵摆刻度
   scaleOp: NumericCompareOp // 灵摆刻度比较符
   effectCategoryMask: number // 效果分类位掩码
-  cardPool: CardPoolFilter // OCG / TCG 卡池
+  cardPool: CardPoolFilter // OCG / TCG 按 ot 位；动画漫画 / 超速 / TF 按所属卡库
   markers: number // 连接标记（箭头）位掩码，0=不限
   limitFilter: LimitFilter // 禁限等级，0=不限
   atk: number | undefined // 攻击力

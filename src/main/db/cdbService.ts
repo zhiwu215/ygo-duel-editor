@@ -2,10 +2,13 @@ import Database from 'better-sqlite3'
 import {
   CdbCard,
   CardType,
+  CardPoolFilter,
   CardSearchFilterOptions,
   CardSearchParams,
   CardSearchResult,
-  NumericCompareOp
+  NumericCompareOp,
+  POOL_TAG_FILTERS,
+  PoolTagFilter
 } from '@shared/index'
 import { existsSync, readFileSync } from 'fs'
 import * as fs from 'fs'
@@ -23,6 +26,11 @@ interface SearchToken {
   text: string
   mode: 'any' | 'name' | 'set'
   excluded: boolean
+}
+
+/** 按所属卡库（而非 ot 位）判定的卡池标记 */
+function isPoolTagFilter(pool: CardPoolFilter | undefined): pool is PoolTagFilter {
+  return (POOL_TAG_FILTERS as readonly string[]).includes(pool ?? '')
 }
 
 function parseSearchTokens(input: string): SearchToken[] {
@@ -446,7 +454,8 @@ export class CdbService {
       const label = this.systemStringMap.get(1100 + index)
       if (label) effectCategories.push({ mask: 2 ** index, label })
     }
-    return { effectCategories }
+    const availablePools = [...new Set(this.connections.map((c) => c.poolId).filter(Boolean))]
+    return { effectCategories, availablePools }
   }
 
   public isReady(): boolean {
@@ -465,6 +474,8 @@ export class CdbService {
     const seen = new Set<number>()
 
     for (const conn of this.connections) {
+      // 按所属卡库判定的卡池（动画漫画 / 超速 / TF）：只搜标记匹配的库
+      if (isPoolTagFilter(params.cardPool) && conn.poolId !== params.cardPool) continue
       const result = this.searchOne(conn.db, params, perDbLimit)
       total += result.total
       for (const card of result.cards) {
@@ -621,9 +632,11 @@ export class CdbService {
       args.push(params.effectCategoryMask)
     }
 
+    // ocg/tcg 判「可用」，ocgOnly/tcgOnly 判「独有」；anime/rush/tf 已在 search() 按所属库过滤
     if (params.cardPool === 'ocg') baseWhere += ' AND (d.ot & 1) != 0'
     else if (params.cardPool === 'tcg') baseWhere += ' AND (d.ot & 2) != 0'
-    else if (params.cardPool === 'both') baseWhere += ' AND (d.ot & 3) = 3'
+    else if (params.cardPool === 'ocgOnly') baseWhere += ' AND (d.ot & 1) != 0 AND (d.ot & 2) = 0'
+    else if (params.cardPool === 'tcgOnly') baseWhere += ' AND (d.ot & 2) != 0 AND (d.ot & 1) = 0'
 
     // 禁限来自 lflists 文本 (卡库中没有该列)，把该等级的卡密展开为 IN 条件以保证分页与总数准确
     if (params.limitFilter) {

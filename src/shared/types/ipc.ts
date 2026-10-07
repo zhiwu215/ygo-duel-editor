@@ -45,10 +45,22 @@ export type LimitFilter = 0 | 1 | 2 | 3
 
 export type NumericCompareOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'unknown'
 
-export type CardPoolFilter = 'any' | 'ocg' | 'tcg' | 'both'
+/**
+ * 卡池筛选：
+ * - ocg / tcg 按卡片 ot 位判定「可用」（含该赛区即可）
+ * - ocgOnly / tcgOnly 判定「独有」（只有该赛区、另一个不包含）
+ * - anime / rush / tf 按所属卡库判定（对应 CARD_POOLS 的库标记，只搜该标记的附加库）
+ */
+export type CardPoolFilter = 'any' | 'ocg' | 'tcg' | 'ocgOnly' | 'tcgOnly' | 'anime' | 'rush' | 'tf'
+/** 按所属卡库判定的卡池（与 CARD_POOLS 中除 none 外的 id 一致） */
+export const POOL_TAG_FILTERS = ['anime', 'rush', 'tf'] as const
+
+export type PoolTagFilter = (typeof POOL_TAG_FILTERS)[number]
 
 export interface CardSearchFilterOptions {
   effectCategories: Array<{ mask: number; label: string }>
+  /** 当前已加载卡库中实际出现过的卡池标记，供筛选器判断哪些卡池项可选 */
+  availablePools: string[]
 }
 
 export interface CardSearchResult {

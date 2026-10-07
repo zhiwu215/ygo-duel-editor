@@ -91,6 +91,28 @@ const LIMIT_OPTIONS: Array<{ value: LimitFilter; label: string }> = [
   { value: 3, label: '准限制' }
 ]
 
+/**
+ * 赛区卡池选项。
+ * ocg/tcg 判「可用」，ocgOnly/tcgOnly 判「独有」（对齐 YGOPro 的下拉四项）；
+ * anime/rush/tf 按所属卡库标记判定，未加载对应标记的附加库时该项不显示。
+ */
+interface CardPoolOptionItem {
+  value: CardPoolFilter
+  label: string
+  tag?: string
+}
+
+const CARD_POOL_OPTIONS: CardPoolOptionItem[] = [
+  { value: 'any', label: '全部卡池' },
+  { value: 'ocg', label: 'OCG' },
+  { value: 'tcg', label: 'TCG' },
+  { value: 'ocgOnly', label: 'OCG 独有' },
+  { value: 'tcgOnly', label: 'TCG 独有' },
+  { value: 'anime', label: '动漫/漫画', tag: 'anime' },
+  { value: 'rush', label: '超速（Rush）', tag: 'rush' },
+  { value: 'tf', label: '卡片力量（TF）', tag: 'tf' }
+]
+
 /** 箭头按 YGOPro 的 3×3 环形排布，中间格留空给「清除」 */
 const MARKER_GRID: Array<{ mask: number; label: string } | null> = [
   LINK_MARKERS[0],
@@ -229,19 +251,25 @@ export const FilterDrawer: React.FC = () => {
     resetFilters
   } = useCardSearchStore()
   const [filterOptions, setFilterOptions] = React.useState<CardSearchFilterOptions>({
-    effectCategories: []
+    effectCategories: [],
+    availablePools: []
   })
 
   React.useEffect(() => {
     let isActive = true
-    window.api
-      .getCardSearchFilterOptions()
-      .then((options) => {
-        if (isActive) setFilterOptions(options)
-      })
-      .catch((error) => console.error('[FilterDrawer] Failed to load filter labels:', error))
+    const load = (): void => {
+      window.api
+        .getCardSearchFilterOptions()
+        .then((options) => {
+          if (isActive) setFilterOptions(options)
+        })
+        .catch((error) => console.error('[FilterDrawer] Failed to load filter labels:', error))
+    }
+    load()
+    const unsubscribe = window.api.onCdbUpdated?.(load)
     return () => {
       isActive = false
+      unsubscribe?.()
     }
   }, [])
 
@@ -260,17 +288,47 @@ export const FilterDrawer: React.FC = () => {
     { id: 'YGOPro 默认', atk: '按攻击力', def: '按守备力', level: '按等级', name: '按卡名' }[
       sortField
     ] ?? 'YGOPro 默认'
-  const cardPoolLabel =
-    ({ any: '全部卡池', ocg: 'OCG', tcg: 'TCG', both: 'OCG + TCG' } as const)[cardPool] ??
-    '全部卡池'
+  const cardPoolLabel = CARD_POOL_OPTIONS.find((o) => o.value === cardPool)?.label ?? '全部卡池'
   const limitLabel = LIMIT_OPTIONS.find((o) => o.value === limitFilter)?.label ?? '不限'
   const markerCount = LINK_MARKERS.filter((m) => (markers & m.mask) !== 0).length
+
+  /**
+   * 联动规则严格对齐 YGOPro 的 COMBOBOX_MAINTYPE 分支：
+   * - 大类 = 全部种类：细分类型 / 属性 / 种族 / 等级 / 刻度 / 攻防 全部不可选
+   * - 大类 = 魔法 / 陷阱：仅细分类型可选，其余全部不可选
+   * - 大类 = 怪兽：全部可选
+   * - 细分类型 = 连接：守备力不可选
+   */
+  const isAllTypes = type === 0
+  const detailDisabled = isAllTypes || type === CardType.SPELL || type === CardType.TRAP
+  const subTypeDisabled = isAllTypes
 
   const isLinkMonster = React.useMemo(() => {
     if (subType === (CardType.MONSTER | CardType.LINK)) return true
     if (type !== 0 && (type & CardType.LINK) !== 0) return true
     return markers !== 0
   }, [subType, type, markers])
+  const defDisabled = detailDisabled || isLinkMonster
+
+  const availablePools = React.useMemo(
+    () => new Set(filterOptions.availablePools ?? []),
+    [filterOptions.availablePools]
+  )
+
+  // 未加载对应标记附加库的卡池（动漫/漫画、超速、卡片力量）直接不显示
+  const visiblePoolOptions = React.useMemo(
+    () => CARD_POOL_OPTIONS.filter((o) => o.tag === undefined || availablePools.has(o.tag)),
+    [availablePools]
+  )
+
+  // 卡库变化后若当前选中的卡池已不存在（该标记的附加库被移除/停用），回退到全部卡池
+  React.useEffect(() => {
+    const option = CARD_POOL_OPTIONS.find((o) => o.value === cardPool)
+    if (option?.tag && !availablePools.has(option.tag)) {
+      setFilters({ cardPool: 'any' })
+    }
+  }, [availablePools, cardPool, setFilters])
+
   const toggleMarker = (mask: number): void => {
     const next = (markers & mask) !== 0 ? (markers & ~mask) >>> 0 : (markers | mask) >>> 0
     setFilters({ markers: next, ...clearDefIfLink(next, subType, type) })
@@ -322,7 +380,14 @@ export const FilterDrawer: React.FC = () => {
                 setFilters({
                   type: num,
                   subType: 0,
-                  ...clearDefIfLink(markers, 0, num)
+                  attribute: 0,
+                  race: 0,
+                  level: 0,
+                  scale: undefined,
+                  atk: undefined,
+                  def: undefined,
+                  defOp: 'eq',
+                  markers: 0
                 })
               }}
             >
@@ -342,6 +407,7 @@ export const FilterDrawer: React.FC = () => {
           <FilterField label="细分类型">
             <Select
               value={subType}
+              disabled={subTypeDisabled}
               onValueChange={(val) => {
                 const num = val ? Number(val) : 0
                 setFilters({ subType: num, ...clearDefIfLink(markers, num, type) })
@@ -371,10 +437,11 @@ export const FilterDrawer: React.FC = () => {
                 <SelectValue>{cardPoolLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="any">全部卡池</SelectItem>
-                <SelectItem value="ocg">OCG 可用</SelectItem>
-                <SelectItem value="tcg">TCG 可用</SelectItem>
-                <SelectItem value="both">OCG 与 TCG 均可用</SelectItem>
+                {visiblePoolOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FilterField>
@@ -406,7 +473,7 @@ export const FilterDrawer: React.FC = () => {
                   <button
                     key={`empty-${index}`}
                     type="button"
-                    disabled={markerCount === 0}
+                    disabled={markerCount === 0 || detailDisabled}
                     onClick={() => setFilters({ markers: 0 })}
                     className="h-7 rounded text-[10px] text-muted-foreground bg-muted/30 transition-colors hover:bg-muted/70 hover:text-foreground disabled:opacity-35 disabled:pointer-events-none"
                   >
@@ -418,10 +485,11 @@ export const FilterDrawer: React.FC = () => {
                       render={
                         <button
                           type="button"
+                          disabled={detailDisabled}
                           aria-pressed={(markers & marker.mask) !== 0}
                           onClick={() => toggleMarker(marker.mask)}
                           className={cn(
-                            'h-7 rounded text-sm leading-none transition-colors',
+                            'h-7 rounded text-sm leading-none transition-colors disabled:opacity-35 disabled:pointer-events-none',
                             (markers & marker.mask) !== 0
                               ? 'bg-primary/20 text-primary'
                               : 'bg-muted/30 text-muted-foreground hover:bg-muted/70 hover:text-foreground'
@@ -446,6 +514,7 @@ export const FilterDrawer: React.FC = () => {
             <FilterField label="属性">
               <Select
                 value={attribute}
+                disabled={detailDisabled}
                 onValueChange={(val) => setFilters({ attribute: val ? Number(val) : 0 })}
               >
                 <SelectTrigger size="sm" className="w-full h-7 text-xs">
@@ -465,6 +534,7 @@ export const FilterDrawer: React.FC = () => {
             <FilterField label="种族">
               <Select
                 value={race}
+                disabled={detailDisabled}
                 onValueChange={(val) => setFilters({ race: val ? Number(val) : 0 })}
               >
                 <SelectTrigger size="sm" className="w-full h-7 text-xs">
@@ -490,6 +560,7 @@ export const FilterDrawer: React.FC = () => {
             placeholder="1 - 13"
             onOpChange={(op) => setFilters({ levelOp: op })}
             onValueChange={(val) => setFilters({ level: val ?? 0 })}
+            disabled={detailDisabled}
           />
 
           <CompareRow
@@ -499,6 +570,7 @@ export const FilterDrawer: React.FC = () => {
             placeholder="如 8"
             onOpChange={(op) => setFilters({ scaleOp: op })}
             onValueChange={(val) => setFilters({ scale: val })}
+            disabled={detailDisabled}
           />
 
           <Separator className="opacity-40" />
@@ -512,6 +584,7 @@ export const FilterDrawer: React.FC = () => {
             onOpChange={(op) => setFilters({ atkOp: op })}
             onValueChange={(val) => setFilters({ atk: val })}
             allowUnknown
+            disabled={detailDisabled}
           />
 
           <CompareRow
@@ -522,7 +595,7 @@ export const FilterDrawer: React.FC = () => {
             onOpChange={(op) => setFilters({ defOp: op })}
             onValueChange={(val) => setFilters({ def: val })}
             allowUnknown
-            disabled={isLinkMonster}
+            disabled={defDisabled}
           />
 
           <FilterField label="卡密">

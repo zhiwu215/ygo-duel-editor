@@ -12,6 +12,8 @@ const SPRITE_TOTAL_HEIGHT = CARD_POOL_SPRITE_HEIGHT * 10
 
 interface CardPoolBadgesProps {
   pools: string[] | undefined
+  /** 额外角标（如 OCG / TCG 独有），由调用方按当前筛选决定是否传入 */
+  extraBadges?: string[]
   width?: number
   className?: string
   align?: 'center' | 'start' | 'end'
@@ -19,13 +21,13 @@ interface CardPoolBadgesProps {
 
 export const CardPoolBadges: React.FC<CardPoolBadgesProps> = ({
   pools,
+  extraBadges,
   width = 32,
   className,
   align = 'center'
 }) => {
-  if (!pools || pools.length === 0) return null
-
-  const visible = pools.filter((pool) => cardPoolSpriteY(pool) !== null)
+  const ids = [...(pools ?? []), ...(extraBadges ?? [])]
+  const visible = ids.filter((id) => cardPoolSpriteY(id) !== null)
   if (visible.length === 0) return null
 
   const scale = width / CARD_POOL_SPRITE_WIDTH
@@ -41,18 +43,18 @@ export const CardPoolBadges: React.FC<CardPoolBadgesProps> = ({
         className
       )}
     >
-      {visible.map((pool) => (
+      {visible.map((id) => (
         <span
-          key={pool}
+          key={id}
           className="block drop-shadow shrink-0"
           style={{
             width: `${width}px`,
             height: `${height}px`,
             backgroundImage: `url(${cardPoolSprite})`,
             backgroundSize: `${CARD_POOL_SPRITE_WIDTH * scale}px ${SPRITE_TOTAL_HEIGHT * scale}px`,
-            backgroundPosition: `0 -${(cardPoolSpriteY(pool) as number) * scale}px`
+            backgroundPosition: `0 -${(cardPoolSpriteY(id) as number) * scale}px`
           }}
-          title={cardPoolLabel(pool)}
+          title={cardPoolLabel(id)}
         />
       ))}
     </span>

@@ -20,6 +20,16 @@
 
 > 本项目不内置任何卡表/卡图数据，卡片数据与图片均来自用户本地游戏客户端目录。
 
+## 素材致谢
+
+本项目界面中的 texture 素材取自以下项目：
+
+- [YGOPro](https://github.com/Fluorohydride/ygopro)
+- [MDPro3](https://code.moenext.com/sherry_chaos/MDPro3/-/tree/master)
+- [EDOPro](https://tieba.baidu.com/p/7454495011)
+
+> 本项目仅作学习与创作用途。**如有问题，创作者可联系我删除**
+
 ## 开发
 
 ```bash

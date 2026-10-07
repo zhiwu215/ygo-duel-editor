@@ -59,20 +59,45 @@ export interface CardPoolOption {
 
 export const CARD_POOLS: CardPoolOption[] = [
   { id: 'none', label: '无', spriteY: null },
-  { id: 'anime', label: '动画/漫画', spriteY: 192 },
+  { id: 'anime', label: '动漫/漫画', spriteY: 192 },
   { id: 'rush', label: '超速（Rush）', spriteY: 576 },
   { id: 'tf', label: '卡片力量（TF）', spriteY: 320 }
 ]
+
+/**
+ * OCG / TCG 独有角标：ot.png 第 1、2 行（spriteY 0 / 64）。
+ * 仅当卡片 ot 只含单一赛区位（独有）时显示，与 YGOPro 的 showAvail 判定一致。
+ */
+export const OT_POOLS: CardPoolOption[] = [
+  { id: 'ocg', label: 'OCG 独有', spriteY: 0 },
+  { id: 'tcg', label: 'TCG 独有', spriteY: 64 }
+]
+
+/** ot 位：1=OCG 可用，2=TCG 可用 */
+export const AVAIL_OCG = 0x1
+export const AVAIL_TCG = 0x2
+
+/** 全部可渲染角标的定义（附加库卡池 + OCG/TCG 独有） */
+const ALL_POOL_OPTIONS: CardPoolOption[] = [...CARD_POOLS, ...OT_POOLS]
 
 export const CARD_POOL_SPRITE_WIDTH = 128
 export const CARD_POOL_SPRITE_HEIGHT = 64
 
 export function cardPoolLabel(id: string): string {
-  return CARD_POOLS.find((p) => p.id === id)?.label ?? ''
+  return ALL_POOL_OPTIONS.find((p) => p.id === id)?.label ?? ''
 }
 
 export function cardPoolSpriteY(id: string): number | null {
-  return CARD_POOLS.find((p) => p.id === id)?.spriteY ?? null
+  return ALL_POOL_OPTIONS.find((p) => p.id === id)?.spriteY ?? null
+}
+
+/** 返回卡片需要显示的独有角标 id 列表（只含单一赛区位时才有值） */
+export function otBadgeIds(ot: number): string[] {
+  const hasOcg = (ot & AVAIL_OCG) !== 0
+  const hasTcg = (ot & AVAIL_TCG) !== 0
+  if (hasOcg && !hasTcg) return ['ocg']
+  if (hasTcg && !hasOcg) return ['tcg']
+  return []
 }
 
 /**

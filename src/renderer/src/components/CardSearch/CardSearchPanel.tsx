@@ -14,7 +14,7 @@ import {
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { CdbCard, CardUtils, LIMIT_MARKS, LINK_MARKERS, cardPoolLabel } from '@shared/index'
+import { CdbCard, CardUtils, LIMIT_MARKS, LINK_MARKERS, cardPoolLabel, otBadgeIds } from '@shared/index'
 import { getCardImageUrl, setCardDragImage, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { Input } from '../ui/input'
@@ -251,6 +251,8 @@ export const CardSearchPanel: React.FC = () => {
                   ? card.pools.map((pool) => `[${cardPoolLabel(pool)}]`).join('')
                   : ''
               const isMonster = CardUtils.isMonster(card.type)
+              const otBadges =
+                cardPool === 'ocgOnly' || cardPool === 'tcgOnly' ? otBadgeIds(card.ot) : []
 
               return (
                 <div
@@ -291,7 +293,7 @@ export const CardSearchPanel: React.FC = () => {
                         />
                       )
                     })()}
-                    <CardPoolBadges pools={card.pools} />
+                    <CardPoolBadges pools={card.pools} extraBadges={otBadges} />
                   </div>
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center gap-1 select-none">

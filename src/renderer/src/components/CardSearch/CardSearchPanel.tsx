@@ -9,8 +9,7 @@ import {
   RotateCcw,
   Sparkles,
   Star,
-  X,
-  Zap
+  X
 } from 'lucide-react'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -59,9 +58,7 @@ export const CardSearchPanel: React.FC = () => {
   const { setHoveredCard } = useDuelStore()
   const { isFavorite, toggleFavorite } = useFavoritesStore()
   const [localKw, setLocalKw] = useState(keyword)
-  const [autoSearch, setAutoSearch] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const autoSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     search({ limit: 40 })
@@ -73,27 +70,10 @@ export const CardSearchPanel: React.FC = () => {
     }
   }, [isLoading])
 
-  useEffect(() => {
-    return () => {
-      if (autoSearchTimer.current) clearTimeout(autoSearchTimer.current)
-    }
-  }, [])
-
   const handleSearchSubmit = (e: React.FormEvent): void => {
     e.preventDefault()
-    if (autoSearchTimer.current) clearTimeout(autoSearchTimer.current)
     setKeyword(localKw)
     search({ keyword: localKw })
-  }
-
-  const handleKeywordChange = (value: string): void => {
-    setLocalKw(value)
-    if (!autoSearch) return
-    if (autoSearchTimer.current) clearTimeout(autoSearchTimer.current)
-    autoSearchTimer.current = setTimeout(() => {
-      setKeyword(value)
-      search({ keyword: value })
-    }, 250)
   }
 
   const activeFilterCount = React.useMemo(() => {
@@ -155,7 +135,7 @@ export const CardSearchPanel: React.FC = () => {
             <Input
               type="text"
               value={localKw}
-              onChange={(e) => handleKeywordChange(e.target.value)}
+              onChange={(e) => setLocalKw(e.target.value)}
               placeholder="搜索卡名、卡密或效果"
               className={`pl-8 ${localKw ? 'pr-7' : 'pr-2.5'} bg-secondary/80 focus:bg-background h-8 text-xs font-medium`}
             />
@@ -163,7 +143,6 @@ export const CardSearchPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  if (autoSearchTimer.current) clearTimeout(autoSearchTimer.current)
                   setLocalKw('')
                   setKeyword('')
                   search({ keyword: '' })
@@ -174,30 +153,6 @@ export const CardSearchPanel: React.FC = () => {
               </button>
             )}
           </div>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  aria-pressed={autoSearch}
-                  onClick={() => setAutoSearch((prev) => !prev)}
-                  className={`h-8 w-8 shrink-0 rounded-md border transition-colors ${
-                    autoSearch
-                      ? 'border-primary/50 bg-primary/15 text-primary'
-                      : 'border-border/60 bg-secondary/80 text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <Zap className="mx-auto h-3.5 w-3.5" />
-                </button>
-              }
-            />
-            <TooltipContent>
-              {autoSearch
-                ? '输入即搜：已开启（停止输入 0.25 秒后自动检索）'
-                : '输入即搜：已关闭，回车检索'}
-            </TooltipContent>
-          </Tooltip>
 
           <Button
             type="submit"

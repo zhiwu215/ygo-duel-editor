@@ -209,17 +209,6 @@ export const DeckEditorApp: React.FC = () => {
     setHoveredCardId(null)
   }
 
-  const handleToggleCover = (): void => {
-    if (!detailCard) return
-    if (deck.coverCard === detailCard.id) {
-      setDeckCover(undefined)
-    } else {
-      setDeckCover(detailCard.id)
-    }
-    setSelectedCard(detailCard)
-    setHoveredCardId(null)
-  }
-
   return (
     <div className="flex flex-col w-screen h-screen bg-background text-foreground select-none overflow-hidden font-sans">
       <header className="h-11 px-3 border-b border-border bg-card flex items-center justify-between shrink-0 [-webkit-app-region:drag]">
@@ -507,7 +496,6 @@ export const DeckEditorApp: React.FC = () => {
           <DeckDetailCard
             card={detailCard}
             isCover={detailCard ? deck.coverCard === detailCard.id : false}
-            onToggleCover={handleToggleCover}
           />
 
           <main className="relative flex-1 flex flex-col p-2.5 gap-2.5 min-w-0 min-h-0 bg-background/50">
@@ -516,9 +504,16 @@ export const DeckEditorApp: React.FC = () => {
               deck={deck}
               cardDetails={cardDetails}
               isDragActive={activeDrag !== null}
+              coverCard={deck.coverCard}
               onSelectCard={handleSelectCard}
               onHoverCard={setHoveredCardId}
               onRemoveCard={removeCard}
+              onSetCover={(code) => {
+                setDeckCover(code)
+                setSelectedCard(cardDetails[code] ?? null)
+                setHoveredCardId(null)
+              }}
+              onClearCover={() => setDeckCover(undefined)}
             />
 
             {rejectMessage && (

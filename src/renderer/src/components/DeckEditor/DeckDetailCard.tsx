@@ -10,16 +10,14 @@ import {
 } from '../../utils/cardFormat'
 
 import { Check, ZoomIn, Copy } from 'lucide-react'
-import { Button } from '../ui/button'
 import { CardImageViewer } from '../CardDetail/CardImageViewer'
 
 interface DeckDetailCardProps {
   card: CdbCard | null
   isCover?: boolean
-  onToggleCover?: () => void
 }
 
-export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, onToggleCover }) => {
+export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover }) => {
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
   const [copied, setCopied] = useState<boolean>(false)
   const imageUrl = card ? getCardImageUrl(card.id) : CARD_BACK_IMAGE
@@ -77,27 +75,6 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
               <TooltipContent>点击放大查看卡图</TooltipContent>
             </Tooltip>
           </div>
-
-          {/* 设为封面快捷操作 */}
-          {card && onToggleCover && (
-            <div className="mt-2">
-              <Button
-                variant={isCover ? 'secondary' : 'outline'}
-                size="xs"
-                onClick={onToggleCover}
-                className="w-full h-6.5 text-[11px] font-medium gap-1 justify-center"
-              >
-                {isCover ? (
-                  <>
-                    <Check className="w-3 h-3 text-emerald-500" />
-                    <span>已设为卡组封面</span>
-                  </>
-                ) : (
-                  <span>设为卡组封面</span>
-                )}
-              </Button>
-            </div>
-          )}
 
           {/* 2. 卡片详细信息 */}
           {card ? (

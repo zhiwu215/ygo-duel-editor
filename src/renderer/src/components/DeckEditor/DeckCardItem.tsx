@@ -13,9 +13,10 @@ interface DeckCardItemProps {
   section: DeckSection
   index: number
   sortableId: string
+  isCover: boolean
   onSelect: (card: CdbCard | null) => void
   onHover: (code: number | null) => void
-  onRemove: (section: DeckSection, index: number) => void
+  onOpenMenu: (code: number, x: number, y: number) => void
 }
 
 export const DeckCardItem: React.FC<DeckCardItemProps> = ({
@@ -24,9 +25,10 @@ export const DeckCardItem: React.FC<DeckCardItemProps> = ({
   section,
   index,
   sortableId,
+  isCover,
   onSelect,
   onHover,
-  onRemove
+  onOpenMenu
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortableId,
@@ -54,7 +56,7 @@ export const DeckCardItem: React.FC<DeckCardItemProps> = ({
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault()
     e.stopPropagation()
-    onRemove(section, index)
+    onOpenMenu(code, e.clientX, e.clientY)
   }
 
   return (
@@ -92,11 +94,16 @@ export const DeckCardItem: React.FC<DeckCardItemProps> = ({
                 ;(e.currentTarget as HTMLImageElement).src = CARD_BACK_IMAGE
               }}
             />
+            {isCover && (
+              <div className="absolute top-0 left-0 right-0 bg-purple-950/85 text-purple-300 text-[9px] font-bold py-px text-center pointer-events-none">
+                封面
+              </div>
+            )}
           </div>
         }
       />
       <TooltipContent>
-        {card ? `${card.name} (拖动调整，右键移出)` : `卡密: ${code} (拖动调整，右键移出)`}
+        {card ? `${card.name} (拖动调整，右键更多)` : `卡密: ${code} (拖动调整，右键更多)`}
       </TooltipContent>
     </Tooltip>
   )

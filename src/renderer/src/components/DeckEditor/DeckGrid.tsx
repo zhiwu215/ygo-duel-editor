@@ -78,9 +78,13 @@ const ZoneHeader: React.FC<{
   total: number
   tallies: TypeTally[]
   unit?: string
-}> = ({ title, total, tallies, unit }) => (
-  <div className="flex items-center justify-between gap-3 h-7 pl-2 pr-2.5 rounded-md bg-neutral-500/15 dark:bg-neutral-500/20 border border-border/40">
-    <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+  width: number
+}> = ({ title, total, tallies, unit, width }) => (
+  <div
+    className="flex items-center justify-between gap-3 h-7 pl-2 pr-2.5 rounded-md bg-neutral-500/15 dark:bg-neutral-500/20 border border-border/40"
+    style={{ width: `${width}px` }}
+  >
+    <div className="flex items-center gap-1.5 min-w-0 shrink">
       <span className="text-xs font-bold text-foreground truncate">{title}</span>
       <span className="text-xs text-muted-foreground font-normal">
         {total} 张{unit}
@@ -281,10 +285,11 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
     gap: `${ROW_GAP}px`
   }
   const cardHeight = Math.round((layout.cardWidth * 86) / 59)
+  const gridWidth = layout.cols * layout.cardWidth + ROW_GAP * (layout.cols - 1)
   const emptyBox = (text: string): React.ReactNode => (
     <div
       className="flex items-center justify-center rounded-md border border-dashed border-border/50 text-[11px] text-muted-foreground/70 italic"
-      style={{ height: `${cardHeight}px` }}
+      style={{ height: `${cardHeight}px`, width: `${gridWidth}px` }}
     >
       {text}
     </div>
@@ -349,21 +354,36 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
             {renderZone(
               'main',
               sortableCards.main,
-              <ZoneHeader title="主卡组" total={stats.mainCount} tallies={mstTallies} />,
+              <ZoneHeader
+                title="主卡组"
+                total={stats.mainCount}
+                tallies={mstTallies}
+                width={gridWidth}
+              />,
               '主卡组为空，可从右侧拖入或点击卡片加入'
             )}
 
             {renderZone(
               'extra',
               sortableCards.extra,
-              <ZoneHeader title="额外卡组" total={stats.extraCount} tallies={exTallies} />,
+              <ZoneHeader
+                title="额外卡组"
+                total={stats.extraCount}
+                tallies={exTallies}
+                width={gridWidth}
+              />,
               '额外卡组为空'
             )}
 
             {renderZone(
               'side',
               sortableCards.side,
-              <ZoneHeader title="副卡组" total={stats.sideCount} tallies={mstTallies} />,
+              <ZoneHeader
+                title="副卡组"
+                total={stats.sideCount}
+                tallies={mstTallies}
+                width={gridWidth}
+              />,
               '副卡组为空'
             )}
           </div>

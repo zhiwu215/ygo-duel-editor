@@ -117,6 +117,7 @@ function compareCards(params: CardSearchParams): (a: CdbCard, b: CdbCard) => num
 interface CdbConnection {
   path: string
   db: Database.Database
+  poolId: string
 }
 
 export class CdbService {
@@ -124,6 +125,15 @@ export class CdbService {
   private currentPath: string | null = null
   private setnameMap: Map<number, string> = new Map()
   private systemStringMap: Map<number, string> = new Map()
+  private poolTagMap: Record<string, string> = {}
+
+  public setPoolTags(tags: Record<string, string>): void {
+    this.poolTagMap = tags
+    for (const conn of this.connections) {
+      const tag = tags[conn.path]
+      conn.poolId = !tag || tag === 'none' ? '' : tag
+    }
+  }
 
   private loadStringsConf(cdbPaths: string[]): void {
     this.setnameMap.clear()
@@ -233,7 +243,8 @@ export class CdbService {
         return null
       }
 
-      return { path: cdbPath, db }
+      const tag = this.poolTagMap[cdbPath]
+      return { path: cdbPath, db, poolId: !tag || tag === 'none' ? '' : tag }
     } catch (err) {
       console.error('[CdbService] Failed to open cdb:', err)
       return null
@@ -310,6 +321,38 @@ export class CdbService {
     return this.connections.map((c) => c.path)
   }
 
+  private applyPoolTags(cards: CdbCard[]): void {
+    const poolConns = this.connections.filter((c) => c.poolId)
+    if (poolConns.length === 0 || cards.length === 0) return
+
+    const byId = new Map<number, CdbCard>()
+    for (const card of cards) {
+      const pools: string[] = []
+      card.pools = pools
+      byId.set(card.id, card)
+    }
+    const ids = [...byId.keys()]
+    const marks = ids.map(() => '?').join(',')
+
+    for (const conn of poolConns) {
+      try {
+        const rows = conn.db
+          .prepare(`SELECT id FROM datas WHERE id IN (${marks})`)
+          .all(...ids) as Array<{ id: number }>
+        for (const row of rows) {
+          const card = byId.get(row.id)
+          if (card?.pools && !card.pools.includes(conn.poolId)) card.pools.push(conn.poolId)
+        }
+      } catch (err) {
+        console.error(`[CdbService] Pool tag query error on ${conn.path}:`, err)
+      }
+    }
+
+    for (const card of cards) {
+      if (card.pools && card.pools.length === 0) delete card.pools
+    }
+  }
+
   public getSearchFilterOptions(): CardSearchFilterOptions {
     const effectCategories: CardSearchFilterOptions['effectCategories'] = []
     for (let index = 0; index < 32; index++) {
@@ -352,6 +395,7 @@ export class CdbService {
         if (setnames.length > 0) card.setnames = setnames
       }
     }
+    this.applyPoolTags(collected)
 
     return { cards: collected.slice(offset, offset + limit), total }
   }
@@ -549,6 +593,7 @@ export class CdbService {
         console.error(`[CdbService] getCardsByIds error on ${conn.path}:`, err)
       }
     }
+    this.applyPoolTags(Object.values(result))
     return result
   }
 

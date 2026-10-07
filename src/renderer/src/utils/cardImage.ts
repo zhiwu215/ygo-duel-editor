@@ -64,3 +64,8 @@ export function setCardDragImage(dataTransfer: DataTransfer, source: Element | n
 
   dataTransfer.setDragImage(image, image.width / 2, image.height / 2)
 }
+
+if (typeof window !== 'undefined' && window.api) {
+  window.api.onCardImageUpdated(() => bumpCardImageVersion())
+  window.api.onCustomCardsUpdated(() => bumpCardImageVersion())
+}

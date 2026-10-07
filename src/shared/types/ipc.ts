@@ -420,6 +420,9 @@ export interface AppConfig {
 
   favorites?: number[]
 
+  /** 卡图变体偏好：键为主卡密（字符串形式），值为该卡展示的变体卡密 */
+  cardImageOverrides?: Record<string, number>
+
   agentConfig?: AgentModelConfig
 
   recentProjectPaths?: string[]
@@ -527,6 +530,7 @@ export interface IpcApi {
   saveCustomCard: (input: CustomCardInput) => Promise<CustomCardSaveResult>
   deleteCustomCard: (id: number) => Promise<CustomCardDeleteResult>
   pickCustomCardImage: () => Promise<CustomCardPickImageResult>
+  applyCustomCardImage: (id: number) => Promise<CustomCardPickImageResult>
   onCustomCardsUpdated: (callback: () => void) => () => void
 
   exportLuaFile: (
@@ -629,6 +633,9 @@ export interface IpcApi {
 
   getConfig: () => Promise<AppConfig>
   saveConfig: (config: Partial<AppConfig>) => Promise<boolean>
+
+  setCardImageOverride: (code: number, variantCode: number | null) => Promise<boolean>
+  onCardImageUpdated: (callback: () => void) => () => void
 
   getCardImagePath: (code: number, small?: boolean) => Promise<string | null>
 

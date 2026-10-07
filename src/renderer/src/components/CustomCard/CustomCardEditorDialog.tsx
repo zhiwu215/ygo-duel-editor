@@ -167,7 +167,6 @@ const CustomCardEditorBody: React.FC = () => {
       id: editingId ?? undefined,
       name: form.name,
       desc: form.desc,
-      note: form.note,
       imageSourcePath: staged?.path
     }
     if (isMonster) {
@@ -522,14 +521,6 @@ const CustomCardEditorBody: React.FC = () => {
               value={form.desc}
               onChange={(e) => setForm((f) => ({ ...f, desc: e.target.value }))}
               className="min-h-20 text-xs resize-none"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-[11px] text-muted-foreground">备注</Label>
-            <Textarea
-              value={form.note}
-              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-              className="min-h-16 text-xs resize-none"
             />
           </div>
         </div>

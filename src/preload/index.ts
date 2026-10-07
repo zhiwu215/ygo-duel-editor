@@ -28,6 +28,7 @@ const api: IpcApi = {
   saveCustomCard: (input) => ipcRenderer.invoke('customcard:save', input),
   deleteCustomCard: (id) => ipcRenderer.invoke('customcard:delete', id),
   pickCustomCardImage: () => ipcRenderer.invoke('customcard:pick-image'),
+  applyCustomCardImage: (id) => ipcRenderer.invoke('customcard:apply-image', id),
   onCustomCardsUpdated: (callback) => {
     const handler = (): void => callback()
     ipcRenderer.on('custom-cards:updated', handler)
@@ -96,6 +97,16 @@ const api: IpcApi = {
 
   getConfig: () => ipcRenderer.invoke('config:get'),
   saveConfig: (cfg: Partial<AppConfig>) => ipcRenderer.invoke('config:save', cfg),
+
+  setCardImageOverride: (code: number, variantCode: number | null) =>
+    ipcRenderer.invoke('image:set-card-override', code, variantCode),
+  onCardImageUpdated: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('image:updated', handler)
+    return () => {
+      ipcRenderer.removeListener('image:updated', handler)
+    }
+  },
 
   getCardImagePath: (code: number, small?: boolean) =>
     ipcRenderer.invoke('image:get-path', code, small),

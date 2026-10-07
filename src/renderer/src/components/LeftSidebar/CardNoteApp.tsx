@@ -15,7 +15,8 @@ import {
   Download,
   GripVertical,
   PenLine,
-  Library
+  Library,
+  ImageUp
 } from 'lucide-react'
 import {
   DndContext,
@@ -86,6 +87,16 @@ export const CardNoteApp: React.FC = () => {
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [originFilter, setOriginFilter] = useState<EntryFilterId>('all')
   const [previewCard, setPreviewCard] = useState<number | null>(null)
+  const [cardMenu, setCardMenu] = useState<{
+    cardCode: number
+    cardName: string
+    isCustom: boolean
+    variantCodes: number[]
+    x: number
+    y: number
+  } | null>(null)
+  const [menuVariants, setMenuVariants] = useState<Array<{ code: number; name: string }>>([])
+  const [menuOverrides, setMenuOverrides] = useState<Record<string, number>>({})
 
   const customCardById = useMemo(() => new Map(customCards.map((c) => [c.id, c])), [customCards])
 
@@ -165,13 +176,19 @@ export const CardNoteApp: React.FC = () => {
   }, [])
 
   const displayEntries = useMemo<DisplayEntry[]>(() => {
-    const merged: DisplayEntry[] = entries.map((e) => {
-      const custom = customCardById.get(e.cardCode)
-      return custom ? { ...e, isCustom: true } : e
-    })
+    const regular: DisplayEntry[] = []
+    const customs: DisplayEntry[] = []
+    for (const entry of entries) {
+      const custom = customCardById.get(entry.cardCode)
+      if (custom) {
+        customs.push({ ...entry, cardName: custom.name, isCustom: true })
+      } else {
+        regular.push(entry)
+      }
+    }
     for (const card of customCards) {
-      if (!merged.some((e) => e.cardCode === card.id)) {
-        merged.push({
+      if (!customs.some((e) => e.cardCode === card.id)) {
+        customs.push({
           cardCode: card.id,
           cardName: card.name,
           variantCodes: [],
@@ -181,7 +198,7 @@ export const CardNoteApp: React.FC = () => {
         })
       }
     }
-    return merged
+    return [...regular, ...customs]
   }, [entries, customCards, customCardById])
 
   const previousCustomIds = useRef<Set<number> | null>(null)
@@ -280,6 +297,118 @@ export const CardNoteApp: React.FC = () => {
     },
     [customCardById, entries, fetchAll, flash, removeCustomCard]
   )
+
+  const handleClearEntry = useCallback(
+    async (cardCode: number): Promise<void> => {
+      const entry = entries.find((e) => e.cardCode === cardCode)
+      if (!entry) return
+      const userChants = entry.chants.filter((c) => !c.readonly)
+      const userNotes = entry.notes.filter((n) => !n.readonly)
+      const hasBuiltins =
+        entry.chants.some((c) => c.readonly) || entry.notes.some((n) => n.readonly)
+      if (userChants.length === 0 && userNotes.length === 0) {
+        flash('该卡只有内置条目，没有可删除的自定义内容')
+        return
+      }
+      const ok = await confirmDialog({
+        title: '清空该卡的全部召唤词与备注',
+        description: hasBuiltins
+          ? `删除「${entry.cardName}」的全部自定义召唤词与备注。\n内置的经典条目不可删除，将保留。`
+          : `删除「${entry.cardName}」的全部召唤词与备注。\n删除后该卡的图鉴条目将被移除。`,
+        confirmText: '删除',
+        destructive: true
+      })
+      if (!ok) return
+      for (const chant of userChants) {
+        await window.api.deleteCardNote(cardCode, 'chant', chant.label)
+      }
+      for (const note of userNotes) {
+        await window.api.deleteCardNote(cardCode, 'note', note.label)
+      }
+      await fetchAll()
+      flash(hasBuiltins ? '已清空自定义内容，内置条目保留' : '已删除该卡的图鉴条目')
+    },
+    [entries, fetchAll, flash]
+  )
+
+  const handleOpenCardMenu = useCallback((e: React.MouseEvent, entry: DisplayEntry): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCardMenu({
+      cardCode: entry.cardCode,
+      cardName: entry.cardName,
+      isCustom: Boolean(entry.isCustom),
+      variantCodes: entry.variantCodes,
+      x: e.clientX,
+      y: e.clientY
+    })
+  }, [])
+
+  const handleSetOverride = useCallback(
+    async (cardCode: number, variantCode: number): Promise<void> => {
+      await window.api.setCardImageOverride(cardCode, variantCode)
+      setCardMenu(null)
+      flash('卡图已切换')
+    },
+    [flash]
+  )
+
+  const handleApplyImage = useCallback(
+    async (id: number): Promise<void> => {
+      const res = await window.api.applyCustomCardImage(id)
+      if (!res.success && res.error) {
+        flash(res.error)
+        return
+      }
+      setCardMenu(null)
+      if (res.success) flash('卡图已更新')
+    },
+    [flash]
+  )
+
+  useEffect(() => {
+    if (!cardMenu) return
+    let cancelled = false
+    setMenuVariants([])
+    void (async () => {
+      try {
+        const cfg = await window.api.getConfig()
+        if (!cancelled) setMenuOverrides(cfg.cardImageOverrides ?? {})
+        if (cardMenu.isCustom) return
+        const codes =
+          cardMenu.variantCodes.length > 0 ? cardMenu.variantCodes : [cardMenu.cardCode]
+        const map = await window.api.getCardsByIds(codes)
+        if (!cancelled) {
+          setMenuVariants(
+            codes
+              .filter((c) => map[c])
+              .map((c) => ({ code: c, name: map[c]?.name ?? String(c) }))
+          )
+        }
+      } catch (err) {
+        console.error('[CardNoteApp] 读取卡图变体失败:', err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [cardMenu])
+
+  useEffect(() => {
+    if (!cardMenu) return
+    const close = (): void => setCardMenu(null)
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setCardMenu(null)
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('resize', close)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [cardMenu])
 
   const existingLabelsFor = useCallback(
     (cardCode: number, kind: CardNoteKind): string[] => {
@@ -452,9 +581,6 @@ export const CardNoteApp: React.FC = () => {
             <div className="flex flex-col gap-2">
               {filtered.map((entry) => {
                 const isOpen = expanded[entry.cardCode] ?? false
-                const customNoteText = entry.isCustom
-                  ? (customCardById.get(entry.cardCode)?.note ?? '').trim()
-                  : ''
                 return (
                   <Collapsible
                     key={entry.cardCode}
@@ -473,6 +599,7 @@ export const CardNoteApp: React.FC = () => {
                           }
                         }}
                         className="flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none hover:bg-muted/40 transition-colors"
+                        onContextMenu={(e) => handleOpenCardMenu(e, entry)}
                       >
                         <ChevronRight
                           className={`w-3.5 h-3.5 shrink-0 -ml-1 text-muted-foreground transition-transform duration-300 ${
@@ -568,6 +695,27 @@ export const CardNoteApp: React.FC = () => {
                           />
                           <TooltipContent>添加备注</TooltipContent>
                         </Tooltip>
+                        {!entry.isCustom && (
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    void handleClearEntry(entry.cardCode)
+                                  }}
+                                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              }
+                            />
+                            <TooltipContent>
+                              清空该卡全部召唤词与备注（内置条目保留）
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
                         {entry.isCustom && (
                           <>
                             <Tooltip>
@@ -653,60 +801,11 @@ export const CardNoteApp: React.FC = () => {
                             </div>
                           )}
 
-                          {(entry.notes.length > 0 || customNoteText) && (
+                          {entry.notes.length > 0 && (
                             <div className="pt-1.5 mt-1.5 border-t border-border/50 space-y-1.5">
                               <div className="text-[10px] font-semibold text-muted-foreground">
                                 备注
                               </div>
-                              {customNoteText && (
-                                <div className="rounded border border-violet-500/30 bg-violet-500/5 px-2.5 py-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-300 truncate flex-1">
-                                      卡片备注
-                                    </span>
-                                    <Tooltip>
-                                      <TooltipTrigger
-                                        render={
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              void handleCopy(
-                                                `${entry.cardCode}:custom-note`,
-                                                customNoteText
-                                              )
-                                            }
-                                            className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-                                          >
-                                            {copiedKey === `${entry.cardCode}:custom-note` ? (
-                                              <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                            ) : (
-                                              <Copy className="w-3.5 h-3.5" />
-                                            )}
-                                          </button>
-                                        }
-                                      />
-                                      <TooltipContent>复制</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger
-                                        render={
-                                          <button
-                                            type="button"
-                                            onClick={() => openEdit(entry.cardCode)}
-                                            className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-                                          >
-                                            <Pencil className="w-3.5 h-3.5" />
-                                          </button>
-                                        }
-                                      />
-                                      <TooltipContent>在卡片信息中编辑</TooltipContent>
-                                    </Tooltip>
-                                  </div>
-                                  <p className="text-[11px] text-foreground/90 leading-relaxed whitespace-pre-wrap mt-1">
-                                    {customNoteText}
-                                  </p>
-                                </div>
-                              )}
                               <SortableContext
                                 items={entry.notes.map((n) => buildSortId('note', n.label))}
                                 strategy={verticalListSortingStrategy}

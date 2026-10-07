@@ -287,6 +287,13 @@ export class CardNoteService {
     return this.writeLibrary(lib)
   }
 
+  private aliasGroupKeys(lib: CardNoteLibrary, rootCode: number): string[] {
+    return Object.keys(lib.notes).filter((key) => {
+      const raw = Number(key)
+      return Number.isFinite(raw) && raw > 0 && this.normalizeCode(raw) === rootCode
+    })
+  }
+
   public reorderNotes(
     cardCode: number,
     kind: CardNoteKind,
@@ -297,24 +304,39 @@ export class CardNoteService {
     const k: CardNoteKind = kind === 'note' ? 'note' : 'chant'
 
     const lib = this.readLibrary()
-    const key = String(code)
-    const list = Array.isArray(lib.notes[key]) ? [...lib.notes[key]] : []
-    if (list.length === 0) return { success: false, error: '没有可排序的条目' }
+    const keys = this.aliasGroupKeys(lib, code)
+
+    const merged: CardNote[] = []
+    const seen = new Set<string>()
+    for (const key of keys) {
+      for (const c of lib.notes[key] ?? []) {
+        if (c.kind !== k) continue
+        const id = `${c.kind}::${c.label}`
+        if (seen.has(id)) continue
+        seen.add(id)
+        merged.push(c)
+      }
+    }
+    if (merged.length === 0) return { success: false, error: '没有可排序的条目' }
 
     const rank = new Map<string, number>()
     labels.forEach((label, i) => rank.set(`${k}::${label}`, i))
-
-    const known = list.filter((c) => rank.has(`${c.kind}::${c.label}`))
-    const rest = list.filter((c) => !rank.has(`${c.kind}::${c.label}`))
+    const known = merged.filter((c) => rank.has(`${c.kind}::${c.label}`))
+    const rest = merged.filter((c) => !rank.has(`${c.kind}::${c.label}`))
     if (known.length === 0) return { success: false, error: '没有可排序的条目' }
 
-    known.sort((a, b) => {
-      const ra = rank.get(`${a.kind}::${a.label}`) ?? 0
-      const rb = rank.get(`${b.kind}::${b.label}`) ?? 0
-      return ra - rb
-    })
+    known.sort(
+      (a, b) => (rank.get(`${a.kind}::${a.label}`) ?? 0) - (rank.get(`${b.kind}::${b.label}`) ?? 0)
+    )
 
-    lib.notes[key] = [...known, ...rest]
+    const rootKey = String(code)
+    const ordered = [...known, ...rest]
+    for (const key of keys) {
+      const kept = (lib.notes[key] ?? []).filter((c) => c.kind !== k)
+      if (kept.length === 0) delete lib.notes[key]
+      else lib.notes[key] = kept
+    }
+    lib.notes[rootKey] = [...ordered, ...(lib.notes[rootKey] ?? [])]
     return this.writeLibrary(lib)
   }
 
@@ -332,9 +354,8 @@ export class CardNoteService {
     }
 
     const lib = this.readLibrary()
-
     const root = this.normalizeCode(cardCode)
-    const keys = new Set<string>([String(root), String(cardCode)])
+    const keys = this.aliasGroupKeys(lib, root)
 
     for (const key of keys) {
       const list = lib.notes[key]

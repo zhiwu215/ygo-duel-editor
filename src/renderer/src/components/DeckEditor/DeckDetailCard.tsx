@@ -197,15 +197,6 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover })
                 <div className="pt-1 text-xs text-foreground/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
                   {card.desc || '无效果描述'}
                 </div>
-
-                {card.isCustom && card.note && card.note.trim().length > 0 && (
-                  <div className="mt-1 pt-2 border-t border-border/60 flex flex-col gap-1">
-                    <span className="text-[10px] font-bold text-muted-foreground">备注</span>
-                    <div className="text-xs text-amber-600 dark:text-amber-400/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
-                      {card.note}
-                    </div>
-                  </div>
-                )}
               </div>
             </ScrollArea>
           </>

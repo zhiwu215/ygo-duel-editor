@@ -56,7 +56,6 @@ export function editorFormFromCard(
   return {
     name: card.name,
     desc: card.desc,
-    note: card.note || '',
     type: card.type,
     attribute: card.attribute,
     race: card.race,

@@ -71,6 +71,10 @@ export function registerAllIpcHandlers(): void {
     return customCardService.pickImageSource()
   })
 
+  ipcMain.handle('customcard:apply-image', async (_, id: number) => {
+    return customCardService.pickAndApplyImage(id)
+  })
+
   ipcMain.handle('cdb:status', () => {
     return {
       ready: cdbService.isReady(),
@@ -335,6 +339,19 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('image:get-path', async (_, code: number, small?: boolean) => {
     return imageService.findCardImagePath(code, !!small)
+  })
+
+  ipcMain.handle('image:set-card-override', async (_, code: number, variantCode: number | null) => {
+    try {
+      imageService.setCardImageOverride(code, variantCode)
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send('image:updated')
+      }
+      return true
+    } catch (err) {
+      console.error('[registerIpc] image:set-card-override failed:', err)
+      return false
+    }
   })
 
   ipcMain.handle('window:open-deck-editor', async (_, deckId?: string) => {

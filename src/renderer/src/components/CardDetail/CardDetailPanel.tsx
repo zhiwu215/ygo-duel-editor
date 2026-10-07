@@ -203,15 +203,6 @@ export const CardDetailPanel: React.FC = () => {
             <div className="pt-1 text-xs text-foreground/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
               {currentCard.desc}
             </div>
-
-            {currentCard.isCustom && currentCard.note && currentCard.note.trim().length > 0 && (
-              <div className="mt-1 pt-2 border-t border-border/60 flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-muted-foreground">备注</span>
-                <div className="text-xs text-amber-600 dark:text-amber-400/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
-                  {currentCard.note}
-                </div>
-              </div>
-            )}
           </div>
         </ScrollArea>
       </div>

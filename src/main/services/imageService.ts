@@ -134,25 +134,35 @@ export class ImageService {
       return null
     }
 
+    // 0. 用户手动选定的卡图变体优先
+    const overrideId = configService.get().cardImageOverrides?.[String(code)]
+    if (overrideId && overrideId > 0 && overrideId !== code) {
+      const overridePath = findForCode(overrideId)
+      if (overridePath) return overridePath
+    }
+
     // 1. 优先按卡片本尊密码查找
     const directPath = findForCode(code)
     if (directPath) return directPath
 
     // 2. 若未找到，尝试通过 alias (同画/异画别名卡密) 查找
-    if (cdbService.isReady()) {
-      try {
-        const cardMap = cdbService.getCardsByIds([code])
-        const card = cardMap[code]
-        if (card && card.alias && card.alias > 0 && card.alias !== code) {
-          const aliasPath = findForCode(card.alias)
-          if (aliasPath) return aliasPath
-        }
-      } catch (err) {
-        console.error('[ImageService] alias lookup error:', err)
-      }
+    const aliasId =
+      cdbService.getCardById(code)?.alias ?? configService.get().cardImageOverrides?.[String(code)]
+    if (aliasId && aliasId > 0 && aliasId !== code) {
+      const aliasPath = findForCode(aliasId)
+      if (aliasPath) return aliasPath
     }
 
     return null
+  }
+
+  public setCardImageOverride(code: number, variantCode: number | null): void {
+    if (!Number.isFinite(code) || code <= 0) return
+    const cfg = configService.get()
+    const overrides: Record<string, number> = { ...(cfg.cardImageOverrides ?? {}) }
+    if (variantCode === null || variantCode === code) delete overrides[String(code)]
+    else overrides[String(code)] = variantCode
+    configService.save({ cardImageOverrides: overrides })
   }
 }
 

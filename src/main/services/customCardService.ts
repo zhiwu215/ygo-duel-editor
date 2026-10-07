@@ -210,6 +210,20 @@ export class CustomCardService {
     return { success: true, filePath: source, previewDataUrl }
   }
 
+  public async pickAndApplyImage(id: number): Promise<CustomCardPickImageResult> {
+    if (!this.getById(id)) return { success: false, error: '自建卡不存在' }
+    const picked = await this.pickImageSource()
+    if (!picked.success || !picked.filePath) return picked
+    try {
+      this.applyImage(id, picked.filePath)
+      this.broadcast()
+      return { success: true }
+    } catch (err) {
+      console.error('[CustomCardService] apply image error:', err)
+      return { success: false, error: '图片更新失败' }
+    }
+  }
+
   private matchNumeric(
     value: number,
     op: 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'unknown' | undefined,

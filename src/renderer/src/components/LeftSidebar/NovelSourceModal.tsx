@@ -14,6 +14,7 @@ import {
 import { NovelChapter, NovelMeta } from '@shared/index'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { confirmDialog } from '../../stores/useDialogStore'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Checkbox } from '../ui/checkbox'
@@ -96,7 +97,12 @@ export const NovelSourceModal: React.FC<NovelSourceModalProps> = ({ onClose, onS
 
   const handleDelete = async (e: React.MouseEvent, item: NovelMeta): Promise<void> => {
     e.stopPropagation()
-    if (!confirm(`确认删除《${item.title}》？\n原文与拆分结果都会移除。`)) return
+    const ok = await confirmDialog({
+      title: `删除《${item.title}》`,
+      description: '原文与拆分结果都会移除。',
+      confirmText: '删除'
+    })
+    if (!ok) return
     const res = await window.api.deleteNovel(item.id)
     if (!res.success) {
       flash(res.error || '删除失败')

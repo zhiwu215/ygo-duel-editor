@@ -47,7 +47,7 @@ pnpm build:win            # Windows 打包（另有 build:mac / build:linux / bu
 
 **工作流硬性要求**：
 
-- **每次逻辑改完，必须跑 `pnpm typecheck` 且双端零错误**，再用 ESLint 检查**本次改动的文件**（`pnpm exec eslint <改动文件>`）。**禁止日常全量 `pnpm lint`**：根目录下的参考子仓库（pi、opencode、vscode、ygopro、deepseek-harness 等）未被 eslint ignores 排除，`eslint .` 会把它们整个扫一遍，慢到不可接受。这是当前项目唯一的自动化质量门禁——**本项目暂无测试框架**，不要杜撰 `pnpm test` 命令；如果认为需要补测试框架，先询问用户。
+- **每次逻辑改完，必须跑 `pnpm typecheck` 且双端零错误**，再用 ESLint 检查**本次改动的文件**（`pnpm exec eslint <本次改动的文件列表>`）。**lint 只允许跑自己改动的文件，禁止跑根目录/全仓扫描**：`pnpm lint`（即 `eslint .`）会把根目录下未被 eslint ignores 排除的参考子仓库（pi、opencode、vscode、ygopro、deepseek-harness 等）整个扫一遍，慢到不可接受；不要在任何收尾流程、检查清单或自动化里写 `pnpm lint`。这是当前项目唯一的自动化质量门禁——**本项目暂无测试框架**，不要杜撰 `pnpm test` 命令；如果认为需要补测试框架，先询问用户。
 - `better-sqlite3` 是原生模块。若安装依赖后出现 `NODE_MODULE_VERSION` 不匹配报错，重新执行 `pnpm install`（依赖 postinstall自动 rebuild），不要手工改动构建配置。
 - 主流程开发环境为 **Windows**。主进程代码不硬编码路径分隔符或绝对路径，统一用 Node 的 `path` 模块和 IPC 拿到的用户目录。
 
@@ -271,6 +271,8 @@ Board/
 ```
 
 - 单文件职责边界以**语义**判断：一个组件内部出现可独立复用或自成体系的片段就拆出去；一个职责单一的长组件（如 `DuelBoard.tsx`）不要为凑行数拆碎。
+- **解耦是要求，碎拆不是手段。** 拆分只发生在职责真正独立或片段**第二个使用方出现**的时刻：同一段 UI / 逻辑用第二遍时抽公共组件/工具，而不是复制粘贴；没有第二使用方、职责也不独立的，留在原文件里。判断基准是社区主流 React 项目的约定俗成（feature 目录、平台无关 hooks、ui 库下沉），不是行数。
+- 写新界面前**先找能复用的部件**：同域组件查 `components/<域>/`，通用控件查 `components/ui/`，一条卡片结果行、一个确认弹窗、一种筛选抽屉在仓库里已有实现就复用并按需扩 props，禁止把现有部件重新手写一遍。
 - 常量配置对象（如 `VARIANT_CONFIGS`）可与组件同文件。
 - **严禁**为 Tailwind 类名建立独立 `.ts` 主题文件（如 `ZoneSlotTheme.ts`）。
 
@@ -305,12 +307,13 @@ Board/
 - 会改变场面的新操作**必须走 useDuelStore 的 action**，否则无法被撤销/重做。
 - 需要评估变更后局面的逻辑（如可解性检查、displays 统计）写成独立纯函数，而不是塞进 store 或组件。
 
-### 8.6 组件库：优先 shadcn/ui（base-ui 版）
+### 8.6 组件库：强制 shadcn/ui（base-ui 版），禁用原生控件
 
-- 通用 UI（Dialog、Select、Switch、Button 等）**一律先用 shadcn/ui**，底层是 `@base-ui/react`，**不是 radix**；`components.json` 的 `style` 为 `base-nova`。组件源码在 `src/renderer/src/components/ui/`。
+- **通用 UI 只能出自 shadcn/ui**（Dialog、Select、Switch、Button、Textarea 等），底层是 `@base-ui/react`，**不是 radix**；`components.json` 的 `style` 为 `base-nova`。组件源码在 `src/renderer/src/components/ui/`。
 - `ui/` 里缺的组件**用 CLI 装，不要手写**：`pnpm exec shadcn add <name> --yes`。CLI 产物是双引号，装完跑 `pnpm exec prettier --write src/renderer/src/components/ui/<name>.tsx` 统一回项目风格（单引号），否则会连带把 `button.tsx` 等改出无关 diff。
-- 弹窗类需求优先用 `stores/useDialogStore.ts` 的 `confirmDialog()` / `alertDialog()`（返回 `Promise<boolean>`，用法同原生 `confirm()`）。**该 store 依赖宿主 `ui/ConfirmDialogHost.tsx`，每个窗口入口都必须包一层**，否则弹窗不渲染且 Promise 永远 pending。
-- **写任何通用 UI 前先 grep 现有实现**，不要重复造轮子：已有 `hooks/useBackdropClose.ts`（自写弹窗遮罩兜底）、`ui/ConfirmDialogHost.tsx`、`Settings/components/ConfirmDialog.tsx` 等。
+- **禁止使用浏览器原生弹窗与原生控件**：应用渲染层**严禁调用 `confirm()` / `alert()` / `prompt()`**（含 `window.` 前缀）。Electron 下它们渲染成操作系统级对话框，标题栏显示 "ygo-duel-editor"，与应用内 shadcn 风格完全割裂（实例：`LeftSidebar/DuelArchivesPanel.tsx` 删除对局档案曾直接调 `confirm()`）。同理禁止 `<select>`、`<input type=file>` 裸写交互控件——分别改用 `ui/select.tsx`、主进程文件选择 IPC。存量原生调用在改造到它们头上时应顺手替换为下述组件。
+- 弹窗类需求一律用 `stores/useDialogStore.ts` 的 `confirmDialog()`（确认）/ `alertDialog()`（提示），都返回 `Promise<boolean>`，语义同原生 `confirm()`。**该 store 依赖宿主 `ui/ConfirmDialogHost.tsx`，每个窗口入口都必须包一层**（已由 `main.tsx` 统一包裹），否则弹窗不渲染且 Promise 永远 pending。
+- **写任何通用 UI 前先 grep 现有实现**，复用优先于新写：已有 `hooks/useBackdropClose.ts`（自写弹窗遮罩兜底）、`ui/ConfirmDialogHost.tsx`、`Settings/components/ConfirmDialog.tsx` 等。同一交互形态（结果行用 `CardRowItem`、筛选抽屉用 `FilterDrawer`）在第二个位置出现时必须复用同一组件，扩展走 props。
 
 ---
 
@@ -330,7 +333,7 @@ Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：�
 ### 项目阶段与代码组织
 
 - 项目当前处于开发阶段，默认不为历史版本保留向后兼容；不为旧数据、接口或配置额外增加迁移层、兼容分支或兜底，除非用户明确要求。
-- 代码按职责拆分，优先遵循仓库现有的功能域组织和主流规范；保持文件职责清晰，不把无关的 UI、状态、业务逻辑和类型都堆在一个文件里，也避免为拆分而过度碎片化。
+- 代码组织以**解耦 + 复用**为准则：按职责拆分、优先遵循仓库现有的功能域组织和社区主流 React 规范；不在一个文件里堆无关的 UI、状态、业务逻辑和类型，也不为拆而拆、制造只被引用一次的碎片文件。**一段 UI / 逻辑出现第二个使用方时抽公共件复用**，没有复用前景且职责不独立时留在原文件。实现细节见第 8.1 节。
 
 ### Git 提交与推送
 
@@ -348,6 +351,8 @@ Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：�
 ### Never（禁止）
 
 - 修改 `src/renderer/src/components/ui/` 内任何文件（shadcn/ui CLI 产物）。
+- 在渲染层调用原生 `confirm()` / `alert()` / `prompt()` 或裸写 `<select>` / `<input type=file>` 等原生交互控件；普通组件不使用 shadcn/ui（base-ui）而手写一切（第 8.6 节）。
+- 用 `pnpm lint` / `eslint .` 全仓扫描作为改码后的检查；检查改动只能 `pnpm exec eslint <本次改动的文件>`（第 2 节）。
 - **硬编码卡密/卡表/卡图数据**进仓库，或将用户的 `cards.cdb` / 游戏目录路径写入任何文件（一切路径来自 configService 的用户配置）。
 - 让 `shared/` 引入 electron / node / DOM 依赖，或在 renderer 直接读文件/数据库。
 - 跳过 store 直接改局面状态，绕开 `temporal` 中间件。
@@ -361,7 +366,8 @@ Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：�
 
 ## 11. 变更检查清单（收尾自检）
 
-- [ ] `pnpm typecheck` 双端零错误，`pnpm lint` 无本次改动引入的错误
+- [ ] `pnpm typecheck` 双端零错误；`pnpm exec eslint <本次改动的文件>` 零错误（**禁止**跑 `pnpm lint` 全仓扫描）
+- [ ] 无 `window.confirm` / `alert` / 原生 `<select>` 等原生控件残留；弹窗走 `useDialogStore`，通用控件复用 `ui/`（第 8.6 节）
 - [ ] 新文件落在正确的功能域/共享层目录（对照第 6 节路由）
 - [ ] 新增 IPC 能力四件套齐全（第 5 节 ①②③④）
 - [ ] 新类型放 `shared/types/` 并经 `@shared` barrel 导出；新枚举用内置常量而非魔法数字

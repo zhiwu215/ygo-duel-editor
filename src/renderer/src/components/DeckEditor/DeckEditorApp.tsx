@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   DndContext,
@@ -13,15 +12,9 @@ import {
   type DragEndEvent,
   type DragStartEvent
 } from '@dnd-kit/core'
-import {
-  CardUtils,
-  CdbCard,
-  DeckData,
-  DeckSection,
-  groupChildPath,
-  groupLeafName
-} from '@shared/index'
+import { CardUtils, CdbCard, DeckData, DeckSection, groupLeafName } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
+import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import {
   DeckDragSourceData,
@@ -33,41 +26,67 @@ import { DeckLibraryView } from './DeckLibraryView'
 import { DeckDetailCard } from './DeckDetailCard'
 import { DeckGrid, type DeckFlashTarget } from './DeckGrid'
 import { DeckSearchPanel } from './DeckSearchPanel'
+import { FilterDrawer } from '../CardSearch/FilterDrawer'
 import { DeckTestHandModal } from './DeckTestHandModal'
-import { DeckApplyModal } from './DeckApplyModal'
-import { GroupNameModal } from './GroupNameModal'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Separator } from '../ui/separator'
 import { WindowControls } from '../ui/window-controls'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue
-} from '../ui/select'
-import {
-  ArrowLeft,
-  Folder,
-  FolderPlus,
-  Save,
-  ArrowUpDown,
-  Dices,
-  Swords,
-  Trash2,
-  FilePlus2,
-  Download,
-  FileText
-} from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { Dices, Download, type LucideIcon } from 'lucide-react'
+import { cn } from '../../lib/utils'
 
 const NONE_GROUP_VALUE = '__none__'
-const NEW_GROUP_VALUE = '__new__'
 
 /** 卡组内卡片落位时的回弹动画；从搜索面板拖入的新卡不回弹（源节点不动，回弹会看成失败） */
 const DROP_ANIMATION = { duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }
 const FLASH_DURATION = 700
+
+const PanelButton: React.FC<{
+  label: string
+  title?: string
+  emphasize?: boolean
+  disabled?: boolean
+  onClick?: () => void
+}> = ({ label, title, emphasize, disabled, onClick }) => (
+  <Button
+    type="button"
+    variant="outline"
+    size="xs"
+    title={title}
+    onClick={onClick}
+    disabled={disabled}
+    className={cn(
+      'w-[58px] shrink-0 px-0 bg-background/70 text-[11px] font-normal text-muted-foreground hover:text-foreground',
+      emphasize && 'font-semibold text-foreground'
+    )}
+  >
+    {label}
+  </Button>
+)
+
+const MiniButton: React.FC<{
+  icon: LucideIcon
+  label: string
+  title?: string
+  emphasize?: boolean
+  disabled?: boolean
+  onClick?: () => void
+}> = ({ icon: Icon, label, title, emphasize, disabled, onClick }) => (
+  <button
+    type="button"
+    title={title}
+    onClick={onClick}
+    disabled={disabled}
+    className={cn(
+      'flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-md border border-border bg-background/60 px-0.5 text-[10px] leading-none text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground cursor-pointer disabled:pointer-events-none disabled:opacity-40',
+      emphasize &&
+        'border-primary/50 bg-primary/10 text-primary font-semibold hover:bg-primary/20 hover:text-primary'
+    )}
+  >
+    <Icon className="w-3 h-3 shrink-0" />
+    <span className="max-w-full truncate">{label}</span>
+  </button>
+)
 
 /**
  * 指针命中优先；指针落空（停在区块间隙、详情面板上方等）时回退到矩形相交，
@@ -82,17 +101,18 @@ export const DeckEditorApp: React.FC = () => {
   const {
     viewMode,
     deck,
+    deckList,
+    deckGroups,
+    isLoadingLibrary,
     cardDetails,
     selectedCard,
     hoveredCardId,
     testHandCards,
-    deckGroups,
     setSelectedCard,
     setHoveredCardId,
     setDeckName,
     setDeckDescription,
     setDeckGroup,
-    createGroup,
     setDeckCover,
     addCard,
     removeCard,
@@ -100,17 +120,19 @@ export const DeckEditorApp: React.FC = () => {
     moveCardBetweenSections,
     clearDeck,
     sortDeck,
+    shuffleDeck,
     drawTestHand,
     closeTestHand,
     saveDeckFile,
     saveCurrentDeckToLibrary,
+    deleteDeckFromLibrary,
+    createNewDeck,
+    openDeck,
+    fetchDeckList,
     backToLibrary,
-    applyToDuel,
     getStats
   } = useDeckEditorStore()
 
-  const [showApplyModal, setShowApplyModal] = useState<boolean>(false)
-  const [groupModalOpen, setGroupModalOpen] = useState<boolean>(false)
   const [saveToast, setSaveToast] = useState<string | null>(null)
   const [activeDrag, setActiveDrag] = useState<{
     code: number
@@ -122,6 +144,31 @@ export const DeckEditorApp: React.FC = () => {
   const rejectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [flash, setFlash] = useState<DeckFlashTarget | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const [browsedCategory, setBrowsedCategory] = useState<string>(deck.group || NONE_GROUP_VALUE)
+  const [prevDeckId, setPrevDeckId] = useState<string | undefined>(deck.id)
+  if (prevDeckId !== deck.id) {
+    setPrevDeckId(deck.id)
+    setBrowsedCategory(deck.group || NONE_GROUP_VALUE)
+  }
+
+  const savedSnapshotRef = useRef<string>('')
+  const markDeckClean = useCallback((): void => {
+    savedSnapshotRef.current = JSON.stringify(useDeckEditorStore.getState().deck)
+  }, [])
+  useEffect(() => {
+    markDeckClean()
+  }, [deck.id, markDeckClean])
+
+  const confirmDiscard = useCallback(async (): Promise<boolean> => {
+    const current = JSON.stringify(useDeckEditorStore.getState().deck)
+    if (current === savedSnapshotRef.current) return true
+    return confirmDialog({
+      title: '放弃修改',
+      description: '此操作将放弃对当前卡组的修改，是否继续？',
+      confirmText: '继续'
+    })
+  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -161,6 +208,11 @@ export const DeckEditorApp: React.FC = () => {
     },
     []
   )
+
+  useEffect(() => {
+    if (viewMode !== 'editor' || deckList.length > 0 || isLoadingLibrary) return
+    void fetchDeckList()
+  }, [viewMode, deckList.length, isLoadingLibrary, fetchDeckList])
 
   useEffect(() => {
     const openDeckInEditor = (targetDeck: DeckData): void => {
@@ -274,257 +326,210 @@ export const DeckEditorApp: React.FC = () => {
     deckDragGuard.lastDragEndAt = Date.now()
   }
 
-  const handleSaveToLibrary = async (): Promise<void> => {
+  const browsedGroup = browsedCategory === NONE_GROUP_VALUE ? '' : browsedCategory
+
+  const showToast = (message: string): void => {
+    setSaveToast(message)
+    setTimeout(() => setSaveToast(null), 2000)
+  }
+
+  const handleSave = async (): Promise<void> => {
+    if (!deck.id) setDeckGroup(browsedGroup)
     const ok = await saveCurrentDeckToLibrary()
     if (ok) {
-      setSaveToast('卡组已成功保存到资产库')
-      setTimeout(() => setSaveToast(null), 2000)
+      markDeckClean()
+      showToast('保存成功')
     } else {
-      alert('保存到卡组库失败')
+      void alertDialog('保存失败')
     }
+  }
+
+  const handleDelete = async (): Promise<void> => {
+    if (!deck.id) return
+    if (
+      !(await confirmDialog({
+        title: `「${deck.name}」`,
+        description: '是否删除这个卡组？',
+        confirmText: '删除'
+      }))
+    )
+      return
+    const siblings = deckList.filter(
+      (d): d is DeckData & { id: string } => (d.group ?? '') === browsedGroup && !!d.id
+    )
+    const index = siblings.findIndex((d) => d.id === deck.id)
+    const ok = await deleteDeckFromLibrary(deck.id)
+    if (!ok) {
+      void alertDialog('删除失败')
+      return
+    }
+    showToast('删除成功')
+    const fresh = useDeckEditorStore.getState().deckList
+    const remaining = fresh.filter(
+      (d): d is DeckData & { id: string } => (d.group ?? '') === browsedGroup && !!d.id
+    )
+    if (remaining.length > 0) {
+      const next = remaining[Math.min(Math.max(index, 0), remaining.length - 1)]
+      if (next) void openDeck(next)
+    } else {
+      createNewDeck()
+      if (browsedGroup) useDeckEditorStore.getState().setDeckGroup(browsedGroup)
+    }
+  }
+
+  const handleBrowseCategory = async (value: string | null): Promise<void> => {
+    if (!value || value === browsedCategory) return
+    if (!(await confirmDiscard())) return
+    setBrowsedCategory(value)
+    const group = value === NONE_GROUP_VALUE ? '' : value
+    const first = deckList.find((d) => (d.group ?? '') === group)
+    if (first) void openDeck(first)
+  }
+
+  const handleLeaveEditor = async (): Promise<void> => {
+    if (!(await confirmDiscard())) return
+    void backToLibrary()
+  }
+
+  const handleManageDecks = async (): Promise<void> => {
+    if (!(await confirmDiscard())) return
+    void backToLibrary()
   }
 
   const handleExportYdk = async (): Promise<void> => {
     const res = await saveDeckFile()
     if (res.success && res.filePath) {
-      alert(`卡组已成功导出：\n${res.filePath}`)
+      void alertDialog(`卡组已成功导出：\n${res.filePath}`)
     } else if (res.error) {
-      alert(`导出失败: ${res.error}`)
+      void alertDialog(`导出失败: ${res.error}`)
     }
   }
 
-  const handleClear = (): void => {
-    if (deck.main.length > 0 || deck.extra.length > 0 || deck.side.length > 0) {
-      if (confirm('确认清空当前卡组的所有卡片？')) {
-        clearDeck()
-      }
+  const handleClear = async (): Promise<void> => {
+    if (deck.main.length + deck.extra.length + deck.side.length === 0) return
+    if (await confirmDialog({ title: '清空卡组', description: '是否清空正在编辑的卡组？' })) {
+      clearDeck()
     }
   }
 
   return (
     <div className="flex flex-col w-screen h-screen bg-background text-foreground select-none overflow-hidden font-sans">
-      <header className="h-11 px-3 border-b border-border bg-card flex items-center justify-between shrink-0 [-webkit-app-region:drag]">
-        <div className="flex items-center gap-2 [-webkit-app-region:no-drag]">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => void backToLibrary()}
-                  className="h-7 px-2 gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>返回卡组库</span>
-                </Button>
-              }
-            />
-            <TooltipContent>返回卡组总览库</TooltipContent>
-          </Tooltip>
-
-          <Separator orientation="vertical" className="h-4 mx-0.5" />
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Input
-                  type="text"
-                  value={deck.name}
-                  onChange={(e) => setDeckName(e.target.value)}
-                  placeholder="卡组名称"
-                  className="h-7 w-52 text-xs font-bold bg-background/80 border-border/80"
-                />
-              }
-            />
-            <TooltipContent>点击修改卡组名称</TooltipContent>
-          </Tooltip>
-
-          {saveToast && (
-            <span className="text-[11px] font-bold text-emerald-500 animate-in fade-in duration-150">
-              {saveToast}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1.5 [-webkit-app-region:no-drag]">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="default"
-                  size="xs"
-                  onClick={() => void handleSaveToLibrary()}
-                  className="h-7 px-2.5 gap-1 text-xs font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>保存到库</span>
-                </Button>
-              }
-            />
-            <TooltipContent>保存卡组修改至本地卡组资产库</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={clearDeck}
-                  className="h-7 px-2 gap-1 text-xs"
-                >
-                  <FilePlus2 className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>新建</span>
-                </Button>
-              }
-            />
-            <TooltipContent>新建空白卡组</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => void handleExportYdk()}
-                  className="h-7 px-2 gap-1 text-xs font-semibold"
-                >
-                  <Download className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>导出 YDK</span>
-                </Button>
-              }
-            />
-            <TooltipContent>导出卡组为标准 .ydk 文件</TooltipContent>
-          </Tooltip>
-
-          <Separator orientation="vertical" className="h-4 mx-0.5" />
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={sortDeck}
-                  disabled={deck.main.length === 0 && deck.extra.length === 0}
-
-                  className="h-7 px-2 gap-1 text-xs"
-                >
-                  <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>排序</span>
-                </Button>
-              }
-            />
-            <TooltipContent>卡组智能排序 (怪兽/魔陷/星级/攻击力)</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={drawTestHand}
-                  disabled={deck.main.length === 0}
-
-                  className="h-7 px-2.5 gap-1 text-xs font-semibold"
-                >
-                  <Dices className="w-3.5 h-3.5 text-primary" />
-                  <span>手牌测试</span>
-                </Button>
-              }
-            />
-            <TooltipContent>模拟起手随机抽取 5 张手牌</TooltipContent>
-          </Tooltip>
-
-          <Separator orientation="vertical" className="h-4 mx-0.5" />
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="default"
-                  size="xs"
-                  onClick={() => setShowApplyModal(true)}
-                  disabled={deck.main.length === 0 && deck.extra.length === 0}
-
-                  className="h-7 px-3 gap-1.5 text-xs font-bold shadow-xs"
-                >
-                  <Swords className="w-3.5 h-3.5" />
-                  <span>送入决斗盘</span>
-                </Button>
-              }
-            />
-            <TooltipContent>将当前卡组直接装载到主界面的决斗盘中</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleClear}
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive ml-1"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              }
-            />
-            <TooltipContent>清空当前卡组</TooltipContent>
-          </Tooltip>
-
-          <WindowControls className="-mr-3 ml-0.5" />
-        </div>
-      </header>
-
-      <div className="px-3 py-1.5 bg-muted/30 border-b border-border/70 flex items-center justify-between gap-3 text-xs shrink-0">
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <Input
-            type="text"
-            value={deck.description || ''}
-            onChange={(e) => setDeckDescription(e.target.value)}
-            placeholder="描述"
-            className="h-6.5 text-[11.5px] bg-background/60 border-border/60 flex-1 min-w-0"
-          />
-        </div>
-
-        <Separator orientation="vertical" className="h-4" />
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Folder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <Select
-            value={deck.group || NONE_GROUP_VALUE}
-            onValueChange={(value) => {
-              if (value === NEW_GROUP_VALUE) {
-                setGroupModalOpen(true)
-                return
-              }
-              setDeckGroup(!value || value === NONE_GROUP_VALUE ? '' : value)
-            }}
+      <div className="relative shrink-0 bg-card border-b border-border px-3 py-2 flex items-stretch gap-2 [-webkit-app-region:drag]">
+        <div className="flex flex-col gap-1 w-[124px] shrink-0 [-webkit-app-region:no-drag]">
+          <button
+            type="button"
+            onClick={handleLeaveEditor}
+            title="返回卡组总览库"
+            className="flex-1 min-h-0 rounded-md border border-border bg-muted/40 text-sm font-bold text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors cursor-pointer"
           >
-            <SelectTrigger size="sm" className="h-6.5 w-32 text-[11.5px] bg-background/60">
-              <SelectValue placeholder="选择分组" />
-            </SelectTrigger>
-            <SelectContent align="start" className="min-w-40 max-h-72">
-              <SelectItem value={NONE_GROUP_VALUE} className="text-xs py-1.5 pr-7 pl-2">
-                未分组
-              </SelectItem>
-              {deckGroups.map((g) => (
-                <SelectItem key={g} value={g} className="text-xs py-1.5 pr-7 pl-2">
-                  {g.split('/').map(groupLeafName).join(' / ')}
-                </SelectItem>
-              ))}
-              <SelectSeparator />
-              <SelectItem value={NEW_GROUP_VALUE} className="text-xs py-1.5 pr-7 pl-2">
-                <FolderPlus className="w-3.5 h-3.5" />
-                新建分组…
-              </SelectItem>
-            </SelectContent>
-          </Select>
+            退出编辑
+          </button>
+          <div className="grid grid-cols-1 gap-1 h-16 shrink-0">
+            <MiniButton
+              icon={Download}
+              label="导出 YDK"
+              title="导出卡组为标准 .ydk 文件"
+              onClick={() => void handleExportYdk()}
+            />
+            <MiniButton
+              icon={Dices}
+              label="手牌测试"
+              title="模拟起手随机抽取 5 张手牌"
+              onClick={drawTestHand}
+              disabled={deck.main.length === 0}
+            />
+          </div>
         </div>
+
+        <div className="w-[430px] shrink-0 rounded-md border border-border bg-muted/20 p-2 flex flex-col gap-1 justify-between [-webkit-app-region:no-drag]">
+          <div className="flex items-center gap-1.5">
+            <span className="w-14 shrink-0 text-[11px] text-muted-foreground">卡组分类：</span>
+            <Select value={browsedCategory} onValueChange={handleBrowseCategory}>
+              <SelectTrigger size="sm" className="h-6 flex-1 min-w-0 bg-background/70 text-xs">
+                <SelectValue>
+                  {browsedCategory === NONE_GROUP_VALUE
+                    ? '未分组'
+                    : browsedCategory.split('/').map(groupLeafName).join(' / ')}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start" className="max-h-72">
+                <SelectItem value={NONE_GROUP_VALUE}>未分组</SelectItem>
+                {deckGroups.map((g) => (
+                  <SelectItem key={g} value={g}>
+                    {g.split('/').map(groupLeafName).join(' / ')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <PanelButton
+              label="管理"
+              title="打开卡组库管理分组与卡组"
+              onClick={handleManageDecks}
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="w-14 shrink-0 text-[11px] text-muted-foreground">卡组名称：</span>
+            <Input
+              type="text"
+              value={deck.name}
+              onChange={(e) => setDeckName(e.target.value)}
+              placeholder="输入卡组名称"
+              className="h-6 flex-1 min-w-0 bg-background/70 text-xs"
+            />
+            <PanelButton
+              label="保存"
+              title="保存当前卡组到卡组库"
+              emphasize
+              onClick={() => void handleSave()}
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="w-14 shrink-0 text-[11px] text-muted-foreground">描述：</span>
+            <Input
+              type="text"
+              value={deck.description || ''}
+              onChange={(e) => setDeckDescription(e.target.value)}
+              placeholder="描述"
+              className="h-6.5 flex-1 min-w-0 bg-background/60 border-border/60 text-[11.5px]"
+            />
+            {saveToast && (
+              <span className="text-[11px] font-bold text-emerald-500 animate-in fade-in duration-150 shrink-0">
+                {saveToast}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <PanelButton
+              label="打乱"
+              title="随机打乱主卡组顺序"
+              onClick={shuffleDeck}
+              disabled={deck.main.length === 0}
+            />
+            <PanelButton
+              label="排序"
+              title="卡组智能排序 (怪兽/魔陷/星级/攻击力)"
+              onClick={sortDeck}
+              disabled={deck.main.length === 0 && deck.extra.length === 0}
+            />
+            <PanelButton label="清空" title="清空正在编辑的卡组" onClick={handleClear} />
+            <div className="flex-1" />
+            <PanelButton
+              label="删除"
+              title="从卡组库删除当前卡组"
+              onClick={() => void handleDelete()}
+              disabled={!deck.id}
+            />
+          </div>
+        </div>
+
+        <FilterDrawer
+          variant="band"
+          className="flex-1 min-w-0"
+          headerSlot={<WindowControls size="sm" actions={['maximize']} className="-mr-1" />}
+        />
       </div>
 
       <DndContext
@@ -541,35 +546,39 @@ export const DeckEditorApp: React.FC = () => {
             isCover={detailCard ? deck.coverCard === detailCard.id : false}
           />
 
-          <main className="relative flex-1 flex flex-col p-2 min-w-0 min-h-0 bg-background/50">
-            <DeckGrid
-              deck={deck}
-              stats={stats}
-              cardDetails={cardDetails}
-              isDragActive={activeDrag !== null}
-              flash={flash}
-              coverCard={deck.coverCard}
-              onSelectCard={handleSelectCard}
-              onHoverCard={handleHoverCard}
-              onRemoveCard={removeCard}
-              onSetCover={(code) => {
-                setDeckCover(code)
-                setSelectedCard(cardDetails[code] ?? null)
-                handleClearHover()
-              }}
-              onClearCover={() => setDeckCover(undefined)}
-            />
+          <div className="flex-1 flex flex-col min-w-0 min-h-0">
+            <div className="flex-1 flex min-h-0">
+              <main className="relative flex-1 flex flex-col p-2 min-w-0 min-h-0 bg-background/50">
+                <DeckGrid
+                  deck={deck}
+                  stats={stats}
+                  cardDetails={cardDetails}
+                  isDragActive={activeDrag !== null}
+                  flash={flash}
+                  coverCard={deck.coverCard}
+                  onSelectCard={handleSelectCard}
+                  onHoverCard={handleHoverCard}
+                  onRemoveCard={removeCard}
+                  onSetCover={(code) => {
+                    setDeckCover(code)
+                    setSelectedCard(cardDetails[code] ?? null)
+                    handleClearHover()
+                  }}
+                  onClearCover={() => setDeckCover(undefined)}
+                />
 
-            {rejectMessage && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
-                <span className="bg-black/85 text-white text-sm font-bold tracking-wide px-6 py-2.5 rounded-md shadow-2xl animate-in fade-in duration-150">
-                  {rejectMessage}
-                </span>
-              </div>
-            )}
-          </main>
+                {rejectMessage && (
+                  <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+                    <span className="bg-black/85 text-white text-sm font-bold tracking-wide px-6 py-2.5 rounded-md shadow-2xl animate-in fade-in duration-150">
+                      {rejectMessage}
+                    </span>
+                  </div>
+                )}
+              </main>
 
-          <DeckSearchPanel onSelectCard={handleSelectCard} onAddCard={handleAddCard} />
+              <DeckSearchPanel onSelectCard={handleSelectCard} onAddCard={handleAddCard} />
+            </div>
+          </div>
         </div>
 
         <DragOverlay dropAnimation={activeDrag?.source === 'deck' ? DROP_ANIMATION : null}>
@@ -598,29 +607,6 @@ export const DeckEditorApp: React.FC = () => {
           cardDetails={cardDetails}
           onRedraw={drawTestHand}
           onClose={closeTestHand}
-        />
-      )}
-
-      {showApplyModal && (
-        <DeckApplyModal
-          deck={deck}
-          onConfirm={async (player, drawCount) => {
-            return applyToDuel(player, drawCount)
-          }}
-          onClose={() => setShowApplyModal(false)}
-        />
-      )}
-
-      {groupModalOpen && (
-        <GroupNameModal
-          initialName={null}
-          existingGroups={deckGroups}
-          onConfirm={async (name) => {
-            const ok = await createGroup(name, null)
-            if (ok) setDeckGroup(groupChildPath(null, name))
-            return ok
-          }}
-          onClose={() => setGroupModalOpen(false)}
         />
       )}
     </div>

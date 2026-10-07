@@ -1,28 +1,14 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useDraggable, useDndContext, useDroppable } from '@dnd-kit/core'
 import { canPlaceInSection, CdbCard, DeckSection } from '@shared/index'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import {
-  Search,
-  Star,
-  Layers,
-  Loader2,
-  Minus,
-  Plus,
-  X,
-  RotateCcw,
-  SlidersHorizontal,
-  ChevronLeft,
-  ChevronRight
-} from 'lucide-react'
-import { CardPoolBadges } from '../CardSearch/CardPoolBadges'
-import { FilterDrawer } from '../CardSearch/FilterDrawer'
+import { Search, Star, Layers, Loader2, Minus, Plus } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { CardRowItem } from '../CardSearch/CardRowItem'
+import { SORT_OPTIONS } from '../CardSearch/sortOptions'
 import { cn } from '../../lib/utils'
 import {
   DeckDragSourceData,
@@ -101,77 +87,21 @@ const SearchCardItem: React.FC<SearchCardItemProps> = ({
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <div
-            ref={setNodeRef}
-            {...attributes}
-            {...listeners}
-            onClick={handleClick}
-            onMouseEnter={() => onSelectCard(card)}
-            onContextMenu={handleContextMenu}
-
-            className={cn(
-              'group relative aspect-[59/86] rounded overflow-hidden cursor-grab active:cursor-grabbing border border-border/50 hover:border-primary hover:shadow-md transition-all duration-150 bg-background/50',
-              isDragging && 'opacity-40'
-            )}
-          >
-            <img
-              src={getCardImageUrl(card.id, true)}
-              alt={card.name}
-              loading="lazy"
-              draggable={false}
-              className="w-full h-full object-cover pointer-events-none group-hover:scale-105 transition-transform duration-150"
-              onError={(e) => {
-                ;(e.currentTarget as HTMLImageElement).src = CARD_BACK_IMAGE
-              }}
-            />
-
-            <CardPoolBadges pools={card.pools} width={34} />
-
-            {/* 悬停快捷加入图标 */}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-              <span className="text-[10px] text-white font-bold bg-primary/80 px-1.5 py-0.5 rounded shadow-xs">
-                + 加入
-              </span>
-            </div>
-
-            {/* 右上角收藏星星按钮 */}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggleFavorite(card.id)
-                    }}
-
-                    className={cn(
-                      'absolute top-1 right-1 p-1 rounded bg-black/70 hover:bg-black/90 transition-all',
-                      fav
-                        ? 'text-amber-400 opacity-100'
-                        : 'text-white/60 hover:text-white opacity-0 group-hover:opacity-100'
-                    )}
-                  >
-                    <Star
-                      className={cn(
-                        'w-3 h-3',
-                        fav ? 'fill-amber-400 text-amber-400' : 'text-white'
-                      )}
-                    />
-                  </button>
-                }
-              />
-              <TooltipContent>{fav ? '取消收藏' : '加入收藏'}</TooltipContent>
-            </Tooltip>
-          </div>
-        }
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={handleClick}
+      onContextMenu={handleContextMenu}
+      className={cn(isDragging && 'opacity-40')}
+    >
+      <CardRowItem
+        card={card}
+        isFavorite={fav}
+        onToggleFavorite={onToggleFavorite}
+        onHover={onSelectCard}
       />
-      <TooltipContent>{`${card.name}（左键加入 / 拖入卡组 / 右键选择区域）`}</TooltipContent>
-    </Tooltip>
+    </div>
   )
 }
 
@@ -180,27 +110,22 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
   const [cardMenu, setCardMenu] = useState<{ card: CdbCard; x: number; y: number } | null>(null)
 
   const {
-    keyword,
     results,
     total,
     isLoading,
     isLoadingMore,
     hasMore,
     hasSearched,
-    isFilterOpen,
-    setIsFilterOpen,
-    toggleFilterOpen,
-    setKeyword,
+    sortField,
     search,
     loadMore,
-    resetFilters
+    setFilters
   } = useCardSearchStore()
-  const activeFilterCount = useCardSearchStore(countActiveFilters)
-
-  const [localKw, setLocalKw] = useState<string>(keyword)
 
   const { favorites, isFavorite, toggleFavorite, loadFavorites } = useFavoritesStore()
   const [favoriteCards, setFavoriteCards] = useState<CdbCard[]>([])
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? SORT_OPTIONS[0].label
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   // 初始加载收藏夹
   useEffect(() => {
@@ -212,19 +137,38 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
     void search({ limit: 40 })
   }, [search])
 
+  // 下滑到底自动续拉，对齐 YGOPro 没有「加载更多」按钮的结果列表
+  useEffect(() => {
+    if (activeTab !== 'search' || !hasMore) return
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void loadMore()
+      },
+      { rootMargin: '320px' }
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [activeTab, hasMore, loadMore, results.length])
+
   // 当切换到收藏夹或收藏列表变化时，拉取收藏卡的详细数据
   useEffect(() => {
-    if (activeTab !== 'favorites' || favorites.length === 0) {
-      return
-    }
     let canceled = false
+    if (activeTab !== 'favorites' || favorites.length === 0) {
+      Promise.resolve().then(() => {
+        if (!canceled) setFavoriteCards([])
+      })
+      return () => {
+        canceled = true
+      }
+    }
     window.api
       ?.getCardsByIds(favorites)
       .then((map) => {
-        if (!canceled) {
-          const list = favorites.map((code) => map[code]).filter(Boolean) as CdbCard[]
-          setFavoriteCards(list)
-        }
+        if (canceled) return
+        const list = favorites.map((code) => map[code]).filter(Boolean) as CdbCard[]
+        setFavoriteCards(list)
       })
       .catch((err) => console.error('[DeckSearchPanel] load favorites details error:', err))
     return () => {
@@ -266,18 +210,9 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
     setCardMenu({ card, x, y })
   }, [])
 
-  const runSearch = useCallback(
-    (value: string): void => {
-      const trimmed = value.trim()
-      setKeyword(trimmed)
-      void search({ keyword: trimmed })
-    },
-    [setKeyword, search]
-  )
-
   const currentDisplayList = activeTab === 'search' ? results : favoriteCards
-  const showEmptyState = activeTab === 'favorites' ? favorites.length === 0 : hasSearched && !isLoading
-  const showFilter = activeTab === 'search' && isFilterOpen
+  const showEmptyState =
+    activeTab === 'favorites' ? favorites.length === 0 : hasSearched && !isLoading
 
   return (
     <SearchPanelDropZone className="relative w-[270px] lg:w-[320px] xl:w-[400px] h-full flex flex-col bg-card border-l border-border select-none shrink-0">
@@ -316,186 +251,93 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
         </button>
       </div>
 
-      {/* 2. 搜索输入条 + 高级筛选入口 (仅在卡片列表 Tab 显示) */}
+      {/* 2. 结果计数 + 排序（对应 YGOPro 悬浮在结果列表上方的 wSort） */}
       {activeTab === 'search' && (
-        <div className="p-2 border-b border-border/60 flex items-center gap-1.5">
-          <div className="relative flex-1 min-w-0">
-            <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input
-              type="text"
-              value={localKw}
-              onChange={(e) => setLocalKw(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') runSearch(localKw)
-              }}
-              placeholder="搜索卡名 / 效果 / 卡密..."
-              className="h-7 pl-7 pr-7 text-xs bg-background"
-            />
-            {localKw && (
-              <button
-                type="button"
-                onClick={() => {
-                  setLocalKw('')
-                  runSearch('')
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <Button
-            variant="secondary"
-            size="xs"
-            onClick={() => runSearch(localKw)}
-            aria-busy={isLoading}
-            className="h-7 px-2.5 text-xs font-semibold shrink-0"
-          >
-            <span>搜索</span>
-            <Loader2
-              className={cn(
-                'w-3 h-3 transition-opacity',
-                isLoading ? 'animate-spin opacity-100' : 'opacity-0'
-              )}
-            />
-          </Button>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant={isFilterOpen || activeFilterCount > 0 ? 'default' : 'secondary'}
-                  size="xs"
-                  onClick={toggleFilterOpen}
-                  className={cn(
-                    'h-7 px-1.5 shrink-0 relative transition-all',
-                    isFilterOpen
-                      ? 'bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold'
-                      : activeFilterCount > 0
-                        ? 'border-amber-400/50 text-amber-400'
-                        : ''
-                  )}
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  {isFilterOpen ? (
-                    <ChevronRight className="w-3 h-3 -ml-0.5" />
-                  ) : (
-                    <ChevronLeft className="w-3 h-3 -ml-0.5" />
-                  )}
-
-                  {activeFilterCount > 0 && !isFilterOpen && (
-                    <span className="absolute -top-1 -right-1 bg-amber-500 text-neutral-950 font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center shadow">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </Button>
-              }
-            />
-            <TooltipContent>{isFilterOpen ? '收起高级筛选' : '展开多维度高级筛选'}</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
-
-      {/* 3. 结果计数 + 清空筛选 */}
-      {activeTab === 'search' && (
-        <div className="px-2.5 py-1 border-b border-border/40 bg-muted/20 flex items-center justify-between text-[11px] shrink-0">
-          <span className="text-muted-foreground">
+        <div className="px-2.5 py-1 border-b border-border/40 bg-muted/20 flex items-center justify-between gap-2 text-[11px] shrink-0">
+          <span className="text-muted-foreground shrink-0">
             共 <strong className="text-foreground font-semibold">{total}</strong> 张
           </span>
-          {activeFilterCount > 0 && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={resetFilters}
-              className="h-5 text-[10px] text-muted-foreground hover:text-amber-400 px-1 gap-1"
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Select
+              value={sortField}
+              onValueChange={(val) => {
+                const option = SORT_OPTIONS.find((o) => o.value === val) ?? SORT_OPTIONS[0]
+                setFilters({ sortField: option.value, sortOrder: option.order })
+              }}
             >
-              <RotateCcw className="w-2.5 h-2.5" />
-              <span>清空筛选</span>
-            </Button>
-          )}
+              <SelectTrigger
+                size="sm"
+                className="h-5.5 w-[92px] shrink-0 gap-0.5 px-1.5 text-[10px] [&_svg]:size-3"
+              >
+                <SelectValue>{sortLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
-      {/* 4. 筛选面板与卡片网格共用主体区域：面板窄，展开时直接顶替结果区 */}
-      {showFilter ? (
-        <FilterDrawer
-          className="flex-1 min-h-0 w-full border-b border-border/60"
-          onClose={() => setIsFilterOpen(false)}
-        />
-      ) : (
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="p-2">
-            {activeTab === 'search' && isLoading && results.length === 0 ? (
-              <div className="h-40 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                <span>正在检索卡片...</span>
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-2">
+          {activeTab === 'search' && isLoading && results.length === 0 ? (
+            <div className="h-40 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span>正在检索卡片...</span>
+            </div>
+          ) : showEmptyState && currentDisplayList.length === 0 ? (
+            <div className="h-40 flex flex-col items-center justify-center gap-1.5 text-xs text-muted-foreground">
+              {activeTab === 'favorites' ? (
+                <>
+                  <Star className="w-6 h-6 text-muted-foreground/40 stroke-1" />
+                  <span>暂无收藏卡片</span>
+                  <span className="text-[11px] text-muted-foreground/60">
+                    点击卡片右上角星星即可加入收藏
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Layers className="w-6 h-6 text-muted-foreground/40 stroke-1" />
+                  <span>未找到符合条件的卡片</span>
+                  <span className="text-[11px] text-muted-foreground/60">
+                    可尝试放宽关键词或清空筛选条件
+                  </span>
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="space-y-1">
+                {currentDisplayList.map((card) => (
+                  <SearchCardItem
+                    key={`search_card_${card.id}`}
+                    card={card}
+                    fav={isFavorite(card.id)}
+                    onSelectCard={onSelectCard}
+                    onAddCard={onAddCard}
+                    onToggleFavorite={toggleFavorite}
+                    onOpenMenu={handleOpenMenu}
+                  />
+                ))}
               </div>
-            ) : showEmptyState && currentDisplayList.length === 0 ? (
-              <div className="h-40 flex flex-col items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                {activeTab === 'favorites' ? (
-                  <>
-                    <Star className="w-6 h-6 text-muted-foreground/40 stroke-1" />
-                    <span>暂无收藏卡片</span>
-                    <span className="text-[11px] text-muted-foreground/60">
-                      点击卡片右上角星星即可加入收藏
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Layers className="w-6 h-6 text-muted-foreground/40 stroke-1" />
-                    <span>未找到符合条件的卡片</span>
-                    <span className="text-[11px] text-muted-foreground/60">
-                      可尝试放宽关键词或清空筛选条件
-                    </span>
-                  </>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-3 gap-2.5">
-                  {currentDisplayList.map((card) => (
-                    <SearchCardItem
-                      key={`search_card_${card.id}`}
-                      card={card}
-                      fav={isFavorite(card.id)}
-                      onSelectCard={onSelectCard}
-                      onAddCard={onAddCard}
-                      onToggleFavorite={toggleFavorite}
-                      onOpenMenu={handleOpenMenu}
-                    />
-                  ))}
+
+              {activeTab === 'search' && <div ref={sentinelRef} className="h-px" />}
+
+              {activeTab === 'search' && isLoadingMore && (
+                <div className="h-6 flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground/70">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>加载中...</span>
                 </div>
-
-                {activeTab === 'search' && hasMore && (
-                  <Button
-                    variant="secondary"
-                    size="xs"
-                    onClick={() => void loadMore()}
-                    aria-busy={isLoadingMore}
-                    className="w-full mt-2.5 h-7 text-[11px] font-semibold"
-                  >
-                    <span>加载更多</span>
-                    <Loader2
-                      className={cn(
-                        'w-3 h-3 transition-opacity',
-                        isLoadingMore ? 'animate-spin opacity-100' : 'opacity-0'
-                      )}
-                    />
-                  </Button>
-                )}
-
-                {activeTab === 'search' && total > 0 && (
-                  <div className="mt-1.5 text-center text-[10px] text-muted-foreground/70 tabular-nums">
-                    已显示 {results.length} / {total}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </ScrollArea>
-      )}
+              )}
+            </>
+          )}
+        </div>
+      </ScrollArea>
 
       <DeckRemoveFeedback />
 

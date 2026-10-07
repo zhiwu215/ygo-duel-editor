@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { AppConfig } from '@shared/index'
+import { alertDialog } from './useDialogStore'
 
 interface ConfigStoreState {
   config: AppConfig
@@ -83,7 +84,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
         return res.path
       }
       if (res.error) {
-        alert(`设置 YGO 路径失败：${res.error}`)
+        void alertDialog(`设置 YGO 路径失败：${res.error}`)
       }
       return null
     } catch (err) {
@@ -98,12 +99,12 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       if (res.success && res.path) {
         await get().loadConfig()
         if (res.picsDetected === false) {
-          alert('已添加卡库，但未自动找到卡图目录，卡牌将不显示图片。')
+          void alertDialog('已添加卡库，但未自动找到卡图目录，卡牌将不显示图片。')
         }
         return res.path
       }
       if (res.error) {
-        alert(`添加附加卡库失败：${res.error}`)
+        void alertDialog(`添加附加卡库失败：${res.error}`)
       }
       return null
     } catch (err) {

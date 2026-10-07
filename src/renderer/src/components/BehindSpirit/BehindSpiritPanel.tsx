@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 import {
   AgentProviderModelConfig,
   AgentNovelSourceRef,
@@ -269,16 +270,16 @@ export function BehindSpiritPanel(): JSX.Element {
   const handleFileDrop = async (files: File[]): Promise<void> => {
     const file = files[0]
     if (files.length > 1) {
-      window.alert('一次只能附加一个文本文件，已取第一个')
+      void alertDialog('一次只能附加一个文本文件，已取第一个')
     }
     try {
       const content = await file.text()
       if (!content.trim()) {
-        window.alert('这个文件是空的')
+        void alertDialog('这个文件是空的')
         return
       }
       if (content.length > MAX_DRAGGED_TEXT_CHARS) {
-        window.alert(
+        void alertDialog(
           `文件过大（${content.length} 字，上限 ${MAX_DRAGGED_TEXT_CHARS}）。请拆分后拖入，或先在资料库按章节导入`
         )
         return
@@ -291,7 +292,7 @@ export function BehindSpiritPanel(): JSX.Element {
       })
     } catch (err) {
       console.error('[BehindSpiritPanel] 读取拖入文件失败:', err)
-      window.alert('读取文件失败，请确认文件未被占用')
+      void alertDialog('读取文件失败，请确认文件未被占用')
     }
   }
 
@@ -320,9 +321,11 @@ export function BehindSpiritPanel(): JSX.Element {
     if (!msg) return
     const fieldCards = useDuelStore.getState().state.cards
     if (fieldCards.length > 0) {
-      const confirmed = window.confirm(
-        `当前决斗盘上已有 ${fieldCards.length} 张卡。\n应用会把盘面清空并按提案重建，已排的步骤也会被替换。继续吗？`
-      )
+      const confirmed = await confirmDialog({
+        title: '应用提案',
+        description: `当前决斗盘上已有 ${fieldCards.length} 张卡。\n应用会把盘面清空并按提案重建，已排的步骤也会被替换。继续吗？`,
+        confirmText: '继续'
+      })
       if (!confirmed) return
     }
     setApplyingProposalMsgId(messageId)

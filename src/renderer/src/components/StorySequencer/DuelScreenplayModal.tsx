@@ -9,6 +9,7 @@ import {
   CardLocation
 } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -179,16 +180,16 @@ export const DuelScreenplayModal: React.FC = () => {
     if (!window.api?.exportScreenplayFile) return
     const res = await window.api.exportScreenplayFile(state)
     if (res.success && res.filePath) {
-      alert(`决斗剧本台本已成功导出：\n${res.filePath}`)
+      void alertDialog(`决斗剧本台本已成功导出：\n${res.filePath}`)
     } else if (res.error) {
-      alert(`导出失败: ${res.error}`)
+      void alertDialog(`导出失败: ${res.error}`)
     }
   }
 
   const handleSaveToArchive = async (): Promise<void> => {
     if (!window.api?.saveProjectToLibrary) return
     if ((state.steps || []).length === 0) {
-      alert('还没有任何步骤，先编排或让 AI 转写后再存入档案。')
+      void alertDialog('还没有任何步骤，先编排或让 AI 转写后再存入档案。')
       return
     }
     const res = await window.api.saveProjectToLibrary(state)
@@ -196,7 +197,7 @@ export const DuelScreenplayModal: React.FC = () => {
       setSavedToArchive(true)
       setTimeout(() => setSavedToArchive(false), 2500)
     } else {
-      alert(`存入档案失败: ${res.error || '未知错误'}`)
+      void alertDialog(`存入档案失败: ${res.error || '未知错误'}`)
     }
   }
 
@@ -802,9 +803,13 @@ export const DuelScreenplayModal: React.FC = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          if (window.confirm('确定要删除这一个动作步骤吗？')) {
-                            deleteStep(activeStep.id)
-                          }
+                          void confirmDialog({
+                            title: '删除步骤',
+                            description: '确定要删除这一个动作步骤吗？',
+                            confirmText: '删除'
+                          }).then((ok) => {
+                            if (ok) deleteStep(activeStep.id)
+                          })
                         }}
                         className="text-destructive/90 bg-destructive/5 hover:text-destructive hover:bg-destructive/10 text-xs gap-1"
                       >

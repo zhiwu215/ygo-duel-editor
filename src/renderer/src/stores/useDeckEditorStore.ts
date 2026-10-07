@@ -47,6 +47,8 @@ interface DeckEditorState {
   createNewDeck: () => void
   backToLibrary: () => Promise<void>
   saveCurrentDeckToLibrary: () => Promise<boolean>
+  /** 另存：以当前名称存入指定分组，同分组同名时覆盖那份 */
+  saveDeckAsToLibrary: (group: string) => Promise<boolean>
   deleteDeckFromLibrary: (id: string) => Promise<boolean>
   duplicateDeckInLibrary: (id: string) => Promise<DeckData | null>
   importDeckFileToLibrary: () => Promise<boolean>
@@ -75,6 +77,7 @@ interface DeckEditorState {
   clearDeck: () => void
   loadDeck: (deck: DeckData) => Promise<void>
   sortDeck: () => void
+  shuffleDeck: () => void
   drawTestHand: () => number[]
   closeTestHand: () => void
   saveDeckFile: () => Promise<{ success: boolean; filePath?: string; error?: string }>
@@ -227,6 +230,25 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
       }
     } catch (err) {
       console.error('[DeckEditorStore] saveCurrentDeckToLibrary error:', err)
+    }
+    return false
+  },
+
+  saveDeckAsToLibrary: async (group): Promise<boolean> => {
+    const { deck, deckList } = get()
+    const name = deck.name.trim()
+    if (!name || !window.api?.saveDeckToLibrary) return false
+    const twin = deckList.find((d) => (d.group ?? '') === group && d.name === name)
+    const copy: DeckData = { ...deck, id: twin?.id, name, group: group || undefined }
+    try {
+      const res = await window.api.saveDeckToLibrary(copy)
+      if (res.success && res.deck) {
+        set({ deck: res.deck })
+        await get().fetchDeckList()
+        return true
+      }
+    } catch (err) {
+      console.error('[DeckEditorStore] saveDeckAsToLibrary error:', err)
     }
     return false
   },
@@ -495,6 +517,16 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
         side: [...deck.side].sort(compareCards)
       }
     })
+  },
+
+  shuffleDeck: (): void => {
+    const { deck } = get()
+    const pool = [...deck.main]
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[pool[i], pool[j]] = [pool[j], pool[i]]
+    }
+    set({ deck: { ...deck, main: pool } })
   },
 
   drawTestHand: (): number[] => {

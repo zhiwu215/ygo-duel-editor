@@ -9,6 +9,7 @@ import {
   isGroupDescendant
 } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
+import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -222,15 +223,21 @@ export const DeckLibraryView: React.FC = () => {
   const handleExportSingle = async (deck: DeckData): Promise<void> => {
     const res = await window.api.saveDeckFile(deck)
     if (res.success && res.filePath) {
-      alert(`卡组已成功导出：\n${res.filePath}`)
+      void alertDialog(`卡组已成功导出：\n${res.filePath}`)
     } else if (res.error) {
-      alert(`导出失败: ${res.error}`)
+      void alertDialog(`导出失败: ${res.error}`)
     }
   }
 
   const handleDelete = async (deck: DeckData): Promise<void> => {
     if (!deck.id) return
-    if (confirm(`确认删除卡组「${deck.name}」？此操作不可逆。`)) {
+    if (
+      await confirmDialog({
+        title: `删除卡组「${deck.name}」`,
+        description: '此操作不可逆。',
+        confirmText: '删除'
+      })
+    ) {
       await deleteDeckFromLibrary(deck.id)
     }
   }
@@ -264,7 +271,13 @@ export const DeckLibraryView: React.FC = () => {
         `该分组下的 ${count} 个卡组将退回「${groupParentPath(name) || '未分组'}」，卡组本身不会被删除。`
       )
     }
-    if (confirm(parts.join('\n'))) {
+    if (
+      await confirmDialog({
+        title: `删除分组「${name}」`,
+        description: parts.join('\n'),
+        confirmText: '删除'
+      })
+    ) {
       await deleteGroup(name)
     }
   }

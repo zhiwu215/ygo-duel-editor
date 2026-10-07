@@ -8,24 +8,17 @@ import {
   ChevronRight,
   RotateCcw,
   Sparkles,
-  Star,
   X
 } from 'lucide-react'
 import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { CdbCard, CardUtils, LIMIT_MARKS, LINK_MARKERS, cardPoolLabel, otBadgeIds } from '@shared/index'
-import { getCardImageUrl, setCardDragImage, CARD_BACK_IMAGE } from '../../utils/cardImage'
-import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
+import { CdbCard } from '@shared/index'
+import { setCardDragImage } from '../../utils/cardImage'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
-import limitSprite from '../../assets/textures/lim.png'
-import { CardPoolBadges } from './CardPoolBadges'
-
-const LIMIT_SPRITE_SIZE = 64
-const LIMIT_BADGE_SIZE = 24
-const LIMIT_SPRITE_SCALE = LIMIT_BADGE_SIZE / LIMIT_SPRITE_SIZE
+import { CardRowItem } from './CardRowItem'
 
 export const CardSearchPanel: React.FC = () => {
   const {
@@ -190,127 +183,17 @@ export const CardSearchPanel: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-1.5">
-            {results.map((card) => {
-              const line2 = formatSearchItemLine2(card)
-              const line3 = formatSearchItemLine3(card)
-              const poolText =
-                card.pools && card.pools.length > 0
-                  ? card.pools.map((pool) => `[${cardPoolLabel(pool)}]`).join('')
-                  : ''
-              const isMonster = CardUtils.isMonster(card.type)
-              const otBadges =
-                cardPool === 'ocgOnly' || cardPool === 'tcgOnly' ? otBadgeIds(card.ot) : []
-
-              return (
-                <div
-                  key={card.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, card)}
-                  onMouseEnter={() => setHoveredCard(card)}
-                  onClick={() => setHoveredCard(card)}
-                  className="flex items-center gap-3 px-2.5 py-1.5 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-amber-400/40 cursor-grab active:cursor-grabbing transition-all group shadow-2xs h-[100px]"
-                >
-                  <div className="relative shrink-0">
-                    <img
-                      src={getCardImageUrl(card.id)}
-                      alt={card.name}
-                      loading="lazy"
-                      className="w-[64px] h-[92px] object-cover rounded border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
-                      onError={(e) => {
-                        const target = e.currentTarget
-                        if (target.src !== CARD_BACK_IMAGE) {
-                          target.src = CARD_BACK_IMAGE
-                        }
-                      }}
-                    />
-                    {(() => {
-                      const mark = LIMIT_MARKS.find((m) => m.id === card.limit)
-                      if (!mark) return null
-                      return (
-                        <span
-                          className="absolute -left-1 -top-1 drop-shadow"
-                          style={{
-                            width: `${LIMIT_BADGE_SIZE}px`,
-                            height: `${LIMIT_BADGE_SIZE}px`,
-                            backgroundImage: `url(${limitSprite})`,
-                            backgroundSize: `${LIMIT_SPRITE_SIZE * 2 * LIMIT_SPRITE_SCALE}px ${LIMIT_SPRITE_SIZE * 2 * LIMIT_SPRITE_SCALE}px`,
-                            backgroundPosition: `-${mark.spriteX * LIMIT_SPRITE_SCALE}px -${mark.spriteY * LIMIT_SPRITE_SCALE}px`
-                          }}
-                          title={mark.label}
-                        />
-                      )
-                    })()}
-                    <CardPoolBadges pools={card.pools} extraBadges={otBadges} />
-                  </div>
-
-                  <div className="flex-1 min-w-0 flex flex-col justify-center gap-1 select-none">
-                    <span className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors leading-tight">
-                      {card.name}
-                    </span>
-
-                    <div className="text-xs text-foreground/80 leading-tight truncate">
-                      {line2}
-                      {!isMonster && poolText && (
-                        <span className="ml-1.5 text-muted-foreground font-normal">{poolText}</span>
-                      )}
-                    </div>
-
-                    {line3 && (
-                      <div className="text-xs font-mono text-foreground/75 leading-tight truncate">
-                        {line3}
-                        {isMonster && poolText && (
-                          <span className="ml-1.5 font-sans text-muted-foreground font-normal">
-                            {poolText}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="shrink-0 flex flex-col items-end gap-0.5">
-                    {card.markers !== undefined && card.markers !== 0 && (
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <span className="text-[13px] leading-none text-sky-500/85 tracking-tight">
-                              {LINK_MARKERS.filter((m) => (card.markers! & m.mask) !== 0)
-                                .map((m) => m.label)
-                                .join('')}
-                            </span>
-                          }
-                        />
-                        <TooltipContent>连接标记（箭头）</TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleFavorite(card.id)
-                          }}
-
-                          className="p-1 rounded text-muted-foreground hover:text-amber-400 shrink-0 transition-opacity"
-                        >
-                          <Star
-                            className={`w-3.5 h-3.5 transition-all ${
-                              isFavorite(card.id)
-                                ? 'fill-amber-400 text-amber-400 opacity-100'
-                                : 'opacity-0 group-hover:opacity-100 hover:text-foreground'
-                            }`}
-                          />
-                        </button>
-                      }
-                    />
-                    <TooltipContent>{isFavorite(card.id) ? '取消收藏' : '收藏此卡'}</TooltipContent>
-                  </Tooltip>
-                </div>
-              )
-            })}
+            {results.map((card) => (
+              <CardRowItem
+                key={card.id}
+                card={card}
+                cardPool={cardPool}
+                isFavorite={isFavorite(card.id)}
+                onToggleFavorite={toggleFavorite}
+                onHover={setHoveredCard}
+                onDragStart={handleDragStart}
+              />
+            ))}
 
             {isLoadingMore && (
               <div className="py-2 text-center text-xs text-muted-foreground flex items-center justify-center gap-1">

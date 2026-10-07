@@ -29,7 +29,7 @@ interface SearchToken {
   excluded: boolean
 }
 
-function parseSearchTokens(input: string): SearchToken[] {
+export function parseSearchTokens(input: string): SearchToken[] {
   const tokens: SearchToken[] = []
   let index = 0
 
@@ -80,42 +80,54 @@ function subtypeOrder(type: number): number {
   return type & 0x48020c0 ? type & 0x48020c1 : type & 0x31
 }
 
-function compareCards(params: CardSearchParams): (a: CdbCard, b: CdbCard) => number {
+type MonsterSortStep = 'sub' | 'level' | 'atk' | 'def'
+
+function deckSortComparator(
+  params: CardSearchParams,
+  monsterSteps: MonsterSortStep[]
+): (a: CdbCard, b: CdbCard) => number {
+  const keyDir = params.sortOrder === 'ASC' ? 1 : -1
+  const groupDir = -keyDir
+  const stepValue = (card: CdbCard, step: MonsterSortStep): number => {
+    if (step === 'sub') return subtypeOrder(card.type)
+    if (step === 'level') return (card.level ?? 0) & 255
+    if (step === 'atk') return card.atk ?? 0
+    return card.def ?? 0
+  }
+  return (a, b) => {
+    const at = a.type & 0x7
+    const bt = b.type & 0x7
+    if (at !== bt) return (at - bt) * groupDir
+    if (at !== CardType.MONSTER) {
+      const ar = a.type & ~0x7
+      const br = b.type & ~0x7
+      if (ar !== br) return (ar - br) * groupDir
+      return (a.id ?? 0) - (b.id ?? 0)
+    }
+    for (const step of monsterSteps) {
+      const av = stepValue(a, step)
+      const bv = stepValue(b, step)
+      if (av !== bv) return (av - bv) * keyDir
+    }
+    return (a.id ?? 0) - (b.id ?? 0)
+  }
+}
+
+export function compareCards(params: CardSearchParams): (a: CdbCard, b: CdbCard) => number {
   const dir = params.sortOrder === 'ASC' ? 1 : -1
   switch (params.sortField) {
     case 'atk':
-      return (a, b) => ((a.atk ?? 0) - (b.atk ?? 0)) * dir
+      return deckSortComparator(params, ['atk', 'def', 'level', 'sub'])
     case 'def':
-      return (a, b) => ((a.def ?? 0) - (b.def ?? 0)) * dir
-    case 'level':
-      return (a, b) => (((a.level ?? 0) & 255) - ((b.level ?? 0) & 255)) * dir
+      return deckSortComparator(params, ['def', 'atk', 'level', 'sub'])
     case 'name':
-      return (a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')) * dir
-    default:
       return (a, b) => {
-        const at = a.type & 0x7
-        const bt = b.type & 0x7
-        if (at !== bt) return (at - bt) * -dir
-        if (at === CardType.MONSTER) {
-          const as = subtypeOrder(a.type)
-          const bs = subtypeOrder(b.type)
-          if (as !== bs) return (as - bs) * -dir
-          const al = (a.level ?? 0) & 255
-          const bl = (b.level ?? 0) & 255
-          if (al !== bl) return (al - bl) * dir
-          const aa = a.atk ?? 0
-          const ba = b.atk ?? 0
-          if (aa !== ba) return (aa - ba) * dir
-          const ad = a.def ?? 0
-          const bd = b.def ?? 0
-          if (ad !== bd) return (ad - bd) * dir
-          return (a.id ?? 0) - (b.id ?? 0)
-        }
-        const ar = a.type & ~0x7
-        const br = b.type & ~0x7
-        if (ar !== br) return (ar - br) * -dir
+        const res = String(a.name ?? '').localeCompare(String(b.name ?? ''))
+        if (res !== 0) return res * dir
         return (a.id ?? 0) - (b.id ?? 0)
       }
+    default:
+      return deckSortComparator(params, ['sub', 'level', 'atk', 'def'])
   }
 }
 
@@ -564,7 +576,7 @@ export class CdbService {
     const perDbLimit = offset + limit
 
     let total = 0
-    const collected: CdbCard[] = []
+    let collected: CdbCard[] = []
     const seen = new Set<number>()
 
     for (const conn of this.connections) {
@@ -577,9 +589,20 @@ export class CdbService {
       }
     }
 
-    const keywordActive = (params.keyword ?? '').trim().length > 0
-    const keepRelevanceOrder = keywordActive && (!params.sortField || params.sortField === 'id')
-    if (!keepRelevanceOrder) collected.sort(compareCards(params))
+    const keyword = (params.keyword ?? '').trim()
+    if (keyword.length > 0) {
+      const exact: CdbCard[] = []
+      const rest: CdbCard[] = []
+      for (const card of collected) {
+        if (card.name === keyword) exact.push(card)
+        else rest.push(card)
+      }
+      exact.sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+      rest.sort(compareCards(params))
+      collected = [...exact, ...rest]
+    } else {
+      collected.sort(compareCards(params))
+    }
 
     for (const card of collected) {
       if (card.setcode) {
@@ -608,7 +631,9 @@ export class CdbService {
         overlays.length > 0
           ? `COALESCE(${[...overlays.map((alias) => `${alias}.${column}`), `t.${column}`].join(', ')})`
           : `t.${column}`,
-      join: overlays.map((alias) => ` LEFT JOIN ${alias}.texts ${alias} ON ${alias}.id = d.id`).join('')
+      join: overlays
+        .map((alias) => ` LEFT JOIN ${alias}.texts ${alias} ON ${alias}.id = d.id`)
+        .join('')
     }
   }
 
@@ -792,21 +817,33 @@ export class CdbService {
       const total = countRow?.total ?? 0
 
       const orderDir = params.sortOrder === 'ASC' ? 'ASC' : 'DESC'
-      let orderBy = 'd.id'
-      if (params.sortField === 'atk') orderBy = 'd.atk'
-      else if (params.sortField === 'def') orderBy = 'd.def'
-      else if (params.sortField === 'level') orderBy = '(d.level & 255)'
-      else if (params.sortField === 'name') orderBy = nameExpr
-      else {
-        orderBy = `
-          (d.type & 7) ${orderDir === 'ASC' ? 'DESC' : 'ASC'},
-          CASE WHEN (d.type & 7) = 1 THEN
-            CASE WHEN (d.type & 0x48020c0) != 0 THEN (d.type & 0x48020c1) ELSE (d.type & 0x31) END
-          ELSE (d.type & 4294967288) END ${orderDir === 'ASC' ? 'DESC' : 'ASC'},
-          CASE WHEN (d.type & 7) = 1 THEN (d.level & 255) ELSE 0 END ${orderDir},
-          CASE WHEN (d.type & 7) = 1 THEN d.atk ELSE 0 END ${orderDir},
-          CASE WHEN (d.type & 7) = 1 THEN d.def ELSE 0 END ${orderDir},
-          d.id ${orderDir === 'ASC' ? 'DESC' : 'ASC'}`
+      const groupDir = orderDir === 'ASC' ? 'DESC' : 'ASC'
+      const monsterKey = (column: string): string =>
+        `CASE WHEN (d.type & 7) = 1 THEN ${column} ELSE 0 END ${orderDir}`
+      const typeGroupSql = `(d.type & 7) ${groupDir}`
+      const subtypeSql =
+        `CASE WHEN (d.type & 7) = 1 THEN` +
+        ` CASE WHEN (d.type & 0x48020c0) != 0 THEN (d.type & 0x48020c1) ELSE (d.type & 0x31) END` +
+        ` ELSE (d.type & 4294967288) END ${groupDir}`
+      const levelKeySql = monsterKey('(d.level & 255)')
+      const atkKeySql = monsterKey('d.atk')
+      const defKeySql = monsterKey('d.def')
+      const idTailSql = `d.id ${groupDir}`
+      let orderBy: string
+      if (params.sortField === 'atk') {
+        orderBy = [typeGroupSql, atkKeySql, defKeySql, levelKeySql, subtypeSql, idTailSql].join(
+          ', '
+        )
+      } else if (params.sortField === 'def') {
+        orderBy = [typeGroupSql, defKeySql, atkKeySql, levelKeySql, subtypeSql, idTailSql].join(
+          ', '
+        )
+      } else if (params.sortField === 'name') {
+        orderBy = `${nameExpr} ${orderDir}, d.id ASC`
+      } else {
+        orderBy = [typeGroupSql, subtypeSql, levelKeySql, atkKeySql, defKeySql, idTailSql].join(
+          ', '
+        )
       }
 
       if (relevanceTokens.length > 0) {

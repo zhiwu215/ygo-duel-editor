@@ -1,9 +1,12 @@
 import localCover from '../assets/textures/cover.jpg'
 import localCover2 from '../assets/textures/cover2.jpg'
+import localUnknown from '../assets/textures/unknown.jpg'
 
 export const CARD_BACK_IMAGE = localCover
 
 export const CARD_BACK_OPPONENT_IMAGE = localCover2
+
+export const UNKNOWN_CARD_IMAGE = localUnknown
 
 let imageVersion = 0
 

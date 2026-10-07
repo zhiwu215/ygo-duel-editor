@@ -126,17 +126,12 @@ const DeckZoneFeedback: React.FC<{
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-      <div className="flex flex-col items-center gap-2.5">
-        {valid && (
-          <span className="text-xs font-bold text-foreground/70">可以向卡组中添加卡片</span>
+      <div className="w-24 h-24 rounded-full bg-white shadow-2xl ring-1 ring-black/10 flex items-center justify-center">
+        {valid ? (
+          <Plus className="w-12 h-12 text-blue-600" strokeWidth={3} />
+        ) : (
+          <Ban className="w-11 h-11 text-red-600" strokeWidth={2.5} />
         )}
-        <div className="w-24 h-24 rounded-full bg-white shadow-2xl ring-1 ring-black/10 flex items-center justify-center">
-          {valid ? (
-            <Plus className="w-12 h-12 text-blue-600" strokeWidth={3} />
-          ) : (
-            <Ban className="w-11 h-11 text-red-600" strokeWidth={2.5} />
-          )}
-        </div>
       </div>
     </div>
   )
@@ -161,43 +156,24 @@ interface Layout {
   cardWidth: number
 }
 
-const pickLayout = (
-  availW: number,
-  availH: number,
-  counts: { main: number; extra: number; side: number }
-): Layout => {
+/** 三区行数预算是布局常量（对齐 YGOPro：区域高度固定），加卡只追加行、超出走外层纵向滚动，绝不全场重排 */
+const LAYOUT_ROWS = 6
+
+const pickLayout = (availW: number, availH: number): Layout => {
   const budget = availH - ZONE_CHROME * 3 - ZONE_STACK_GAP * 2
-  const rowsAt = (cols: number): number =>
-    Math.max(1, Math.ceil(counts.main / cols)) +
-    Math.max(1, Math.ceil(counts.extra / cols)) +
-    Math.max(1, Math.ceil(counts.side / cols))
+  const heightCap = ((budget - ROW_GAP * (LAYOUT_ROWS - 3)) / LAYOUT_ROWS) * CARD_ASPECT
   const widthAt = (cols: number): number =>
     (availW - ZONE_PADDING * 2 - ROW_GAP * (cols - 1)) / cols
-  const heightCap = (cols: number): number =>
-    ((budget - ROW_GAP * (rowsAt(cols) - 3)) / rowsAt(cols)) * CARD_ASPECT
   const spanOf = (cols: number, cardWidth: number): number =>
     cols * cardWidth + ROW_GAP * (cols - 1)
-  const heightOf = (cols: number, cardWidth: number): number =>
-    (rowsAt(cols) * cardWidth) / CARD_ASPECT + ROW_GAP * (rowsAt(cols) - 3)
 
   let best: Layout | null = null
-  let bestOverflow = 0
-  const consider = (cols: number, cardWidth: number): void => {
-    const overflow = Math.max(0, heightOf(cols, cardWidth) - budget)
-    if (!best) {
+  for (let cols = MIN_COLUMNS; cols <= MAX_COLUMNS; cols++) {
+    const cardWidth = Math.min(MAX_CARD_WIDTH, heightCap, widthAt(cols))
+    if (cardWidth < MIN_CARD_WIDTH) continue
+    if (!best || cardWidth > best.cardWidth + 0.5) {
       best = { cols, cardWidth }
-      bestOverflow = overflow
-      return
-    }
-    if (overflow < bestOverflow - 0.5) {
-      best = { cols, cardWidth }
-      bestOverflow = overflow
-      return
-    }
-    if (overflow > bestOverflow + 0.5) return
-    if (cardWidth > best.cardWidth + 0.5) {
-      best = { cols, cardWidth }
-      return
+      continue
     }
     if (
       cardWidth >= best.cardWidth - 0.5 &&
@@ -205,17 +181,6 @@ const pickLayout = (
     ) {
       best = { cols, cardWidth }
     }
-  }
-
-  for (let cols = MIN_COLUMNS; cols <= MAX_COLUMNS; cols++) {
-    const cardWidth = Math.min(MAX_CARD_WIDTH, heightCap(cols), widthAt(cols))
-    if (cardWidth >= MIN_CARD_WIDTH) consider(cols, cardWidth)
-  }
-  if (best) return best
-
-  for (let cols = MIN_COLUMNS; cols <= MAX_COLUMNS; cols++) {
-    const cardWidth = Math.min(MAX_CARD_WIDTH, widthAt(cols))
-    if (cardWidth >= MIN_CARD_WIDTH) consider(cols, cardWidth)
   }
   return best ?? { cols: MIN_COLUMNS, cardWidth: MIN_CARD_WIDTH }
 }
@@ -237,9 +202,6 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [layout, setLayout] = useState<Layout>({ cols: 10, cardWidth: MAX_CARD_WIDTH })
   const layoutRef = useRef<Layout>(layout)
-  const mainCount = deck.main.length
-  const extraCount = deck.extra.length
-  const sideCount = deck.side.length
 
   const handleOpenMenu = useCallback((code: number, x: number, y: number): void => {
     setMenu({ code, x, y })
@@ -250,14 +212,13 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
   }, [])
 
   useLayoutEffect(() => {
-    const counts = { main: mainCount, extra: extraCount, side: sideCount }
     const measure = (): void => {
       const el = scrollRef.current
       if (!el) return
       const availW = el.clientWidth
       const availH = el.clientHeight - H_SCROLLBAR_RESERVE
       if (availW <= 0 || availH <= 0) return
-      const next = pickLayout(availW, availH, counts)
+      const next = pickLayout(availW, availH)
       const prev = layoutRef.current
       if (prev.cols === next.cols && Math.abs(prev.cardWidth - next.cardWidth) < 0.5) return
       layoutRef.current = next
@@ -271,7 +232,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
       ro.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [mainCount, extraCount, sideCount])
+  }, [])
 
   useEffect(() => {
     if (!menu) return

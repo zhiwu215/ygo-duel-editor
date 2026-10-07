@@ -4,6 +4,7 @@ import { X, Save, Plus } from 'lucide-react'
 import { DuelType, DuelPuzzleState } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { useConfigStore } from '../../../stores/useConfigStore'
+import { alertDialog } from '../../../stores/useDialogStore'
 import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
 import { Textarea } from '../../ui/textarea'
@@ -68,13 +69,13 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
       const res = await window.api.saveProjectFile(stateToSave)
       if (res.success && res.filePath) {
         onClose()
-        alert(`工程已成功保存：\n${res.filePath}`)
+        void alertDialog(`工程已成功保存：\n${res.filePath}`)
       } else {
         onClose()
       }
     } catch (err) {
       console.error('[SaveProjectModal] 保存工程失败:', err)
-      alert('保存工程失败，请重试')
+      void alertDialog('保存工程失败，请重试')
     } finally {
       setIsSaving(false)
     }

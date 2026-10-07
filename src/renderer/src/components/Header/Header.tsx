@@ -3,6 +3,7 @@ import React, { useEffect } from 'react'
 import { useStore } from 'zustand'
 import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 import { MASTER_RULES, MasterRule, SELECTABLE_MASTER_RULES, isExportableMatch } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -35,9 +36,12 @@ export const Header: React.FC = () => {
   const [isSaveModalOpen, setIsSaveModalOpen] = React.useState(false)
 
   const handleNew = React.useCallback((): void => {
-    if (confirm('确认清空当前局面并新建对局？')) {
-      resetDuel()
-    }
+    void confirmDialog({
+      title: '新建对局',
+      description: '确认清空当前局面并新建对局？'
+    }).then((ok) => {
+      if (ok) resetDuel()
+    })
   }, [resetDuel])
 
   const handleSaveProject = React.useCallback((): void => {
@@ -55,16 +59,16 @@ export const Header: React.FC = () => {
     if (!isExportableMatch(state.matchConfig)) {
       const t0 = state.matchConfig?.team0Count ?? 1
       const t1 = state.matchConfig?.team1Count ?? 1
-      alert(
-        `当前对阵 (${t0}v${t1}) 仅用于剧情编排，暂无法导出 Lua。\n\nocgcore 单机引擎物理上仅支持 1v1 与 2v2 双打导出。请在对阵选择器中切换至 1v1 或 2v2 后再进行导出。`
+      void alertDialog(
+        `无法导出 Lua\n\n当前对阵 (${t0}v${t1}) 仅用于剧情编排，暂无法导出 Lua。\nocgcore 单机引擎物理上仅支持 1v1 与 2v2 双打导出。请在对阵选择器中切换至 1v1 或 2v2 后再进行导出。`
       )
       return
     }
     const res = await window.api.exportLuaFile(state)
     if (res.success && res.filePath) {
-      alert(`Lua 决斗脚本导出成功！\n路径: ${res.filePath}`)
+      void alertDialog(`Lua 决斗脚本导出成功！\n路径: ${res.filePath}`)
     } else if (res.error) {
-      alert(`导出失败: ${res.error}`)
+      void alertDialog(`导出失败: ${res.error}`)
     }
   }, [state])
 
@@ -73,7 +77,7 @@ export const Header: React.FC = () => {
     if (res.success && res.state) {
       loadState(res.state)
     } else if (res.error) {
-      alert(`导入失败: ${res.error}`)
+      void alertDialog(`导入失败: ${res.error}`)
     }
   }, [loadState])
 
@@ -81,9 +85,9 @@ export const Header: React.FC = () => {
     if (!window.api?.exportScreenplayFile) return
     const res = await window.api.exportScreenplayFile(state)
     if (res.success && res.filePath) {
-      alert(`同人决斗剧本台本已成功导出：\n${res.filePath}`)
+      void alertDialog(`同人决斗剧本台本已成功导出：\n${res.filePath}`)
     } else if (res.error) {
-      alert(`导出失败: ${res.error}`)
+      void alertDialog(`导出失败: ${res.error}`)
     }
   }, [state])
 

@@ -111,11 +111,11 @@ export const DuelArchivesPanel: React.FC = () => {
         setLastLoadedPath(item.filePath)
         flash(`已载入《${item.title}》，已就绪于第 1 回合`)
       } else if (res.error) {
-        alert(`载入失败: ${res.error}`)
+        void alertDialog(`载入失败: ${res.error}`)
       }
     } catch (err) {
       console.error('[DuelArchives] Load project failed:', err)
-      alert('载入工程档案失败')
+      void alertDialog('载入工程档案失败')
     }
   }
 
@@ -125,7 +125,7 @@ export const DuelArchivesPanel: React.FC = () => {
     if (res.success) {
       void fetchProjects()
     } else if (res.error) {
-      alert(`创建副本失败: ${res.error}`)
+      void alertDialog(`创建副本失败: ${res.error}`)
     }
   }
 
@@ -136,7 +136,12 @@ export const DuelArchivesPanel: React.FC = () => {
 
   const handleDelete = async (e: React.MouseEvent, item: DuelProjectMeta): Promise<void> => {
     e.stopPropagation()
-    if (confirm(`确认删除对局档案《${item.title}》？\n此操作将从磁盘彻底移除该文件。`)) {
+    const ok = await confirmDialog({
+      title: `删除对局档案《${item.title}》`,
+      description: '此操作将从磁盘彻底移除该文件。',
+      confirmText: '删除'
+    })
+    if (ok) {
       const res = await window.api.deleteProjectFile(item.filePath)
       if (res.success) {
         if (lastLoadedPath === item.filePath) {
@@ -144,7 +149,7 @@ export const DuelArchivesPanel: React.FC = () => {
         }
         void fetchProjects()
       } else if (res.error) {
-        alert(`删除失败: ${res.error}`)
+        void alertDialog(`删除失败: ${res.error}`)
       }
     }
   }
@@ -190,7 +195,7 @@ export const DuelArchivesPanel: React.FC = () => {
     setPickerTarget(null)
     const res = await window.api.setProjectSeries(filePath, series)
     if (!res.success) {
-      alert(`归类失败: ${res.error || '未知错误'}`)
+      void alertDialog(`归类失败: ${res.error || '未知错误'}`)
       return
     }
     await loadConfig()

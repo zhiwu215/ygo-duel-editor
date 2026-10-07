@@ -1,7 +1,7 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React from 'react'
-import { SlidersHorizontal, RotateCcw, CheckSquare, Square, Search, X } from 'lucide-react'
+import { SlidersHorizontal, RotateCcw, CheckSquare, Square, Search, Loader2 } from 'lucide-react'
 import {
   CardType,
   CardAttribute,
@@ -18,10 +18,15 @@ import { CardSearchFilters, useCardSearchStore } from '../../stores/useCardSearc
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { LinkMarkerPopover } from './LinkMarkerPopover'
+import { EffectCategoryPopover } from './EffectCategoryPopover'
+import { SORT_OPTIONS } from './sortOptions'
 import { cn } from '../../lib/utils'
 
+const NONE_LABEL = '（无）'
+
 const MAIN_TYPES = [
-  { label: '全部', value: 0 },
+  { label: NONE_LABEL, value: 0 },
   { label: '怪兽', value: CardType.MONSTER },
   { label: '魔法', value: CardType.SPELL },
   { label: '陷阱', value: CardType.TRAP }
@@ -29,7 +34,7 @@ const MAIN_TYPES = [
 
 /** 使用 YGOPro 的细分类型值：怪兽按位包含筛选，魔法/陷阱按完整类型精确匹配。 */
 const MONSTER_SUB_TYPES = [
-  { label: '全部子类', value: 0 },
+  { label: NONE_LABEL, value: 0 },
   { label: '通常怪兽', value: CardType.MONSTER | CardType.NORMAL },
   { label: '效果怪兽', value: CardType.MONSTER | CardType.EFFECT },
   { label: '融合怪兽', value: CardType.MONSTER | CardType.FUSION },
@@ -55,7 +60,7 @@ const MONSTER_SUB_TYPES = [
 ]
 
 const SPELL_SUB_TYPES = [
-  { label: '全部魔法', value: 0 },
+  { label: NONE_LABEL, value: 0 },
   { label: '通常魔法', value: CardType.SPELL },
   { label: '速攻魔法', value: CardType.SPELL | CardType.QUICKPLAY },
   { label: '永续魔法', value: CardType.SPELL | CardType.CONTINUOUS },
@@ -65,29 +70,56 @@ const SPELL_SUB_TYPES = [
 ]
 
 const TRAP_SUB_TYPES = [
-  { label: '全部陷阱', value: 0 },
+  { label: NONE_LABEL, value: 0 },
   { label: '通常陷阱', value: CardType.TRAP },
   { label: '永续陷阱', value: CardType.TRAP | CardType.CONTINUOUS },
   { label: '反击陷阱', value: CardType.TRAP | CardType.COUNTER }
 ]
 
-/** 数值比较符选项 (包含严格不等式与未知值语义)。 */
-const OP_OPTIONS: Array<{ value: NumericCompareOp; label: string; prefix: string }> = [
-  { value: 'eq', label: '等于', prefix: '=' },
-  { value: 'gt', label: '大于', prefix: '>' },
-  { value: 'gte', label: '大于等于', prefix: '≥' },
-  { value: 'lt', label: '小于', prefix: '<' },
-  { value: 'lte', label: '小于等于', prefix: '≤' },
-  { value: 'unknown', label: '未知 (?)', prefix: '?' }
-]
+const OP_PREFIX: Record<NumericCompareOp, string> = {
+  eq: '',
+  gt: '>',
+  gte: '>=',
+  lt: '<',
+  lte: '<=',
+  unknown: '?'
+}
 
-/** 禁限三档，文案与顺序对齐 YGOPro 的 lflist 选择（4 档以上是 ot 位，已由「赛区卡池」覆盖） */
+const PREFIX_TO_OP: Record<string, NumericCompareOp> = {
+  '>=': 'gte',
+  '<=': 'lte',
+  '>': 'gt',
+  '<': 'lt',
+  '=': 'eq'
+}
+
+function filterText(value: number | undefined, op: NumericCompareOp): string {
+  if (op === 'unknown') return '?'
+  if (value === undefined || Number.isNaN(value)) return ''
+  return `${OP_PREFIX[op]}${value}`
+}
+
+function parseFilterText(
+  text: string,
+  allowUnknown: boolean
+): { value: number | undefined; op: NumericCompareOp } {
+  const raw = text.trim()
+  if (raw === '') return { value: undefined, op: 'eq' }
+  if (raw === '?') return { value: undefined, op: allowUnknown ? 'unknown' : 'eq' }
+  const matched = /^(>=|<=|>|<|=)?\s*(-?\d+)$/.exec(raw)
+  if (!matched) return { value: undefined, op: 'eq' }
+  return { value: parseInt(matched[2], 10), op: PREFIX_TO_OP[matched[1] ?? '='] }
+}
+
 const LIMIT_OPTIONS: Array<{ value: LimitFilter; label: string }> = [
   { value: 0, label: '不限' },
   { value: 1, label: '禁止' },
   { value: 2, label: '限制' },
   { value: 3, label: '准限制' }
 ]
+
+const NONE_VALUE = '__none__'
+const LIMIT_VALUE_PREFIX = 'limit:'
 
 /**
  * 赛区卡池选项。
@@ -111,19 +143,6 @@ const CARD_POOL_OPTIONS: CardPoolOptionItem[] = [
   { value: 'tf', label: '卡片力量（TF）', tag: 'tf' }
 ]
 
-/** 箭头按 YGOPro 的 3×3 环形排布拍平成一行，中间格留给「清除」 */
-const MARKER_GRID: Array<{ mask: number; label: string } | null> = [
-  LINK_MARKERS[0],
-  LINK_MARKERS[1],
-  LINK_MARKERS[2],
-  LINK_MARKERS[3],
-  null,
-  LINK_MARKERS[4],
-  LINK_MARKERS[5],
-  LINK_MARKERS[6],
-  LINK_MARKERS[7]
-]
-
 interface FilterFieldProps {
   label: string
   tooltip?: string
@@ -145,7 +164,7 @@ const FilterField: React.FC<FilterFieldProps> = ({
   const labelNode = (
     <span
       className={cn(
-        'w-6 shrink-0 text-[11px] leading-none text-muted-foreground/90',
+        'w-9 shrink-0 whitespace-nowrap text-[11px] leading-none text-muted-foreground/90',
         disabled && 'opacity-50',
         labelClassName
       )}
@@ -168,68 +187,45 @@ const FilterField: React.FC<FilterFieldProps> = ({
   )
 }
 
-interface CompareRowProps {
+interface NumericRowProps {
   label: string
   tooltip?: string
   op: NumericCompareOp
   value: number | undefined
-  placeholder: string
-  onOpChange: (op: NumericCompareOp) => void
-  onValueChange: (value: number | undefined) => void
-  mono?: boolean
   allowUnknown?: boolean
   disabled?: boolean
+  className?: string
+  inputClassName?: string
+  onChange: (value: number | undefined, op: NumericCompareOp) => void
 }
 
-/**
- * 数值维度筛选行：行内标签 + 条件选择器（= / ≥ / ≤）+ 数值输入。
- * 参照 YGOPro 的「条件类型 + 数值」组合，而不是只能填精确值。
- */
-const CompareRow: React.FC<CompareRowProps> = ({
+const NumericRow: React.FC<NumericRowProps> = ({
   label,
   tooltip,
   op,
   value,
-  placeholder,
-  onOpChange,
-  onValueChange,
-  mono,
   allowUnknown = false,
-  disabled = false
+  disabled = false,
+  className,
+  inputClassName = 'h-7',
+  onChange
 }) => {
-  const options = allowUnknown
-    ? OP_OPTIONS
-    : OP_OPTIONS.filter((option) => option.value !== 'unknown')
-  const current = options.find((option) => option.value === op) ?? OP_OPTIONS[0]
+  const [draft, setDraft] = React.useState<string | null>(null)
   return (
-    <FilterField label={label} tooltip={tooltip} disabled={disabled}>
-      <Select
-        value={op}
-        disabled={disabled}
-        onValueChange={(val) => onOpChange((val || 'eq') as NumericCompareOp)}
-      >
-        <SelectTrigger size="sm" className="h-7 w-11 shrink-0 gap-0.5 px-1.5 text-xs">
-          <SelectValue>{current.prefix}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
+    <FilterField label={label} tooltip={tooltip} disabled={disabled} className={className}>
       <Input
-        type="number"
-        placeholder={op === 'unknown' ? '未知 (?)' : placeholder}
-        disabled={disabled || op === 'unknown'}
-        value={op === 'unknown' ? '' : value !== undefined ? value : ''}
+        type="text"
+        inputMode="numeric"
+        disabled={disabled}
+        value={draft ?? filterText(value, op)}
         onChange={(e) => {
-          const val = e.target.value.trim()
-          onValueChange(val === '' ? undefined : parseInt(val, 10))
+          const next = e.target.value
+          setDraft(next)
+          const parsed = parseFilterText(next, allowUnknown)
+          onChange(parsed.value, parsed.op)
         }}
-        className={cn('h-7 min-w-0 flex-1 text-xs', mono && 'font-mono')}
+        onBlur={() => setDraft(null)}
+        className={cn(inputClassName, 'min-w-0 flex-1 px-1.5 text-xs')}
       />
     </FilterField>
   )
@@ -249,14 +245,22 @@ function clearDefIfLink(
 }
 
 interface FilterDrawerProps {
-  /** 覆盖根容器外观；缺省时使用主窗口右侧抽屉样式（定宽 + 左边框 + 滑入动画） */
+  /** drawer = 主窗口右侧滑出抽屉；band = 卡组编辑器顶部常驻横带（对齐 YGOPro wFilter） */
+  variant?: 'drawer' | 'band'
   className?: string
-  /** 传入后在标题栏显示关闭按钮，用于非抽屉形态（如卡组编辑器内嵌展开） */
-  onClose?: () => void
+  headerSlot?: React.ReactNode
 }
 
-export const FilterDrawer: React.FC<FilterDrawerProps> = ({ className, onClose }) => {
+export const FilterDrawer: React.FC<FilterDrawerProps> = ({
+  variant = 'drawer',
+  className,
+  headerSlot
+}) => {
+  const isBand = variant === 'band'
+  const controlH = isBand ? 'h-6' : 'h-7'
   const {
+    keyword,
+    isLoading,
     type,
     subType,
     attribute,
@@ -276,10 +280,23 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({ className, onClose }
     code,
     searchDesc,
     sortField,
-    sortOrder,
+    setKeyword,
+    search,
     setFilters,
     resetFilters
   } = useCardSearchStore()
+
+  const [localKw, setLocalKw] = React.useState<string>(keyword)
+  const [markerOpen, setMarkerOpen] = React.useState<boolean>(false)
+  const markerAnchorRef = React.useRef<HTMLButtonElement>(null)
+  const [effectOpen, setEffectOpen] = React.useState<boolean>(false)
+  const effectAnchorRef = React.useRef<HTMLButtonElement>(null)
+  const runKeywordSearch = (): void => {
+    const trimmed = localKw.trim()
+    setKeyword(trimmed)
+    void search({ keyword: trimmed })
+  }
+
   const [filterOptions, setFilterOptions] = React.useState<CardSearchFilterOptions>({
     effectCategories: [],
     availablePools: []
@@ -310,19 +327,24 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({ className, onClose }
     return MONSTER_SUB_TYPES
   }, [type])
 
-  const typeLabel = MAIN_TYPES.find((t) => t.value === type)?.label ?? '全部'
-  const subTypeLabel = currentSubTypes.find((s) => s.value === subType)?.label ?? '全部子类'
-  const attributeLabel = attribute !== 0 ? `${ATTRIBUTE_NAMES[attribute]}属性` : '全部'
-  const raceLabel = race !== 0 ? RACE_NAMES[race] : '全部'
-  const sortFieldLabel =
-    { id: 'YGOPro 默认', atk: '按攻击力', def: '按守备力', level: '按等级', name: '按卡名' }[
-      sortField
-    ] ?? 'YGOPro 默认'
+  const typeLabel = MAIN_TYPES.find((t) => t.value === type)?.label ?? NONE_LABEL
+  const subTypeLabel = currentSubTypes.find((s) => s.value === subType)?.label ?? NONE_LABEL
+  const attributeLabel = attribute !== 0 ? ATTRIBUTE_NAMES[attribute] : NONE_LABEL
+  const raceLabel = race !== 0 ? RACE_NAMES[race] : NONE_LABEL
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? SORT_OPTIONS[0].label
   const cardPoolLabel =
     cardPool === 'any'
       ? '全部'
       : (CARD_POOL_OPTIONS.find((o) => o.value === cardPool)?.label ?? '全部')
   const limitLabel = LIMIT_OPTIONS.find((o) => o.value === limitFilter)?.label ?? '不限'
+  const limitPoolValue =
+    limitFilter !== 0
+      ? `${LIMIT_VALUE_PREFIX}${limitFilter}`
+      : cardPool === 'any'
+        ? NONE_VALUE
+        : cardPool
+  const limitPoolLabel =
+    limitFilter !== 0 ? limitLabel : cardPool === 'any' ? NONE_LABEL : cardPoolLabel
   const markerCount = LINK_MARKERS.filter((m) => (markers & m.mask) !== 0).length
 
   /**
@@ -362,42 +384,436 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({ className, onClose }
     }
   }, [availablePools, cardPool, setFilters])
 
-  const toggleMarker = (mask: number): void => {
-    const next = (markers & mask) !== 0 ? (markers & ~mask) >>> 0 : (markers | mask) >>> 0
-    setFilters({ markers: next, ...clearDefIfLink(next, subType, type) })
-  }
+  const mainTypeTriggerClass = isBand
+    ? `${controlH} w-[52px] shrink-0 gap-0.5 px-1 text-[11px] [&_svg]:size-3`
+    : `${controlH} w-[60px] shrink-0 gap-0.5 px-2 text-xs`
+  const subTypeTriggerClass = isBand
+    ? `${controlH} min-w-0 flex-1 gap-0.5 px-1 text-[11px] [&_svg]:size-3`
+    : `${controlH} min-w-0 flex-1 text-xs`
 
-  const toggleEffectCategory = (mask: number): void => {
-    const nextMask =
-      (effectCategoryMask & mask) !== 0
-        ? (effectCategoryMask & ~mask) >>> 0
-        : (effectCategoryMask | mask) >>> 0
-    setFilters({ effectCategoryMask: nextMask })
+  const mainTypeField = (
+    <FilterField label="种类：" className={isBand ? 'flex-1 min-w-0' : undefined}>
+      <Select
+        value={type}
+        onValueChange={(val) => {
+          const num = val ? Number(val) : 0
+          setFilters({
+            type: num,
+            subType: 0,
+            attribute: 0,
+            race: 0,
+            level: 0,
+            scale: undefined,
+            atk: undefined,
+            def: undefined,
+            defOp: 'eq',
+            markers: 0
+          })
+        }}
+      >
+        <SelectTrigger size="sm" className={mainTypeTriggerClass}>
+          <SelectValue>{typeLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {MAIN_TYPES.map((t) => (
+            <SelectItem key={t.value} value={t.value}>
+              {t.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={subType}
+        disabled={subTypeDisabled}
+        onValueChange={(val) => {
+          const num = val ? Number(val) : 0
+          setFilters({ subType: num, ...clearDefIfLink(markers, num, type) })
+        }}
+      >
+        <SelectTrigger size="sm" className={subTypeTriggerClass}>
+          <SelectValue>{subTypeLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {currentSubTypes.map((st) => (
+            <SelectItem key={st.value} value={st.value}>
+              {st.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  )
+
+  const limitField = (
+    <FilterField label="禁限：" className={isBand ? 'flex-1 min-w-0' : undefined}>
+      <Select
+        value={limitPoolValue}
+        onValueChange={(val) => {
+          if (!val) {
+            setFilters({ limitFilter: 0, cardPool: 'any' })
+            return
+          }
+          if (val.startsWith(LIMIT_VALUE_PREFIX)) {
+            setFilters({ limitFilter: Number(val.slice(LIMIT_VALUE_PREFIX.length)) as LimitFilter })
+            return
+          }
+          setFilters({ cardPool: val as CardPoolFilter })
+        }}
+      >
+        <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
+          <SelectValue>{limitPoolLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE_VALUE}>{NONE_LABEL}</SelectItem>
+          {LIMIT_OPTIONS.filter((o) => o.value !== 0).map((o) => (
+            <SelectItem
+              key={`${LIMIT_VALUE_PREFIX}${o.value}`}
+              value={`${LIMIT_VALUE_PREFIX}${o.value}`}
+            >
+              {o.label}
+            </SelectItem>
+          ))}
+          {visiblePoolOptions
+            .filter((o) => o.value !== 'any')
+            .map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  )
+
+  const attributeField = (
+    <FilterField
+      label="属性："
+      disabled={detailDisabled}
+      className={isBand ? 'flex-1 min-w-0' : undefined}
+    >
+      <Select
+        value={attribute}
+        disabled={detailDisabled}
+        onValueChange={(val) => setFilters({ attribute: val ? Number(val) : 0 })}
+      >
+        <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
+          <SelectValue>{attributeLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={0}>{NONE_LABEL}</SelectItem>
+          {Object.entries(CardAttribute).map(([key, val]) => (
+            <SelectItem key={key} value={val}>
+              {ATTRIBUTE_NAMES[val]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  )
+
+  const atkField = (
+    <NumericRow
+      label="攻击："
+      op={atkOp}
+      value={atk}
+      onChange={(val, op) => setFilters({ atk: val, atkOp: op })}
+      allowUnknown
+      disabled={detailDisabled}
+      className={isBand ? 'flex-1 min-w-0' : undefined}
+      inputClassName={controlH}
+    />
+  )
+
+  const raceField = (
+    <FilterField
+      label="种族："
+      disabled={detailDisabled}
+      className={isBand ? 'flex-1 min-w-0' : undefined}
+    >
+      <Select
+        value={race}
+        disabled={detailDisabled}
+        onValueChange={(val) => setFilters({ race: val ? Number(val) : 0 })}
+      >
+        <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
+          <SelectValue>{raceLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={0}>{NONE_LABEL}</SelectItem>
+          {Object.entries(CardRace).map(([key, val]) => (
+            <SelectItem key={key} value={val}>
+              {RACE_NAMES[val]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  )
+
+  const defField = (
+    <NumericRow
+      label="守备："
+      op={defOp}
+      value={def}
+      onChange={(val, op) => setFilters({ def: val, defOp: op })}
+      allowUnknown
+      disabled={defDisabled}
+      className={isBand ? 'flex-1 min-w-0' : undefined}
+      inputClassName={controlH}
+    />
+  )
+
+  const levelField = (
+    <NumericRow
+      label="星数："
+      tooltip="等级 / 阶级 / 连接"
+      op={levelOp}
+      value={level !== 0 ? level : undefined}
+      onChange={(val, op) => setFilters({ level: val ?? 0, levelOp: op })}
+      disabled={detailDisabled}
+      className={isBand ? 'flex-1 min-w-0' : undefined}
+      inputClassName={controlH}
+    />
+  )
+
+  const scaleField = (
+    <NumericRow
+      label="刻度："
+      tooltip="灵摆刻度（左侧）"
+      op={scaleOp}
+      value={scale}
+      onChange={(val, op) => setFilters({ scale: val, scaleOp: op })}
+      disabled={detailDisabled}
+      className={isBand ? 'flex-1 min-w-0' : undefined}
+      inputClassName={controlH}
+    />
+  )
+
+  const markerField = (
+    <div className={cn('relative', isBand ? 'min-w-0 flex-1' : 'w-full')}>
+      <button
+        ref={markerAnchorRef}
+        type="button"
+        aria-pressed={markerCount > 0}
+        onClick={() => setMarkerOpen((v) => !v)}
+        className={cn(
+          'rounded text-[11px] leading-none transition-colors disabled:pointer-events-none disabled:opacity-35 flex items-center justify-center px-2',
+          `${controlH} w-full`,
+          markerCount > 0
+            ? 'bg-primary/20 text-primary font-semibold'
+            : 'bg-neutral-500/10 text-muted-foreground hover:bg-neutral-500/25 hover:text-foreground'
+        )}
+      >
+        连接标记
+      </button>
+
+      {markerOpen && (
+        <LinkMarkerPopover
+          value={markers}
+          anchorRef={markerAnchorRef}
+          onClose={() => setMarkerOpen(false)}
+          onConfirm={(mask) => {
+            setFilters({ markers: mask, ...clearDefIfLink(mask, subType, type) })
+            setMarkerOpen(false)
+          }}
+        />
+      )}
+    </div>
+  )
+
+  const effectField = (
+    <div className={cn('relative', isBand ? 'shrink-0 self-stretch' : 'w-full')}>
+      <button
+        ref={effectAnchorRef}
+        type="button"
+        aria-pressed={effectCategoryMask !== 0}
+        onClick={() => setEffectOpen((v) => !v)}
+        className={cn(
+          'rounded text-[11px] leading-none transition-colors disabled:pointer-events-none disabled:opacity-35 flex items-center justify-center px-2',
+          isBand ? 'h-full w-[92px] shrink-0' : 'h-7 w-full',
+          effectCategoryMask !== 0
+            ? 'bg-primary/20 text-primary font-semibold'
+            : 'bg-neutral-500/10 text-muted-foreground hover:bg-neutral-500/25 hover:text-foreground'
+        )}
+      >
+        效果
+      </button>
+
+      {effectOpen && (
+        <EffectCategoryPopover
+          categories={filterOptions.effectCategories}
+          value={effectCategoryMask}
+          anchorRef={effectAnchorRef}
+          onClose={() => setEffectOpen(false)}
+          onConfirm={(mask) => {
+            setFilters({ effectCategoryMask: mask })
+            setEffectOpen(false)
+          }}
+        />
+      )}
+    </div>
+  )
+
+  const sortRow = (
+    <FilterField label="排序：">
+      <Select
+        value={sortField}
+        onValueChange={(val) => {
+          const option = SORT_OPTIONS.find((o) => o.value === val) ?? SORT_OPTIONS[0]
+          setFilters({ sortField: option.value, sortOrder: option.order })
+        }}
+      >
+        <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
+          <SelectValue>{sortLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {SORT_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  )
+
+  const codeField = (
+    <FilterField label="卡密">
+      <div className="relative min-w-0 flex-1">
+        <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
+        <Input
+          type="number"
+          placeholder="8 位数字"
+          value={code !== undefined ? code : ''}
+          onChange={(e) => {
+            const val = e.target.value.trim()
+            setFilters({ code: val === '' ? undefined : parseInt(val, 10) })
+          }}
+          className="h-7 w-full pl-7 text-xs font-mono"
+        />
+      </div>
+    </FilterField>
+  )
+
+  const searchDescToggle = (
+    <button
+      type="button"
+      onClick={() => setFilters({ searchDesc: !searchDesc })}
+      className="flex items-center gap-1.5 w-full px-1.5 py-1 rounded-md hover:bg-muted/40 cursor-pointer text-muted-foreground hover:text-foreground transition-colors text-left"
+    >
+      {searchDesc ? (
+        <CheckSquare className="w-3.5 h-3.5 text-primary shrink-0" />
+      ) : (
+        <Square className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      )}
+      <span className="text-[11px]">检索效果描述文本</span>
+    </button>
+  )
+
+  if (isBand) {
+    const keywordField = (
+      <FilterField label="关键字：" labelClassName="w-12" className="flex-1 min-w-0">
+        <Input
+          type="text"
+          value={localKw}
+          onChange={(e) => setLocalKw(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') runKeywordSearch()
+          }}
+          className={`${controlH} min-w-0 flex-1 bg-background text-xs`}
+        />
+      </FilterField>
+    )
+
+    const clearButton = (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          setLocalKw('')
+          setKeyword('')
+          resetFilters()
+        }}
+        className={`${controlH} w-14 shrink-0 px-2 text-xs text-muted-foreground hover:text-foreground`}
+      >
+        清空
+      </Button>
+    )
+
+    const searchButton = (
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={runKeywordSearch}
+        aria-busy={isLoading}
+        className={`${controlH} min-w-0 flex-1 gap-1 px-2 text-xs font-semibold`}
+      >
+        <span>搜索</span>
+        <Loader2
+          className={cn(
+            'w-3 h-3 transition-opacity',
+            isLoading ? 'animate-spin opacity-100' : 'opacity-0'
+          )}
+        />
+      </Button>
+    )
+
+    return (
+      <div
+        className={cn(
+          'flex flex-col gap-1 rounded-md border border-border bg-muted/20 p-2 text-xs [-webkit-app-region:no-drag]',
+          className
+        )}
+      >
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-4 gap-y-1">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">{mainTypeField}</div>
+            <div className="flex items-center gap-2">{attributeField}</div>
+            <div className="flex items-center gap-2">{raceField}</div>
+            <div className="flex items-center gap-2">
+              {levelField}
+              {scaleField}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              {limitField}
+              {headerSlot}
+            </div>
+            <div className="flex items-stretch gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex items-center gap-2">{atkField}</div>
+                <div className="flex items-center gap-2">{defField}</div>
+              </div>
+              {effectField}
+            </div>
+            <div className="flex items-center gap-2">{keywordField}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {markerField}
+          {clearButton}
+          {searchButton}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div
       className={cn(
         'h-full flex flex-col bg-card/75 shrink-0 select-none overflow-hidden',
-        className ?? 'w-64 border-l border-border/60 animate-in slide-in-from-right-2 duration-200'
+        'w-64 border-l border-border/60 animate-in slide-in-from-right-2 duration-200'
       )}
     >
-      {/* 顶部标题与重置 */}
       <div className="h-10 px-3 border-b border-border/50 flex items-center justify-between gap-1 bg-muted/20 shrink-0">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground min-w-0">
           <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
           <span className="truncate">筛选条件</span>
         </div>
-        {onClose && (
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={onClose}
-            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-          >
-            <X className="w-3.5 h-3.5" />
-          </Button>
-        )}
         <Tooltip>
           <TooltipTrigger
             render={
@@ -416,342 +832,29 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({ className, onClose }
         </Tooltip>
       </div>
 
-      {/* 筛选表单：YGOPro 式「标签: 控件」双列密排 */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-2 space-y-1.5 text-xs">
-          <FilterField label="种类">
-            <Select
-              value={type}
-              onValueChange={(val) => {
-                const num = val ? Number(val) : 0
-                setFilters({
-                  type: num,
-                  subType: 0,
-                  attribute: 0,
-                  race: 0,
-                  level: 0,
-                  scale: undefined,
-                  atk: undefined,
-                  def: undefined,
-                  defOp: 'eq',
-                  markers: 0
-                })
-              }}
-            >
-              <SelectTrigger size="sm" className="h-7 w-[60px] shrink-0 gap-0.5 px-2 text-xs">
-                <SelectValue>{typeLabel}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {MAIN_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={subType}
-              disabled={subTypeDisabled}
-              onValueChange={(val) => {
-                const num = val ? Number(val) : 0
-                setFilters({ subType: num, ...clearDefIfLink(markers, num, type) })
-              }}
-            >
-              <SelectTrigger size="sm" className="h-7 min-w-0 flex-1 text-xs">
-                <SelectValue>{subTypeLabel}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {currentSubTypes.map((st) => (
-                  <SelectItem key={st.value} value={st.value}>
-                    {st.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+          {mainTypeField}
 
           <div className="grid grid-cols-2 gap-1.5">
-            <FilterField label="禁限">
-              <Select
-                value={String(limitFilter)}
-                onValueChange={(val) =>
-                  setFilters({ limitFilter: (Number(val) || 0) as LimitFilter })
-                }
-              >
-                <SelectTrigger size="sm" className="h-7 min-w-0 flex-1 text-xs">
-                  <SelectValue>{limitLabel}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {LIMIT_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={String(o.value)}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterField>
-
-            <FilterField label="卡池">
-              <Select
-                value={cardPool}
-                onValueChange={(value) =>
-                  setFilters({ cardPool: (value || 'any') as CardPoolFilter })
-                }
-              >
-                <SelectTrigger size="sm" className="h-7 min-w-0 flex-1 text-xs">
-                  <SelectValue>{cardPoolLabel}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {visiblePoolOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterField>
-
-            <FilterField label="属性" disabled={detailDisabled}>
-              <Select
-                value={attribute}
-                disabled={detailDisabled}
-                onValueChange={(val) => setFilters({ attribute: val ? Number(val) : 0 })}
-              >
-                <SelectTrigger size="sm" className="h-7 min-w-0 flex-1 text-xs">
-                  <SelectValue>{attributeLabel}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={0}>全部属性</SelectItem>
-                  {Object.entries(CardAttribute).map(([key, val]) => (
-                    <SelectItem key={key} value={val}>
-                      {ATTRIBUTE_NAMES[val]}属性
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterField>
-
-            <CompareRow
-              label="攻击"
-              op={atkOp}
-              value={atk}
-              placeholder="3000"
-              onOpChange={(op) => setFilters({ atkOp: op })}
-              onValueChange={(val) => setFilters({ atk: val })}
-              allowUnknown
-              disabled={detailDisabled}
-            />
-
-            <FilterField label="种族" disabled={detailDisabled}>
-              <Select
-                value={race}
-                disabled={detailDisabled}
-                onValueChange={(val) => setFilters({ race: val ? Number(val) : 0 })}
-              >
-                <SelectTrigger size="sm" className="h-7 min-w-0 flex-1 text-xs">
-                  <SelectValue>{raceLabel}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={0}>全部种族</SelectItem>
-                  {Object.entries(CardRace).map(([key, val]) => (
-                    <SelectItem key={key} value={val}>
-                      {RACE_NAMES[val]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterField>
-
-            <CompareRow
-              label="守备"
-              op={defOp}
-              value={def}
-              placeholder="2000"
-              onOpChange={(op) => setFilters({ defOp: op })}
-              onValueChange={(val) => setFilters({ def: val })}
-              allowUnknown
-              disabled={defDisabled}
-            />
-
-            <CompareRow
-              label="星数"
-              tooltip="等级 / 阶级 / 连接"
-              op={levelOp}
-              value={level !== 0 ? level : undefined}
-              placeholder="1-13"
-              onOpChange={(op) => setFilters({ levelOp: op })}
-              onValueChange={(val) => setFilters({ level: val ?? 0 })}
-              disabled={detailDisabled}
-            />
-
-            <CompareRow
-              label="刻度"
-              tooltip="灵摆刻度（左侧）"
-              op={scaleOp}
-              value={scale}
-              placeholder="8"
-              onOpChange={(op) => setFilters({ scaleOp: op })}
-              onValueChange={(val) => setFilters({ scale: val })}
-              disabled={detailDisabled}
-            />
+            {limitField}
+            {attributeField}
+            {atkField}
+            {raceField}
+            {defField}
+            {levelField}
+            {scaleField}
           </div>
 
-          <FilterField label="卡密">
-            <div className="relative min-w-0 flex-1">
-              <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
-              <Input
-                type="number"
-                placeholder="8 位数字"
-                value={code !== undefined ? code : ''}
-                onChange={(e) => {
-                  const val = e.target.value.trim()
-                  setFilters({ code: val === '' ? undefined : parseInt(val, 10) })
-                }}
-                className="h-7 w-full pl-7 text-xs font-mono"
-              />
-            </div>
-          </FilterField>
+          {effectField}
 
-          <FilterField label="连接标记" labelClassName="w-auto">
-            <div className="grid flex-1 min-w-0 grid-cols-9 gap-1">
-              {MARKER_GRID.map((marker, index) =>
-                marker === null ? (
-                  <Tooltip key={`empty-${index}`}>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          disabled={markerCount === 0 || detailDisabled}
-                          onClick={() => setFilters({ markers: 0 })}
-                          aria-label="清除连接标记"
-                          className="flex h-7 items-center justify-center rounded bg-muted/30 text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      }
-                    />
-                    <TooltipContent>清除已选箭头</TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <Tooltip key={marker.mask}>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          disabled={detailDisabled}
-                          aria-pressed={(markers & marker.mask) !== 0}
-                          onClick={() => toggleMarker(marker.mask)}
-                          className={cn(
-                            'h-7 rounded text-[11px] leading-none transition-colors disabled:pointer-events-none disabled:opacity-35',
-                            (markers & marker.mask) !== 0
-                              ? 'bg-primary/20 text-primary'
-                              : 'bg-muted/30 text-muted-foreground hover:bg-muted/70 hover:text-foreground'
-                          )}
-                        >
-                          {marker.label}
-                        </button>
-                      }
-                    />
-                    <TooltipContent>
-                      {`箭头 ${marker.label}（需同时具备全部选中方向）`}
-                    </TooltipContent>
-                  </Tooltip>
-                )
-              )}
-            </div>
-          </FilterField>
+          {codeField}
 
-          <FilterField label="排序">
-            <Select
-              value={sortField}
-              onValueChange={(val) =>
-                setFilters({
-                  sortField: (val || 'id') as 'id' | 'atk' | 'def' | 'level' | 'name'
-                })
-              }
-            >
-              <SelectTrigger size="sm" className="h-7 min-w-0 flex-1 text-xs">
-                <SelectValue>{sortFieldLabel}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="id">YGOPro 默认</SelectItem>
-                <SelectItem value="atk">按攻击力</SelectItem>
-                <SelectItem value="def">按守备力</SelectItem>
-                <SelectItem value="level">按等级</SelectItem>
-                <SelectItem value="name">按卡名</SelectItem>
-              </SelectContent>
-            </Select>
+          {markerField}
 
-            <Select
-              value={sortOrder}
-              onValueChange={(val) => setFilters({ sortOrder: (val || 'DESC') as 'ASC' | 'DESC' })}
-            >
-              <SelectTrigger size="sm" className="h-7 w-[60px] shrink-0 gap-0.5 px-1.5 text-xs">
-                <SelectValue>{sortOrder === 'ASC' ? '升序' : '降序'}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="DESC">降序（高→低）</SelectItem>
-                <SelectItem value="ASC">升序（低→高）</SelectItem>
-              </SelectContent>
-            </Select>
-          </FilterField>
+          {sortRow}
 
-          <details className="rounded-md border border-border/50 px-2 py-1.5">
-            <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground hover:text-foreground">
-              效果分类{effectCategoryMask !== 0 ? '（已启用）' : ''}
-            </summary>
-            {filterOptions.effectCategories.length > 0 ? (
-              <div className="mt-2 max-h-40 overflow-y-auto pr-1.5">
-                <div className="grid grid-cols-2 gap-1">
-                  {filterOptions.effectCategories.map((category) => {
-                    const selected = (effectCategoryMask & category.mask) !== 0
-                    return (
-                      <Tooltip key={category.mask}>
-                        <TooltipTrigger
-                          render={
-                            <button
-                              type="button"
-                              aria-pressed={selected}
-                              onClick={() => toggleEffectCategory(category.mask)}
-                              className={cn(
-                                'truncate rounded px-1.5 py-1 text-left text-[10px] transition-colors',
-                                selected
-                                  ? 'bg-primary/15 text-primary'
-                                  : 'bg-muted/30 text-muted-foreground hover:bg-muted/70 hover:text-foreground'
-                              )}
-                            >
-                              {category.label}
-                            </button>
-                          }
-                        />
-                        <TooltipContent>{category.label}</TooltipContent>
-                      </Tooltip>
-                    )
-                  })}
-                </div>
-              </div>
-            ) : (
-              <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-                当前卡库未提供分类名称。将游戏目录中的 strings.conf 放在 cards.cdb 同目录或
-                expansions 子目录后重载卡库。
-              </p>
-            )}
-          </details>
-
-          {/* 描述检索开关 */}
-          <button
-            type="button"
-            onClick={() => setFilters({ searchDesc: !searchDesc })}
-            className="flex items-center gap-1.5 w-full px-1.5 py-1 rounded-md hover:bg-muted/40 cursor-pointer text-muted-foreground hover:text-foreground transition-colors text-left"
-          >
-            {searchDesc ? (
-              <CheckSquare className="w-3.5 h-3.5 text-primary shrink-0" />
-            ) : (
-              <Square className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-            )}
-            <span className="text-[11px]">检索效果描述文本</span>
-          </button>
+          {searchDescToggle}
         </div>
       </ScrollArea>
     </div>

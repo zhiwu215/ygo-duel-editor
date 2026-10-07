@@ -12,6 +12,7 @@ import {
   CardLocation
 } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { confirmDialog } from '../../stores/useDialogStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -303,11 +304,12 @@ export const StepSequencerPanel: React.FC = () => {
                     size="icon-xs"
                     variant="ghost"
                     onClick={() => {
-                      if (
-                        window.confirm('确定要清空全部编排动作步骤吗？此操作可使用 Ctrl+Z 撤销。')
-                      ) {
-                        clearSteps()
-                      }
+                      void confirmDialog({
+                        title: '清空步骤',
+                        description: '确定要清空全部编排动作步骤吗？此操作可使用 Ctrl+Z 撤销。'
+                      }).then((ok) => {
+                        if (ok) clearSteps()
+                      })
                     }}
 
                     className="h-7 w-7 text-muted-foreground hover:text-destructive"

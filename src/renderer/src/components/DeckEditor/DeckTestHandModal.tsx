@@ -26,10 +26,7 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
         className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl p-4 flex flex-col gap-4 max-w-[820px] w-full animate-in zoom-in-95 duration-100 ring-0 sm:max-w-[820px]"
       >
         <DialogHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b border-border/60 pb-2">
-          <div className="flex items-center gap-2">
-            <Dices className="w-4 h-4 text-primary" />
-            <DialogTitle className="text-sm font-bold">手牌起手模拟测试 (5 张)</DialogTitle>
-          </div>
+          <DialogTitle className="text-sm font-bold">手牌起手模拟测试 (5 张)</DialogTitle>
 
           <div className="flex items-center gap-2">
             <Button

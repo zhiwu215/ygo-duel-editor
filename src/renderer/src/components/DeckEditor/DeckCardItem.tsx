@@ -40,14 +40,11 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
   })
   const imageUrl = getCardImageUrl(code, true)
 
+  /** 对齐 YGOPro：hovered_code 只在新卡进入时更新，移开鼠标保留上一张，左侧详情不回退不闪烁 */
   const handleMouseEnter = (): void => {
     if (card) {
       onHover(code)
     }
-  }
-
-  const handleMouseLeave = (): void => {
-    onHover(null)
   }
 
   const handleClick = (e: React.MouseEvent): void => {
@@ -73,7 +70,6 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
             {...listeners}
             onClick={handleClick}
             onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
             onContextMenu={handleContextMenu}
 
             style={{

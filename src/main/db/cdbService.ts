@@ -70,6 +70,11 @@ function parseSearchTokens(input: string): SearchToken[] {
   return tokens
 }
 
+/** 决定同卡种内的细分先后，取值越小越靠前 */
+function subtypeOrder(type: number): number {
+  return type & 0x48020c0 ? type & 0x48020c1 : type & 0x31
+}
+
 function compareCards(params: CardSearchParams): (a: CdbCard, b: CdbCard) => number {
   const dir = params.sortOrder === 'ASC' ? 1 : -1
   switch (params.sortField) {
@@ -82,7 +87,30 @@ function compareCards(params: CardSearchParams): (a: CdbCard, b: CdbCard) => num
     case 'name':
       return (a, b) => String(a.name ?? '').localeCompare(String(b.name ?? '')) * dir
     default:
-      return (a, b) => ((a.id ?? 0) - (b.id ?? 0)) * dir
+      return (a, b) => {
+        const at = a.type & 0x7
+        const bt = b.type & 0x7
+        if (at !== bt) return (at - bt) * -dir
+        if (at === CardType.MONSTER) {
+          const as = subtypeOrder(a.type)
+          const bs = subtypeOrder(b.type)
+          if (as !== bs) return (as - bs) * -dir
+          const al = (a.level ?? 0) & 255
+          const bl = (b.level ?? 0) & 255
+          if (al !== bl) return (al - bl) * dir
+          const aa = a.atk ?? 0
+          const ba = b.atk ?? 0
+          if (aa !== ba) return (aa - ba) * dir
+          const ad = a.def ?? 0
+          const bd = b.def ?? 0
+          if (ad !== bd) return (ad - bd) * dir
+          return (a.id ?? 0) - (b.id ?? 0)
+        }
+        const ar = a.type & ~0x7
+        const br = b.type & ~0x7
+        if (ar !== br) return (ar - br) * -dir
+        return (a.id ?? 0) - (b.id ?? 0)
+      }
   }
 }
 
@@ -457,19 +485,31 @@ export class CdbService {
       const countRow = db.prepare(countSql).get(...args) as { total: number } | undefined
       const total = countRow?.total ?? 0
 
+      const orderDir = params.sortOrder === 'ASC' ? 'ASC' : 'DESC'
       let orderBy = 'd.id'
       if (params.sortField === 'atk') orderBy = 'd.atk'
       else if (params.sortField === 'def') orderBy = 'd.def'
       else if (params.sortField === 'level') orderBy = '(d.level & 255)'
       else if (params.sortField === 'name') orderBy = 't.name'
+      else {
+        orderBy = `
+          (d.type & 7) ${orderDir === 'ASC' ? 'DESC' : 'ASC'},
+          CASE WHEN (d.type & 7) = 1 THEN
+            CASE WHEN (d.type & 0x48020c0) != 0 THEN (d.type & 0x48020c1) ELSE (d.type & 0x31) END
+          ELSE (d.type & 4294967288) END ${orderDir === 'ASC' ? 'DESC' : 'ASC'},
+          CASE WHEN (d.type & 7) = 1 THEN (d.level & 255) ELSE 0 END ${orderDir},
+          CASE WHEN (d.type & 7) = 1 THEN d.atk ELSE 0 END ${orderDir},
+          CASE WHEN (d.type & 7) = 1 THEN d.def ELSE 0 END ${orderDir},
+          d.id ${orderDir === 'ASC' ? 'DESC' : 'ASC'}`
+      }
 
-      const orderDir = params.sortOrder === 'ASC' ? 'ASC' : 'DESC'
       const dataSql = `
         SELECT
           d.id, d.ot, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, d.category,
           t.name, t.desc
         ${baseWhere}
-        ORDER BY ${orderBy} ${orderDir} LIMIT ?
+        ORDER BY ${orderBy}
+        LIMIT ?
       `
       const rows = db.prepare(dataSql).all(...args, fetchLimit) as CdbCard[]
 

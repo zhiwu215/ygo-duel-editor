@@ -5,6 +5,7 @@ import { useDropHintStore } from '../../stores/useDropHintStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
+import { useTokenStore } from '../../stores/useTokenStore'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
@@ -188,6 +189,8 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const openPile = usePileListStore((s) => s.openPile)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openZoneMenu = useContextMenuStore((s) => s.openZoneMenu)
+  const pendingToken = useTokenStore((s) => s.pendingToken)
+  const cancelPendingToken = useTokenStore((s) => s.cancelPending)
   const [isOver, setIsOver] = useState(false)
   /** 待执行的「主卡组格单击抽卡」定时器 */
   const deckDrawTimer = useRef<number | null>(null)
@@ -205,6 +208,25 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     hintZone.controller === controller &&
     hintZone.location === location &&
     hintZone.sequence === sequence
+
+  /** 待放置衍生物模式下，本格是否为合法的落点（序号 0~4 的空主怪兽区） */
+  const isTokenDropTarget =
+    pendingToken !== null && location === CardLocation.MZONE && !card && sequence <= 4
+
+  /** 点击空怪兽区放入待放置的衍生物 */
+  const handleTokenDrop = (): boolean => {
+    if (!pendingToken || !isTokenDropTarget) return false
+    addCardToZone(
+      pendingToken,
+      controller,
+      location,
+      sequence,
+      CardPosition.FACEUP_ATTACK,
+      duelistId
+    )
+    cancelPendingToken()
+    return true
+  }
 
   // 处理拖拽进入
   const handleDragOver = (e: React.DragEvent): void => {
@@ -227,10 +249,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const handleDrop = (e: React.DragEvent): void => {
     e.preventDefault()
     // 手牌内部排序由整条手牌带统一处理，保持目标预览与最终落点一致。
-    if (
-      location === CardLocation.HAND &&
-      e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)
-    ) {
+    if (location === CardLocation.HAND && e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) {
       return
     }
     e.stopPropagation()
@@ -410,6 +429,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onClick={() => {
         // 主卡组格已在捕获阶段处理完毕
         if (location === CardLocation.DECK) return
+        if (handleTokenDrop()) return
         if (!card) setSelectedCardId(null)
       }}
       onDoubleClickCapture={(e) => {
@@ -443,17 +463,24 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       } rounded border ${config.border} ${config.bg} ${config.shadow} flex flex-col items-center justify-center transition-all duration-150 select-none shrink-0 ${
         // 拖拽目标态：唯一强调色
         isOver ? 'ring-2 ring-blue-400 bg-blue-500/15 scale-[1.03] border-transparent' : ''
+      } ${
+        // 待放置衍生物时的合法落点
+        isTokenDropTarget
+          ? 'ring-2 ring-emerald-400/80 bg-emerald-500/10 border-emerald-400/60 cursor-copy animate-pulse'
+          : ''
       } ${className}`}
       title={
-        location === CardLocation.DECK
-          ? '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
-          : card &&
-              ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
-                (card.overlayMaterials && card.overlayMaterials.length > 0))
-            ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
-            : isPileZone && count !== undefined && count > 0
-              ? '双击直接查看列表'
-              : undefined
+        isTokenDropTarget
+          ? `点击放下「${pendingToken.name}」`
+          : location === CardLocation.DECK
+            ? '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
+            : card &&
+                ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
+                  (card.overlayMaterials && card.overlayMaterials.length > 0))
+              ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
+              : isPileZone && count !== undefined && count > 0
+                ? '双击直接查看列表'
+                : undefined
       }
     >
       {/* 堆叠张数徽标 (如卡组/墓地/额外卡组张数，支持点击直接打开查看列表) */}

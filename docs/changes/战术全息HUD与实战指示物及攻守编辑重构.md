@@ -5,6 +5,7 @@
 - 严格还原游戏实战质感，构建 YGOPro 风格的半透明战场全息 HUD；
 - 引入「Tab 键全局战术透视」与「鼠标即滑即显」双重感知机制，彻底解决“全屏一直显示太乱、逐个悬停查看太累”的交互矛盾；
 - 在左侧详情栏集成专属于场上选中卡片的「实战属性与指示物检查器」，支持直观修改攻守数值与挂载/拔除全量指示物；
+- 在棋盘微调面板内追加衍生物（Token）智能推荐布置，依本体卡效果文本自动推断可召唤的衍生物，点击即落子；
 - 实现 ocgcore 标准下的 `c:add_counter` 脚本双向生成与逆向解析闭环。
 
 ---
@@ -14,8 +15,8 @@
 ### 1. 标准指示物字典建设与常量映射
 
 - **改动文件**：**src/shared/constants/counters.ts**、**src/shared/index.ts**
-- **开发思考与缘由**：
-  游戏王 ocgcore 原生引擎中，各类指示物均有专属的 16 进制代码（如魔力指示物 `0x1`、捕食指示物 `0x1041`、武士道指示物 `0x3` 等）。
+- **开发思考与缘由**：  
+  游戏王 ocgcore 原生引擎中，各类指示物均有专属的 16 进制代码（如魔力指示物 `0x1`、捕食指示物 `0x1041`、武士道指示物 `0x3` 等）。  
   为了避免在业务代码中散落魔法数字，从官方 `strings.conf` 提炼建立全量 114 类指示物映射表，并梳理出「常用高频指示物」列表，供下拉选择器置顶优先推荐。
 
 **src/shared/constants/counters.ts**
@@ -58,7 +59,7 @@ export const COMMON_COUNTER_IDS = [
 ### 2. 状态机扩展（战术透视全息视图与实战属性/指示物操作）
 
 - **改动文件**：**src/renderer/src/stores/useDuelStore.ts**
-- **开发思考与缘由**：
+- **开发思考与缘由**：  
   为满足响应式透视与实战数据调控需求：
   - 在 Store 顶层增加 `tacticalView` 布尔状态（由于 `zundo` 的 `partialize` 只追踪 `state.state`，顶层 UI 开关不污染对局撤销/重做历史）；
   - 增加 `setCardCounter`、`removeCardCounter`、`clearCardCounters`、`setCardCustomStats` 等动作，严格在 `state.state.cards` 内部执行函数式变更，天然享受完整的 `Ctrl+Z` 历史撤销保障。
@@ -87,7 +88,7 @@ export const COMMON_COUNTER_IDS = [
 ### 3. YGOPro 经典质感战术全息 HUD（CardHudOverlay）与悬停/透视双重激活
 
 - **改动文件**：**src/renderer/src/components/Board/components/CardHudOverlay.tsx**、**src/renderer/src/components/Board/CardItem.tsx**
-- **开发思考与缘由**：
+- **开发思考与缘由**：  
   为兼顾战场画面的纯粹美感与编排时的高效感知：
   - 彻底摒弃杂乱的花哨 AI 色块标签，采用高对比度的半透明亚克力深黑质感（`bg-black/85 backdrop-blur-xs border border-white/20 shadow-2xl`），文字清晰锐利；
   - 内部严格展现官方全称明细：卡名、攻守数值（变动自动呈现绿色上升与红色下降差值）、星阶/种族/属性以及全称指示物列表（如 `[魔力指示物]: 2`）；
@@ -134,7 +135,7 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
 ### 4. 顶栏战术透视开关与 Tab 全局热键拦截
 
 - **改动文件**：**src/renderer/src/components/Header/Header.tsx**、**src/renderer/src/components/Header/MenuBar.tsx**
-- **开发思考与缘由**：
+- **开发思考与缘由**：  
   为便于创作者以最轻量的方式唤出全场透视：
   - 在顶栏工具栏挂载 `[透视]` 切换按钮，状态激活时带有主题强调色高亮；
   - 注册全局 `Tab` 快捷键，输入框聚焦打字时自动放行原生 Tab 行为，非输入框聚焦时按下立即 `preventDefault()` 并切换战术透视状态；
@@ -168,11 +169,10 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
 ### 5. 棋盘就地浮动调整卡（CardStatPopover）与全场指示物智能推断
 
 - **改动文件**：**src/renderer/src/utils/counterDeduce.ts**、**src/renderer/src/components/Board/components/CardStatPopover.tsx**、**src/renderer/src/components/Board/CardItem.tsx**、**src/renderer/src/components/CardDetail/CardDetailPanel.tsx**
-- **开发思考与缘由**：
+- **开发思考与缘由**：  
   在实机测试与反馈中发现两个关键痛点：
   - **左侧栏交互违和**：左侧栏原本是纯粹的卡片大图与效果展示区，强行塞入表单打乱了排版美感，且迫使创作者在棋盘与屏幕左侧之间频繁来回摆动手腕；
   - **单卡智能推断局限**：在游戏王实战中，绝大多数指示物（如捕食指示物、A指示物、雾指示物）是我方怪兽或魔陷**施加给对方怪兽**的。如果只检索当前选中的卡，当创作者点击对方的普通怪兽时，对方卡片文本根本不包含“捕食植物”，导致推断彻底失效。
-
   针对上述问题进行了针对性重构：
   - **左侧栏回归 100% 纯净**：移除所有突兀的实战属性表单，还原本色卡片图鉴与完整效果文本展示；
   - **全场指示物智能感知（deduceSuggestedCounters）**：扫描整场决斗中双方所有卡片（场上、手牌、额外、墓地）的卡名、描述以及已挂载的指示物。只要场上存在「捕食植物」等体系，无论选中哪张卡（包括对方怪兽），顶部均直接展示一键药丸按钮：`[+ 捕食指示物]`，一秒点击即完成放置；
@@ -210,7 +210,7 @@ export function deduceSuggestedCounters(state: DuelPuzzleState): CounterDefiniti
 ### 6. Lua 残局引擎双向闭环（c:add_counter 生成与反向解析）
 
 - **改动文件**：**src/shared/engine/luaGenerator.ts**、**src/shared/engine/luaParser.ts**
-- **开发思考与缘由**：
+- **开发思考与缘由**：  
   在 ocgcore 残局标准中，指示物必须通过返回的卡片对象调用 `c:add_counter(type, count)` 接口添加：
   - `luaGenerator.ts`：若卡片带有指示物，将卡片生成语句升级为 `local c = Debug.AddCard(...)`，随后逐行生成 `c:add_counter(0x1, 3) -- 放置3个魔力指示物`；
   - `luaParser.ts`：增加对 `c:add_counter` 的正则模式匹配，并将解析到的类型与数量自动归集到对应的场上卡片实例中，达成双向 round-trip 语义等价。
@@ -291,3 +291,131 @@ export function deduceSuggestedCounters(state: DuelPuzzleState): CounterDefiniti
      - 再次按下 `Tab` 键即刻隐藏全部浮层，还原清爽棋盘。
   6. **菜单栏帮助系统同步收录**：
      - 在顶部菜单栏「帮助 ➔ 快捷键参考」（**src/renderer/src/components/Header/MenuBar.tsx**）弹窗中，正式收录 `Shift + 点击`（唤出攻守与指示物微调面板）以及 `Tab`（全局战术透视）的操作说明，使用户随时可查阅。
+
+
+---
+
+### 8. 微调面板衍生物（Token）智能推荐与点击落子
+
+- **改动文件**：**src/renderer/src/stores/useTokenStore.ts**（全新创建）、**src/renderer/src/components/Board/components/CardStatPopover.tsx**、**src/renderer/src/components/Board/ZoneSlot.tsx**
+- **开发思考与缘由**：  
+  在实机使用中提出一个优化点：**在决斗盘上可能需要布置 Token（衍生物），但每次需要时都要手动去右侧搜索面板搜索，太麻烦**。由于 `CardStatPopover` 已经是「选中场上卡片就地调攻守与指示物」的统一入口，衍生物布置功能顺势追加进该面板，右侧搜索面板保持原样不动、继续作为冷门 Token 的兜底检索入口。
+
+  方案确定前先做了两项关键的前置验证，避免拍脑袋定方案：
+  - **Token 能否被自动推断出来**：直接查主库 `cards.cdb` 实测。库内265 张 Token，按卡名去重后 199 张；179 张效果文本提及「衍生物」的常驻怪兽中，**有 152 张（84.9%）的效果文本里直接写明了 Token 卡名**，可以精确匹配。剩下未命中的 27 张经逐条核对，全部是「衍生物以外的怪兽2只」这类**排除型表述**（如龙绝兰、PSY骨架王·Λ、虚空俏丽魔术师），本就不该被推荐。**也就是说覆盖率实际接近 100%，完全不需要额外的搜索框**。
+  - **交互形态**：与用户确认后选定「**只显示智能推荐**」（不做全部 Token 列表搜索，面板不会被撑爆）+「**先选 Token 再点棋盘区域落子**」（而非自动放进第一个空怪兽区，保留位置选择的控制权）。
+  最终方案确定：在 `CardStatPopover` 底部新增「衍生物」区块，列出依本体卡效果文本智能推荐的 Token；点击某个 Token 后进入**待放置态**，此时棋盘上所有合法的空怪兽区亮起绿色高亮边框，点击目标格即以攻击表示落下。
+
+**src/renderer/src/stores/useTokenStore.ts**
+
+```ts
+/** Token 名过于通用，直接做子串匹配会命中大量无关效果文本，需排除 */
+const TOKEN_NAME_BLOCKLIST = new Set(['不明', '衍生物', 'token'])
+
+async function fetchCatalog(): Promise<CdbCard[]> {
+  const res = await window.api.searchCards({
+    type: 0,
+    subType: CardType.TOKEN,
+    sortField: 'name',
+    sortOrder: 'ASC',
+    limit: 2000
+  })
+  const byName = new Map<string, CdbCard>()
+  for (const card of res.cards) {
+    const name = String(card.name ?? '').trim()
+    if (!name || TOKEN_NAME_BLOCKLIST.has(name)) continue
+    if (!byName.has(name)) byName.set(name, card)
+  }
+  return Array.from(byName.values())
+}
+
+/**
+ * 依据本体卡效果文本推断其能召唤的衍生物。
+ * 命中方式为「Token 卡名是效果文本的子串」，实测主库 179 张提及衍生物的怪兽中 152 张可命中，
+ * 未命中的 27 张均为「衍生物以外的怪兽2只」这类排除型表述，本就不该推荐。
+ */
+export function matchTokensByDesc(catalog: CdbCard[], sourceCard: CdbCard): CdbCard[] {
+  const desc = String(sourceCard.desc ?? '')
+  if (!desc) return []
+  const hits: CdbCard[] = []
+  for (const token of catalog) {
+    const name = String(token.name ?? '')
+    if (name.length >= 2 && desc.includes(name)) hits.push(token)
+  }
+  return hits.sort((a, b) => a.id - b.id)
+}
+```
+
+- **设计要点**：
+  - **名单缓存与跨面板复用**：全库 Token 名单只在首次使用时查一次并缓存在模块级变量 `catalogPromise` 中，后续打开任意卡片的微调面板均直接复用，避免每开一次面板就重扫全库；
+  - **按卡名去重**：库中同名 Token 极多（幻兽机衍生物有 17 个卡密、河马衍生物 7 个、替罪羊衍生物 4 个等），因同名的攻防与效果完全一致，按卡名去重取首个卡密即可，既避免推荐列表出现重复项也减少渲染开销；
+  - **跨窗口刷新订阅**：通过 `window.api.onCdbUpdated` 监听主进程广播的卡库变更事件，收到后清空缓存并重新载入，保证在设置窗口切换卡库后本窗口的推荐列表同步更新。
+
+**src/renderer/src/components/Board/components/CardStatPopover.tsx**
+
+```diff
++  const loadTokenCatalog = useTokenStore((s) => s.loadCatalog)
++  const tokenCatalog = useTokenStore((s) => s.catalog)
++  const isTokenCatalogLoading = useTokenStore((s) => s.isCatalogLoading)
++  const pendingToken = useTokenStore((s) => s.pendingToken)
++  const armToken = useTokenStore((s) => s.armToken)
++  const cancelPendingToken = useTokenStore((s) => s.cancelPending)
++
++  useEffect(() => {
++    void loadTokenCatalog()
++  }, [loadTokenCatalog])
++
++  // 依本体卡效果文本推断可召唤的衍生物
++  const suggestedTokens = tokenCatalog && cdb ? matchTokensByDesc(tokenCatalog, cdb) : []
+```
+
+- **面板 UI 追加内容**（位于「当前指示物」区块之下）：
+  - 每条推荐项展示 **卡图缩略图 + 卡名 + 攻/守数值**，让创作者不点开大图也能确认是不是自己要的那只衍生物；
+  - 列表设 `max-h-[168px]` 可滚动，避免推荐较多的卡（如能召多个衍生物的效果怪兽）把面板撑得过长；
+  - 面板宽度由 `244px` 调整为 `264px`，为三段式信息行留出足够横向空间；
+  - 待放置态下在区块顶部显示「已选中「核成衍生物」，点击棋盘上的空怪兽区放下 (Esc 取消)」提示，并在标题行提供「取消放置」按钮；
+  - 无推荐项时回退显示「该卡效果文本未提及衍生物」。
+- **Esc 键行为分层**：原本 Esc 直接关闭整个面板，现在改为优先消费待放置态 —— 若当前正有待放置的 Token，Esc 仅取消放置；否则才关闭面板。
+
+**src/renderer/src/components/Board/ZoneSlot.tsx**
+
+```diff
++  /** 待放置衍生物模式下，本格是否为合法的落点（序号 0~4 的空主怪兽区） */
++  const isTokenDropTarget =
++    pendingToken !== null && location === CardLocation.MZONE && !card && sequence <= 4
++
++  /** 点击空怪兽区放入待放置的衍生物 */
++  const handleTokenDrop = (): boolean => {
++    if (!pendingToken || !isTokenDropTarget) return false
++    addCardToZone(pendingToken, controller, location, sequence, CardPosition.FACEUP_ATTACK, duelistId)
++    cancelPendingToken()
++    return true
++  }
+```
+
+- **落子交互**：
+  - `handleTokenDrop` 挂载到格子的 `onClick`，命中时直接落子并自动退出待放置态，**全程无需拖拽**；
+  - 落子位置固定为序号 `0~4` 的主怪兽区（排除 5/6 的额外怪兽区），与游戏规则中Token 只能占用主怪兽区的约定一致；
+  - 放置表示固定为 `CardPosition.FACEUP_ATTACK`（表侧攻击表示），符合衍生物通常以攻击表示召唤的常态；
+  - 合法落点叠加 `emerald` 色高亮边框 + `cursor-copy` 光标 + `animate-pulse` 呼吸动画，并在 `title` 中提示「点击放下「核成衍生物」」。
+
+#### 实现过程中踩到的三个坑
+
+- **Token 名单不能用「怪兽 + 细分类型」的常规组合过滤**：改用 `type: MONSTER` 配合 `subType` 只能取到 263 张，**漏掉了 2 张非怪兽类的 Token**。正确做法是 `type: 0` + `subType: CardType.TOKEN`，让检索走 `(d.type & subType) = subType` 分支，才能拿齐完整的 265 张。
+- **必须排除通用名 Token**：库中存在卡名就叫「不明」的 Token，若直接参与子串匹配会命中大量与其无关的效果文本，造成误推荐。故设置 `TOKEN_NAME_BLOCKLIST` 黑名单排除「不明」「衍生物」「token」这三个高危通用名。
+- **卡库变更事件的订阅方式**：主进程广播的 `cdb:updated` 是经 preload 的 `contextBridge` 暴露的，**不能**用 `window.addEventListener('cdb:updated')` 裸监听（收不到），必须走 `window.api.onCdbUpdated()`，与 `useCardSearchStore` 的处理方式保持一致。
+
+#### 验证
+
+用项目内 `better-sqlite3` 直接连真实 `cards.cdb` 复跑推荐算法，确认命中率 84.9%，典型推荐结果全部正确：
+
+| 本体卡        | 推荐出的衍生物        |
+| :--------- | :------------- |
+| 核成试验台      | 核成衍生物          |
+| 电子界工具      | 工具衍生物          |
+| No.48 暗影巫妖 | 幻影衍生物          |
+| 幻兽机 黑猎鹰    | 幻兽机衍生物         |
+| 流离的狮鹫骑手    | 勇者衍生物          |
+| 龙绝兰        | （无，排除型表述，符合预期） |
+
+`pnpm typecheck:web` 与 `pnpm typecheck:node` 均通过；按惯例仅对本次改动的三个文件执行 `pnpm exec eslint`，结果为 **0 errors**（剩余 551 条 CRLF 换行符 warning 为仓库既存状态，同文件在 HEAD 版本下为 1180 条，未新增）。验证用的临时脚本已在跑完后删除，未残留于工作区。

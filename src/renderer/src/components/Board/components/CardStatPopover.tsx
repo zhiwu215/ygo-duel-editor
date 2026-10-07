@@ -34,8 +34,12 @@ import {
   CircleDot,
   Swords,
   Shield,
-  GripHorizontal
+  GripHorizontal,
+  Sparkles,
+  Loader2
 } from 'lucide-react'
+import { useTokenStore, matchTokensByDesc } from '../../../stores/useTokenStore'
+import { getCardImageUrl, CARD_BACK_IMAGE } from '../../../utils/cardImage'
 import { cn } from '../../../lib/utils'
 
 /** 四则运算与直接修改按钮配置 (与生命值输入面板完全一致) */
@@ -350,6 +354,17 @@ export const CardStatPopover: React.FC = () => {
   const rafIdRef = useRef<number | null>(null)
   const [userSelectedCounterId, setUserSelectedCounterId] = useState<number | null>(null)
 
+  const loadTokenCatalog = useTokenStore((s) => s.loadCatalog)
+  const tokenCatalog = useTokenStore((s) => s.catalog)
+  const isTokenCatalogLoading = useTokenStore((s) => s.isCatalogLoading)
+  const pendingToken = useTokenStore((s) => s.pendingToken)
+  const armToken = useTokenStore((s) => s.armToken)
+  const cancelPendingToken = useTokenStore((s) => s.cancelPending)
+
+  useEffect(() => {
+    void loadTokenCatalog()
+  }, [loadTokenCatalog])
+
   // 默认视口居中偏右位置
   const pos = statPopoverPosition || {
     x: Math.max(16, window.innerWidth / 2 + 100),
@@ -413,17 +428,18 @@ export const CardStatPopover: React.FC = () => {
     window.addEventListener('mouseup', handleMouseUp)
   }
 
-  // 按 Esc 键关闭面板
+  // 按 Esc 键关闭面板；有待放置衍生物时优先取消放置
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        closeStatPopover()
+        if (useTokenStore.getState().pendingToken) cancelPendingToken()
+        else closeStatPopover()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closeStatPopover])
+  }, [closeStatPopover, cancelPendingToken])
 
   // 若无激活卡片，或卡片不在场上有效区域，则不渲染
   if (!activeStatPopoverCardId || !card) return null
@@ -438,6 +454,9 @@ export const CardStatPopover: React.FC = () => {
   const isMonster = cdb ? CardUtils.isMonster(cdb.type) : card.location === CardLocation.MZONE
   const isLink = cdb ? CardUtils.isLink(cdb.type) : false
   const cardName = cdb?.name || (card.code ? String(card.code) : '未知卡片')
+
+  // 依本体卡效果文本推断可召唤的衍生物
+  const suggestedTokens = tokenCatalog && cdb ? matchTokensByDesc(tokenCatalog, cdb) : []
 
   // 攻守数值定义
   const origAtk = cdb?.atk === -2 || !cdb ? 0 : cdb.atk
@@ -490,7 +509,7 @@ export const CardStatPopover: React.FC = () => {
         top: `${pos.y}px`
       }}
       className={cn(
-        'fixed z-[55] w-[244px] bg-card/95 text-card-foreground border border-border/90 rounded-xl shadow-2xl backdrop-blur-md p-3 flex flex-col gap-2.5 text-xs select-none animate-in fade-in zoom-in-95 duration-75 will-change-transform'
+        'fixed z-[55] w-[264px] bg-card/95 text-card-foreground border border-border/90 rounded-xl shadow-2xl backdrop-blur-md p-3 flex flex-col gap-2.5 text-xs select-none animate-in fade-in zoom-in-95 duration-75 will-change-transform'
       )}
     >
       {/* 1. 顶栏：可拖拽标题栏、卡名与关闭按钮 */}
@@ -653,6 +672,86 @@ export const CardStatPopover: React.FC = () => {
             <span>添加</span>
           </Button>
         </div>
+      </div>
+
+      {/* 5. 衍生物布置：按本体卡效果文本智能推荐，点击后进入待放置态再点棋盘空怪兽区 */}
+      <div className="flex flex-col gap-1.5 pt-1.5 border-t border-border/60">
+        <div className="flex items-center justify-between">
+          <span className="font-bold text-[11px] text-foreground/90 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-emerald-500" />
+            <span>衍生物</span>
+          </span>
+          {pendingToken && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={cancelPendingToken}
+              className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-destructive gap-1"
+            >
+              <X className="w-2.5 h-2.5" />
+              <span>取消放置</span>
+            </Button>
+          )}
+        </div>
+
+        {isTokenCatalogLoading ? (
+          <div className="h-6 flex items-center gap-1.5 px-2 text-[11px] text-muted-foreground">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span>载入中...</span>
+          </div>
+        ) : suggestedTokens.length > 0 ? (
+          <>
+            {pendingToken && (
+              <div className="text-[10px] text-emerald-500 px-0.5 leading-tight">
+                已选中「{pendingToken.name}」，点击棋盘上的空怪兽区放下 (Esc 取消)
+              </div>
+            )}
+            <div className="flex flex-col gap-1 max-h-[168px] overflow-y-auto">
+              {suggestedTokens.map((token) => {
+                const isArmed = pendingToken?.id === token.id
+                return (
+                  <button
+                    key={token.id}
+                    type="button"
+                    onClick={() => armToken(token)}
+                    className={cn(
+                      'flex items-center gap-1.5 p-1 rounded border text-left transition-colors cursor-pointer',
+                      isArmed
+                        ? 'border-emerald-400/70 bg-emerald-500/10'
+                        : 'border-border/50 bg-muted/40 hover:border-emerald-400/50 hover:bg-emerald-500/5'
+                    )}
+                  >
+                    <img
+                      src={getCardImageUrl(token.id, true)}
+                      alt={token.name}
+                      loading="lazy"
+                      className="w-[22px] h-[32px] object-cover rounded shrink-0 border border-border/60 bg-black/40"
+                      onError={(e) => {
+                        const target = e.currentTarget
+                        if (target.src !== CARD_BACK_IMAGE) target.src = CARD_BACK_IMAGE
+                      }}
+                    />
+                    <span
+                      className={cn(
+                        'text-[11px] font-medium truncate',
+                        isArmed ? 'text-emerald-500' : 'text-foreground/90'
+                      )}
+                    >
+                      {token.name}
+                    </span>
+                    <span className="ml-auto font-mono text-[10px] text-muted-foreground/80 shrink-0">
+                      {token.atk ?? 0}/{token.def ?? 0}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="text-[10px] text-muted-foreground/70 py-0.5 italic">
+            该卡效果文本未提及衍生物
+          </div>
+        )}
       </div>
     </div>
   )

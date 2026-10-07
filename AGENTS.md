@@ -34,7 +34,8 @@ pnpm dev                  # 开发模式（electron-vite dev，带 HMR）
 pnpm typecheck            # 双端类型检查 = typecheck:node + typecheck:web（Node 侧 + Web 侧）
 pnpm typecheck:node       #   仅检查 main / preload / shared（tsconfig.node.json）
 pnpm typecheck:web        #   仅检查 renderer（tsconfig.web.json）
-pnpm lint                 # ESLint（带 --cache）
+pnpm lint                 # ESLint 全仓（很慢：根目录参考子仓库未被 ignores 排除，日常勿用）
+pnpm exec eslint <file>   # 【推荐】只 lint 本次改动的文件，如 pnpm exec eslint src/renderer/src/stores/useDuelStore.ts
 pnpm format               # Prettier 全仓格式化（`prettier --write .`）
 pnpm exec prettier --write src # 【推荐】仅格式化源码目录，避免误扫根目录其他本地文件夹；单文件用 pnpm exec prettier --write <file>
 pnpm build                # 先 typecheck 再 electron-vite build
@@ -43,13 +44,13 @@ pnpm build:win            # Windows 打包（另有 build:mac / build:linux / bu
 
 **工作流硬性要求**：
 
-- **每次逻辑改完，必须跑 `pnpm typecheck` 且双端零错误**，再跑 `pnpm lint`。这是当前项目唯一的自动化质量门禁——**本项目暂无测试框架**，不要杜撰 `pnpm test` 命令；如果认为需要补测试框架，先询问用户。
+- **每次逻辑改完，必须跑 `pnpm typecheck` 且双端零错误**，再用 ESLint 检查**本次改动的文件**（`pnpm exec eslint <改动文件>`）。**禁止日常全量 `pnpm lint`**：根目录下的参考子仓库（pi、opencode、vscode、ygopro、deepseek-harness 等）未被 eslint ignores 排除，`eslint .` 会把它们整个扫一遍，慢到不可接受。这是当前项目唯一的自动化质量门禁——**本项目暂无测试框架**，不要杜撰 `pnpm test` 命令；如果认为需要补测试框架，先询问用户。
 - `better-sqlite3` 是原生模块。若安装依赖后出现 `NODE_MODULE_VERSION` 不匹配报错，重新执行 `pnpm install`（依赖 postinstall 自动 rebuild），不要手工改动构建配置。
 - 主流程开发环境为 **Windows**。主进程代码不硬编码路径分隔符或绝对路径，统一用 Node 的 `path` 模块和 IPC 拿到的用户目录。
 
 ---
 
-## 3. 术语约定（写代码与注释时统一措辞）
+## 3. 术语约定（写代码时统一措辞）
 
 | 术语          | 约定                                                                                                                                            |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -230,6 +231,13 @@ Board/
 - 会改变场面的新操作**必须走 useDuelStore 的 action**，否则无法被撤销/重做。
 - 需要评估变更后局面的逻辑（如可解性检查、displays 统计）写成独立纯函数，而不是塞进 store 或组件。
 
+### 8.6 组件库：优先 shadcn/ui（base-ui 版）
+
+- 通用 UI（Dialog、Select、Switch、Button 等）**一律先用 shadcn/ui**，底层是 `@base-ui/react`，**不是 radix**；`components.json` 的 `style` 为 `base-nova`。组件源码在 `src/renderer/src/components/ui/`。
+- `ui/` 里缺的组件**用 CLI 装，不要手写**：`pnpm exec shadcn add <name> --yes`。CLI 产物是双引号，装完跑 `pnpm exec prettier --write src/renderer/src/components/ui/<name>.tsx` 统一回项目风格（单引号），否则会连带把 `button.tsx` 等改出无关 diff。
+- 弹窗类需求优先用 `stores/useDialogStore.ts` 的 `confirmDialog()` / `alertDialog()`（返回 `Promise<boolean>`，用法同原生 `confirm()`）。**该 store 依赖宿主 `ui/ConfirmDialogHost.tsx`，每个窗口入口都必须包一层**，否则弹窗不渲染且 Promise 永远 pending。
+- **写任何通用 UI 前先 grep 现有实现**，不要重复造轮子：已有 `hooks/useBackdropClose.ts`（自写弹窗遮罩兜底）、`ui/ConfirmDialogHost.tsx`、`Settings/components/ConfirmDialog.tsx` 等。
+
 ---
 
 ## 9. 代码风格（由工具强制，不要手工维护规则）
@@ -239,7 +247,7 @@ Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：�
 需要人工遵守、工具管不着的：
 
 - TypeScript `strict` 模式，所有函数（包括组件）显式返回类型。
-- 注释记录**非显而易见的约束与理由**（如「为什么只读打开 cdb」「为什么 partialize 只追踪 state.state」），不写"复述代码"式注释。
+- **代码里不写任何注释**（行内注释与 JSDoc 一律不要），语义靠命名、类型签名与文件组织表达；唯一例外是注释指令，如 `// @ts-ignore`、`// eslint-disable-next-line` 这类编译器/linter 指令。
 
 ---
 
@@ -284,4 +292,4 @@ Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：�
 - [ ] 场面相关操作封装为 store action，撤销/重做正常
 - [ ] 触及 Lua 引擎 → 已验证 generate ↔ parse round-trip
 - [ ] 触及 `MASTER_RULES` / 场地结构 → MR2~MR5 各状态在 dev 窗口实际切过一遍
-- [ ] 目录结构注释、存在的注释与文档未被意外删除；如架构变化，同步更新本文件
+- [ ] 文档未被意外删除；如架构变化，同步更新本文件

@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import {
   DeckData,
+  DeckSection,
   DeckStats,
   CdbCard,
   CardUtils,
   calculateDeckStats,
+  canPlaceInSection,
   parseYdk,
   groupChildPath
 } from '@shared/index'
@@ -57,9 +59,15 @@ interface DeckEditorState {
   addDeckTag: (tag: string) => void
   removeDeckTag: (tag: string) => void
   setDeckCover: (cardId: number | undefined) => void
-  addCard: (card: CdbCard, targetSection?: 'main' | 'extra' | 'side') => boolean
-  removeCard: (section: 'main' | 'extra' | 'side', index: number) => void
-  moveCard: (section: 'main' | 'extra' | 'side', fromIndex: number, toIndex: number) => void
+  addCard: (card: CdbCard, targetSection?: DeckSection, atIndex?: number) => boolean
+  removeCard: (section: DeckSection, index: number) => void
+  moveCard: (section: DeckSection, fromIndex: number, toIndex: number) => void
+  moveCardBetweenSections: (
+    fromSection: DeckSection,
+    fromIndex: number,
+    toSection: DeckSection,
+    toIndex?: number
+  ) => boolean
   clearDeck: () => void
   loadDeck: (deck: DeckData) => Promise<void>
   sortDeck: () => void
@@ -315,19 +323,21 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
     set((prev) => ({ deck: { ...prev.deck, coverCard: cardId } }))
   },
 
-  addCard: (card, targetSection): boolean => {
+  addCard: (card, targetSection, atIndex): boolean => {
     const { deck, cardDetails } = get()
     const isExtra = CardUtils.isExtraDeck(card.type)
 
     // 默认区域判定：额外怪兽默认进入 extra，其余进入 main
-    const section: 'main' | 'extra' | 'side' = targetSection || (isExtra ? 'extra' : 'main')
+    const section: DeckSection = targetSection || (isExtra ? 'extra' : 'main')
+    if (!canPlaceInSection(card.type, section)) return false
 
-    // 自由创作模式：解除数量与同名卡死锁限制，允许同人剧情突破 20 额外等创作特权
-    const nextDeck = { ...deck }
-    nextDeck[section] = [...nextDeck[section], card.id]
+    const list = [...deck[section]]
+    const insertAt =
+      atIndex === undefined ? list.length : Math.min(Math.max(atIndex, 0), list.length)
+    list.splice(insertAt, 0, card.id)
 
     set({
-      deck: nextDeck,
+      deck: { ...deck, [section]: list },
       cardDetails: { ...cardDetails, [card.id]: card },
       selectedCard: card
     })
@@ -368,6 +378,30 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
     nextCards.splice(fromIndex, 1)
     nextCards.splice(toIndex, 0, movedCard)
     set({ deck: { ...deck, [section]: nextCards } })
+  },
+
+  moveCardBetweenSections: (fromSection, fromIndex, toSection, toIndex): boolean => {
+    const { deck, cardDetails } = get()
+
+    if (fromSection === toSection) {
+      get().moveCard(fromSection, fromIndex, toIndex ?? fromIndex)
+      return true
+    }
+
+    const code = deck[fromSection][fromIndex]
+    if (code === undefined) return false
+
+    const type = cardDetails[code]?.type
+    if (type !== undefined && !canPlaceInSection(type, toSection)) return false
+
+    const from = [...deck[fromSection]]
+    from.splice(fromIndex, 1)
+    const to = [...deck[toSection]]
+    const insertAt = toIndex === undefined ? to.length : Math.min(Math.max(toIndex, 0), to.length)
+    to.splice(insertAt, 0, code)
+
+    set({ deck: { ...deck, [fromSection]: from, [toSection]: to } })
+    return true
   },
 
   clearDeck: (): void => {

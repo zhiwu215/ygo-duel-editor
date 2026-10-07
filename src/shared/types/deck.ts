@@ -64,6 +64,14 @@ export function groupAncestorPaths(path: string): string[] {
   return segments.map((_, i) => segments.slice(0, i + 1).join(GROUP_SEP))
 }
 
+export type DeckSection = 'main' | 'extra' | 'side'
+
+export function canPlaceInSection(type: number, section: DeckSection): boolean {
+  if (section === 'extra') return CardUtils.isExtraDeck(type)
+  if (section === 'main') return !CardUtils.isExtraDeck(type)
+  return true
+}
+
 export interface DeckStats {
   mainCount: number
   extraCount: number

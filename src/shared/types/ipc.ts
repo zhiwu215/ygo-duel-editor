@@ -423,7 +423,6 @@ export interface CardNote {
   user?: string
   source?: string
   readonly?: boolean
-  updatedAt: number
 }
 
 export interface DefaultCardNote {
@@ -438,8 +437,6 @@ export interface DefaultCardNote {
 
 export interface CardNoteLibrary {
   notes: Record<string, CardNote[]>
-  updatedAt: number
-  version: string
 }
 
 export interface CardNoteEntry {

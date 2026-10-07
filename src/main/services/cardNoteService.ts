@@ -14,7 +14,6 @@ import { cdbService } from '../db/cdbService'
 import icon from '../../../resources/icon.png?asset'
 
 const LIBRARY_FILE = 'card_notes.json'
-const LIBRARY_VERSION = '1.0.0'
 
 const LEGACY_FILE = 'summon_chants.json'
 
@@ -47,7 +46,7 @@ export class CardNoteService {
   }
 
   private emptyLibrary(): CardNoteLibrary {
-    return { notes: {}, updatedAt: 0, version: LIBRARY_VERSION }
+    return { notes: {} }
   }
 
   private defaultPathCandidates(): string[] {
@@ -76,8 +75,7 @@ export class CardNoteService {
             text: (e.text || '').trim(),
             user: e.user,
             source: e.source,
-            readonly: true,
-            updatedAt: 0
+            readonly: true
           }))
           .filter((e) => e.label && e.text)
       } catch (err) {
@@ -95,15 +93,11 @@ export class CardNoteService {
         chants?: Record<string, Omit<CardNote, 'kind'>[]>
       }
       if (parsed.notes && typeof parsed.notes === 'object') {
-        return {
-          notes: parsed.notes,
-          updatedAt: parsed.updatedAt || 0,
-          version: parsed.version || LIBRARY_VERSION
-        }
+        return { notes: parsed.notes }
       }
 
       if (parsed.chants && typeof parsed.chants === 'object') {
-        return this.migrateLegacy({ chants: parsed.chants } as never, parsed.updatedAt || 0)
+        return this.migrateLegacy({ chants: parsed.chants } as never)
       }
     }
 
@@ -111,10 +105,9 @@ export class CardNoteService {
     if (legacyRaw) {
       const legacy = legacyRaw as {
         chants?: Record<string, Omit<CardNote, 'kind'>[]>
-        updatedAt?: number
       }
       if (legacy.chants && Object.keys(legacy.chants).length > 0) {
-        const migrated = this.migrateLegacy(legacy, legacy.updatedAt || 0)
+        const migrated = this.migrateLegacy(legacy)
         this.writeLibrary(migrated)
         console.log(
           `[CardNoteService] 已从 ${LEGACY_FILE} 迁移 ${Object.keys(migrated.notes).length} 张卡的召唤词`
@@ -137,28 +130,23 @@ export class CardNoteService {
     }
   }
 
-  private migrateLegacy(
-    legacy: { chants?: Record<string, Omit<CardNote, 'kind'>[]> },
-    updatedAt: number
-  ): CardNoteLibrary {
+  private migrateLegacy(legacy: {
+    chants?: Record<string, Omit<CardNote, 'kind'>[]>
+  }): CardNoteLibrary {
     const src = legacy as { chants?: Record<string, Omit<CardNote, 'kind'>[]> }
     const notes: Record<string, CardNote[]> = {}
     for (const [key, list] of Object.entries(src.chants ?? {})) {
       if (!Array.isArray(list) || list.length === 0) continue
       notes[key] = list.map((c) => ({ ...c, kind: 'chant' as CardNoteKind }))
     }
-    return { notes, updatedAt, version: LIBRARY_VERSION }
+    return { notes }
   }
 
   private writeLibrary(lib: CardNoteLibrary): { success: boolean; error?: string } {
     try {
       const dir = join(app.getPath('userData'))
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-      writeFileSync(
-        this.filePath,
-        JSON.stringify({ ...lib, updatedAt: Date.now(), version: LIBRARY_VERSION }, null, 2),
-        'utf-8'
-      )
+      writeFileSync(this.filePath, JSON.stringify(lib, null, 2), 'utf-8')
       return { success: true }
     } catch (err) {
       console.error('[CardNoteService] 写入手记库失败:', err)
@@ -289,7 +277,7 @@ export class CardNoteService {
     const key = String(code)
     const list = Array.isArray(lib.notes[key]) ? [...lib.notes[key]] : []
     const idx = list.findIndex((c) => c.kind === kind && c.label === label)
-    const entry: CardNote = { cardCode: code, kind, label, text, updatedAt: Date.now() }
+    const entry: CardNote = { cardCode: code, kind, label, text }
     if (idx >= 0) list.splice(idx, 1)
     list.unshift(entry)
 
@@ -413,8 +401,7 @@ export class CardNoteService {
           label: c.label.trim(),
           text: c.text.trim(),
           user: c.user,
-          source: c.source,
-          updatedAt: c.updatedAt || Date.now()
+          source: c.source
         })
       }
     }
@@ -436,7 +423,7 @@ export class CardNoteService {
       const key = String(code)
       const list = Array.isArray(lib.notes[key]) ? [...lib.notes[key]] : []
       const idx = list.findIndex((c) => c.kind === note.kind && c.label === note.label)
-      const entry: CardNote = { ...note, cardCode: code, updatedAt: Date.now() }
+      const entry: CardNote = { ...note, cardCode: code }
       if (idx >= 0) list.splice(idx, 1)
       list.unshift(entry)
       lib.notes[key] = list

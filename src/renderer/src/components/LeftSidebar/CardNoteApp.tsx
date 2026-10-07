@@ -154,7 +154,7 @@ export const CardNoteApp: React.FC = () => {
 
   const handleSave = useCallback(
     async (cardCode: number, kind: CardNoteKind, label: string, text: string): Promise<boolean> => {
-      const res = await window.api.saveCardNote({ cardCode, kind, label, text, updatedAt: 0 })
+      const res = await window.api.saveCardNote({ cardCode, kind, label, text })
       if (!res.success) {
         flash(res.error || '保存失败')
         return false
@@ -469,7 +469,7 @@ export const CardNoteApp: React.FC = () => {
         <CardNoteAdder
           existingLabelsFor={existingLabelsFor}
           onSave={async (cardCode, kind, label, text) => {
-            const res = await window.api.saveCardNote({ cardCode, kind, label, text, updatedAt: 0 })
+            const res = await window.api.saveCardNote({ cardCode, kind, label, text })
             if (!res.success) {
               flash(res.error || '保存失败')
               return false

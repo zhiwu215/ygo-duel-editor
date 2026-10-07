@@ -272,8 +272,7 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
               cardCode: code,
               kind: 'chant',
               label,
-              text,
-              updatedAt: 0
+              text
             })
             if (!res.success) {
               void alertDialog(res.error || '保存失败')

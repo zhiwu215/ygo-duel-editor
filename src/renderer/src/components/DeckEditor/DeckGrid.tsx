@@ -1,5 +1,5 @@
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import { canPlaceInSection, CdbCard, DeckData, DeckSection, DeckStats } from '@shared/index'
@@ -108,20 +108,19 @@ const DeckZoneFeedback: React.FC<{
   const targetSection = target && target.kind !== 'search-panel' ? target.section : null
   if (!isDragActive || !source || !targetSection) return null
 
-  let valid: boolean
-  if (source.source === 'search') {
-    valid = canPlaceInSection(source.card.type, targetSection)
-  } else if (source.section === targetSection) {
-    valid = true
-  } else {
-    const type = cardDetails[source.code]?.type
-    valid = type === undefined || canPlaceInSection(type, targetSection)
-  }
+  const valid =
+    source.source === 'search'
+      ? canPlaceInSection(source.card.type, targetSection)
+      : source.section === targetSection ||
+        cardDetails[source.code] === undefined ||
+        canPlaceInSection(cardDetails[source.code].type, targetSection)
+
+  if (source.source !== 'search' && valid) return null
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
       <div className="flex flex-col items-center gap-2.5">
-        {valid && source.source === 'search' && (
+        {valid && (
           <span className="text-xs font-bold text-foreground/70">可以向卡组中添加卡片</span>
         )}
         <div className="w-24 h-24 rounded-full bg-white shadow-2xl ring-1 ring-black/10 flex items-center justify-center">
@@ -234,6 +233,14 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
   const extraCount = deck.extra.length
   const sideCount = deck.side.length
 
+  const handleOpenMenu = useCallback((code: number, x: number, y: number): void => {
+    setMenu({ code, x, y })
+  }, [])
+  const handleClearMenu = useCallback((): void => setMenu(null), [])
+  const handleCloseOnEscape = useCallback((e: KeyboardEvent): void => {
+    if (e.key === 'Escape') setMenu(null)
+  }, [])
+
   useLayoutEffect(() => {
     const counts = { main: mainCount, extra: extraCount, side: sideCount }
     const measure = (): void => {
@@ -260,30 +267,32 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
 
   useEffect(() => {
     if (!menu) return
-    const close = (): void => setMenu(null)
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') close()
-    }
-    window.addEventListener('mousedown', close)
-    window.addEventListener('resize', close)
-    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('mousedown', handleClearMenu)
+    window.addEventListener('resize', handleClearMenu)
+    window.addEventListener('keydown', handleCloseOnEscape)
     return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('resize', close)
-      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('mousedown', handleClearMenu)
+      window.removeEventListener('resize', handleClearMenu)
+      window.removeEventListener('keydown', handleCloseOnEscape)
     }
-  }, [menu])
+  }, [menu, handleClearMenu, handleCloseOnEscape])
 
-  const sortableCards = {
-    main: getSortableCards('main', deck.main),
-    extra: getSortableCards('extra', deck.extra),
-    side: getSortableCards('side', deck.side)
-  }
+  const sortableCards = useMemo(
+    () => ({
+      main: getSortableCards('main', deck.main),
+      extra: getSortableCards('extra', deck.extra),
+      side: getSortableCards('side', deck.side)
+    }),
+    [deck.main, deck.extra, deck.side]
+  )
 
-  const gridStyle = {
-    gridTemplateColumns: `repeat(${layout.cols}, ${layout.cardWidth}px)`,
-    gap: `${ROW_GAP}px`
-  }
+  const gridStyle = useMemo(
+    () => ({
+      gridTemplateColumns: `repeat(${layout.cols}, ${layout.cardWidth}px)`,
+      gap: `${ROW_GAP}px`
+    }),
+    [layout.cols, layout.cardWidth]
+  )
   const cardHeight = Math.round((layout.cardWidth * 86) / 59)
   const gridWidth = layout.cols * layout.cardWidth + ROW_GAP * (layout.cols - 1)
   const emptyBox = (text: string): React.ReactNode => (
@@ -319,7 +328,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
                   isCover={coverCard === code}
                   onSelect={onSelectCard}
                   onHover={onHoverCard}
-                  onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
+                  onOpenMenu={handleOpenMenu}
                 />
               ))}
             </div>
@@ -341,6 +350,11 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
     { sprite: cardTypeSynchro, label: '同调', count: stats.synchroCount },
     { sprite: cardTypeXyz, label: '超量', count: stats.xyzCount },
     { sprite: cardTypeLink, label: '连接', count: stats.linkCount }
+  ]
+  const sideTallies: TypeTally[] = [
+    { sprite: cardTypeMonster, label: '怪兽', count: stats.sideMonsterCount },
+    { sprite: cardTypeSpell, label: '魔法', count: stats.sideSpellCount },
+    { sprite: cardTypeTrap, label: '陷阱', count: stats.sideTrapCount }
   ]
 
   return (
@@ -381,7 +395,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
               <ZoneHeader
                 title="副卡组"
                 total={stats.sideCount}
-                tallies={mstTallies}
+                tallies={sideTallies}
                 width={gridWidth}
               />,
               '副卡组为空'

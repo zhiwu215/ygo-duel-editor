@@ -1,5 +1,5 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import React, { useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -104,6 +104,25 @@ export const DeckEditorApp: React.FC = () => {
     })
   )
 
+  const handleSelectCard = useCallback(
+    (card: CdbCard | null): void => {
+      setSelectedCard(card)
+      setHoveredCardId(null)
+    },
+    [setSelectedCard, setHoveredCardId]
+  )
+
+  const handleHoverCard = useCallback(
+    (code: number | null): void => {
+      setHoveredCardId(code)
+    },
+    [setHoveredCardId]
+  )
+
+  const handleClearHover = useCallback((): void => {
+    setHoveredCardId(null)
+  }, [setHoveredCardId])
+
   if (viewMode === 'library') {
     return <DeckLibraryView />
   }
@@ -203,11 +222,6 @@ export const DeckEditorApp: React.FC = () => {
         clearDeck()
       }
     }
-  }
-
-  const handleSelectCard = (card: CdbCard | null): void => {
-    setSelectedCard(card)
-    setHoveredCardId(null)
   }
 
   return (
@@ -458,12 +472,12 @@ export const DeckEditorApp: React.FC = () => {
               isDragActive={activeDrag !== null}
               coverCard={deck.coverCard}
               onSelectCard={handleSelectCard}
-              onHoverCard={setHoveredCardId}
+              onHoverCard={handleHoverCard}
               onRemoveCard={removeCard}
               onSetCover={(code) => {
                 setDeckCover(code)
                 setSelectedCard(cardDetails[code] ?? null)
-                setHoveredCardId(null)
+                handleClearHover()
               }}
               onClearCover={() => setDeckCover(undefined)}
             />

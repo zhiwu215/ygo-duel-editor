@@ -19,7 +19,7 @@ interface DeckCardItemProps {
   onOpenMenu: (code: number, x: number, y: number) => void
 }
 
-export const DeckCardItem: React.FC<DeckCardItemProps> = ({
+const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
   code,
   card,
   section,
@@ -108,3 +108,5 @@ export const DeckCardItem: React.FC<DeckCardItemProps> = ({
     </Tooltip>
   )
 }
+
+export const DeckCardItem = React.memo(DeckCardItemBase)

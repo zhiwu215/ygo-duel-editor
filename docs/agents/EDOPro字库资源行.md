@@ -127,23 +127,27 @@ let baseWhere =
 搜索「衍生物」（三库合计）：792 → 481（去掉 311 条令牌）。
 搜索验证：「传奇」→ 纯空；「战斗包」→ 纯空；「巨人」仍返回 20 张真卡（睡巨人 咕咚、古之巨人、混沌No.6 大西洲巨人 等）；真卡「衍生物收集者」「衍生物复活祭」保留。
 
-## 附：EDOPro 多库与 `ot` 字段
+## 多库与 `ot` 字段
 
 用户配置里加载了三个库：
 
-| 库 | 用途 | `cdbPoolTags` |
-| --- | --- | --- |
-| `E:\MyCardLibrary\ygopro\cards.cdb` | 主库 | — |
-| `E:\Edopro-kcg\config\languages\Chs\anime.cdb` | 动画/漫画卡 | `anime` |
-| `E:\Edopro-kcg\config\languages_new\Chs\rush.cdb` | 超速决斗卡 | `rush` |
+| 库 | 用途 |
+| --- | --- |
+| `E:\MyCardLibrary\ygopro\cards.cdb` | 主库 |
+| `E:\Edopro-kcg\config\languages\Chs\anime.cdb` | 动画/漫画卡 |
+| `E:\Edopro-kcg\config\languages_new\Chs\rush.cdb` | 超速决斗卡 |
 
-`datas.ot` 是卡池可玩性位掩码：
+`datas.ot` 是赛区 / 卡池位掩码。标准 YGOPro 只认前两位，后面几项是 EDOPro 中文改版加的扩展位：
 
 | 位 | 值 | 含义 |
 | --- | --- | --- |
 | `AVAIL_OCG` | `0x1` | OCG 可用 |
 | `AVAIL_TCG` | `0x2` | TCG 可用 |
-| `AVAIL_CUSTOM` | `0x4` | 自定义 |
-| `AVAIL_SC` | `0x8` | 超速（Speed/Rush） |
+| `AVAIL_ANIME` | `0x4` | 动漫/漫画 |
+| `AVAIL_PRE_ERRATA` | `0x8` | 中文改版私有位（KCG 里对应旧文本版） |
+| `AVAIL_VG` | `0x10` | 卡片力量（VG/TF） |
+| `AVAIL_RUSH` | `0x200` | 超速（Rush） |
 
-`anime.cdb` 内的条目通常 `ot` 位不含 OCG/TCG 的常规标记，因此界面显示成 `[动画/漫画]` 这类池标签。
+卡池（动漫/漫画、超速、卡片力量）一律按这些位判定，**与「卡在哪个 cdb 文件里」无关**——`anime.cdb` 这一个文件里就同时装着动漫卡、卡片力量(VG)卡和旧文本版卡，整库打一个标记必然串味。
+
+`ot` 位的完整语义、语言包不可信的证据，以及「TCG 独有」27 / 24 / 23 三个数字的溯源，见 [卡池判定与 ot 位](./卡池判定与ot位.md)。

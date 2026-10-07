@@ -1,8 +1,10 @@
 # AGENTS.md — YGO Duel Editor
 
-> 本文件是 AI 编码代理（Claude Code、Codex、Cursor、OpenCode 等）在修改本仓库时**必须遵守**的工作规范。
-> 写法参照 [agents.md](https://agents.md) 开放格式与 [apache/airflow](https://github.com/apache/airflow/blob/main/AGENTS.md) 的实践：指令式、边界明确、命令可执行。
+> 本文件是 AI 编码代理（Claude Code、Codex、Cursor、OpenCode 等）在修改本仓库时**必须遵守**的工作规范。>   
+> 写法参照 [agents.md](https://agents.md) 开放格式与 [apache/airflow](https://github.com/apache/airflow/blob/main/AGENTS.md) 的实践：指令式、边界明确、命令可执行。>   
 > 冲突时优先级：用户当前对话的明确指示 > 本文件 > 其他文档。若本文件与代码现实不符，**以代码为准**，并在同一个改动里顺手修正本文件。
+
+
 
 ---
 
@@ -12,11 +14,11 @@
 
 产品目标是服务**三类创作场景**，新增功能与设计决策应优先兼容它们：
 
-| 场景                 | 说明                                       | 数据形态                          |
-| -------------------- | ------------------------------------------ | --------------------------------- |
-| **残局布场**         | 摆出残局/教程局面的双方场地、手牌、生命值  | `DuelPuzzleState`（当前已实现）   |
-| **同人剧情对局编排** | 编排多段剧情：开场白、事件触发、多回合推演 | 需要序列/章节等状态扩展（规划中） |
-| **卡组 Combo 教学**  | 演示卡组起手与做场路线，分步骤讲解         | 需要步骤/回放等状态扩展（规划中） |
+| 场景              | 说明                    | 数据形态                     |
+| --------------- | --------------------- | ------------------------ |
+| **残局布场**        | 摆出残局/教程局面的双方场地、手牌、生命值 | `DuelPuzzleState`（当前已实现） |
+| **同人剧情对局编排**    | 编排多段剧情：开场白、事件触发、多回合推演 | 需要序列/章节等状态扩展（规划中）        |
+| **卡组 Combo 教学** | 演示卡组起手与做场路线，分步骤讲解     | 需要步骤/回放等状态扩展（规划中）        |
 
 **当前实现范围**： MR2~MR5 场地编辑、拖拽摆卡、卡片检索（读取用户游戏目录的 `cards.cdb`）、Lua 脚本导入/导出、项目文件保存/加载、撤销/重做。
 
@@ -30,6 +32,7 @@
 
 ```bash
 pnpm install              # 安装依赖（postinstall 会自动对 better-sqlite3 执行 electron-builder install-app-deps）
+pnpm install --force --offline   # 【修复依赖损坏专用】强制重扫并从 store 重建，不联网。普通 install 报 “Already up to date” 但实际损坏时用它（见 2.1）
 pnpm dev                  # 开发模式（electron-vite dev，带 HMR）
 pnpm typecheck            # 双端类型检查 = typecheck:node + typecheck:web（Node 侧 + Web 侧）
 pnpm typecheck:node       #   仅检查 main / preload / shared（tsconfig.node.json）
@@ -45,22 +48,91 @@ pnpm build:win            # Windows 打包（另有 build:mac / build:linux / bu
 **工作流硬性要求**：
 
 - **每次逻辑改完，必须跑 `pnpm typecheck` 且双端零错误**，再用 ESLint 检查**本次改动的文件**（`pnpm exec eslint <改动文件>`）。**禁止日常全量 `pnpm lint`**：根目录下的参考子仓库（pi、opencode、vscode、ygopro、deepseek-harness 等）未被 eslint ignores 排除，`eslint .` 会把它们整个扫一遍，慢到不可接受。这是当前项目唯一的自动化质量门禁——**本项目暂无测试框架**，不要杜撰 `pnpm test` 命令；如果认为需要补测试框架，先询问用户。
-- `better-sqlite3` 是原生模块。若安装依赖后出现 `NODE_MODULE_VERSION` 不匹配报错，重新执行 `pnpm install`（依赖 postinstall 自动 rebuild），不要手工改动构建配置。
+- `better-sqlite3` 是原生模块。若安装依赖后出现 `NODE_MODULE_VERSION` 不匹配报错，重新执行 `pnpm install`（依赖 postinstall自动 rebuild），不要手工改动构建配置。
 - 主流程开发环境为 **Windows**。主进程代码不硬编码路径分隔符或绝对路径，统一用 Node 的 `path` 模块和 IPC 拿到的用户目录。
+
+### 2.1 `node_modules` 损坏：根因与不可逆操作禁令
+
+`node_modules` 反复损坏**不是偶发**，根因已查明，必须严格遵守下列禁令。
+
+#### 根因：pnpm 硬链接 + 跨项目共享
+
+pnpm 默认从全局 store（`D:\.pnpm-store\v11`）以**硬链接**方式把包接入项目。实测数据：
+
+- store 中**42766 个文件里有 15192 个（36%）的 `nlink > 3`**，即被 3 个以上目录共享同一个 inode；最高一个达 **703 个链接**（各项目共用的 `package.json` 片段）。
+- 本项目 `node_modules/.pnpm/node_modules` 下有 **708 个hoist 包**，被所有依赖共享。
+
+由此推出三条必须遵守的结论：
+
+1. **删一个项目的 `node_modules` 可能连带破坏其他项目**（共享 inode）。看到「别的项目也报 `Cannot find module`」时，先怀疑 store 层面的连带损伤。
+2. **任何试图「修一修」的操作都可能扩散损伤**。本次事故中，把损坏目录改名成 `node_modules.broken` 留存、后来又整体删除，都是在共享图上做手术。
+3. **`pnpm install` 可能输出 `Already up to date` 却什么都没修**——`.modules.yaml` 记录着「已完成」状态，这是**假性完好**。此时必须 `--force`。
+
+#### 禁令
+
+- **禁止 `rm -rf node_modules`**，包括「重装一下肯定能好」这类直觉操作。需要清理时先征询用户。
+- **禁止手动 `mv`/`cp` 改写 `node_modules` 下的目录**（含改名成 `.broken`、`.old` 之类留存）。依赖树的正确状态只能由 `pnpm install` 生成。
+- **禁止在 `node_modules` 内手工增删文件或改写包内容**。需要 patch 依赖用 `pnpm patch`，或改用 `overrides` / `patchedDependencies`。
+- 修复一律走：`pnpm install --force --offline`（store 完好时全程不联网）。仅当 store 也损坏时才`--no-offline` 重下。
+
+#### 诊断与修复流程（照此顺序，不要跳步）
+
+**第一步：分清是「依赖损坏」还是「环境问题」。** 沙箱/自动化环境的报错极易误判为本项目缺陷，先排除：
+
+```bash
+env | grep -iE "electron|NODE_OPTIONS"   # Electron 项目必查
+```
+
+宿主可能注入 `ELECTRON_RUN_AS_NODE=1` + `NODE_OPTIONS=--require=...shim.cjs`。前者会让 electron 二进制退化成纯 node，`require('electron')` 返回 npm 包（路径字符串）而非运行时模块，报 `Cannot read properties of undefined (reading 'isPackaged')`。**看到这个报错不要改项目代码**，用 `env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS pnpm dev` 验证。同理，无 GPU 的沙箱会报 `GPU process isn't usable. Goodbye.`（exit `-2147483645`），属环境限制，`--disable-gpu --no-sandbox` 可过。**用户在自己终端跑不会有这两类问题。**
+
+**第二步：确认损坏范围**（不要凭现象猜）：
+
+```bash
+# 顶层包是否齐全（electron-vite/react/vite缺失 = 顶层链接丢失）
+ls node_modules | wc -l
+for p in electron-vite vite electron react typescript; do [ -e "node_modules/$p" ] && echo "$p OK" || echo "$p MISSING"; done
+
+# .pnpm 内部是否有空壳包（须递归两层，只看第一层会漏）
+python -c "
+import os
+pn='node_modules/.pnpm'
+for name in os.listdir(pn):
+    if name in ('lock.yaml','node_modules'): continue  # pnpm 元数据文件，非包
+    nm=os.path.join(pn,name,'node_modules')
+    if not os.path.isdir(nm): print('缺 node_modules:',name); continue
+    for p in os.listdir(nm):
+        pp=os.path.join(nm,p)
+        for s in (os.listdir(pp) if p.startswith('@') else [p]):
+            q=os.path.join(pp,s)
+            if os.path.isdir(q) and not os.listdir(q): print('空包:',name,p,s)
+"
+```
+
+正常输出就是「什么都不打印」。`lock.yaml` / `node_modules` 是 pnpm 的元数据文件而非包，必须跳过，否则每次都会误报 2 项。
+
+注&#x610F;**「目录非空但缺关键文件」也要查**（本次 `@jridgewell/trace-mapping` 只剩 `types/`，丢了 `dist/`+`index.js`）——这类只能靠实际报错暴露，所以**必须跑到 `pnpm dev` 真的成功**才算修好，不能只看扫描结果。
+
+**第三步：修复。** `pnpm install --force --offline`。它可能以 `ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED` 收尾（多见 `esbuild postinstall: spawnSync node.exe EBUSY`）——**这是 pnpm 生命周期脚本执行器自锁，可忽略**：包内容此时已正确落地，`node_modules/.pnpm/esbuild@*/node_modules/esbuild/bin/esbuild` 存在即正常。**不要因为这个非零退出码就重装或回滚**，重装反而增加共享图损伤。
+
+**第四步：验证。** `pnpm dev` 完整构建成功（main + preload + renderer 三段都出现 `built successfully`）且 Electron 窗口起来、`[CdbService]` 正常加载；再跑 `pnpm typecheck` 双端零错误。
+
+#### 事故残留目录的处置
+
+若发现 `node_modules.broken` / `node_modules.old` / `node_modules.empty` 这类目录出现在仓库根：**它们会污染 `git status`**（`.gitignore` 只写了 `node_modules`，不匹配后缀名）。先验证确为无价值的空壳（逐个检查顶层包是否为空、`.bin/*.cmd` 里的绝对路径是否仍指向 `node_modules\.pnpm\...` 以确认它本来就是 `node_modules`），确认后再删除，且**删除前告知用户**。不要默认它们是垃圾。
 
 ---
 
 ## 3. 术语约定（写代码时统一措辞）
 
-| 术语          | 约定                                                                                                                                            |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 卡密          | 数据字段统一叫 `code`（`CdbCard.id` 是例外，它是数据库主键，等价于卡密）                                                                        |
-| 场上实例      | `instanceId`（每张卡在场地上的唯一 ID），不要与卡密 `code` 混淆                                                                                 |
-| 控制者        | `controller: 0` = 我方，`controller: 1` = 对方。这是 ocgcore 硬约定，**任何地方都不得颠倒**                                                     |
-| 归属者        | `owner: 0 \| 1` = 卡牌原型归属（洗回卡组时用它），通常与 controller 相同                                                                        |
-| 规则版本      | 代码中 `MasterRule` 的取值是 `2 \| 3 \| 4 \| 5`，其中 `2` 覆盖 MR1/MR2（同为经典 5+5 布局）。文案写 MR1~MR5，代码守这个联合类型                 |
-| 区域/表示形式 | 一律引用 `CardLocation` / `CardPosition` 常量（详见第 7 节），禁止裸写魔法数字                                                                  |
-| Lua 常量映射  | `CardLocation.DECK → 'LOCATION_DECK'`、`CardPosition.FACEUP_DEFENSE → 'POS_FACEUP_DEFENSE'`，映射表集中在 `luaGenerator.ts` / `luaParser.ts` 内 |
+| 术语       | 约定                                                                                                                                     |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 卡密       | 数据字段统一叫 `code`（`CdbCard.id` 是例外，它是数据库主键，等价于卡密）                                                                                         |
+| 场上实例     | `instanceId`（每张卡在场地上的唯一 ID），不要与卡密 `code` 混淆                                                                                            |
+| 控制者      | `controller: 0` = 我方，`controller: 1` = 对方。这是 ocgcore 硬约定，**任何地方都不得颠倒**                                                                 |
+| 归属者      | `owner: 0 \| 1` = 卡牌原型归属（洗回卡组时用它），通常与 controller 相同                                                                                    |
+| 规则版本     | 代码中 `MasterRule` 的取值是 `2 \| 3 \| 4 \| 5`，其中 `2` 覆盖 MR1/MR2（同为经典 5+5 布局）。文案写 MR1~MR5，代码守这个联合类型                                          |
+| 区域/表示形式  | 一律引用 `CardLocation` / `CardPosition` 常量（详见第 7 节），禁止裸写魔法数字                                                                              |
+| Lua 常量映射 | `CardLocation.DECK → 'LOCATION_DECK'`、`CardPosition.FACEUP_DEFENSE → 'POS_FACEUP_DEFENSE'`，映射表集中在 `luaGenerator.ts` / `luaParser.ts` 内 |
 
 ---
 
@@ -94,12 +166,12 @@ pnpm build:win            # Windows 打包（另有 build:mac / build:linux / bu
 
 所有宿主能力新增都必须同步四处，缺一即为不完整改动：
 
-| 步骤                  | 文件                          | 动作                                                               |
-| --------------------- | ----------------------------- | ------------------------------------------------------------------ |
-| ① 定义参数/返回值类型 | `src/shared/types/ipc.ts`     | 新增 XxxParams/XxxResult，并加入 `IpcApi` 接口                     |
-| ② 渲染端调用入口声明  | `src/preload/index.ts`        | 在 `api` 对象里加 `xxx: () => ipcRenderer.invoke('<域>:<动作>')`   |
-| ③ Preload 类型声明    | `src/preload/index.d.ts`      | 同步 `window.api` 的类型                                           |
-| ④ 注册主进程 handler  | `src/main/ipc/registerIpc.ts` | `ipcMain.handle('<域>:<动作>', ...)`，业务逻辑尽量交给 services 层 |
+| 步骤              | 文件                            | 动作                                                       |
+| --------------- | ----------------------------- | -------------------------------------------------------- |
+| ① 定义参数/返回值类型    | `src/shared/types/ipc.ts`     | 新增 XxxParams/XxxResult，并加入 `IpcApi` 接口                   |
+| ② 渲染端调用入口声明     | `src/preload/index.ts`        | 在 `api` 对象里加 `xxx: () => ipcRenderer.invoke('<域>:<动作>')` |
+| ③ Preload 类型声明  | `src/preload/index.d.ts`      | 同步 `window.api` 的类型                                      |
+| ④ 注册主进程 handler | `src/main/ipc/registerIpc.ts` | `ipcMain.handle('<域>:<动作>', ...)`，业务逻辑尽量交给 services 层    |
 
 - Channel 命名格式：`<域>:<动作>`，如 `cdb:search`、`file:export-lua`、`config:get`、`image:get-path`。域与 `services/` 目录一一对应。
 - 业务逻辑写在 `src/main/services/*`，`registerIpc.ts` 只做参数校验与转发。
@@ -131,6 +203,7 @@ src/
                                 #   agentModel.ts（模型供应商配置解析与归一化）
 ```
 
+
 **新代码放在哪里**（不确定时按此路由，动笔前先看同域文件）：
 
 - 新功能域组件 → `components/<域>/`，目录内平铺；仅服务单组件的子组件才进 `<域>/components/`
@@ -148,18 +221,18 @@ src/
 
 ### 7.1 MasterRule 与场地布局
 
-| `masterRule` | 名称       | 场地特征                                                                                  |
-| ------------ | ---------- | ----------------------------------------------------------------------------------------- |
-| `2`          | MR1/2 经典 | 无 EMZ、无灵摆区，5 主怪兽区 + 5 魔陷区，额外怪兽直接进主怪兽区                           |
-| `3`          | MR3 灵摆   | 同上 + 2 个**独立**灵摆区（`CardLocation.PZONE`，序号 0/1）                               |
-| `4`          | MR4 新大师 | 新增 2 个 **EMZ**（MZONE 序号 5/6）；灵摆区**合并**入魔陷区 0/4 号位（`pendulumInSZone`） |
-| `5`          | MR5 现行   | 同 MR4，现行规则（默认值）                                                                |
+| `masterRule` | 名称       | 场地特征                                                                 |
+| ------------ | -------- | -------------------------------------------------------------------- |
+| `2`          | MR1/2 经典 | 无 EMZ、无灵摆区，5 主怪兽区 + 5 魔陷区，额外怪兽直接进主怪兽区                                |
+| `3`          | MR3 灵摆   | 同上 + 2 个**独立**灵摆区（`CardLocation.PZONE`，序号 0/1）                       |
+| `4`          | MR4 新大师  | 新增 2 个 **EMZ**（MZONE 序号 5/6）；灵摆区**合并**入魔陷区 0/4 号位（`pendulumInSZone`） |
+| `5`          | MR5 现行   | 同 MR4，现行规则（默认值）                                                      |
 
 布局差异全部由 `shared/types/rules.ts` 的 `MASTER_RULES` 信息表驱动（`hasEMZ` / `hasIndependentPZones` / `pendulumInSZone` 等布尔位）。**不要在 Board 组件里写死「MR 等级 → 布局」的 if 分支，一切从信息表推导。**
 
 ### 7.2 CardLocation（区域，ocgcore 位掩码）
 
-`0x01` DECK / `0x02` HAND / `0x04` MZONE（0~4 主怪兽区，5/6 EMZ）/ `0x08` SZONE（0~4 魔陷区，MR1-3 另有 5 号场地魔法区）/ `0x10` GRAVE / `0x20` REMOVED / `0x40` EXTRA / `0x80` OVERLAY / `0x100` FZONE / `0x200` PZONE（MR3 独立灵摆区）
+`0x01` DECK / `0x02` HAND / `0x04` MZONE（0~~4 主怪兽区，5/6 EMZ）/ `0x08` SZONE（0~~4 魔陷区，MR1-3 另有 5 号场地魔法区）/ `0x10` GRAVE / `0x20` REMOVED / `0x40` EXTRA / `0x80` OVERLAY / `0x100` FZONE / `0x200` PZONE（MR3 独立灵摆区）
 
 ### 7.3 CardPosition（表示形式）
 
@@ -203,14 +276,14 @@ Board/
 
 ### 8.2 命名
 
-| 类别           | 约定                        | 示例                                       |
-| -------------- | --------------------------- | ------------------------------------------ |
+| 类别         | 约定                     | 示例                                         |
+| ---------- | ---------------------- | ------------------------------------------ |
 | React 组件文件 | PascalCase `.tsx`，具名导出 | `DuelBoard.tsx` → `export const DuelBoard` |
-| 工具/常量文件  | camelCase `.ts`             | `cardImage.ts`                             |
-| Store          | `use[Name]Store.ts`         | `useDuelStore.ts`                          |
-| 常量导出       | UPPER_SNAKE_CASE            | `CARD_BACK_IMAGE`                          |
-| 类型/接口      | PascalCase                  | `FieldCard`                                |
-| CSS 变量       | kebab-case                  | `--background`                             |
+| 工具/常量文件    | camelCase `.ts`        | `cardImage.ts`                             |
+| Store      | `use[Name]Store.ts`    | `useDuelStore.ts`                          |
+| 常量导出       | UPPER_SNAKE_CASE       | `CARD_BACK_IMAGE`                          |
+| 类型/接口      | PascalCase             | `FieldCard`                                |
+| CSS 变量     | kebab-case             | `--background`                             |
 
 ### 8.3 导入导出
 
@@ -280,6 +353,8 @@ Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：�
 - 生成/修改 Lua 引擎后不验证 round-trip 就提交。
 - 编造 `pnpm test` 等不存在的命令；提交时将 typecheck/lint 错误归咎为「本来就存在」而不报备。
 - 提交 secrets、token 或任何凭证。
+- `rm -rf node_modules`、手动 `mv`/`cp` 改写 `node_modules` 下的目录、手工增删包内容 —— pnpm 硬链接跨项目共享，这些操作会损伤其它项目（详见 2.1）。
+- 把自动化/沙箱环境特有的报错（`ELECTRON_RUN_AS_NODE` 导致的 `isPackaged` 报错、无 GPU 的 `GPU process isn't usable`）当成本项目缺陷去改代码。
 
 ---
 
@@ -293,3 +368,4 @@ Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：�
 - [ ] 触及 Lua 引擎 → 已验证 generate ↔ parse round-trip
 - [ ] 触及 `MASTER_RULES` / 场地结构 → MR2~MR5 各状态在 dev 窗口实际切过一遍
 - [ ] 文档未被意外删除；如架构变化，同步更新本文件
+- [ ] 若本次动过依赖 → `pnpm dev` 完整构建成功（不能只看扫描或 install 返回码），且没有遗留 `node_modules.*` 事故目录在仓库根

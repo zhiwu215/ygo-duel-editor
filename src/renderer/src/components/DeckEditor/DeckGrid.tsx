@@ -2,13 +2,20 @@ import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
-import { canPlaceInSection, CdbCard, DeckData, DeckSection } from '@shared/index'
+import { canPlaceInSection, CdbCard, DeckData, DeckSection, DeckStats } from '@shared/index'
 import { DeckCardItem } from './DeckCardItem'
 import { DeckDragSourceData, DeckDropTargetData } from './deckDnd'
 import { cn } from '../../lib/utils'
-import { Ban, Plus, Check, ImageIcon, Trash2 } from 'lucide-react'
+import { Ban, Plus, Check, ImageIcon, Trash2, Layers, Sparkles, Copy } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
+import cardTypeMonster from '../../assets/icons/cardtype/cardtype_1.png'
+import cardTypeSpell from '../../assets/icons/cardtype/cardtype_2.png'
+import cardTypeTrap from '../../assets/icons/cardtype/cardtype_3.png'
+import cardTypeFusion from '../../assets/icons/cardtype/cardtype_4.png'
+import cardTypeSynchro from '../../assets/icons/cardtype/cardtype_5.png'
+import cardTypeXyz from '../../assets/icons/cardtype/cardtype_6.png'
+import cardTypeLink from '../../assets/icons/cardtype/cardtype_7.png'
 
 interface SortableCard {
   id: string
@@ -26,6 +33,7 @@ const getSortableCards = (section: DeckSection, codes: number[]): SortableCard[]
 
 interface DeckGridProps {
   deck: DeckData
+  stats: DeckStats
   cardDetails: Record<number, CdbCard>
   coverCard: number | undefined
   isDragActive: boolean
@@ -51,6 +59,42 @@ const DeckZone: React.FC<{
     </div>
   )
 }
+
+interface TypeTally {
+  sprite: string
+  label: string
+  count: number
+}
+
+const TypeTallyBadge: React.FC<{ tally: TypeTally }> = ({ tally }) => (
+  <span className="flex items-center gap-1 shrink-0" title={`${tally.label} ${tally.count} 张`}>
+    <img src={tally.sprite} alt={tally.label} className="h-4 w-auto opacity-90" draggable={false} />
+    <span className="text-[11px] font-mono text-muted-foreground tabular-nums">{tally.count}</span>
+  </span>
+)
+
+const ZoneHeader: React.FC<{
+  icon: React.ReactNode
+  title: string
+  total: number
+  tallies: TypeTally[]
+  unit?: string
+}> = ({ icon, title, total, tallies, unit }) => (
+  <div className="flex items-center justify-between gap-3 h-7 pl-2 pr-2.5 rounded-md bg-black/25 dark:bg-white/8 border border-border/40">
+    <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+      <span className="text-muted-foreground shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5">{icon}</span>
+      <span className="text-xs font-bold text-foreground truncate">{title}</span>
+      <span className="text-xs text-muted-foreground font-normal">
+        {total} 张{unit}
+      </span>
+    </div>
+    <div className="flex items-center gap-2.5 min-w-0 shrink-0">
+      {tallies.map((t) => (
+        <TypeTallyBadge key={t.label} tally={t} />
+      ))}
+    </div>
+  </div>
+)
 
 const DeckZoneFeedback: React.FC<{
   cardDetails: Record<number, CdbCard>
@@ -90,20 +134,49 @@ const DeckZoneFeedback: React.FC<{
   )
 }
 
-const ZONE_CLASS = 'flex flex-col gap-1 px-1.5 py-1.5 rounded-lg bg-card/60 border border-border/60'
-const ZONE_HEADER_CLASS =
-  'flex items-center justify-between text-[11px] font-bold text-muted-foreground px-0.5'
+const ZONE_CLASS = 'flex flex-col gap-1.5'
 
-const COLS = 10
+const CARD_ASPECT = 59 / 86
 const ROW_GAP = 6
-const ZONE_CHROME = 32
-const ZONE_STACK_GAP = 8
+const ZONE_HEADER_H = 28
+const ZONE_PADDING = 4
+const ZONE_CHROME = ZONE_HEADER_H + ZONE_PADDING + 4
+const ZONE_STACK_GAP = 6
 const H_SCROLLBAR_RESERVE = 10
 const MAX_CARD_WIDTH = 72
 const MIN_CARD_WIDTH = 22
+const COLUMN_CANDIDATES = [10, 11, 12, 13, 14, 15, 16, 18, 20]
+
+interface Layout {
+  cols: number
+  cardWidth: number
+}
+
+const pickLayout = (
+  availW: number,
+  availH: number,
+  counts: { main: number; extra: number; side: number }
+): Layout => {
+  const budget = availH - ZONE_CHROME * 3 - ZONE_STACK_GAP * 2
+  let best: Layout | null = null
+  for (const cols of COLUMN_CANDIDATES) {
+    const rows =
+      Math.max(1, Math.ceil(counts.main / cols)) +
+      Math.max(1, Math.ceil(counts.extra / cols)) +
+      Math.max(1, Math.ceil(counts.side / cols))
+    const gapTotal = ROW_GAP * (rows - 3)
+    const byHeight = ((budget - gapTotal) / rows) * CARD_ASPECT
+    const byWidth = (availW - ZONE_PADDING * 2 - ROW_GAP * (cols - 1)) / cols
+    const cardWidth = Math.min(MAX_CARD_WIDTH, byHeight, byWidth)
+    if (cardWidth < MIN_CARD_WIDTH) continue
+    if (!best || cardWidth > best.cardWidth + 0.5) best = { cols, cardWidth }
+  }
+  return best ?? { cols: COLUMN_CANDIDATES[0], cardWidth: MIN_CARD_WIDTH }
+}
 
 export const DeckGrid: React.FC<DeckGridProps> = ({
   deck,
+  stats,
   cardDetails,
   coverCard,
   isDragActive,
@@ -115,30 +188,25 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
 }) => {
   const [menu, setMenu] = useState<{ code: number; x: number; y: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const [cardWidth, setCardWidth] = useState<number>(MAX_CARD_WIDTH)
-  const cardWidthRef = useRef<number>(MAX_CARD_WIDTH)
-
-  const mainRows = Math.max(1, Math.ceil(deck.main.length / COLS))
-  const extraRows = Math.max(1, Math.ceil(deck.extra.length / COLS))
-  const sideRows = Math.max(1, Math.ceil(deck.side.length / COLS))
+  const [layout, setLayout] = useState<Layout>({ cols: 10, cardWidth: MAX_CARD_WIDTH })
+  const layoutRef = useRef<Layout>(layout)
+  const mainCount = deck.main.length
+  const extraCount = deck.extra.length
+  const sideCount = deck.side.length
 
   useLayoutEffect(() => {
+    const counts = { main: mainCount, extra: extraCount, side: sideCount }
     const measure = (): void => {
       const el = scrollRef.current
       if (!el) return
-      const availH = el.clientHeight - H_SCROLLBAR_RESERVE
       const availW = el.clientWidth
-      if (availH <= 0 || availW <= 0) return
-      const totalRows = mainRows + extraRows + sideRows
-      const chrome = ZONE_CHROME * 3 + ZONE_STACK_GAP * 2
-      const gaps = ROW_GAP * (totalRows - 3)
-      const byHeight = ((availH - chrome - gaps) / totalRows) * (59 / 86)
-      const byWidth = (availW - 24) / COLS
-      const next =
-        Math.round(Math.max(MIN_CARD_WIDTH, Math.min(MAX_CARD_WIDTH, byHeight, byWidth)) * 2) / 2
-      if (Math.abs(next - cardWidthRef.current) < 0.5) return
-      cardWidthRef.current = next
-      setCardWidth(next)
+      const availH = el.clientHeight - H_SCROLLBAR_RESERVE
+      if (availW <= 0 || availH <= 0) return
+      const next = pickLayout(availW, availH, counts)
+      const prev = layoutRef.current
+      if (prev.cols === next.cols && Math.abs(prev.cardWidth - next.cardWidth) < 0.5) return
+      layoutRef.current = next
+      setLayout({ cols: next.cols, cardWidth: Math.round(next.cardWidth * 2) / 2 })
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -148,7 +216,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
       ro.disconnect()
       window.removeEventListener('resize', measure)
     }
-  }, [mainRows, extraRows, sideRows])
+  }, [mainCount, extraCount, sideCount])
 
   useEffect(() => {
     if (!menu) return
@@ -173,115 +241,110 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
   }
 
   const gridStyle = {
-    gridTemplateColumns: `repeat(${COLS}, ${cardWidth}px)`,
+    gridTemplateColumns: `repeat(${layout.cols}, ${layout.cardWidth}px)`,
     gap: `${ROW_GAP}px`
   }
-  const cardHeight = Math.round((cardWidth * 86) / 59)
+  const cardHeight = Math.round((layout.cardWidth * 86) / 59)
   const emptyBox = (text: string): React.ReactNode => (
     <div
-      className="flex items-center justify-center border border-dashed border-border/60 rounded text-xs text-muted-foreground italic"
+      className="flex items-center justify-center rounded-md border border-dashed border-border/50 text-[11px] text-muted-foreground/70 italic"
       style={{ height: `${cardHeight}px` }}
     >
       {text}
     </div>
   )
 
+  const renderZone = (
+    section: DeckSection,
+    cards: SortableCard[],
+    header: React.ReactNode,
+    emptyText: string
+  ): React.ReactNode => {
+    const codes = section === 'main' ? deck.main : section === 'extra' ? deck.extra : deck.side
+    return (
+      <DeckZone key={section} section={section} className={ZONE_CLASS}>
+        {header}
+        {cards.length > 0 ? (
+          <SortableContext items={cards} strategy={rectSortingStrategy}>
+            <div className="grid justify-start" style={gridStyle}>
+              {cards.map(({ id, code }, index) => (
+                <DeckCardItem
+                  key={id}
+                  sortableId={id}
+                  code={code}
+                  card={cardDetails[code]}
+                  section={section}
+                  index={index}
+                  isCover={coverCard === code}
+                  onSelect={onSelectCard}
+                  onHover={onHoverCard}
+                  onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        ) : (
+          codes.length === 0 && emptyBox(isDragActive ? '' : emptyText)
+        )}
+      </DeckZone>
+    )
+  }
+
+  const mstTallies: TypeTally[] = [
+    { sprite: cardTypeMonster, label: '怪兽', count: stats.monsterCount },
+    { sprite: cardTypeSpell, label: '魔法', count: stats.spellCount },
+    { sprite: cardTypeTrap, label: '陷阱', count: stats.trapCount }
+  ]
+  const exTallies: TypeTally[] = [
+    { sprite: cardTypeFusion, label: '融合', count: stats.fusionCount },
+    { sprite: cardTypeSynchro, label: '同调', count: stats.synchroCount },
+    { sprite: cardTypeXyz, label: '超量', count: stats.xyzCount },
+    { sprite: cardTypeLink, label: '连接', count: stats.linkCount }
+  ]
+
   return (
     <div className="relative flex-1 flex flex-col min-h-0">
       <div ref={scrollRef} className="relative flex-1 min-h-0">
         <ScrollArea className="size-full" horizontal>
           <div
-            className={cn('flex flex-col gap-2 select-none', isDragActive && 'pointer-events-none')}
+            className={cn('flex flex-col select-none', isDragActive && 'pointer-events-none')}
+            style={{ gap: `${ZONE_STACK_GAP}px` }}
           >
-            <DeckZone section="main" className={ZONE_CLASS}>
-              <div className={ZONE_HEADER_CLASS}>
-                <span>主卡组 (10 列网格)</span>
-                <span className="font-normal">拖动调整，右键移出卡组</span>
-              </div>
+            {renderZone(
+              'main',
+              sortableCards.main,
+              <ZoneHeader
+                icon={<Layers />}
+                title="主卡组"
+                total={stats.mainCount}
+                tallies={mstTallies}
+              />,
+              '主卡组为空，可从右侧拖入或点击卡片加入'
+            )}
 
-              {deck.main.length > 0 ? (
-                <SortableContext items={sortableCards.main} strategy={rectSortingStrategy}>
-                  <div className="grid" style={gridStyle}>
-                    {sortableCards.main.map(({ id, code }, index) => (
-                      <DeckCardItem
-                        key={id}
-                        sortableId={id}
-                        code={code}
-                        card={cardDetails[code]}
-                        section="main"
-                        index={index}
-                        isCover={coverCard === code}
-                        onSelect={onSelectCard}
-                        onHover={onHoverCard}
-                        onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              ) : (
-                emptyBox(isDragActive ? '' : '主卡组为空，可从右侧拖入或点击卡片加入')
-              )}
-            </DeckZone>
+            {renderZone(
+              'extra',
+              sortableCards.extra,
+              <ZoneHeader
+                icon={<Sparkles />}
+                title="额外卡组"
+                total={stats.extraCount}
+                tallies={exTallies}
+              />,
+              '额外卡组为空'
+            )}
 
-            <DeckZone section="extra" className={ZONE_CLASS}>
-              <div className={ZONE_HEADER_CLASS}>
-                <span>额外卡组</span>
-                <span className="font-normal">融合 / 同调 / 超量 / 连接</span>
-              </div>
-
-              {deck.extra.length > 0 ? (
-                <SortableContext items={sortableCards.extra} strategy={rectSortingStrategy}>
-                  <div className="grid" style={gridStyle}>
-                    {sortableCards.extra.map(({ id, code }, index) => (
-                      <DeckCardItem
-                        key={id}
-                        sortableId={id}
-                        code={code}
-                        card={cardDetails[code]}
-                        section="extra"
-                        index={index}
-                        isCover={coverCard === code}
-                        onSelect={onSelectCard}
-                        onHover={onHoverCard}
-                        onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              ) : (
-                emptyBox(isDragActive ? '' : '额外卡组为空')
-              )}
-            </DeckZone>
-
-            <DeckZone section="side" className={ZONE_CLASS}>
-              <div className={ZONE_HEADER_CLASS}>
-                <span>副卡组</span>
-                <span className="font-normal">备用卡</span>
-              </div>
-
-              {deck.side.length > 0 ? (
-                <SortableContext items={sortableCards.side} strategy={rectSortingStrategy}>
-                  <div className="grid" style={gridStyle}>
-                    {sortableCards.side.map(({ id, code }, index) => (
-                      <DeckCardItem
-                        key={id}
-                        sortableId={id}
-                        code={code}
-                        card={cardDetails[code]}
-                        section="side"
-                        index={index}
-                        isCover={coverCard === code}
-                        onSelect={onSelectCard}
-                        onHover={onHoverCard}
-                        onOpenMenu={(c, x, y) => setMenu({ code: c, x, y })}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              ) : (
-                emptyBox(isDragActive ? '' : '副卡组为空')
-              )}
-            </DeckZone>
+            {renderZone(
+              'side',
+              sortableCards.side,
+              <ZoneHeader
+                icon={<Copy />}
+                title="副卡组"
+                total={stats.sideCount}
+                tallies={mstTallies}
+              />,
+              '副卡组为空'
+            )}
           </div>
         </ScrollArea>
       </div>

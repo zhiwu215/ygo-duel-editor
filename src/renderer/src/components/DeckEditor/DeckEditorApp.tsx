@@ -23,7 +23,6 @@ import {
 import { DeckLibraryView } from './DeckLibraryView'
 import { DeckDetailCard } from './DeckDetailCard'
 import { DeckGrid } from './DeckGrid'
-import { DeckStatsBar } from './DeckStatsBar'
 import { DeckSearchPanel } from './DeckSearchPanel'
 import { DeckTestHandModal } from './DeckTestHandModal'
 import { DeckApplyModal } from './DeckApplyModal'
@@ -451,10 +450,10 @@ export const DeckEditorApp: React.FC = () => {
             isCover={detailCard ? deck.coverCard === detailCard.id : false}
           />
 
-          <main className="relative flex-1 flex flex-col p-2.5 gap-2.5 min-w-0 min-h-0 bg-background/50">
-            <DeckStatsBar stats={stats} />
+          <main className="relative flex-1 flex flex-col p-2 min-w-0 min-h-0 bg-background/50">
             <DeckGrid
               deck={deck}
+              stats={stats}
               cardDetails={cardDetails}
               isDragActive={activeDrag !== null}
               coverCard={deck.coverCard}

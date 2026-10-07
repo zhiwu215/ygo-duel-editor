@@ -2331,6 +2331,7 @@ export const useDuelStore = create<DuelStoreState>()(
     }),
     {
       partialize: (state) => ({ state: state.state }),
+      equality: (past, current) => past.state === current.state,
       limit: 50
     }
   )

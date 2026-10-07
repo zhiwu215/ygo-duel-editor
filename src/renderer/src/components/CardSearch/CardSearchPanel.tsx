@@ -259,18 +259,15 @@ export const CardSearchPanel: React.FC = () => {
                   />
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 select-none py-0.5">
-                    <div className="flex items-baseline gap-1.5 min-w-0">
+                    <div className="flex items-baseline justify-between gap-1.5 min-w-0">
                       <span className="text-xs font-semibold truncate text-foreground group-hover:text-primary transition-colors leading-tight">
                         {card.name}
                       </span>
-                      {card.pools?.map((pool) => (
-                        <span
-                          key={pool}
-                          className="shrink-0 text-[10px] leading-tight text-amber-600 dark:text-amber-400/90 font-medium"
-                        >
-                          [{cardPoolLabel(pool)}]
+                      {card.pools && card.pools.length > 0 && (
+                        <span className="shrink-0 text-[10px] leading-tight text-muted-foreground font-normal">
+                          {card.pools.map((pool) => `[${cardPoolLabel(pool)}]`).join('')}
                         </span>
-                      ))}
+                      )}
                     </div>
 
                     <div className="text-[11px] text-foreground/80 leading-tight truncate">

@@ -9,17 +9,19 @@ import {
   RotateCcw,
   Sparkles,
   Star,
-  X
+  X,
+  Zap
 } from 'lucide-react'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { CdbCard, cardPoolLabel } from '@shared/index'
+import { CdbCard, LINK_MARKERS, cardPoolLabel } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
+import { cn } from '../../lib/utils'
 
 export const CardSearchPanel: React.FC = () => {
   const {
@@ -32,6 +34,8 @@ export const CardSearchPanel: React.FC = () => {
     scale,
     effectCategoryMask,
     cardPool,
+    markers,
+    limitFilter,
     atk,
     atkOp,
     def,
@@ -55,7 +59,9 @@ export const CardSearchPanel: React.FC = () => {
   const { setHoveredCard } = useDuelStore()
   const { isFavorite, toggleFavorite } = useFavoritesStore()
   const [localKw, setLocalKw] = useState(keyword)
+  const [autoSearch, setAutoSearch] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const autoSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     search({ limit: 40 })
@@ -67,10 +73,27 @@ export const CardSearchPanel: React.FC = () => {
     }
   }, [isLoading])
 
+  useEffect(() => {
+    return () => {
+      if (autoSearchTimer.current) clearTimeout(autoSearchTimer.current)
+    }
+  }, [])
+
   const handleSearchSubmit = (e: React.FormEvent): void => {
     e.preventDefault()
+    if (autoSearchTimer.current) clearTimeout(autoSearchTimer.current)
     setKeyword(localKw)
     search({ keyword: localKw })
+  }
+
+  const handleKeywordChange = (value: string): void => {
+    setLocalKw(value)
+    if (!autoSearch) return
+    if (autoSearchTimer.current) clearTimeout(autoSearchTimer.current)
+    autoSearchTimer.current = setTimeout(() => {
+      setKeyword(value)
+      search({ keyword: value })
+    }, 250)
   }
 
   const activeFilterCount = React.useMemo(() => {
@@ -83,6 +106,8 @@ export const CardSearchPanel: React.FC = () => {
     if (scale !== undefined) count++
     if (effectCategoryMask !== 0) count++
     if (cardPool !== 'any') count++
+    if (markers !== 0) count++
+    if (limitFilter !== 0) count++
     if (atk !== undefined || atkOp === 'unknown') count++
     if (def !== undefined || defOp === 'unknown') count++
     if (code !== undefined) count++
@@ -98,6 +123,8 @@ export const CardSearchPanel: React.FC = () => {
     scale,
     effectCategoryMask,
     cardPool,
+    markers,
+    limitFilter,
     atk,
     atkOp,
     def,
@@ -128,7 +155,7 @@ export const CardSearchPanel: React.FC = () => {
             <Input
               type="text"
               value={localKw}
-              onChange={(e) => setLocalKw(e.target.value)}
+              onChange={(e) => handleKeywordChange(e.target.value)}
               placeholder="搜索卡名、卡密或效果"
               className={`pl-8 ${localKw ? 'pr-7' : 'pr-2.5'} bg-secondary/80 focus:bg-background h-8 text-xs font-medium`}
             />
@@ -136,6 +163,7 @@ export const CardSearchPanel: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
+                  if (autoSearchTimer.current) clearTimeout(autoSearchTimer.current)
                   setLocalKw('')
                   setKeyword('')
                   search({ keyword: '' })
@@ -146,6 +174,30 @@ export const CardSearchPanel: React.FC = () => {
               </button>
             )}
           </div>
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-pressed={autoSearch}
+                  onClick={() => setAutoSearch((prev) => !prev)}
+                  className={`h-8 w-8 shrink-0 rounded-md border transition-colors ${
+                    autoSearch
+                      ? 'border-primary/50 bg-primary/15 text-primary'
+                      : 'border-border/60 bg-secondary/80 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Zap className="mx-auto h-3.5 w-3.5" />
+                </button>
+              }
+            />
+            <TooltipContent>
+              {autoSearch
+                ? '输入即搜：已开启（停止输入 0.25 秒后自动检索）'
+                : '输入即搜：已关闭，回车检索'}
+            </TooltipContent>
+          </Tooltip>
 
           <Button
             type="submit"
@@ -278,6 +330,37 @@ export const CardSearchPanel: React.FC = () => {
                       <div className="text-[11px] font-mono text-foreground/75 leading-tight truncate">
                         {line3}
                       </div>
+                    )}
+                  </div>
+
+                  <div className="shrink-0 flex flex-col items-end gap-0.5">
+                    {card.markers !== undefined && card.markers !== 0 && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span className="text-[13px] leading-none text-sky-500/85 tracking-tight">
+                              {LINK_MARKERS.filter((m) => (card.markers! & m.mask) !== 0)
+                                .map((m) => m.label)
+                                .join('')}
+                            </span>
+                          }
+                        />
+                        <TooltipContent>连接标记（箭头）</TooltipContent>
+                      </Tooltip>
+                    )}
+                    {card.limit !== undefined && (
+                      <span
+                        className={cn(
+                          'text-[9px] leading-none px-1 py-px rounded border',
+                          card.limit === 1
+                            ? 'text-rose-500 border-rose-500/40'
+                            : card.limit === 2
+                              ? 'text-amber-500 border-amber-500/40'
+                              : 'text-emerald-500 border-emerald-500/40'
+                        )}
+                      >
+                        禁{card.limit}
+                      </span>
                     )}
                   </div>
 

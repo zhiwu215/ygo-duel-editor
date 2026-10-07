@@ -19,7 +19,6 @@ import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
-import { Badge } from '../ui/badge'
 import { cn } from '../../lib/utils'
 
 export const CardSearchPanel: React.FC = () => {
@@ -207,14 +206,6 @@ export const CardSearchPanel: React.FC = () => {
           <span>
             搜索结果: <strong className="text-foreground font-semibold">{total}</strong> 张
           </span>
-          {activeFilterCount > 0 && (
-            <Badge
-              variant="outline"
-              className="text-[10px] px-1 py-0 h-4 text-amber-400 border-amber-400/40"
-            >
-              筛选已生效 ({activeFilterCount})
-            </Badge>
-          )}
         </div>
 
         {activeFilterCount > 0 && (

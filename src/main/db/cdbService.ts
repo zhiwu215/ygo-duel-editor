@@ -8,6 +8,7 @@ import {
   NumericCompareOp
 } from '@shared/index'
 import { existsSync, readFileSync } from 'fs'
+import * as fs from 'fs'
 import path from 'path'
 
 const COMPARATOR: Record<Exclude<NumericCompareOp, 'unknown'>, string> = {
@@ -126,12 +127,96 @@ export class CdbService {
   private setnameMap: Map<number, string> = new Map()
   private systemStringMap: Map<number, string> = new Map()
   private poolTagMap: Record<string, string> = {}
+  private limitMap: Map<number, 1 | 2 | 3> = new Map()
+  private gameDirectory: string | undefined
 
   public setPoolTags(tags: Record<string, string>): void {
     this.poolTagMap = tags
     for (const conn of this.connections) {
       const tag = tags[conn.path]
       conn.poolId = !tag || tag === 'none' ? '' : tag
+    }
+  }
+
+  /** 卡库加载后需要重新探测 lflists 的目录（游戏根目录未必与 cdb 同级） */
+  public setGameDirectory(gameDirectory: string | undefined): void {
+    this.gameDirectory = gameDirectory
+    if (!gameDirectory || this.connections.length === 0) return
+    this.loadLflists([gameDirectory, ...this.connections.map((c) => path.dirname(c.path))])
+  }
+
+  /**
+   * 解析 lflists 得到「卡密 → 禁限等级」。
+   * 每行格式为「卡密 限制位 名称」，其中限制位 0=禁止 1=准限制 2=限制，
+   * 与 YGOPro 的 filter_lm 语义一致（该位直接决定筛选结果，不依赖段落标题）。
+   * `#` 与 `!` 开头是版本/段落标记，仅用于兼容旧格式（部分文件的限制位恒为 0）。
+   */
+  private loadLflists(searchDirs: string[]): void {
+    this.limitMap.clear()
+    const candidates: string[] = []
+    for (const dir of searchDirs) {
+      if (!dir) continue
+      candidates.push(path.join(dir, 'lflist.conf'))
+      candidates.push(path.join(dir, 'lflists'))
+    }
+
+    const sectionLevels: Array<{ pattern: RegExp; level: 1 | 2 | 3 }> = [
+      { pattern: /^#forbidden/i, level: 1 },
+      { pattern: /^#limited/i, level: 2 },
+      { pattern: /^#semi-?limited/i, level: 3 }
+    ]
+
+    let current: 1 | 2 | 3 | null = null
+    let loaded = 0
+
+    for (const candidate of candidates) {
+      let stat: fs.Stats
+      try {
+        stat = fs.statSync(candidate)
+      } catch {
+        continue
+      }
+
+      const files = stat.isDirectory()
+        ? fs
+            .readdirSync(candidate)
+            .filter(
+              (f) =>
+                f.toLocaleLowerCase().endsWith('.conf') || f.toLocaleLowerCase().endsWith('.txt')
+            )
+            .map((f) => path.join(candidate, f))
+        : [candidate]
+
+      for (const file of files) {
+        current = null
+        try {
+          const content = readFileSync(file, 'utf-8')
+          for (const line of content.split(/\r?\n/)) {
+            if (!line || line[0] === '!' || line[0] === '#') {
+              const section = sectionLevels.find((s) => s.pattern.test(line))
+              if (section) current = section.level
+              continue
+            }
+            const parts = line.trim().split(/\s+/)
+            if (parts.length < 2) continue
+            const code = Number.parseInt(parts[0], 10)
+            if (!Number.isFinite(code) || code <= 0) continue
+            const flag = Number.parseInt(parts[1], 10)
+            // 限制位 0=禁止 1=准限制 2=限制；异常值回退到段落标题推断
+            const level: 1 | 2 | 3 | null =
+              flag === 0 ? 1 : flag === 1 ? 2 : flag === 2 ? 3 : current
+            if (!level) continue
+            if (!this.limitMap.has(code)) this.limitMap.set(code, level)
+          }
+          loaded++
+        } catch (err) {
+          console.error(`[CdbService] Failed to parse lflist ${file}:`, err)
+        }
+      }
+    }
+
+    if (loaded > 0) {
+      console.log(`[CdbService] Loaded ${this.limitMap.size} limit entries from ${loaded} file(s)`)
     }
   }
 
@@ -145,6 +230,8 @@ export class CdbService {
       if (path.basename(dir).toLocaleLowerCase() === 'expansions')
         searchDirs.push(path.dirname(dir))
     }
+    if (this.gameDirectory) searchDirs.push(this.gameDirectory)
+    this.loadLflists(searchDirs)
     const candidatePaths = [
       ...new Set(
         searchDirs.flatMap((searchDir) => [
@@ -394,6 +481,11 @@ export class CdbService {
         const setnames = this.getSetnames(card.setcode)
         if (setnames.length > 0) card.setnames = setnames
       }
+      if ((card.type & CardType.LINK) !== 0 && card.def > 0 && card.def <= 0xff) {
+        card.markers = card.def
+      }
+      const limit = this.limitMap.get(card.id)
+      if (limit) card.limit = limit
     }
     this.applyPoolTags(collected)
 
@@ -524,6 +616,27 @@ export class CdbService {
     else if (params.cardPool === 'tcg') baseWhere += ' AND (d.ot & 2) != 0'
     else if (params.cardPool === 'both') baseWhere += ' AND (d.ot & 3) = 3'
 
+    // 禁限来自 lflists 文本 (卡库中没有该列)，把该等级的卡密展开为 IN 条件以保证分页与总数准确
+    if (params.limitFilter) {
+      const codes: number[] = []
+      for (const [code, level] of this.limitMap) {
+        if (level === params.limitFilter) codes.push(code)
+      }
+      if (codes.length === 0) {
+        baseWhere += ' AND 0=1'
+      } else {
+        baseWhere += ` AND d.id IN (${codes.map(() => '?').join(',')})`
+        args.push(...codes)
+      }
+    }
+
+    // 连接标记：方向存放在 Link 怪兽的 def 字段里（卡库无 link_marker 列）
+    // 与 YGOPro 一致用 AND 语义：卡片必须同时具备全部选中的方向
+    if (params.markers !== undefined && params.markers !== 0) {
+      baseWhere += ' AND (d.type & ?) != 0 AND (d.def & ?) = ?'
+      args.push(CardType.LINK, params.markers, params.markers)
+    }
+
     try {
       const countSql = `SELECT count(*) as total` + baseWhere
       const countRow = db.prepare(countSql).get(...args) as { total: number } | undefined
@@ -587,6 +700,11 @@ export class CdbService {
             const sn = this.getSetnames(card.setcode)
             if (sn.length > 0) card.setnames = sn
           }
+          if ((card.type & CardType.LINK) !== 0 && card.def > 0 && card.def <= 0xff) {
+            card.markers = card.def
+          }
+          const lv = this.limitMap.get(card.id)
+          if (lv) card.limit = lv
           result[card.id] = card
         }
       } catch (err) {

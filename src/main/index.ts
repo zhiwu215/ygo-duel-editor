@@ -101,11 +101,13 @@ app.whenReady().then(() => {
   const extraCdbPaths = (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
   if (cfg.cdbPath || extraCdbPaths.length > 0) {
     cdbService.setPoolTags(cfg.cdbPoolTags || {})
+    cdbService.setGameDirectory(cfg.gameDirectory)
     cdbService.reloadAll(cfg.cdbPath, extraCdbPaths)
     if (!cfg.gameDirectory && cfg.cdbPath) {
       const detected = imageService.detectGameDirectory(cfg.cdbPath)
       if (detected) {
         configService.save({ gameDirectory: detected })
+        cdbService.setGameDirectory(detected)
       }
     }
   }

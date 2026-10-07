@@ -19,7 +19,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { AgentSettingsContent } from './AgentSettingsContent'
-import { SettingsSectionId, CARD_POOLS } from '@shared/index'
+import { SettingsSectionId, CARD_POOLS, cardPoolLabel } from '@shared/index'
 import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { cn } from '../../lib/utils'
@@ -178,8 +178,14 @@ function PathsSection(): JSX.Element {
 
 /** 附加卡库分区：可加载动漫卡等扩展 cdb，与主库合并搜索 */
 function ExtraCdbSection(): JSX.Element {
-  const { config, addExtraCdb, removeExtraCdb, setExtraCdbEnabled, setExtraPicsDir, setCdbPoolTag } =
-    useConfigStore()
+  const {
+    config,
+    addExtraCdb,
+    removeExtraCdb,
+    setExtraCdbEnabled,
+    setExtraPicsDir,
+    setCdbPoolTag
+  } = useConfigStore()
   const paths = config.extraCdbPaths || []
   const picsDirs = config.extraPicsDirs || {}
   const disabled = config.disabledCdbPaths || []
@@ -201,7 +207,7 @@ function ExtraCdbSection(): JSX.Element {
         <div className="min-w-0">
           <div className="text-sm font-semibold">附加卡库</div>
           <div className="text-xs text-muted-foreground mt-0.5">
-            动漫卡等扩展卡库 (.cdb)，加载后与主库合并搜索；下拉框指定该库所属卡池，卡名后会自动加对应角标
+            扩展卡库 (.cdb)，加载后与主库合并搜索；下拉框指定所属卡池，卡名后自动加角标
           </div>
         </div>
         <Button
@@ -243,8 +249,8 @@ function ExtraCdbSection(): JSX.Element {
                     value={poolId}
                     onValueChange={(value) => void setCdbPoolTag(path, value ?? 'none')}
                   >
-                    <SelectTrigger size="xs" className="min-w-[92px]">
-                      <SelectValue />
+                    <SelectTrigger size="xs" className="min-w-[104px]">
+                      <SelectValue>{(value) => cardPoolLabel(value as string)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {CARD_POOLS.map((pool) => (

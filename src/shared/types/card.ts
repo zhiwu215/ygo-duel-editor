@@ -30,17 +30,14 @@ export interface CardPoolOption {
 }
 
 export const CARD_POOLS: CardPoolOption[] = [
-  { id: 'none', label: '不标记' },
-  { id: 'anime', label: '动漫·漫画' },
-  { id: 'ocgtcg', label: 'OCG·TCG' },
-  { id: 'rush', label: '先行·超速' },
-  { id: 'kcg', label: 'KC·游戏' },
-  { id: 'other', label: '其它' }
+  { id: 'none', label: '无' },
+  { id: 'anime', label: '动画/漫画' },
+  { id: 'rush', label: '超速（Rush）' },
+  { id: 'tf', label: '卡片力量（TF）' }
 ]
 
 export function cardPoolLabel(id: string): string {
-  if (id === 'none') return ''
-  return CARD_POOLS.find((p) => p.id === id)?.label ?? id
+  return CARD_POOLS.find((p) => p.id === id)?.label ?? ''
 }
 
 /**

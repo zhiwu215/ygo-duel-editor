@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent
 } from '@dnd-kit/core'
-import { CdbCard, DeckSection } from '@shared/index'
+import { CdbCard, DeckSection, groupChildPath, groupLeafName } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import {
@@ -27,13 +27,23 @@ import { DeckStatsBar } from './DeckStatsBar'
 import { DeckSearchPanel } from './DeckSearchPanel'
 import { DeckTestHandModal } from './DeckTestHandModal'
 import { DeckApplyModal } from './DeckApplyModal'
+import { GroupNameModal } from './GroupNameModal'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { WindowControls } from '../ui/window-controls'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue
+} from '../ui/select'
+import {
   ArrowLeft,
   Folder,
+  FolderPlus,
   Save,
   ArrowUpDown,
   Dices,
@@ -43,6 +53,9 @@ import {
   Download,
   FileText
 } from 'lucide-react'
+
+const NONE_GROUP_VALUE = '__none__'
+const NEW_GROUP_VALUE = '__new__'
 
 export const DeckEditorApp: React.FC = () => {
   const {
@@ -58,6 +71,7 @@ export const DeckEditorApp: React.FC = () => {
     setDeckName,
     setDeckDescription,
     setDeckGroup,
+    createGroup,
     setDeckCover,
     addCard,
     removeCard,
@@ -75,6 +89,7 @@ export const DeckEditorApp: React.FC = () => {
   } = useDeckEditorStore()
 
   const [showApplyModal, setShowApplyModal] = useState<boolean>(false)
+  const [groupModalOpen, setGroupModalOpen] = useState<boolean>(false)
   const [saveToast, setSaveToast] = useState<string | null>(null)
   const [activeDrag, setActiveDrag] = useState<{
     code: number
@@ -390,28 +405,35 @@ export const DeckEditorApp: React.FC = () => {
 
         <div className="flex items-center gap-1.5 shrink-0">
           <Folder className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <datalist id="deck-group-options">
-            {deckGroups.map((g) => (
-              <option key={g} value={g} />
-            ))}
-          </datalist>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Input
-                  type="text"
-                  list="deck-group-options"
-                  value={deck.group || ''}
-                  onChange={(e) => setDeckGroup(e.target.value)}
-                  placeholder="选择分组"
-                  className="h-6.5 w-28 text-[11.5px] bg-background/60 border-border/60"
-                />
+          <Select
+            value={deck.group || NONE_GROUP_VALUE}
+            onValueChange={(value) => {
+              if (value === NEW_GROUP_VALUE) {
+                setGroupModalOpen(true)
+                return
               }
-            />
-            <TooltipContent>
-              所属剧情分组：可从已有分组下拉选择，也可直接输入新名字（保存时自动创建）
-            </TooltipContent>
-          </Tooltip>
+              setDeckGroup(!value || value === NONE_GROUP_VALUE ? '' : value)
+            }}
+          >
+            <SelectTrigger size="sm" className="h-6.5 w-32 text-[11.5px] bg-background/60">
+              <SelectValue placeholder="选择分组" />
+            </SelectTrigger>
+            <SelectContent align="start" className="min-w-40 max-h-72">
+              <SelectItem value={NONE_GROUP_VALUE} className="text-xs py-1.5 pr-7 pl-2">
+                未分组
+              </SelectItem>
+              {deckGroups.map((g) => (
+                <SelectItem key={g} value={g} className="text-xs py-1.5 pr-7 pl-2">
+                  {g.split('/').map(groupLeafName).join(' / ')}
+                </SelectItem>
+              ))}
+              <SelectSeparator />
+              <SelectItem value={NEW_GROUP_VALUE} className="text-xs py-1.5 pr-7 pl-2">
+                <FolderPlus className="w-3.5 h-3.5" />
+                新建分组…
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -495,6 +517,19 @@ export const DeckEditorApp: React.FC = () => {
             return applyToDuel(player, drawCount)
           }}
           onClose={() => setShowApplyModal(false)}
+        />
+      )}
+
+      {groupModalOpen && (
+        <GroupNameModal
+          initialName={null}
+          existingGroups={deckGroups}
+          onConfirm={async (name) => {
+            const ok = await createGroup(name, null)
+            if (ok) setDeckGroup(groupChildPath(null, name))
+            return ok
+          }}
+          onClose={() => setGroupModalOpen(false)}
         />
       )}
     </div>

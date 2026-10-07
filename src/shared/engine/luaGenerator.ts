@@ -2,7 +2,7 @@ import { DuelPuzzleState } from '../types/duel'
 import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 
-import { getCounterName } from '../constants/counters'
+import { resolveCounterName } from '../constants/counters'
 
 // 辅助：获取位置常量名
 function getLocationConstName(loc: number): string {
@@ -182,7 +182,7 @@ export function generateLuaScript(state: DuelPuzzleState): string {
             const typeNum = Number(typeIdStr)
             if (countNum > 0) {
               const hexStr = `0x${typeNum.toString(16)}`
-              const counterName = getCounterName(typeNum)
+              const counterName = resolveCounterName(typeNum, state.customCounters)
               lines.push(`c:add_counter(${hexStr}, ${countNum}) -- 放置${countNum}个${counterName}`)
             }
           }

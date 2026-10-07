@@ -145,6 +145,23 @@ export const COMMON_COUNTER_IDS = [
   0x1001 // 通用指示物
 ]
 
+/** 自定义指示物 (动漫卡等无官方代码者) 的 ID 起始值，远高于标准段避免冲突 */
+export const CUSTOM_COUNTER_ID_BASE = 0x1000000
+
+/** 为新的自定义指示物分配一个未占用的 ID (从基址起递增) */
+export function allocateCustomCounterId(existing: Record<number, string>): number {
+  let id = CUSTOM_COUNTER_ID_BASE
+  while (existing[id] !== undefined) id += 1
+  return id
+}
+
 export function getCounterName(id: number): string {
   return COUNTER_MAP[id] || `指示物(0x${id.toString(16)})`
+}
+
+/** 获取指示物显示名：优先查自定义注册表，再回退到标准表 */
+export function resolveCounterName(id: number, custom?: Record<number, string>): string {
+  const customName = custom?.[id]?.trim()
+  if (customName) return customName
+  return getCounterName(id)
 }

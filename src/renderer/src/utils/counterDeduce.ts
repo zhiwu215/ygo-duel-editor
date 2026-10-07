@@ -1,5 +1,4 @@
 import { DuelPuzzleState, COUNTER_DEFINITIONS, CounterDefinition } from '@shared/index'
-
 /**
  * 基于全场决斗态 (双方场上、手牌、墓地、额外所有卡片的效果文本与已存在指示物)
  * 智能推断出本场对局最相关的指示物列表

@@ -3,11 +3,12 @@ import React from 'react'
 import {
   FieldCard,
   CardUtils,
-  getCounterName,
+  resolveCounterName,
   RACE_NAMES,
   ATTRIBUTE_NAMES,
   isInfiniteVal
 } from '@shared/index'
+import { useDuelStore } from '../../../stores/useDuelStore'
 
 interface CardHudOverlayProps {
   card: FieldCard
@@ -18,6 +19,7 @@ interface CardHudOverlayProps {
  * 展示卡名、攻守数值（支持变动差值高亮与无限 ∞ 展示）、星阶/种族/属性以及全称指示物列表
  */
 export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
+  const customCounters = useDuelStore((s) => s.state.customCounters)
   const cdb = card.card
   const isMonster = cdb ? CardUtils.isMonster(cdb.type) : card.location === 4 // MZONE
   const cardName = cdb?.name || (card.code ? String(card.code) : '未知卡片')
@@ -46,7 +48,7 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
     .filter(([, count]) => count > 0)
     .map(([typeId, count]) => ({
       id: Number(typeId),
-      name: getCounterName(Number(typeId)),
+      name: resolveCounterName(Number(typeId), customCounters),
       count
     }))
 

@@ -3,7 +3,8 @@ import {
   FieldCard,
   CardUtils,
   CardLocation,
-  getCounterName,
+  resolveCounterName,
+  COUNTER_DEFINITIONS,
   isInfiniteVal,
   INFINITY_VALUE
 } from '@shared/index'
@@ -31,6 +32,7 @@ import {
   RotateCcw,
   Trash2,
   X,
+  Pencil,
   Swords,
   Shield,
   GripHorizontal,
@@ -332,7 +334,8 @@ export const CardStatPopover: React.FC = () => {
     closeStatPopover,
     setCardCustomStats,
     setCardCounter,
-    removeCardCounter
+    removeCardCounter,
+    registerCustomCounter
   } = useDuelStore()
 
   // 依据当前激活的卡片 ID 动态查找卡片信息 (卡片移动时数据依然实时同步)
@@ -351,6 +354,14 @@ export const CardStatPopover: React.FC = () => {
   const currentDeltaRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 })
   const rafIdRef = useRef<number | null>(null)
   const [userSelectedCounterId, setUserSelectedCounterId] = useState<number | null>(null)
+  const [showCustomInput, setShowCustomInput] = useState(false)
+  const [customText, setCustomText] = useState('')
+  const [customSuggestOpen, setCustomSuggestOpen] = useState(false)
+  const customInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (showCustomInput) customInputRef.current?.focus()
+  }, [showCustomInput])
 
   const loadTokenCatalog = useTokenStore((s) => s.loadCatalog)
   const tokenCatalog = useTokenStore((s) => s.catalog)
@@ -462,27 +473,44 @@ export const CardStatPopover: React.FC = () => {
   const effectiveAtk = card.customAtk !== undefined ? card.customAtk : origAtk
   const effectiveDef = card.customDef !== undefined ? card.customDef : origDef
 
-  // 本场相关指示物智能提取 (严格仅展示全场涉及的指示物，场上不存在的不在下拉框中显示)
+  // 本场相关指示物智能提取 + 已注册的自定义指示物，合并为「可添加」候选 (排除本卡已挂载的)
+  const customCounters = state.customCounters || {}
   const suggestedCounters = deduceSuggestedCounters(state)
-  const hasSuggestedCounters = suggestedCounters.length > 0
+  const activeCounterIds = new Set(
+    Object.entries(card.counters || {})
+      .filter(([, count]) => count > 0)
+      .map(([id]) => Number(id))
+  )
+  const counterCandidates = [
+    ...suggestedCounters,
+    ...Object.entries(customCounters)
+      .map(([idStr, name]) => ({
+        id: Number(idStr),
+        hex: `0x${Number(idStr).toString(16)}`,
+        name
+      }))
+      .filter((c) => !suggestedCounters.some((s) => s.id === c.id))
+  ].filter((c) => !activeCounterIds.has(c.id))
 
-  const defaultCounterId = hasSuggestedCounters ? suggestedCounters[0].id : null
+  const defaultCounterId = counterCandidates.length > 0 ? counterCandidates[0].id : null
   const selectedCounterId =
-    userSelectedCounterId && suggestedCounters.some((c) => c.id === userSelectedCounterId)
+    userSelectedCounterId && counterCandidates.some((c) => c.id === userSelectedCounterId)
       ? userSelectedCounterId
       : defaultCounterId
 
-  const currentSelectedDef = suggestedCounters.find((c) => c.id === selectedCounterId)
+  const currentSelectedDef = counterCandidates.find((c) => c.id === selectedCounterId)
   const currentSelectedName =
     currentSelectedDef?.name ||
-    (selectedCounterId !== null ? getCounterName(selectedCounterId) : '请选择指示物')
+    (selectedCounterId !== null
+      ? resolveCounterName(selectedCounterId, customCounters)
+      : '请选择指示物')
 
   // 指示物操作
   const activeCounters = Object.entries(card.counters || {})
     .filter(([, count]) => count > 0)
     .map(([id, count]) => ({
       id: Number(id),
-      name: getCounterName(Number(id)),
+      name: resolveCounterName(Number(id), customCounters),
       count
     }))
 
@@ -490,6 +518,22 @@ export const CardStatPopover: React.FC = () => {
     if (id === null) return
     const current = (card.counters && card.counters[id]) || 0
     setCardCounter(card.instanceId, id, current + 1)
+  }
+
+  const customQuery = customText.trim()
+  const customMatches = customSuggestOpen
+    ? COUNTER_DEFINITIONS.filter((d) => d.name.includes(customQuery)).slice(0, 20)
+    : []
+
+  const handleAddCustom = (): void => {
+    const name = customQuery
+    if (!name) return
+    const exact = COUNTER_DEFINITIONS.find((d) => d.name === name)
+    const id = exact ? exact.id : registerCustomCounter(name)
+    handleAddCounterById(id)
+    setUserSelectedCounterId(id)
+    setCustomText('')
+    setCustomSuggestOpen(false)
   }
 
   return (
@@ -567,9 +611,6 @@ export const CardStatPopover: React.FC = () => {
           <span className="font-bold text-[11px] text-foreground/90">
             <span>当前指示物</span>
           </span>
-          {activeCounters.length > 0 && (
-            <span className="text-[10px] text-muted-foreground">共 {activeCounters.length} 类</span>
-          )}
         </div>
 
         {activeCounters.length > 0 ? (
@@ -628,9 +669,9 @@ export const CardStatPopover: React.FC = () => {
           <div className="text-[10px] text-muted-foreground/70 py-0.5 italic">暂无放置指示物</div>
         )}
 
-        {/* 4. 添加指示物候选栏目 (纯智能推荐，场上不存在的指示物不显示) */}
+        {/* 4. 添加指示物候选栏目 (智能推荐 + 自定义输入) */}
         <div className="flex items-center gap-1.5 mt-1">
-          {hasSuggestedCounters ? (
+          {counterCandidates.length > 1 ? (
             <Select
               value={String(selectedCounterId)}
               onValueChange={(val) => val && setUserSelectedCounterId(Number(val))}
@@ -641,9 +682,9 @@ export const CardStatPopover: React.FC = () => {
               <SelectContent className="max-h-[200px]">
                 <SelectGroup>
                   <SelectLabel className="text-[10px] text-muted-foreground font-bold">
-                    智能推荐指示物
+                    可选指示物
                   </SelectLabel>
-                  {suggestedCounters.map((c) => (
+                  {counterCandidates.map((c) => (
                     <SelectItem key={`counter_${c.id}`} value={String(c.id)} className="text-xs">
                       {c.name}
                     </SelectItem>
@@ -651,24 +692,109 @@ export const CardStatPopover: React.FC = () => {
                 </SelectGroup>
               </SelectContent>
             </Select>
+          ) : counterCandidates.length === 1 ? (
+            <div className="h-6 flex-1 px-2 flex items-center rounded border border-border/60 bg-muted/40 text-[11px] font-medium text-foreground/90 truncate">
+              {counterCandidates[0].name}
+            </div>
           ) : (
             <div className="h-6 flex-1 px-2 flex items-center rounded border border-border/50 bg-muted/40 text-[11px] text-muted-foreground italic select-none">
-              场上无相关指示物
+              暂无可添加指示物
             </div>
           )}
 
           <Button
             variant="secondary"
             size="xs"
-            disabled={!hasSuggestedCounters || selectedCounterId === null}
-            onClick={() => handleAddCounterById(selectedCounterId)}
+            disabled={selectedCounterId === null}
+            onClick={() => {
+              if (selectedCounterId !== null) {
+                handleAddCounterById(selectedCounterId)
+                setUserSelectedCounterId(null)
+              }
+            }}
             className="h-6 px-2 text-[11px] font-semibold gap-1 shrink-0"
-            title={hasSuggestedCounters ? '添加该指示物' : '当前场上未涉及任何指示物'}
+            title={selectedCounterId === null ? '暂无待添加指示物，请用右侧按钮自定义' : '添加该指示物'}
           >
             <Plus className="w-3 h-3" />
             <span>添加</span>
           </Button>
+
+          <Button
+            variant="outline"
+            size="icon-xs"
+            onClick={() => setShowCustomInput((v) => !v)}
+            className="h-6 w-6 shrink-0"
+            title="自定义指示物（动漫卡等无官方代码者）"
+          >
+            <Pencil className="w-3 h-3" />
+          </Button>
         </div>
+
+        {/* 4b. 自定义指示物输入：标准指示物名称自动补全，其余自动分配 ID */}
+        {showCustomInput && (
+          <div className="flex flex-col gap-1 p-1.5 rounded border border-border/60 bg-muted/30">
+            <div className="flex items-center gap-1.5">
+              <input
+                ref={customInputRef}
+                type="text"
+                value={customText}
+                placeholder="输入指示物名称"
+                onChange={(e) => {
+                  setCustomText(e.target.value)
+                  setCustomSuggestOpen(e.target.value.trim().length > 0)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleAddCustom()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setShowCustomInput(false)
+                    setCustomText('')
+                    setCustomSuggestOpen(false)
+                  }
+                }}
+                className="flex-1 h-6 rounded border border-border/70 bg-background px-2 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+              />
+              <Button
+                variant="secondary"
+                size="xs"
+                disabled={!customText.trim()}
+                onClick={handleAddCustom}
+                className="h-6 px-2 text-[11px] font-semibold shrink-0"
+              >
+                添加
+              </Button>
+            </div>
+
+            {customSuggestOpen && customMatches.length > 0 && (
+              <div className="max-h-[128px] overflow-y-auto rounded border border-border/60 bg-popover">
+                {customMatches.map((def) => (
+                  <button
+                    key={def.id}
+                    type="button"
+                    onClick={() => {
+                      handleAddCounterById(def.id)
+                      setCustomText('')
+                      setCustomSuggestOpen(false)
+                    }}
+                    className="w-full flex items-center justify-between px-2 py-1 text-[11px] text-left hover:bg-muted transition-colors"
+                  >
+                    <span className="truncate text-foreground/90">{def.name}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground/70 shrink-0 ml-2">
+                      {def.hex}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {customSuggestOpen && customText.trim() && customMatches.length === 0 && (
+              <div className="text-[10px] text-muted-foreground/70 px-1 leading-tight">
+                回车将作为自定义指示物创建
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 5. 衍生物布置：按本体卡效果文本智能推荐，点击后进入待放置态再点棋盘空怪兽区 */}

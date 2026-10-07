@@ -137,6 +137,11 @@ export interface DuelPuzzleState {
   matchConfig?: MatchConfig
   /** 多场景独立保留字典 (按 scenarioKey 索引) */
   scenarios?: Record<string, DuelSceneSnapshot>
+  /**
+   * 自定义指示物注册表 (键为自动分配的 ID，值为用户输入的名称)
+   * 用于承载动漫卡等没有官方 ocgcore 指示物代码的指示物
+   */
+  customCounters?: Record<number, string>
 }
 
 /**

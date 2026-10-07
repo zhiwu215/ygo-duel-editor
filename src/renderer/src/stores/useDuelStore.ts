@@ -25,7 +25,8 @@ import {
   ResolvedBoardPlacement,
   replayStepsBoard,
   DeckData,
-  DuelType
+  DuelType,
+  allocateCustomCounterId
 } from '@shared/index'
 import { inferMoveAction, inferPositionChangeAction } from '../utils/duelActionInference'
 import {
@@ -359,6 +360,7 @@ interface DuelStoreState {
   setCardCounter: (instanceId: string, counterType: number, count: number) => void
   removeCardCounter: (instanceId: string, counterType: number) => void
   clearCardCounters: (instanceId: string) => void
+  registerCustomCounter: (name: string) => number
   setCardCustomStats: (instanceId: string, customAtk?: number, customDef?: number) => void
 
   toggleTacticalView: () => void
@@ -375,7 +377,7 @@ interface DuelStoreState {
 
 export const useDuelStore = create<DuelStoreState>()(
   temporal(
-    (set) => ({
+    (set, get) => ({
       state: createInitialDuelState(5),
       expandedDuelistId: null,
       activeDuelistId: null,
@@ -2171,6 +2173,22 @@ export const useDuelStore = create<DuelStoreState>()(
             })
           }
         })),
+
+      registerCustomCounter: (name) => {
+        const trimmed = name.trim()
+        const existing = get().state.customCounters || {}
+        const found = Object.entries(existing).find(([, n]) => n === trimmed)
+        if (found) return Number(found[0])
+
+        const id = allocateCustomCounterId(existing)
+        set((prev) => ({
+          state: {
+            ...prev.state,
+            customCounters: { ...(prev.state.customCounters || {}), [id]: trimmed }
+          }
+        }))
+        return id
+      },
 
       clearCardCounters: (instanceId) =>
         set((prev) => ({

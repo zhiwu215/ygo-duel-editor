@@ -58,6 +58,27 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
   sortOrder: 'DESC'
 }
 
+/** 统计当前有多少个非默认筛选维度生效，用于筛选按钮上的徽标数字 */
+export function countActiveFilters(filters: CardSearchFilters): number {
+  let count = 0
+  if (filters.type !== 0) count++
+  if (filters.subType !== 0) count++
+  if (filters.attribute !== 0) count++
+  if (filters.race !== 0) count++
+  if (filters.level !== 0) count++
+  if (filters.scale !== undefined) count++
+  if (filters.effectCategoryMask !== 0) count++
+  if (filters.cardPool !== 'any') count++
+  if (filters.markers !== 0) count++
+  if (filters.limitFilter !== 0) count++
+  if (filters.atk !== undefined || filters.atkOp === 'unknown') count++
+  if (filters.def !== undefined || filters.defOp === 'unknown') count++
+  if (filters.code !== undefined) count++
+  if (!filters.searchDesc) count++
+  if (filters.sortField !== 'id') count++
+  return count
+}
+
 export interface CardSearchStoreState extends CardSearchFilters {
   results: CdbCard[]
   total: number

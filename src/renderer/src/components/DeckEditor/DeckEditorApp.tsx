@@ -1,5 +1,5 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -8,10 +8,12 @@ import {
   pointerWithin,
   useSensor,
   useSensors,
+  rectIntersection,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent
 } from '@dnd-kit/core'
-import { CdbCard, DeckSection, groupChildPath, groupLeafName } from '@shared/index'
+import { CardUtils, CdbCard, DeckSection, groupChildPath, groupLeafName } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import {
@@ -22,7 +24,7 @@ import {
 } from './deckDnd'
 import { DeckLibraryView } from './DeckLibraryView'
 import { DeckDetailCard } from './DeckDetailCard'
-import { DeckGrid } from './DeckGrid'
+import { DeckGrid, type DeckFlashTarget } from './DeckGrid'
 import { DeckSearchPanel } from './DeckSearchPanel'
 import { DeckTestHandModal } from './DeckTestHandModal'
 import { DeckApplyModal } from './DeckApplyModal'
@@ -55,6 +57,19 @@ import {
 
 const NONE_GROUP_VALUE = '__none__'
 const NEW_GROUP_VALUE = '__new__'
+
+/** 卡组内卡片落位时的回弹动画；从搜索面板拖入的新卡不回弹（源节点不动，回弹会看成失败） */
+const DROP_ANIMATION = { duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }
+const FLASH_DURATION = 700
+
+/**
+ * 指针命中优先；指针落空（停在区块间隙、详情面板上方等）时回退到矩形相交，
+ * 否则松手位置稍微偏出卡图就会整次拖拽无声失败。
+ */
+const deckCollisionDetection: CollisionDetection = (args) => {
+  const hits = pointerWithin(args)
+  return hits.length > 0 ? hits : rectIntersection(args)
+}
 
 export const DeckEditorApp: React.FC = () => {
   const {
@@ -94,9 +109,12 @@ export const DeckEditorApp: React.FC = () => {
     code: number
     width: number
     height: number
+    source: 'search' | 'deck'
   } | null>(null)
   const [rejectMessage, setRejectMessage] = useState<string | null>(null)
   const rejectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [flash, setFlash] = useState<DeckFlashTarget | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -123,6 +141,46 @@ export const DeckEditorApp: React.FC = () => {
     setHoveredCardId(null)
   }, [setHoveredCardId])
 
+  const triggerFlash = useCallback((target: DeckFlashTarget): void => {
+    setFlash(target)
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    flashTimerRef.current = setTimeout(() => setFlash(null), FLASH_DURATION)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+      if (rejectTimerRef.current) clearTimeout(rejectTimerRef.current)
+    },
+    []
+  )
+
+  const showRejectToast = useCallback((section: DeckSection): void => {
+    if (rejectTimerRef.current) clearTimeout(rejectTimerRef.current)
+    setRejectMessage(`无法将该卡片加入${DECK_SECTION_NAMES[section]}`)
+    rejectTimerRef.current = setTimeout(() => setRejectMessage(null), 1800)
+  }, [])
+
+  /**
+   * 加入卡组的统一入口：点击加入、拖入加入、右键指定区域都走这里。
+   * 成功时给落位的那张卡一次高亮，避免「点了但看不出加哪去了」。
+   */
+  const handleAddCard = useCallback(
+    (card: CdbCard, section?: DeckSection, index?: number): boolean => {
+      const ok = addCard(card, section, index)
+      const resolved: DeckSection = section ?? (CardUtils.isExtraDeck(card.type) ? 'extra' : 'main')
+      if (!ok) {
+        showRejectToast(resolved)
+        return false
+      }
+      const list = useDeckEditorStore.getState().deck[resolved]
+      const landed = index === undefined ? list.length - 1 : Math.min(index, list.length - 1)
+      if (landed >= 0) triggerFlash({ section: resolved, index: landed })
+      return true
+    },
+    [addCard, showRejectToast, triggerFlash]
+  )
+
   if (viewMode === 'library') {
     return <DeckLibraryView />
   }
@@ -132,12 +190,6 @@ export const DeckEditorApp: React.FC = () => {
   // 悬停预览优先于选中卡：鼠标滑到左侧面板时仍停留在刚看过的那张
   const detailCard = (hoveredCardId !== null ? cardDetails[hoveredCardId] : null) ?? selectedCard
 
-  const showRejectToast = (section: DeckSection): void => {
-    if (rejectTimerRef.current) clearTimeout(rejectTimerRef.current)
-    setRejectMessage(`无法将该卡片加入${DECK_SECTION_NAMES[section]}`)
-    rejectTimerRef.current = setTimeout(() => setRejectMessage(null), 1800)
-  }
-
   const handleDragStart = (event: DragStartEvent): void => {
     const source = event.active.data.current as DeckDragSourceData | undefined
     if (!source) return
@@ -146,7 +198,8 @@ export const DeckEditorApp: React.FC = () => {
     setActiveDrag({
       code: source.source === 'search' ? source.card.id : source.code,
       width,
-      height: rect?.height ?? (width * 86) / 59
+      height: rect?.height ?? (width * 86) / 59,
+      source: source.source
     })
   }
 
@@ -160,11 +213,11 @@ export const DeckEditorApp: React.FC = () => {
 
     if (source.source === 'search') {
       if (target.kind === 'search-panel') return
-      const ok =
-        target.kind === 'deck-item'
-          ? addCard(source.card, target.section, target.index)
-          : addCard(source.card, target.section)
-      if (!ok) showRejectToast(target.section)
+      if (target.kind === 'deck-item') {
+        handleAddCard(source.card, target.section, target.index)
+      } else {
+        handleAddCard(source.card, target.section)
+      }
       return
     }
 
@@ -174,22 +227,27 @@ export const DeckEditorApp: React.FC = () => {
     }
 
     if (target.kind === 'zone') {
-      if (
-        target.section !== source.section &&
-        !moveCardBetweenSections(source.section, source.index, target.section)
-      ) {
+      if (target.section === source.section) return
+      if (!moveCardBetweenSections(source.section, source.index, target.section)) {
         showRejectToast(target.section)
+        return
       }
+      const list = useDeckEditorStore.getState().deck[target.section]
+      triggerFlash({ section: target.section, index: list.length - 1 })
       return
     }
 
     if (target.section === source.section) {
       if (target.index !== source.index) moveCard(source.section, source.index, target.index)
-    } else if (
-      !moveCardBetweenSections(source.section, source.index, target.section, target.index)
-    ) {
-      showRejectToast(target.section)
+      return
     }
+
+    if (!moveCardBetweenSections(source.section, source.index, target.section, target.index)) {
+      showRejectToast(target.section)
+      return
+    }
+    const list = useDeckEditorStore.getState().deck[target.section]
+    triggerFlash({ section: target.section, index: Math.min(target.index, list.length - 1) })
   }
 
   const handleDragCancel = (): void => {
@@ -452,7 +510,7 @@ export const DeckEditorApp: React.FC = () => {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={pointerWithin}
+        collisionDetection={deckCollisionDetection}
         measuring={{ droppable: { strategy: MeasuringStrategy.BeforeDragging } }}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
@@ -470,6 +528,7 @@ export const DeckEditorApp: React.FC = () => {
               stats={stats}
               cardDetails={cardDetails}
               isDragActive={activeDrag !== null}
+              flash={flash}
               coverCard={deck.coverCard}
               onSelectCard={handleSelectCard}
               onHoverCard={handleHoverCard}
@@ -491,10 +550,10 @@ export const DeckEditorApp: React.FC = () => {
             )}
           </main>
 
-          <DeckSearchPanel onSelectCard={handleSelectCard} onAddCard={(card) => addCard(card)} />
+          <DeckSearchPanel onSelectCard={handleSelectCard} onAddCard={handleAddCard} />
         </div>
 
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay dropAnimation={activeDrag?.source === 'deck' ? DROP_ANIMATION : null}>
           {activeDrag && (
             <div
               className="pointer-events-none overflow-hidden rounded border border-primary/80 shadow-2xl ring-2 ring-primary/40"

@@ -31,12 +31,19 @@ const getSortableCards = (section: DeckSection, codes: number[]): SortableCard[]
   })
 }
 
+export interface DeckFlashTarget {
+  section: DeckSection
+  index: number
+}
+
 interface DeckGridProps {
   deck: DeckData
   stats: DeckStats
   cardDetails: Record<number, CdbCard>
   coverCard: number | undefined
   isDragActive: boolean
+  /** 需要短暂高亮的落位卡片，用于加入 / 移动后的反馈 */
+  flash: DeckFlashTarget | null
   onSelectCard: (card: CdbCard | null) => void
   onHoverCard: (code: number | null) => void
   onRemoveCard: (section: DeckSection, index: number) => void
@@ -219,6 +226,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
   cardDetails,
   coverCard,
   isDragActive,
+  flash,
   onSelectCard,
   onHoverCard,
   onRemoveCard,
@@ -326,6 +334,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
                   section={section}
                   index={index}
                   isCover={coverCard === code}
+                  isFlash={flash?.section === section && flash?.index === index}
                   onSelect={onSelectCard}
                   onHover={onHoverCard}
                   onOpenMenu={handleOpenMenu}

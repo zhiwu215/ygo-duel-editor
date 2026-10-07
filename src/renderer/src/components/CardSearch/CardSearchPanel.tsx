@@ -11,7 +11,7 @@ import {
   Star,
   X
 } from 'lucide-react'
-import { useCardSearchStore } from '../../stores/useCardSearchStore'
+import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
 import { CdbCard, CardUtils, LIMIT_MARKS, LINK_MARKERS, cardPoolLabel, otBadgeIds } from '@shared/index'
@@ -30,23 +30,7 @@ const LIMIT_SPRITE_SCALE = LIMIT_BADGE_SIZE / LIMIT_SPRITE_SIZE
 export const CardSearchPanel: React.FC = () => {
   const {
     keyword,
-    type,
-    subType,
-    attribute,
-    race,
-    level,
-    scale,
-    effectCategoryMask,
     cardPool,
-    markers,
-    limitFilter,
-    atk,
-    atkOp,
-    def,
-    defOp,
-    code,
-    searchDesc,
-    sortField,
     results,
     total,
     isLoading,
@@ -59,6 +43,7 @@ export const CardSearchPanel: React.FC = () => {
     loadMore,
     resetFilters
   } = useCardSearchStore()
+  const activeFilterCount = useCardSearchStore(countActiveFilters)
 
   const { setHoveredCard } = useDuelStore()
   const { isFavorite, toggleFavorite } = useFavoritesStore()
@@ -80,44 +65,6 @@ export const CardSearchPanel: React.FC = () => {
     setKeyword(localKw)
     search({ keyword: localKw })
   }
-
-  const activeFilterCount = React.useMemo(() => {
-    let count = 0
-    if (type !== 0) count++
-    if (subType !== 0) count++
-    if (attribute !== 0) count++
-    if (race !== 0) count++
-    if (level !== 0) count++
-    if (scale !== undefined) count++
-    if (effectCategoryMask !== 0) count++
-    if (cardPool !== 'any') count++
-    if (markers !== 0) count++
-    if (limitFilter !== 0) count++
-    if (atk !== undefined || atkOp === 'unknown') count++
-    if (def !== undefined || defOp === 'unknown') count++
-    if (code !== undefined) count++
-    if (!searchDesc) count++
-    if (sortField !== 'id') count++
-    return count
-  }, [
-    type,
-    subType,
-    attribute,
-    race,
-    level,
-    scale,
-    effectCategoryMask,
-    cardPool,
-    markers,
-    limitFilter,
-    atk,
-    atkOp,
-    def,
-    defOp,
-    code,
-    searchDesc,
-    sortField
-  ])
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>): void => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget

@@ -14,6 +14,8 @@ interface DeckCardItemProps {
   index: number
   sortableId: string
   isCover: boolean
+  /** 刚被加入 / 移动到此位置的卡片，短暂高亮一次作为落位反馈 */
+  isFlash: boolean
   onSelect: (card: CdbCard | null) => void
   onHover: (code: number | null) => void
   onOpenMenu: (code: number, x: number, y: number) => void
@@ -26,13 +28,15 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
   index,
   sortableId,
   isCover,
+  isFlash,
   onSelect,
   onHover,
   onOpenMenu
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortableId,
-    data: { source: 'deck', section, index, code } as DeckDragSourceData
+    data: { source: 'deck', section, index, code } as DeckDragSourceData,
+    transition: { duration: 160, easing: 'cubic-bezier(0.2, 0, 0, 1)' }
   })
   const imageUrl = getCardImageUrl(code, true)
 
@@ -81,7 +85,8 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
             className={cn(
               'group relative aspect-[59/86] w-full rounded overflow-hidden cursor-grab active:cursor-grabbing select-none border border-border/40',
               'hover:border-primary/80 hover:shadow-md transition-[border-color,box-shadow] duration-150 bg-background/50',
-              isDragging && 'opacity-30'
+              isDragging && 'opacity-30',
+              isFlash && 'ring-2 ring-primary shadow-md shadow-primary/30'
             )}
           >
             <img

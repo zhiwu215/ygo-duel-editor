@@ -17,7 +17,7 @@ import { WindowControls } from '../ui/window-controls'
 import { GroupNameModal } from './GroupNameModal'
 import { YdkPasteModal } from './YdkPasteModal'
 import {
-  Layers,
+  SquareStack,
   Plus,
   FolderOpen,
   ClipboardPaste,
@@ -279,7 +279,7 @@ export const DeckLibraryView: React.FC = () => {
       <header className="h-14 px-6 border-b border-border bg-card/80 backdrop-blur-md flex items-center justify-between shrink-0 [-webkit-app-region:drag]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs">
-            <Layers className="w-5 h-5" />
+            <SquareStack className="w-5 h-5" />
           </div>
           <h1 className="text-base font-bold tracking-tight text-foreground">卡组</h1>
         </div>

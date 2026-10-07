@@ -18,7 +18,25 @@ export interface CdbCard {
   strings?: string[] // str1 ~ str16 效果提示字符串
   setnames?: string[] // 系列字段名称列表 (如 ['朱罗纪'], ['禁忌的'])
   pools?: string[] // 所属卡池标记 (对应 CARD_POOLS 中的 id)，可命中多个
+  markers?: number // 连接标记（箭头）位掩码，仅 Link 怪兽有意义
+  limit?: 1 | 2 | 3 // 禁限等级，来自 lflists
 }
+
+/**
+ * 连接标记（灵摆/连接怪兽的箭头方向）。
+ * 卡库中没有独立的 link_marker 列，方向存放在 def 字段里（仅 Link 怪兽），
+ * 比特顺序与 YGOPro 的 FormatLinkMarker 一致：位0=↖位1=↑ 位2=↗ 位3=← 位4=→ 位5=↙ 位6=↓ 位7=↘
+ */
+export const LINK_MARKERS: Array<{ mask: number; label: string }> = [
+  { mask: 0x01, label: '↖' },
+  { mask: 0x02, label: '↑' },
+  { mask: 0x04, label: '↗' },
+  { mask: 0x08, label: '←' },
+  { mask: 0x10, label: '→' },
+  { mask: 0x20, label: '↙' },
+  { mask: 0x40, label: '↓' },
+  { mask: 0x80, label: '↘' }
+]
 
 /**
  * 卡池类型：由用户在设置里为每个附加卡库路径显式指定，不依赖文件名

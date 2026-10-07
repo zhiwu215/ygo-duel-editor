@@ -31,11 +31,17 @@ export interface CardSearchParams {
   levelOp?: NumericCompareOp
 
   code?: number
+  /** 连接标记（箭头）位掩码，仅 Link 怪兽有效（方向存于 def 字段） */
+  markers?: number
+  /** 禁限筛选：1=禁限一(禁止) 2=禁限二(准限制) 3=禁限三(限制)，读 lflists 得到 */
+  limitFilter?: LimitFilter
   sortField?: 'id' | 'atk' | 'def' | 'level' | 'name'
   sortOrder?: 'ASC' | 'DESC'
   limit?: number
   offset?: number
 }
+
+export type LimitFilter = 0 | 1 | 2 | 3
 
 export type NumericCompareOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'unknown'
 

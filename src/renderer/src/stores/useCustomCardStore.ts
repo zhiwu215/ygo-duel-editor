@@ -4,7 +4,6 @@ import { CardType, CustomCard, CustomCardInput } from '@shared/index'
 export interface CustomCardEditorForm {
   name: string
   desc: string
-  note: string
   type: number
   attribute: number
   race: number
@@ -34,7 +33,6 @@ interface CustomCardStoreState {
 const BLANK_FORM: CustomCardEditorForm = {
   name: '',
   desc: '',
-  note: '',
   type: CardType.MONSTER | CardType.EFFECT,
   attribute: 1,
   race: 1,

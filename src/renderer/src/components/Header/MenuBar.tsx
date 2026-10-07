@@ -444,8 +444,11 @@ export const MenuBar: React.FC<MenuBarProps> = ({
 
       {showSupportDialog && (
         <Dialog open onOpenChange={(open) => !open && setShowSupportDialog(false)}>
-          <DialogContent showCloseButton={false} className="max-w-sm space-y-4 p-5">
-            <DialogHeader className="flex-row items-center justify-between space-y-0 border-b border-border pb-2.5">
+          <DialogContent
+            showCloseButton={false}
+            className="max-w-sm space-y-2 p-4 pb-3"
+          >
+            <DialogHeader className="flex-row items-center justify-between space-y-0 border-b border-border pb-2">
               <DialogTitle className="flex items-center gap-2 font-semibold text-sm">
                 <Coffee className="w-4 h-4 text-muted-foreground" />
                 支持作者
@@ -470,7 +473,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               如果 YGO Duel Editor 对你有帮助，欢迎请作者喝杯咖啡
             </p>
 
-            <p className="text-[11px] text-muted-foreground/90 leading-relaxed text-center px-1 py-1.5 rounded-md bg-muted/50 border border-border/60">
+            <p className="text-[11px] text-muted-foreground/80 leading-relaxed text-center">
               全部功能免费开放，赞助仅作自愿支持，不影响任何功能
             </p>
 

@@ -49,17 +49,13 @@ export type NumericCompareOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'unknown'
  * 卡池筛选：
  * - ocg / tcg 按卡片 ot 位判定「可用」（含该赛区即可）
  * - ocgOnly / tcgOnly 判定「独有」（只有该赛区、另一个不包含）
- * - anime / rush / tf 按所属卡库判定（对应 CARD_POOLS 的库标记，只搜该标记的附加库）
+ * - anime / rush / tf 按卡片 ot 的扩展池位判定（对应 CARD_POOLS 的 otMask）
  */
 export type CardPoolFilter = 'any' | 'ocg' | 'tcg' | 'ocgOnly' | 'tcgOnly' | 'anime' | 'rush' | 'tf'
-/** 按所属卡库判定的卡池（与 CARD_POOLS 中除 none 外的 id 一致） */
-export const POOL_TAG_FILTERS = ['anime', 'rush', 'tf'] as const
-
-export type PoolTagFilter = (typeof POOL_TAG_FILTERS)[number]
 
 export interface CardSearchFilterOptions {
   effectCategories: Array<{ mask: number; label: string }>
-  /** 当前已加载卡库中实际出现过的卡池标记，供筛选器判断哪些卡池项可选 */
+  /** 当前已加载卡库中实际出现过的卡池 id，供筛选器判断哪些卡池项可选 */
   availablePools: string[]
 }
 
@@ -399,9 +395,6 @@ export interface AppConfig {
   /** 已停用的附加卡库路径，仍保留在 extraCdbPaths 中但不参与加载 */
   disabledCdbPaths?: string[]
 
-  /** 附加卡库的卡池类型，key 为卡库路径，value 为 CARD_POOLS 中的 id (空串=不标记) */
-  cdbPoolTags?: Record<string, string>
-
   theme: 'dark' | 'light'
 
   favorites?: number[]
@@ -509,8 +502,6 @@ export interface IpcApi {
     cdbPath: string,
     picsDir: string | null
   ) => Promise<{ success: boolean; picsDir: string | null; cancelled?: boolean; error?: string }>
-  /** 为附加卡库指定卡池类型，传空串表示不标记 */
-  setCdbPoolTag: (cdbPath: string, poolId: string) => Promise<{ success: boolean; poolId: string }>
   searchCards: (params: CardSearchParams) => Promise<CardSearchResult>
   getCardSearchFilterOptions: () => Promise<CardSearchFilterOptions>
   getCardsByIds: (ids: number[]) => Promise<Record<number, CdbCard>>

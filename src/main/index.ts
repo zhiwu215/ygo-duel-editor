@@ -100,7 +100,6 @@ app.whenReady().then(() => {
   const disabled = cfg.disabledCdbPaths || []
   const extraCdbPaths = (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
   if (cfg.cdbPath || extraCdbPaths.length > 0) {
-    cdbService.setPoolTags(cfg.cdbPoolTags || {})
     cdbService.setGameDirectory(cfg.gameDirectory)
     cdbService.reloadAll(cfg.cdbPath, extraCdbPaths)
     if (!cfg.gameDirectory && cfg.cdbPath) {

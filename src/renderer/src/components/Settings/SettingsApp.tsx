@@ -19,7 +19,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { AgentSettingsContent } from './AgentSettingsContent'
-import { SettingsSectionId, CARD_POOLS, cardPoolLabel } from '@shared/index'
+import { SettingsSectionId } from '@shared/index'
 import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { cn } from '../../lib/utils'
@@ -183,13 +183,11 @@ function ExtraCdbSection(): JSX.Element {
     addExtraCdb,
     removeExtraCdb,
     setExtraCdbEnabled,
-    setExtraPicsDir,
-    setCdbPoolTag
+    setExtraPicsDir
   } = useConfigStore()
   const paths = config.extraCdbPaths || []
   const picsDirs = config.extraPicsDirs || {}
   const disabled = config.disabledCdbPaths || []
-  const poolTags = config.cdbPoolTags || {}
   const [busy, setBusy] = useState(false)
 
   const handleAdd = async (): Promise<void> => {
@@ -232,7 +230,6 @@ function ExtraCdbSection(): JSX.Element {
         paths.map((path) => {
           const picsDir = picsDirs[path]
           const enabled = !disabled.includes(path)
-          const poolId = poolTags[path] || 'none'
           return (
             <div key={path} className="px-5 py-3 border-b border-border/60 last:border-b-0">
               <div className="flex items-center justify-between gap-6">
@@ -245,21 +242,6 @@ function ExtraCdbSection(): JSX.Element {
                   {path}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Select
-                    value={poolId}
-                    onValueChange={(value) => void setCdbPoolTag(path, value ?? 'none')}
-                  >
-                    <SelectTrigger size="xs" className="min-w-[104px]">
-                      <SelectValue>{(value) => cardPoolLabel(value as string)}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CARD_POOLS.map((pool) => (
-                        <SelectItem key={pool.id} value={pool.id}>
-                          {pool.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   <Button
                     size="xs"
                     variant={enabled ? 'outline' : 'ghost'}

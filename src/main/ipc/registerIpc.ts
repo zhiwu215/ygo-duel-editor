@@ -77,10 +77,7 @@ export function registerAllIpcHandlers(): void {
     const extraPicsDirs = { ...(cfg.extraPicsDirs || {}) }
     delete extraPicsDirs[cdbPath]
     const disabledCdbPaths = (cfg.disabledCdbPaths || []).filter((p) => p !== cdbPath)
-    const cdbPoolTags = { ...(cfg.cdbPoolTags || {}) }
-    delete cdbPoolTags[cdbPath]
-    configService.save({ extraCdbPaths: extras, extraPicsDirs, disabledCdbPaths, cdbPoolTags })
-    cdbService.setPoolTags(cdbPoolTags)
+    configService.save({ extraCdbPaths: extras, extraPicsDirs, disabledCdbPaths })
     cdbService.reloadAll(
       cfg.cdbPath,
       extras.filter((p) => !disabledCdbPaths.includes(p))
@@ -126,17 +123,6 @@ export function registerAllIpcHandlers(): void {
     configService.save({ extraPicsDirs })
     notifyCdbUpdated()
     return { success: true, picsDir: extraPicsDirs[cdbPath] ?? null }
-  })
-
-  ipcMain.handle('cdb:set-pool-tag', async (_, cdbPath: string, poolId: string) => {
-    const cfg = configService.get()
-    const cdbPoolTags = { ...(cfg.cdbPoolTags || {}) }
-    if (poolId && poolId !== 'none') cdbPoolTags[cdbPath] = poolId
-    else delete cdbPoolTags[cdbPath]
-    configService.save({ cdbPoolTags })
-    cdbService.setPoolTags(cdbPoolTags)
-    notifyCdbUpdated()
-    return { success: true, poolId: cdbPoolTags[cdbPath] ?? 'none' }
   })
 
   ipcMain.handle('file:export-lua', async (_, state: DuelPuzzleState, targetPath?: string) => {

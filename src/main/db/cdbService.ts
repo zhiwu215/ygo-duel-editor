@@ -1,14 +1,14 @@
 import Database from 'better-sqlite3'
 import {
+  CARD_POOL_OT_MASKS,
   CdbCard,
   CardType,
-  CardPoolFilter,
   CardSearchFilterOptions,
   CardSearchParams,
   CardSearchResult,
   NumericCompareOp,
-  POOL_TAG_FILTERS,
-  PoolTagFilter
+  cardPoolIdsFromOt,
+  cardPoolOtMask
 } from '@shared/index'
 import { existsSync, readFileSync } from 'fs'
 import * as fs from 'fs'
@@ -26,11 +26,6 @@ interface SearchToken {
   text: string
   mode: 'any' | 'name' | 'set'
   excluded: boolean
-}
-
-/** 按所属卡库（而非 ot 位）判定的卡池标记 */
-function isPoolTagFilter(pool: CardPoolFilter | undefined): pool is PoolTagFilter {
-  return (POOL_TAG_FILTERS as readonly string[]).includes(pool ?? '')
 }
 
 function parseSearchTokens(input: string): SearchToken[] {
@@ -126,7 +121,6 @@ function compareCards(params: CardSearchParams): (a: CdbCard, b: CdbCard) => num
 interface CdbConnection {
   path: string
   db: Database.Database
-  poolId: string
 }
 
 export class CdbService {
@@ -134,17 +128,8 @@ export class CdbService {
   private currentPath: string | null = null
   private setnameMap: Map<number, string> = new Map()
   private systemStringMap: Map<number, string> = new Map()
-  private poolTagMap: Record<string, string> = {}
   private limitMap: Map<number, 1 | 2 | 3> = new Map()
   private gameDirectory: string | undefined
-
-  public setPoolTags(tags: Record<string, string>): void {
-    this.poolTagMap = tags
-    for (const conn of this.connections) {
-      const tag = tags[conn.path]
-      conn.poolId = !tag || tag === 'none' ? '' : tag
-    }
-  }
 
   /** 卡库加载后需要重新探测 lflists 的目录（游戏根目录未必与 cdb 同级） */
   public setGameDirectory(gameDirectory: string | undefined): void {
@@ -338,8 +323,7 @@ export class CdbService {
         return null
       }
 
-      const tag = this.poolTagMap[cdbPath]
-      return { path: cdbPath, db, poolId: !tag || tag === 'none' ? '' : tag }
+      return { path: cdbPath, db }
     } catch (err) {
       console.error('[CdbService] Failed to open cdb:', err)
       return null
@@ -416,35 +400,22 @@ export class CdbService {
     return this.connections.map((c) => c.path)
   }
 
-  private applyPoolTags(cards: CdbCard[]): void {
-    const poolConns = this.connections.filter((c) => c.poolId)
-    if (poolConns.length === 0 || cards.length === 0) return
-
-    const byId = new Map<number, CdbCard>()
+  /** 附加库卡池：按卡片 ot 的扩展池位判定（与 EDOPro 一致），与卡库无关 */
+  private applyCardPools(cards: CdbCard[]): void {
     for (const card of cards) {
-      const pools: string[] = []
-      card.pools = pools
-      byId.set(card.id, card)
+      const pools = cardPoolIdsFromOt(card.ot)
+      if (pools.length > 0) card.pools = pools
+      else delete card.pools
     }
-    const ids = [...byId.keys()]
-    const marks = ids.map(() => '?').join(',')
+  }
 
-    for (const conn of poolConns) {
-      try {
-        const rows = conn.db
-          .prepare(`SELECT id FROM datas WHERE id IN (${marks})`)
-          .all(...ids) as Array<{ id: number }>
-        for (const row of rows) {
-          const card = byId.get(row.id)
-          if (card?.pools && !card.pools.includes(conn.poolId)) card.pools.push(conn.poolId)
-        }
-      } catch (err) {
-        console.error(`[CdbService] Pool tag query error on ${conn.path}:`, err)
-      }
-    }
-
-    for (const card of cards) {
-      if (card.pools && card.pools.length === 0) delete card.pools
+  private hasPoolMask(db: Database.Database, mask: number): boolean {
+    try {
+      const row = db.prepare('SELECT 1 FROM datas WHERE (ot & ?) != 0 LIMIT 1').get(mask)
+      return row !== undefined
+    } catch (err) {
+      console.error('[CdbService] Pool mask probe error:', err)
+      return false
     }
   }
 
@@ -454,7 +425,12 @@ export class CdbService {
       const label = this.systemStringMap.get(1100 + index)
       if (label) effectCategories.push({ mask: 2 ** index, label })
     }
-    const availablePools = [...new Set(this.connections.map((c) => c.poolId).filter(Boolean))]
+    const availablePools: string[] = []
+    for (const pool of CARD_POOL_OT_MASKS) {
+      if (this.connections.some((conn) => this.hasPoolMask(conn.db, pool.mask))) {
+        availablePools.push(pool.id)
+      }
+    }
     return { effectCategories, availablePools }
   }
 
@@ -474,8 +450,6 @@ export class CdbService {
     const seen = new Set<number>()
 
     for (const conn of this.connections) {
-      // 按所属卡库判定的卡池（动画漫画 / 超速 / TF）：只搜标记匹配的库
-      if (isPoolTagFilter(params.cardPool) && conn.poolId !== params.cardPool) continue
       const result = this.searchOne(conn.db, params, perDbLimit)
       total += result.total
       for (const card of result.cards) {
@@ -498,7 +472,7 @@ export class CdbService {
       const limit = this.limitMap.get(card.id)
       if (limit) card.limit = limit
     }
-    this.applyPoolTags(collected)
+    this.applyCardPools(collected)
 
     return { cards: collected.slice(offset, offset + limit), total }
   }
@@ -632,11 +606,16 @@ export class CdbService {
       args.push(params.effectCategoryMask)
     }
 
-    // ocg/tcg 判「可用」，ocgOnly/tcgOnly 判「独有」；anime/rush/tf 已在 search() 按所属库过滤
+    // ocg/tcg 判「可用」，ocgOnly/tcgOnly 判「独有」，anime/rush/tf 按 ot 池位判定
+    const poolMask = cardPoolOtMask(params.cardPool)
     if (params.cardPool === 'ocg') baseWhere += ' AND (d.ot & 1) != 0'
     else if (params.cardPool === 'tcg') baseWhere += ' AND (d.ot & 2) != 0'
     else if (params.cardPool === 'ocgOnly') baseWhere += ' AND (d.ot & 1) != 0 AND (d.ot & 2) = 0'
     else if (params.cardPool === 'tcgOnly') baseWhere += ' AND (d.ot & 2) != 0 AND (d.ot & 1) = 0'
+    else if (poolMask !== undefined) {
+      baseWhere += ' AND (d.ot & ?) != 0'
+      args.push(poolMask)
+    }
 
     // 禁限来自 lflists 文本 (卡库中没有该列)，把该等级的卡密展开为 IN 条件以保证分页与总数准确
     if (params.limitFilter) {
@@ -733,7 +712,7 @@ export class CdbService {
         console.error(`[CdbService] getCardsByIds error on ${conn.path}:`, err)
       }
     }
-    this.applyPoolTags(Object.values(result))
+    this.applyCardPools(Object.values(result))
     return result
   }
 

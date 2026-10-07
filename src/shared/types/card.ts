@@ -3,7 +3,7 @@
  */
 export interface CdbCard {
   id: number // 卡密 / 密码 (Primary Key)
-  ot: number // 所属地区 (1: OCG, 2: TCG, 3: 全卡池)
+  ot: number // 赛区 / 卡池位掩码（见 AVAIL_* 常量）
   alias: number // 同名卡别名卡密 (若有)
   setcode: bigint | number // 系列字段代码
   type: number // 种类掩码 (Monster/Spell/Trap/Fusion/Link等)
@@ -17,7 +17,7 @@ export interface CdbCard {
   desc: string // 效果说明文本
   strings?: string[] // str1 ~ str16 效果提示字符串
   setnames?: string[] // 系列字段名称列表 (如 ['朱罗纪'], ['禁忌的'])
-  pools?: string[] // 所属卡池标记 (对应 CARD_POOLS 中的 id)，可命中多个
+  pools?: string[] // 所属附加库卡池 id 列表（按卡片 ot 的扩展池位推导）
   markers?: number // 连接标记（箭头）位掩码，仅 Link 怪兽有意义
   limit?: 1 | 2 | 3 // 禁限等级，来自 lflists
 }
@@ -55,13 +55,26 @@ export interface CardPoolOption {
   id: string
   label: string
   spriteY: number | null
+  /** 附加库卡池对应的 ot 位 */
+  otMask?: number
 }
+
+/**
+ * ot 位：1=OCG、2=TCG、4=动漫/漫画、8=旧文本版、16=卡片力量(VG)、512=超速。
+ * 后四项是 EDOPro 中文改版的扩展位，标准 YGOPro 只认前两项。
+ */
+export const AVAIL_OCG = 0x1
+export const AVAIL_TCG = 0x2
+export const AVAIL_ANIME = 0x4
+export const AVAIL_PRE_ERRATA = 0x8
+export const AVAIL_VG = 0x10
+export const AVAIL_RUSH = 0x200
 
 export const CARD_POOLS: CardPoolOption[] = [
   { id: 'none', label: '无', spriteY: null },
-  { id: 'anime', label: '动漫/漫画', spriteY: 192 },
-  { id: 'rush', label: '超速（Rush）', spriteY: 576 },
-  { id: 'tf', label: '卡片力量（TF）', spriteY: 320 }
+  { id: 'anime', label: '动漫/漫画', spriteY: 192, otMask: AVAIL_ANIME },
+  { id: 'rush', label: '超速（Rush）', spriteY: 576, otMask: AVAIL_RUSH },
+  { id: 'tf', label: '卡片力量（TF）', spriteY: 320, otMask: AVAIL_VG }
 ]
 
 /**
@@ -73,15 +86,20 @@ export const OT_POOLS: CardPoolOption[] = [
   { id: 'tcg', label: 'TCG 独有', spriteY: 64 }
 ]
 
-/** ot 位：1=OCG 可用，2=TCG 可用 */
-export const AVAIL_OCG = 0x1
-export const AVAIL_TCG = 0x2
-
 /** 全部可渲染角标的定义（附加库卡池 + OCG/TCG 独有） */
 const ALL_POOL_OPTIONS: CardPoolOption[] = [...CARD_POOLS, ...OT_POOLS]
 
 export const CARD_POOL_SPRITE_WIDTH = 128
 export const CARD_POOL_SPRITE_HEIGHT = 64
+
+/** 附加库卡池的 ot 位掩码表 */
+export const CARD_POOL_OT_MASKS: Array<{ id: string; mask: number }> = CARD_POOLS.filter(
+  (pool): pool is CardPoolOption & { otMask: number } => pool.otMask !== undefined
+).map((pool) => ({ id: pool.id, mask: pool.otMask }))
+
+export function cardPoolOtMask(id: string | undefined): number | undefined {
+  return CARD_POOL_OT_MASKS.find((pool) => pool.id === id)?.mask
+}
 
 export function cardPoolLabel(id: string): string {
   return ALL_POOL_OPTIONS.find((p) => p.id === id)?.label ?? ''
@@ -98,6 +116,11 @@ export function otBadgeIds(ot: number): string[] {
   if (hasOcg && !hasTcg) return ['ocg']
   if (hasTcg && !hasOcg) return ['tcg']
   return []
+}
+
+/** 按 ot 位推导卡片所属的附加库卡池 id 列表（可命中多个） */
+export function cardPoolIdsFromOt(ot: number): string[] {
+  return CARD_POOL_OT_MASKS.filter((pool) => (ot & pool.mask) !== 0).map((pool) => pool.id)
 }
 
 /**

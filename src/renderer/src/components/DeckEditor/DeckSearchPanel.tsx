@@ -231,7 +231,7 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
   const isLoading = activeTab === 'search' && loading
 
   return (
-    <SearchPanelDropZone className="relative w-[310px] h-full flex flex-col bg-card border-l border-border select-none shrink-0">
+    <SearchPanelDropZone className="relative w-[220px] lg:w-[250px] xl:w-[310px] h-full flex flex-col bg-card border-l border-border select-none shrink-0">
       {/* 1. 顶部 Tab 切换 */}
       <div className="flex items-center border-b border-border/80 p-1.5 gap-1 bg-muted/40">
         <button

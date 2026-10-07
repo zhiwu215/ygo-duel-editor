@@ -38,7 +38,7 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover })
 
   return (
     <>
-      <ScrollArea className="w-[280px] h-full bg-card border-r border-border shrink-0">
+      <ScrollArea className="w-[200px] lg:w-[230px] xl:w-[280px] h-full bg-card border-r border-border shrink-0">
         <div className="flex flex-col p-3">
           {/* 1. 卡图预览 */}
           <div className="aspect-[59/86] w-full shrink-0">

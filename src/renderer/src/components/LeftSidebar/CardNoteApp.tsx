@@ -434,13 +434,10 @@ export const CardNoteApp: React.FC = () => {
                                 items={entry.chants.map((c) => buildSortId('chant', c.label))}
                                 strategy={verticalListSortingStrategy}
                               >
-                                {entry.chants.map((chant, index) => (
+                                {entry.chants.map((chant) => (
                                   <SortableChantRow
                                     key={chant.label}
                                     chant={chant}
-                                    blockedByReadonly={entry.chants
-                                      .slice(0, index)
-                                      .some((c) => c.readonly)}
                                     copyKey={`${entry.cardCode}:chant:${chant.label}`}
                                     copiedKey={copiedKey}
                                     onCopy={handleCopy}
@@ -470,13 +467,10 @@ export const CardNoteApp: React.FC = () => {
                                 items={entry.notes.map((n) => buildSortId('note', n.label))}
                                 strategy={verticalListSortingStrategy}
                               >
-                                {entry.notes.map((note, index) => (
+                                {entry.notes.map((note) => (
                                   <SortableNoteRow
                                     key={note.label}
                                     note={note}
-                                    blockedByReadonly={entry.notes
-                                      .slice(0, index)
-                                      .some((n) => n.readonly)}
                                     copyKey={`${entry.cardCode}:note:${note.label}`}
                                     copiedKey={copiedKey}
                                     onCopy={handleCopy}
@@ -556,14 +550,13 @@ interface SortableRowProps {
 
 function SortableChantRow({
   chant,
-  blockedByReadonly,
   copyKey,
   copiedKey,
   onCopy,
   onEdit,
   onDelete
-}: SortableRowProps & { chant: CardNote; blockedByReadonly: boolean }): React.JSX.Element {
-  const draggable = !chant.readonly && !blockedByReadonly
+}: SortableRowProps & { chant: CardNote }): React.JSX.Element {
+  const draggable = !chant.readonly
   const id = buildSortId('chant', chant.label)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
@@ -675,14 +668,13 @@ function SortableChantRow({
 
 function SortableNoteRow({
   note,
-  blockedByReadonly,
   copyKey,
   copiedKey,
   onCopy,
   onEdit,
   onDelete
-}: SortableRowProps & { note: CardNote; blockedByReadonly: boolean }): React.JSX.Element {
-  const draggable = !note.readonly && !blockedByReadonly
+}: SortableRowProps & { note: CardNote }): React.JSX.Element {
+  const draggable = !note.readonly
   const id = buildSortId('note', note.label)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
@@ -711,6 +703,18 @@ function SortableNoteRow({
         <span className="text-[10px] font-semibold text-foreground/80 truncate flex-1">
           {note.label}
         </span>
+        {note.readonly && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="shrink-0 text-[9px] px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+                  内置
+                </span>
+              }
+            />
+            <TooltipContent>内置的经典条目，不可修改</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger
             render={
@@ -729,34 +733,38 @@ function SortableNoteRow({
           />
           <TooltipContent>复制</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={onEdit}
-                className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-            }
-          />
-          <TooltipContent>编辑</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={onDelete}
-                className="p-1 rounded text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            }
-          />
-          <TooltipContent>删除</TooltipContent>
-        </Tooltip>
+        {!note.readonly && (
+          <>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={onEdit}
+                    className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                }
+              />
+              <TooltipContent>编辑</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="p-1 rounded text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                }
+              />
+              <TooltipContent>删除</TooltipContent>
+            </Tooltip>
+          </>
+        )}
       </div>
       <p className="text-[11px] text-foreground/90 leading-relaxed whitespace-pre-wrap mt-1">
         {note.text}

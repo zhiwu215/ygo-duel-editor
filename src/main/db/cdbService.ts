@@ -499,6 +499,7 @@ export class CdbService {
   ): CardSearchResult {
     let baseWhere =
       ' FROM datas d JOIN texts t ON d.id = t.id WHERE 1=1' +
+      ' AND (d.type & 16384) = 0' +
       " AND t.name NOT LIKE '%占位符%'" +
       ' AND NOT (' +
       ' (d.type & 7) = 0 AND d.atk = 0 AND d.def = 0 AND (d.level & 255) = 0' +

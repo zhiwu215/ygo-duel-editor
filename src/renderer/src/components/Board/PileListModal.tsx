@@ -656,19 +656,6 @@ const PileListContent: React.FC = () => {
                           />
                         </div>
 
-                        <div className="w-full mt-2 text-center">
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={
-                                <p className="text-xs font-medium text-foreground truncate px-1">
-                                  {card.card?.name || `卡密: ${card.code}`}
-                                </p>
-                              }
-                            />
-                            <TooltipContent>{card.card?.name || String(card.code)}</TooltipContent>
-                          </Tooltip>
-                        </div>
-
                         <div className="w-full flex items-center justify-between mt-2 pt-1.5 border-t border-border/50 text-muted-foreground">
                           <span className="text-[10px] font-mono text-muted-foreground/60 px-0.5">
                             #{originalIndex + 1}

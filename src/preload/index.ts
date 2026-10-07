@@ -19,8 +19,6 @@ const api: IpcApi = {
   removeExtraCdb: (cdbPath: string) => ipcRenderer.invoke('cdb:remove-extra', cdbPath),
   setExtraCdbEnabled: (cdbPath: string, enabled: boolean) =>
     ipcRenderer.invoke('cdb:set-extra-enabled', cdbPath, enabled),
-  setExtraPicsDir: (cdbPath: string, picsDir: string | null) =>
-    ipcRenderer.invoke('cdb:set-pics-dir', cdbPath, picsDir),
   searchCards: (params: CardSearchParams) => ipcRenderer.invoke('cdb:search', params),
   getCardSearchFilterOptions: () => ipcRenderer.invoke('cdb:search-filter-options'),
   getCardsByIds: (ids: number[]) => ipcRenderer.invoke('cdb:get-by-ids', ids),

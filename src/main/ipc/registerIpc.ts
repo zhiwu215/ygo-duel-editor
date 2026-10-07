@@ -1,6 +1,12 @@
 import { ipcMain, shell, BrowserWindow, dialog } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
-import { CardSearchParams, DuelPuzzleState, AppConfig, CardNote, CardNoteKind } from '@shared/index'
+import {
+  CardSearchParams,
+  DuelPuzzleState,
+  AppConfig,
+  CardNote,
+  CardNoteKind
+} from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
 import { configService } from '../services/configService'
@@ -57,12 +63,7 @@ export function registerAllIpcHandlers(): void {
     }
 
     const detectedPics = imageService.detectPicsDirsFromCdb(cdbPath)
-    const extraPicsDirs = { ...(cfg.extraPicsDirs || {}) }
-    if (!extraPicsDirs[cdbPath] && detectedPics.length > 0) {
-      extraPicsDirs[cdbPath] = detectedPics[0]
-    }
-
-    configService.save({ extraCdbPaths: merged, extraPicsDirs })
+    configService.save({ extraCdbPaths: merged })
     notifyCdbUpdated()
     return {
       success: true,
@@ -74,10 +75,8 @@ export function registerAllIpcHandlers(): void {
   ipcMain.handle('cdb:remove-extra', async (_, cdbPath: string) => {
     const cfg = configService.get()
     const extras = (cfg.extraCdbPaths || []).filter((p) => p !== cdbPath)
-    const extraPicsDirs = { ...(cfg.extraPicsDirs || {}) }
-    delete extraPicsDirs[cdbPath]
     const disabledCdbPaths = (cfg.disabledCdbPaths || []).filter((p) => p !== cdbPath)
-    configService.save({ extraCdbPaths: extras, extraPicsDirs, disabledCdbPaths })
+    configService.save({ extraCdbPaths: extras, disabledCdbPaths })
     cdbService.reloadAll(
       cfg.cdbPath,
       extras.filter((p) => !disabledCdbPaths.includes(p))
@@ -99,30 +98,6 @@ export function registerAllIpcHandlers(): void {
     )
     notifyCdbUpdated()
     return { success: true, paths: cdbService.getLoadedPaths() }
-  })
-
-  ipcMain.handle('cdb:set-pics-dir', async (_, cdbPath: string, picsDir: string | null) => {
-    const cfg = configService.get()
-    const extraPicsDirs = { ...(cfg.extraPicsDirs || {}) }
-
-    let target = picsDir
-    if (picsDir === '@pick') {
-      target = await fileService.selectPicsDir()
-      if (!target) return { success: false, cancelled: true, picsDir: null }
-    }
-
-    if (!target) {
-      delete extraPicsDirs[cdbPath]
-    } else {
-      const resolved = imageService.resolvePicsDir(target)
-      if (!resolved) {
-        return { success: false, error: '所选目录不存在', picsDir: null }
-      }
-      extraPicsDirs[cdbPath] = resolved
-    }
-    configService.save({ extraPicsDirs })
-    notifyCdbUpdated()
-    return { success: true, picsDir: extraPicsDirs[cdbPath] ?? null }
   })
 
   ipcMain.handle('file:export-lua', async (_, state: DuelPuzzleState, targetPath?: string) => {

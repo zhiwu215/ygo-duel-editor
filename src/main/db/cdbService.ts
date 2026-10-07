@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import {
   CARD_POOL_OT_MASKS,
   CdbCard,
+  CdbLibraryRole,
   CardType,
   CardSearchFilterOptions,
   CardSearchParams,
@@ -121,7 +122,15 @@ function compareCards(params: CardSearchParams): (a: CdbCard, b: CdbCard) => num
 interface CdbConnection {
   path: string
   db: Database.Database
+  role: CdbLibraryRole
+  /** 该连接上已 ATTACH 的文本库别名，供文本覆盖用（仅数据连接有值） */
+  overlayAliases: string[]
+  /** 该连接的 __covered 临时表是否已就绪 */
+  coveredReady: boolean
 }
+
+/** 卡密有该比例以上已被其它库覆盖时，自动判定为文本库（语言包） */
+const AUTO_TEXT_OVERLAP_RATIO = 0.9
 
 export class CdbService {
   private connections: CdbConnection[] = []
@@ -131,11 +140,124 @@ export class CdbService {
   private limitMap: Map<number, 1 | 2 | 3> = new Map()
   private gameDirectory: string | undefined
 
+  private readIdSet(db: Database.Database): Set<number> {
+    const ids = new Set<number>()
+    try {
+      for (const row of db.prepare('SELECT id FROM datas').iterate() as Iterable<{ id: number }>) {
+        ids.add(row.id)
+      }
+    } catch (err) {
+      console.error('[CdbService] Failed to read card ids:', err)
+    }
+    return ids
+  }
+
+  private writeCoveredIds(conn: CdbConnection, ids: Set<number>): void {
+    try {
+      conn.db.exec('DROP TABLE IF EXISTS temp.__covered')
+      conn.db.exec('CREATE TEMP TABLE __covered(id INTEGER PRIMARY KEY)')
+      const stmt = conn.db.prepare('INSERT OR IGNORE INTO __covered(id) VALUES (?)')
+      const insertAll = conn.db.transaction((list: number[]) => {
+        for (const id of list) stmt.run(id)
+      })
+      insertAll([...ids])
+      conn.coveredReady = true
+    } catch (err) {
+      console.error('[CdbService] Failed to build covered-id table:', err)
+    }
+  }
+
+  /**
+   * 计算各库角色、把文本库排到最后，并把文本库 ATTACH 到数据连接上做文本覆盖。
+   * 文本库只提供卡名与效果文；卡密在数据连接里完全找不到时才回退用文本库自己的 datas。
+   */
+  private finalizeConnections(): void {
+    if (this.connections.length === 0) return
+
+    for (const conn of this.connections) {
+      for (const alias of conn.overlayAliases) {
+        try {
+          conn.db.exec(`DETACH DATABASE ${alias}`)
+        } catch {
+          /* 连接已关闭时忽略 */
+        }
+      }
+      conn.overlayAliases = []
+      conn.coveredReady = false
+    }
+
+    const idSets = new Map<string, Set<number>>()
+    for (const conn of this.connections) idSets.set(conn.path, this.readIdSet(conn.db))
+
+    const othersUnion = new Map<string, Set<number>>()
+    for (const conn of this.connections) {
+      const union = new Set<number>()
+      for (const other of this.connections) {
+        if (other === conn) continue
+        for (const id of idSets.get(other.path) ?? []) union.add(id)
+      }
+      othersUnion.set(conn.path, union)
+    }
+
+    this.connections.forEach((conn, index) => {
+      if (index === 0) {
+        conn.role = 'data'
+        return
+      }
+      const own = idSets.get(conn.path) ?? new Set<number>()
+      const covered = othersUnion.get(conn.path) ?? new Set<number>()
+      let hit = 0
+      for (const id of own) if (covered.has(id)) hit++
+      conn.role = own.size > 0 && hit / own.size >= AUTO_TEXT_OVERLAP_RATIO ? 'text' : 'data'
+    })
+
+    const dataConns = this.connections.filter((conn) => conn.role === 'data')
+    const textConns = this.connections.filter((conn) => conn.role === 'text')
+    this.connections = [...dataConns, ...textConns]
+
+    textConns.forEach((textConn, index) => {
+      const alias = `ov${index}`
+      const literal = textConn.path.replace(/'/g, "''")
+      for (const conn of dataConns) {
+        try {
+          conn.db.exec(`ATTACH DATABASE '${literal}' AS ${alias}`)
+          conn.overlayAliases.push(alias)
+        } catch (err) {
+          console.error(`[CdbService] Failed to attach text library ${textConn.path}:`, err)
+        }
+      }
+    })
+
+    // 每个库都排除「前面已加载的库」已有的卡密，保证同一个卡密只由第一个命中的库提供
+    const coveredSoFar = new Set<number>()
+    for (const conn of this.connections) {
+      if (coveredSoFar.size > 0) this.writeCoveredIds(conn, coveredSoFar)
+      for (const id of idSets.get(conn.path) ?? []) coveredSoFar.add(id)
+    }
+
+    console.log(
+      `[CdbService] Library roles: ${this.connections
+        .map((conn) => `${path.basename(conn.path)}=${conn.role}`)
+        .join(', ')}`
+    )
+  }
+
   /** 卡库加载后需要重新探测 lflists 的目录（游戏根目录未必与 cdb 同级） */
+  /** 游戏目录与各卡库可能存放 strings.conf / lflists 的候选目录（含 cdb 的父目录，兼容 EDOPro 根目录结构） */
+  private collectConfigDirs(cdbPaths: string[]): string[] {
+    const dirs: string[] = []
+    for (const cdbPath of cdbPaths) {
+      const dir = path.dirname(cdbPath)
+      dirs.push(dir, path.dirname(dir))
+    }
+    if (this.gameDirectory) dirs.push(this.gameDirectory)
+    return [...new Set(dirs.filter((d) => d && d.length > 0))]
+  }
+
   public setGameDirectory(gameDirectory: string | undefined): void {
     this.gameDirectory = gameDirectory
     if (!gameDirectory || this.connections.length === 0) return
-    this.loadLflists([gameDirectory, ...this.connections.map((c) => path.dirname(c.path))])
+    this.loadLflists(this.collectConfigDirs(this.connections.map((c) => c.path)))
   }
 
   /**
@@ -216,14 +338,7 @@ export class CdbService {
   private loadStringsConf(cdbPaths: string[]): void {
     this.setnameMap.clear()
     this.systemStringMap.clear()
-    const searchDirs: string[] = []
-    for (const cdbPath of cdbPaths) {
-      const dir = path.dirname(cdbPath)
-      searchDirs.push(dir)
-      if (path.basename(dir).toLocaleLowerCase() === 'expansions')
-        searchDirs.push(path.dirname(dir))
-    }
-    if (this.gameDirectory) searchDirs.push(this.gameDirectory)
+    const searchDirs = this.collectConfigDirs(cdbPaths)
     this.loadLflists(searchDirs)
     const candidatePaths = [
       ...new Set(
@@ -323,7 +438,7 @@ export class CdbService {
         return null
       }
 
-      return { path: cdbPath, db }
+      return { path: cdbPath, db, role: 'data', overlayAliases: [], coveredReady: false }
     } catch (err) {
       console.error('[CdbService] Failed to open cdb:', err)
       return null
@@ -345,6 +460,7 @@ export class CdbService {
     }
 
     this.currentPath = cdbPath
+    this.finalizeConnections()
     this.loadStringsConf(this.connections.map((c) => c.path))
     console.log(
       `[CdbService] Loaded ${this.connections.length} database(s): ${this.connections.map((c) => c.path).join(', ')}`
@@ -367,6 +483,7 @@ export class CdbService {
       this.connections.push(conn)
       loaded.push(extraPath)
     }
+    this.finalizeConnections()
     this.loadStringsConf(this.connections.map((c) => c.path))
     console.log(`[CdbService] Extra cdb loaded: ${loaded.join(', ') || '(none)'}`)
     return loaded
@@ -387,6 +504,7 @@ export class CdbService {
       if (!conn) continue
       this.connections = [conn]
       this.currentPath = conn.path
+      this.finalizeConnections()
       this.loadStringsConf([conn.path])
       return
     }
@@ -450,7 +568,7 @@ export class CdbService {
     const seen = new Set<number>()
 
     for (const conn of this.connections) {
-      const result = this.searchOne(conn.db, params, perDbLimit)
+      const result = this.searchOne(conn, params, perDbLimit)
       total += result.total
       for (const card of result.cards) {
         if (seen.has(card.id)) continue
@@ -459,7 +577,9 @@ export class CdbService {
       }
     }
 
-    collected.sort(compareCards(params))
+    const keywordActive = (params.keyword ?? '').trim().length > 0
+    const keepRelevanceOrder = keywordActive && (!params.sortField || params.sortField === 'id')
+    if (!keepRelevanceOrder) collected.sort(compareCards(params))
 
     for (const card of collected) {
       if (card.setcode) {
@@ -477,22 +597,48 @@ export class CdbService {
     return { cards: collected.slice(offset, offset + limit), total }
   }
 
+  /** 文本字段的取值表达式与文本覆盖表的 JOIN 片段（无覆盖库时退化为 t.<列>） */
+  private textSource(conn: CdbConnection): {
+    pick: (column: string) => string
+    join: string
+  } {
+    const overlays = conn.overlayAliases
+    return {
+      pick: (column) =>
+        overlays.length > 0
+          ? `COALESCE(${[...overlays.map((alias) => `${alias}.${column}`), `t.${column}`].join(', ')})`
+          : `t.${column}`,
+      join: overlays.map((alias) => ` LEFT JOIN ${alias}.texts ${alias} ON ${alias}.id = d.id`).join('')
+    }
+  }
+
   private searchOne(
-    db: Database.Database,
+    conn: CdbConnection,
     params: CardSearchParams,
     fetchLimit: number
   ): CardSearchResult {
+    const db = conn.db
+    const { pick, join: overlayJoin } = this.textSource(conn)
+    const nameExpr = pick('name')
+    const descExpr = pick('desc')
+
     let baseWhere =
-      ' FROM datas d JOIN texts t ON d.id = t.id WHERE 1=1' +
+      ` FROM datas d JOIN texts t ON d.id = t.id${overlayJoin} WHERE 1=1` +
       ' AND (d.type & 16384) = 0' +
-      " AND t.name NOT LIKE '%占位符%'" +
+      ` AND ${nameExpr} NOT LIKE '%占位符%'` +
       ' AND NOT (' +
       ' (d.type & 7) = 0 AND d.atk = 0 AND d.def = 0 AND (d.level & 255) = 0' +
-      " AND (t.desc IS NULL OR trim(t.desc) = ''" +
-      " OR t.desc LIKE '%战斗包%' OR t.desc LIKE '%Battle Pack%'" +
-      " OR t.desc LIKE '%列表%' OR t.desc LIKE '%常见%' OR t.desc LIKE '%Common%')" +
+      ` AND (${descExpr} IS NULL OR trim(${descExpr}) = ''` +
+      ` OR ${descExpr} LIKE '%战斗包%' OR ${descExpr} LIKE '%Battle Pack%'` +
+      ` OR ${descExpr} LIKE '%列表%' OR ${descExpr} LIKE '%常见%' OR ${descExpr} LIKE '%Common%')` +
       ' )'
+    // 只补充前面各库都没有的卡密，避免同一张卡被多个库重复计数
+    if (conn.coveredReady) {
+      baseWhere += ' AND d.id NOT IN (SELECT id FROM __covered)'
+    }
     const args: (string | number)[] = []
+    const relevanceArgs: (string | number)[] = []
+    const relevanceTokens: string[] = []
 
     const getSetcodeClause = (codes: number[]): string => {
       const exactCodes = [...new Set(codes)]
@@ -512,18 +658,19 @@ export class CdbService {
     if (params.keyword && params.keyword.trim().length > 0) {
       const keyword = params.keyword.trim()
       if (/^\d+$/.test(keyword)) {
-        baseWhere += ' AND (d.id = ? OR t.name LIKE ?)'
+        baseWhere += ` AND (d.id = ? OR ${nameExpr} LIKE ?)`
         args.push(parseInt(keyword, 10), `%${keyword}%`)
+        relevanceTokens.push(keyword)
       } else {
         for (const token of parseSearchTokens(keyword)) {
           const clauses: string[] = []
           const like = `%${token.text}%`
           if (token.mode !== 'set') {
-            clauses.push('t.name LIKE ?')
+            clauses.push(`${nameExpr} LIKE ?`)
             args.push(like)
           }
           if (token.mode === 'any' && params.searchDesc !== false) {
-            clauses.push('t.desc LIKE ?')
+            clauses.push(`${descExpr} LIKE ?`)
             args.push(like)
           }
           if (token.mode !== 'name') {
@@ -532,6 +679,7 @@ export class CdbService {
             else if (token.mode === 'set') clauses.push('0=1')
           }
           if (clauses.length === 0) continue
+          if (!token.excluded) relevanceTokens.push(token.text)
           const match = `(${clauses.join(' OR ')})`
           baseWhere += token.excluded ? ` AND NOT ${match}` : ` AND ${match}`
         }
@@ -648,7 +796,7 @@ export class CdbService {
       if (params.sortField === 'atk') orderBy = 'd.atk'
       else if (params.sortField === 'def') orderBy = 'd.def'
       else if (params.sortField === 'level') orderBy = '(d.level & 255)'
-      else if (params.sortField === 'name') orderBy = 't.name'
+      else if (params.sortField === 'name') orderBy = nameExpr
       else {
         orderBy = `
           (d.type & 7) ${orderDir === 'ASC' ? 'DESC' : 'ASC'},
@@ -661,15 +809,24 @@ export class CdbService {
           d.id ${orderDir === 'ASC' ? 'DESC' : 'ASC'}`
       }
 
+      if (relevanceTokens.length > 0) {
+        const cases = relevanceTokens.map((text) => {
+          relevanceArgs.push(text, `${text}%`, `%${text}%`)
+          return `CASE WHEN ${nameExpr} = ? THEN 0 WHEN ${nameExpr} LIKE ? THEN 1 WHEN ${nameExpr} LIKE ? THEN 2 ELSE 3 END`
+        })
+        const relevance = cases.length === 1 ? cases[0] : `MAX(${cases.join(', ')})`
+        orderBy = `${relevance}, ${orderBy}`
+      }
+
       const dataSql = `
         SELECT
           d.id, d.ot, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, d.category,
-          t.name, t.desc
+          ${nameExpr} AS name, ${descExpr} AS desc
         ${baseWhere}
         ORDER BY ${orderBy}
         LIMIT ?
       `
-      const rows = db.prepare(dataSql).all(...args, fetchLimit) as CdbCard[]
+      const rows = db.prepare(dataSql).all(...args, ...relevanceArgs, fetchLimit) as CdbCard[]
 
       return { cards: rows, total }
     } catch (err) {
@@ -682,18 +839,19 @@ export class CdbService {
     if (this.connections.length === 0 || ids.length === 0) return {}
 
     const placeholders = ids.map(() => '?').join(',')
-    const sql = `
-      SELECT
-        d.id, d.ot, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, d.category,
-        t.name, t.desc
-      FROM datas d
-      JOIN texts t ON d.id = t.id
-      WHERE d.id IN (${placeholders})
-    `
 
     const result: Record<number, CdbCard> = {}
     for (const conn of this.connections) {
       try {
+        const { pick, join } = this.textSource(conn)
+        const sql = `
+          SELECT
+            d.id, d.ot, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, d.category,
+            ${pick('name')} AS name, ${pick('desc')} AS desc
+          FROM datas d
+          JOIN texts t ON d.id = t.id${join}
+          WHERE d.id IN (${placeholders})
+        `
         const rows = conn.db.prepare(sql).all(...ids) as CdbCard[]
         for (const card of rows) {
           if (result[card.id]) continue

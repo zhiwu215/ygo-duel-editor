@@ -53,6 +53,9 @@ export type NumericCompareOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'unknown'
  */
 export type CardPoolFilter = 'any' | 'ocg' | 'tcg' | 'ocgOnly' | 'tcgOnly' | 'anime' | 'rush' | 'tf'
 
+/** 卡库角色：data = 提供卡片数据与文本，text = 仅提供文本（语言包） */
+export type CdbLibraryRole = 'data' | 'text'
+
 export interface CardSearchFilterOptions {
   effectCategories: Array<{ mask: number; label: string }>
   /** 当前已加载卡库中实际出现过的卡池 id，供筛选器判断哪些卡池项可选 */
@@ -389,9 +392,6 @@ export interface AppConfig {
   /** 附加卡库路径 (动漫卡等扩展 cdb)，与主库合并搜索 */
   extraCdbPaths?: string[]
 
-  /** 附加卡库手动指定的卡图目录，key 为卡库路径，value 为 pics 文件夹 */
-  extraPicsDirs?: Record<string, string>
-
   /** 已停用的附加卡库路径，仍保留在 extraCdbPaths 中但不参与加载 */
   disabledCdbPaths?: string[]
 
@@ -497,11 +497,6 @@ export interface IpcApi {
     cdbPath: string,
     enabled: boolean
   ) => Promise<{ success: boolean; paths: string[] }>
-  /** picsDir 传 '@pick' 打开目录选择框，传 null 清除设置 */
-  setExtraPicsDir: (
-    cdbPath: string,
-    picsDir: string | null
-  ) => Promise<{ success: boolean; picsDir: string | null; cancelled?: boolean; error?: string }>
   searchCards: (params: CardSearchParams) => Promise<CardSearchResult>
   getCardSearchFilterOptions: () => Promise<CardSearchFilterOptions>
   getCardsByIds: (ids: number[]) => Promise<Record<number, CdbCard>>

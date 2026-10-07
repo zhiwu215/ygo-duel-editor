@@ -111,22 +111,6 @@ export class FileService {
   }
 
   /**
-   * 选择卡图目录 (pics 文件夹，或包含 pics 的上级目录)
-   */
-  public async selectPicsDir(window?: BrowserWindow): Promise<string | null> {
-    const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-      title: '选择卡图目录',
-      properties: ['openDirectory']
-    })
-
-    if (res.canceled || res.filePaths.length === 0) {
-      return null
-    }
-
-    return res.filePaths[0]
-  }
-
-  /**
    * 在 YGO 根目录下定位 cards.cdb (根目录或 expansions 子目录)
    */
   public locateCardsCdb(gameDir: string): string | null {

@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { join, dirname, basename } from 'path'
+import { join, dirname } from 'path'
 import { configService } from './configService'
 import { cdbService } from '../db/cdbService'
 
@@ -40,18 +40,6 @@ export class ImageService {
     }
 
     return null
-  }
-
-  /**
-   * 把用户选择的目录归一化为实际存放卡图的目录
-   */
-  public resolvePicsDir(targetDir: string): string | null {
-    if (!targetDir || !existsSync(targetDir)) return null
-    const base = basename(targetDir).toLocaleLowerCase()
-    if (base === 'pics') return targetDir
-    const nested = join(targetDir, 'pics')
-    if (existsSync(nested)) return nested
-    return targetDir
   }
 
   /**
@@ -97,17 +85,9 @@ export class ImageService {
       this.collectPicsDirs(dirname(cdbDir), dirs)
     }
 
-    // 3. 附加卡库手动指定的卡图目录 (已停用的卡库不参与)
-    const extraPics = cfg.extraPicsDirs || {}
+    // 3. 附加卡库路径向上自动探测 (动漫卡库常位于 config/languages/Chs 之类的深层位置)
     const disabled = cfg.disabledCdbPaths || []
     const activeExtras = (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
-
-    for (const cdbPath of activeExtras) {
-      const dir = extraPics[cdbPath]
-      if (dir && existsSync(dir) && !dirs.includes(dir)) dirs.push(dir)
-    }
-
-    // 4. 附加卡库路径向上自动探测 (未手动指定时的兜底)
     for (const extraPath of activeExtras) {
       for (const dir of this.detectPicsDirsFromCdb(extraPath)) {
         if (!dirs.includes(dir)) dirs.push(dir)

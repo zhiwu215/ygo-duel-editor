@@ -1,7 +1,7 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React from 'react'
 import { CdbCard } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Dices, X } from 'lucide-react'
@@ -64,7 +64,7 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
                     alt={card?.name || String(code)}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      ;(e.currentTarget as HTMLImageElement).src = CARD_BACK_IMAGE
+                      ;(e.currentTarget as HTMLImageElement).src = UNKNOWN_CARD_IMAGE
                     }}
                   />
                 </div>

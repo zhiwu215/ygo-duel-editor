@@ -39,7 +39,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { useTokenStore, matchTokensByDesc } from '../../../stores/useTokenStore'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../../utils/cardImage'
 import { cn } from '../../../lib/utils'
 
 /** 四则运算与直接修改按钮配置 (与生命值输入面板完全一致) */
@@ -713,7 +713,9 @@ export const CardStatPopover: React.FC = () => {
               }
             }}
             className="h-6 px-2 text-[11px] font-semibold gap-1 shrink-0"
-            title={selectedCounterId === null ? '暂无待添加指示物，请用右侧按钮自定义' : '添加该指示物'}
+            title={
+              selectedCounterId === null ? '暂无待添加指示物，请用右侧按钮自定义' : '添加该指示物'
+            }
           >
             <Plus className="w-3 h-3" />
             <span>添加</span>
@@ -850,7 +852,7 @@ export const CardStatPopover: React.FC = () => {
                       className="w-[22px] h-[32px] object-cover rounded shrink-0 border border-border/60 bg-black/40"
                       onError={(e) => {
                         const target = e.currentTarget
-                        if (target.src !== CARD_BACK_IMAGE) target.src = CARD_BACK_IMAGE
+                        if (target.src !== UNKNOWN_CARD_IMAGE) target.src = UNKNOWN_CARD_IMAGE
                       }}
                     />
                     <span

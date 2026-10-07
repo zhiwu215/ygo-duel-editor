@@ -27,7 +27,7 @@ import {
   CdbCard,
   CardUtils
 } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { DuelProposalSummaryCard } from './DuelProposalSummaryCard'
 import { MarkdownContent } from './MarkdownContent'
 import { NovelSourcePicker } from './NovelSourcePicker'
@@ -561,7 +561,7 @@ export function BehindSpiritPanel(): JSX.Element {
                       className="w-6 h-8 object-cover rounded-sm shrink-0 border border-border/60"
                       onError={(e) => {
                         const el = e.currentTarget
-                        if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
+                        if (el.src !== UNKNOWN_CARD_IMAGE) el.src = UNKNOWN_CARD_IMAGE
                       }}
                     />
                     <div className="min-w-0">

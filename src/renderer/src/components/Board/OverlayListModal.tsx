@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { CardLocation, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { Layers, Ghost, Ban, X, Trash2, Search, ArrowUpCircle, ArrowDownToLine } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -220,8 +220,8 @@ export const OverlayListModal: React.FC = () => {
                             className="w-full h-full object-cover select-none"
                             onError={(e) => {
                               const target = e.currentTarget
-                              if (target.src !== CARD_BACK_IMAGE) {
-                                target.src = CARD_BACK_IMAGE
+                              if (target.src !== UNKNOWN_CARD_IMAGE) {
+                                target.src = UNKNOWN_CARD_IMAGE
                               }
                             }}
                           />

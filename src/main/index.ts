@@ -92,9 +92,7 @@ app.whenReady().then(() => {
         return await net.fetch(pathToFileURL(filePath).toString())
       }
       if (customCardService.getById(code)) {
-        return new Response(unknownImage, {
-          headers: { 'content-type': 'image/jpeg' }
-        })
+        return await net.fetch(pathToFileURL(unknownImage).toString())
       }
       return new Response('Image not found', { status: 404 })
     } catch (err) {

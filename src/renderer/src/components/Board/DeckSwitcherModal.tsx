@@ -5,7 +5,7 @@ import { DeckData } from '@shared/index'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { ArrowLeftRight, X, Search, Layers, SquarePen } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -236,7 +236,7 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
                         className="w-8 h-[46px] object-cover rounded shrink-0 border border-border/60"
                         onError={(e) => {
                           const el = e.currentTarget
-                          if (el.src !== CARD_BACK_IMAGE) el.src = CARD_BACK_IMAGE
+                          if (el.src !== UNKNOWN_CARD_IMAGE) el.src = UNKNOWN_CARD_IMAGE
                         }}
                       />
                       <div className="min-w-0 flex-1">

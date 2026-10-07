@@ -4,7 +4,7 @@ import { CardLocation, CardPosition, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import {
   Layers,
@@ -649,8 +649,8 @@ const PileListContent: React.FC = () => {
                             className="w-full h-full object-cover pointer-events-none"
                             onError={(e) => {
                               const targetEl = e.currentTarget
-                              if (targetEl.src !== CARD_BACK_IMAGE) {
-                                targetEl.src = CARD_BACK_IMAGE
+                              if (targetEl.src !== UNKNOWN_CARD_IMAGE) {
+                                targetEl.src = UNKNOWN_CARD_IMAGE
                               }
                             }}
                           />

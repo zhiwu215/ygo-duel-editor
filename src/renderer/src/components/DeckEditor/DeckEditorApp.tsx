@@ -15,7 +15,7 @@ import {
 import { CardUtils, CdbCard, DeckData, DeckSection, groupLeafName } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import {
   DeckDragSourceData,
   DeckDropTargetData,
@@ -593,7 +593,7 @@ export const DeckEditorApp: React.FC = () => {
                 draggable={false}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.currentTarget.src = CARD_BACK_IMAGE
+                  e.currentTarget.src = UNKNOWN_CARD_IMAGE
                 }}
               />
             </div>

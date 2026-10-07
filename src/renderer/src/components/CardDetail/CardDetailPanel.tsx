@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { confirmDialog } from '../../stores/useDialogStore'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import {
   formatCardTypeLine,
   formatCardStatsLine,
@@ -142,8 +142,8 @@ export const CardDetailPanel: React.FC = () => {
                     className="w-[200px] h-[291px] object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                     onError={(e) => {
                       const target = e.currentTarget
-                      if (target.src !== CARD_BACK_IMAGE) {
-                        target.src = CARD_BACK_IMAGE
+                      if (target.src !== UNKNOWN_CARD_IMAGE) {
+                        target.src = UNKNOWN_CARD_IMAGE
                       }
                     }}
                   />

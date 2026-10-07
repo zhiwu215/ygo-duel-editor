@@ -2,7 +2,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useState } from 'react'
 import { CdbCard, CardUtils } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, CARD_BACK_IMAGE, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import {
   formatCardTypeLine,
   formatCardStatsLine,
@@ -37,7 +37,7 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover })
   }
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>): void => {
-    e.currentTarget.src = CARD_BACK_IMAGE
+    e.currentTarget.src = UNKNOWN_CARD_IMAGE
     handleImageLoaded()
   }
 

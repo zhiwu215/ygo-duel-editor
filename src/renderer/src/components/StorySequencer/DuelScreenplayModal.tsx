@@ -10,7 +10,7 @@ import {
 } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
@@ -531,7 +531,7 @@ export const DuelScreenplayModal: React.FC = () => {
                                 alt={s.cardName || ''}
                                 className="w-7 h-10 object-cover rounded border border-border/80 shrink-0"
                                 onError={(e) => {
-                                  e.currentTarget.src = CARD_BACK_IMAGE
+                                  e.currentTarget.src = UNKNOWN_CARD_IMAGE
                                 }}
                               />
                             ) : (
@@ -610,7 +610,7 @@ export const DuelScreenplayModal: React.FC = () => {
                               alt={activeStep.cardName || ''}
                               className="w-full h-full object-cover"
                               onError={(e) => {
-                                e.currentTarget.src = CARD_BACK_IMAGE
+                                e.currentTarget.src = UNKNOWN_CARD_IMAGE
                               }}
                             />
                           </div>

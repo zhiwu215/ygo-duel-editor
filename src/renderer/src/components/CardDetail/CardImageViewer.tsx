@@ -1,6 +1,6 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { X, RotateCcw } from 'lucide-react'
 import { Dialog, DialogContent } from '../ui/dialog'
 
@@ -219,8 +219,8 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
             }}
             onError={(e) => {
               const target = e.currentTarget
-              if (target.src !== CARD_BACK_IMAGE) {
-                target.src = CARD_BACK_IMAGE
+              if (target.src !== UNKNOWN_CARD_IMAGE) {
+                target.src = UNKNOWN_CARD_IMAGE
               }
             }}
           />

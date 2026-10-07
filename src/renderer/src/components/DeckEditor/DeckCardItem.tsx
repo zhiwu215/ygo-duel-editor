@@ -3,7 +3,7 @@ import React from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { CdbCard, DeckSection } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { cn } from '../../lib/utils'
 import { DeckDragSourceData } from './deckDnd'
 
@@ -92,7 +92,7 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
               draggable={false}
               className="w-full h-full object-cover pointer-events-none"
               onError={(e) => {
-                ;(e.currentTarget as HTMLImageElement).src = CARD_BACK_IMAGE
+                ;(e.currentTarget as HTMLImageElement).src = UNKNOWN_CARD_IMAGE
               }}
             />
             {isCover && (

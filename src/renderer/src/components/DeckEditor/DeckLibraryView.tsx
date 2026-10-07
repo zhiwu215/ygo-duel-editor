@@ -10,7 +10,7 @@ import {
 } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
@@ -519,7 +519,7 @@ export const DeckLibraryView: React.FC = () => {
                           src={getCardImageUrl(coverCode)}
                           alt={deck.name}
                           onError={(e) => {
-                            e.currentTarget.src = CARD_BACK_IMAGE
+                            e.currentTarget.src = UNKNOWN_CARD_IMAGE
                           }}
                           className="h-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
                         />

@@ -146,6 +146,10 @@ export function registerAllIpcHandlers(): void {
     return fileService.exportLuaFile(state, targetPath)
   })
 
+  ipcMain.handle('file:test-in-ygo', (_, state: DuelPuzzleState) => {
+    return fileService.testInYgo(state)
+  })
+
   ipcMain.handle('file:import-lua', async () => {
     return fileService.importLuaFile()
   })
@@ -267,6 +271,13 @@ export function registerAllIpcHandlers(): void {
   ipcMain.handle('file:save-project', async (_, state: DuelPuzzleState) => {
     return fileService.saveProjectFile(state)
   })
+
+  ipcMain.handle(
+    'file:save-project-to-path',
+    async (_, filePath: string, state: DuelPuzzleState) => {
+      return fileService.saveProjectToPath(filePath, state)
+    }
+  )
 
   ipcMain.handle('file:load-project', async () => {
     return fileService.loadProjectFile()

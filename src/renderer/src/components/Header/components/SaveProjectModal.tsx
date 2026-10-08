@@ -33,7 +33,7 @@ const DUEL_TYPE_OPTIONS: DuelTypeOption[] = [
 const UNFILED_VALUE = '__unfiled__'
 
 export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClose }) => {
-  const { state, setTitle, setHint, setDuelType, setSeries } = useDuelStore()
+  const { state, setTitle, setHint, setDuelType, setSeries, setCurrentProjectPath } = useDuelStore()
   const { config, loadConfig } = useConfigStore()
 
   const [localTitle, setLocalTitle] = useState(() => state.title || '未命名对局')
@@ -68,6 +68,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
     try {
       const res = await window.api.saveProjectFile(stateToSave)
       if (res.success && res.filePath) {
+        setCurrentProjectPath(res.filePath)
         onClose()
         void alertDialog(`工程已成功保存：\n${res.filePath}`)
       } else {

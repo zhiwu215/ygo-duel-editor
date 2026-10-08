@@ -47,7 +47,7 @@ interface SeriesGroup {
 }
 
 export const DuelArchivesPanel: React.FC = () => {
-  const { loadProjectAndStart, state: currentState } = useDuelStore()
+  const { loadProjectAndStart, setCurrentProjectPath, state: currentState } = useDuelStore()
   const { config, loadConfig } = useConfigStore()
 
   const [projects, setProjects] = useState<DuelProjectMeta[]>([])
@@ -99,6 +99,7 @@ export const DuelArchivesPanel: React.FC = () => {
       const res = await window.api.loadProjectByPath(item.filePath)
       if (res.success && res.state) {
         loadProjectAndStart(res.state)
+        setCurrentProjectPath(item.filePath)
         setLastLoadedPath(item.filePath)
         flash(`已载入《${item.title}》，已就绪于第 1 回合`)
       } else if (res.error) {

@@ -28,7 +28,9 @@ export const Header: React.FC = () => {
     currentPhase,
     currentChain,
     nextPhase,
-    resetChain
+    resetChain,
+    currentProjectPath,
+    setCurrentProjectPath
   } = useDuelStore()
 
   const { undo, redo } = useStore(useDuelStore.temporal)
@@ -44,7 +46,27 @@ export const Header: React.FC = () => {
     })
   }, [resetDuel])
 
-  const handleSaveProject = React.useCallback((): void => {
+  /**
+   * Ctrl+S 智能保存：
+   *  - 当前有项目路径 → 静默覆盖原文件
+   *  - 没有路径（新建/导入 Lua 后的未保存状态）→ 弹模态走完整流程
+   * 路径无效（被外部移走）回退到弹模态
+   */
+  const handleSaveProject = React.useCallback(async (): Promise<void> => {
+    if (!currentProjectPath) {
+      setIsSaveModalOpen(true)
+      return
+    }
+    const res = await window.api.saveProjectToPath(currentProjectPath, state)
+    if (res.success) return
+    if (res.error) {
+      void alertDialog(`保存失败：${res.error}\n将打开另存为对话框。`)
+    }
+    setIsSaveModalOpen(true)
+  }, [currentProjectPath, state])
+
+  /** 另存为（Ctrl+Alt+S）—— 始终弹模态，可改文件名/位置/分类/series/注释 */
+  const handleSaveProjectAs = React.useCallback((): void => {
     setIsSaveModalOpen(true)
   }, [])
 
@@ -52,8 +74,9 @@ export const Header: React.FC = () => {
     const res = await window.api.loadProjectFile()
     if (res.success && res.state) {
       loadState(res.state)
+      if (res.filePath) setCurrentProjectPath(res.filePath)
     }
-  }, [loadState])
+  }, [loadState, setCurrentProjectPath])
 
   const handleExportLua = React.useCallback(async (): Promise<void> => {
     if (!isExportableMatch(state.matchConfig)) {
@@ -69,6 +92,35 @@ export const Header: React.FC = () => {
       void alertDialog(`Lua 决斗脚本导出成功！\n路径: ${res.filePath}`)
     } else if (res.error) {
       void alertDialog(`导出失败: ${res.error}`)
+    }
+  }, [state])
+
+  const handleTestInYgo = React.useCallback(async (): Promise<void> => {
+    if (!isExportableMatch(state.matchConfig)) {
+      const t0 = state.matchConfig?.team0Count ?? 1
+      const t1 = state.matchConfig?.team1Count ?? 1
+      void alertDialog(
+        `无法测试对局\n\n当前对阵 (${t0}v${t1}) 仅用于剧情编排，暂无法生成 Lua。\nocgcore 单机引擎物理上仅支持 1v1 与 2v2 双打导出。请在对阵选择器中切换至 1v1 或 2v2 后再进行测试。`
+      )
+      return
+    }
+    const res = await window.api.testInYgo(state)
+    if (res.success) return
+    if (res.errorCode === 'no-game-directory') {
+      void confirmDialog({
+        title: '尚未设置 ygo 游戏目录',
+        description:
+          '使用 ygo 测试对局前，需要先在 设置 → 路径 中选择 ygopro.exe 所在的游戏根目录。',
+        confirmText: '打开设置'
+      }).then((ok) => {
+        if (ok) void window.api.openSettingsWindow('paths')
+      })
+    } else if (res.errorCode === 'ygopro-not-found') {
+      void alertDialog(
+        `未在游戏目录中找到 ygopro.exe\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
+      )
+    } else if (res.error) {
+      void alertDialog(`启动 ygo 测试失败: ${res.error}`)
     }
   }, [state])
 
@@ -118,6 +170,9 @@ export const Header: React.FC = () => {
           e.preventDefault()
           redo()
         }
+      } else if (mod && e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        handleSaveProjectAs()
       } else if (mod && !e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault()
         handleSaveProject()
@@ -130,6 +185,9 @@ export const Header: React.FC = () => {
       } else if (mod && e.key.toLowerCase() === 'e') {
         e.preventDefault()
         handleExportLua()
+      } else if (mod && e.key.toLowerCase() === 't') {
+        e.preventDefault()
+        handleTestInYgo()
       } else if (mod && e.key.toLowerCase() === 'i') {
         e.preventDefault()
         handleImportLua()
@@ -142,8 +200,10 @@ export const Header: React.FC = () => {
     redo,
     handleNew,
     handleSaveProject,
+    handleSaveProjectAs,
     handleOpenProject,
     handleExportLua,
+    handleTestInYgo,
     handleImportLua,
     toggleTacticalView,
     openScreenplayWithStep
@@ -168,6 +228,8 @@ export const Header: React.FC = () => {
               onNew={handleNew}
               onOpenProject={handleOpenProject}
               onSaveProject={handleSaveProject}
+              onSaveProjectAs={handleSaveProjectAs}
+              onTestInYgo={handleTestInYgo}
               onImportLua={handleImportLua}
               onExportLua={handleExportLua}
               onExportScreenplay={handleExportScreenplay}

@@ -19,8 +19,10 @@ import {
   BookOpen,
   BookMarked,
   SquareStack,
+  Library,
   Check,
   Copy,
+  Play,
   X
 } from 'lucide-react'
 import appIcon from '../../assets/app-icon.png'
@@ -36,6 +38,8 @@ interface MenuBarProps {
   onNew: () => void
   onOpenProject: () => void
   onSaveProject: () => void
+  onSaveProjectAs: () => void
+  onTestInYgo: () => void
   onImportLua: () => void
   onExportLua: () => void
   onExportScreenplay?: () => void
@@ -62,6 +66,8 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   onNew,
   onOpenProject,
   onSaveProject,
+  onSaveProjectAs,
+  onTestInYgo,
   onImportLua,
   onExportLua,
   onExportScreenplay
@@ -143,7 +149,18 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           shortcut: 'Ctrl+S',
           action: onSaveProject
         },
+        {
+          label: '另存为...',
+          shortcut: 'Ctrl+Alt+S',
+          action: onSaveProjectAs
+        },
         { label: '', separator: true },
+        {
+          label: '使用 ygo 测试该局',
+          icon: Play,
+          shortcut: 'Ctrl+T',
+          action: onTestInYgo
+        },
         {
           label: '导入 Lua 脚本',
           icon: Upload,
@@ -226,6 +243,11 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           label: '卡牌图鉴',
           icon: BookMarked,
           action: () => window.api.openCardNoteWindow()
+        },
+        {
+          label: '文本素材库',
+          icon: Library,
+          action: () => void window.api.openTextLibrary()
         }
       ]
     },
@@ -348,6 +370,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 ['删除卡片', 'Delete / Del'],
                 ['超量叠放', 'Alt + 拖放'],
                 ['战术透视', 'Tab'],
+                ['使用 ygo 测试该局', 'Ctrl + T'],
                 ['攻守与指示物', 'Shift + 鼠标左键'],
                 ['双击卡堆', '查看卡组列表（额外/卡组/墓地/除外）'],
                 ['切换默认放置状态', 'Ctrl + 拖放']

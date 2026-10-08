@@ -414,6 +414,10 @@ interface DuelStoreState {
   setLeftWidth: (width: number) => void
   loadProjectAndStart: (state: DuelPuzzleState) => void
 
+  /** 当前编辑的工程文件绝对路径；null 表示「新建未保存」状态，Ctrl+S 需要弹模态 */
+  currentProjectPath: string | null
+  setCurrentProjectPath: (filePath: string | null) => void
+
   activeRightTab: 'search' | 'steps'
   currentStepIndex: number | null
   isScreenplayOpen: boolean
@@ -609,6 +613,9 @@ export const useDuelStore = create<DuelStoreState>()(
       currentStepIndex: null,
       isScreenplayOpen: false,
       selectedStepId: null,
+      currentProjectPath: null,
+
+      setCurrentProjectPath: (filePath) => set({ currentProjectPath: filePath }),
 
       setExpandedDuelistId: (id) => set({ expandedDuelistId: id }),
       setActiveDuelistId: (id) => set({ activeDuelistId: id }),
@@ -2349,6 +2356,7 @@ export const useDuelStore = create<DuelStoreState>()(
       loadState: (newState) =>
         set(() => ({
           state: normalizeDuelState(newState),
+          currentProjectPath: null,
           selectedCardId: null,
           pendingAction: null,
           pendingPlacement: null,
@@ -2370,6 +2378,7 @@ export const useDuelStore = create<DuelStoreState>()(
           }
           return {
             state: baseState,
+            currentProjectPath: null,
             selectedCardId: null,
             pendingAction: null,
             pendingPlacement: null,

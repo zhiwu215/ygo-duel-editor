@@ -1,4 +1,5 @@
-import { dialog, BrowserWindow, shell } from 'electron'
+import { dialog, BrowserWindow, shell, app } from 'electron'
+import { spawn } from 'child_process'
 import {
   readFileSync,
   writeFileSync,
@@ -122,6 +123,86 @@ export class FileService {
   }
 
   /**
+   * 如果缺少 card 属性，从 cdb 补全
+   */
+  private completeCardDetails(state: DuelPuzzleState): void {
+    const missingCardCodes = state.cards.filter((c) => !c.card).map((c) => c.code)
+    if (missingCardCodes.length > 0 && cdbService.isReady()) {
+      const cardMap = cdbService.getCardsByIds(missingCardCodes)
+      for (const c of state.cards) {
+        if (!c.card && cardMap[c.code]) {
+          c.card = cardMap[c.code]
+        }
+      }
+    }
+  }
+
+  /**
+   * 在游戏根目录下定位 ygopro.exe (兼容各发行版命名：ygopro / KoishiPro / EDOPro 等)
+   */
+  private locateYgoproExe(gameDir: string): string | null {
+    const candidates = [join(gameDir, 'ygopro.exe'), join(gameDir, 'ygopro')]
+    for (const p of candidates) {
+      if (existsSync(p)) return p
+    }
+    try {
+      for (const file of readdirSync(gameDir)) {
+        if (/(ygo|gopro|pro)\.exe$/i.test(file)) {
+          return join(gameDir, file)
+        }
+      }
+    } catch {
+      return null
+    }
+    return null
+  }
+
+  /**
+   * 生成当前局面的 Lua 脚本，写入本地临时目录并调用 ygo 的单人残局模式直接测试
+   */
+  public testInYgo(state: DuelPuzzleState): {
+    success: boolean
+    exePath?: string
+    scriptPath?: string
+    errorCode?: 'no-game-directory' | 'ygopro-not-found'
+    error?: string
+  } {
+    const gameDir = configService.get().gameDirectory
+    if (!gameDir) {
+      return { success: false, errorCode: 'no-game-directory' }
+    }
+
+    const exePath = this.locateYgoproExe(gameDir)
+    if (!exePath) {
+      return { success: false, errorCode: 'ygopro-not-found', error: gameDir }
+    }
+
+    try {
+      this.completeCardDetails(state)
+      const luaContent = generateLuaScript(state)
+
+      const dir = join(app.getPath('userData'), 'ygo-test')
+      mkdirSync(dir, { recursive: true })
+      const name = state.title.replace(/[\\/:*?"<>|]/g, '_').trim() || 'puzzle'
+      const scriptPath = join(dir, `${name}.lua`)
+      writeFileSync(scriptPath, luaContent, 'utf-8')
+
+      const child = spawn(exePath, ['-s', scriptPath], {
+        cwd: gameDir,
+        detached: true,
+        stdio: 'ignore'
+      })
+      child.unref()
+
+      console.log(`[FileService] Launched ${exePath} -s ${scriptPath}`)
+      return { success: true, exePath, scriptPath }
+    } catch (err) {
+      console.error('[FileService] Test in ygo failed:', err)
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  /**
    * 导出 Lua 脚本文件
    */
   public async exportLuaFile(
@@ -150,15 +231,7 @@ export class FileService {
       }
 
       // 如果缺少 card 属性，尝试补全
-      const missingCardCodes = state.cards.filter((c) => !c.card).map((c) => c.code)
-      if (missingCardCodes.length > 0 && cdbService.isReady()) {
-        const cardMap = cdbService.getCardsByIds(missingCardCodes)
-        for (const c of state.cards) {
-          if (!c.card && cardMap[c.code]) {
-            c.card = cardMap[c.code]
-          }
-        }
-      }
+      this.completeCardDetails(state)
 
       const luaContent = generateLuaScript(state)
       writeFileSync(finalPath, luaContent, 'utf-8')
@@ -258,6 +331,32 @@ export class FileService {
   }
 
   /**
+   * 静默覆盖到已知路径，不弹对话框
+   *
+   * 用于 Ctrl+S：渲染层记着「当前在编辑哪个文件」，第二次保存时直接写入。
+   * 路径无效（被删/被移走）会让 caller 决定是 fallback 到 dialog 还是报错。
+   */
+  public saveProjectToPath(
+    filePath: string,
+    state: DuelPuzzleState
+  ): { success: boolean; filePath?: string; error?: string } {
+    try {
+      if (!filePath) {
+        return { success: false, error: '保存路径为空' }
+      }
+      writeFileSync(filePath, JSON.stringify(state, null, 2), 'utf-8')
+      this.recordRecentProject(filePath)
+      return { success: true, filePath }
+    } catch (err) {
+      console.error('[FileService] Save project to path failed:', err)
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : '写入工程文件失败'
+      }
+    }
+  }
+
+  /**
    * 直接存入工程库（不弹保存对话框）
    *
    * 与 `saveProjectFile` 的区别是**文件名自动决定**：同名则覆盖，不同名则新建。
@@ -294,7 +393,7 @@ export class FileService {
    */
   public async loadProjectFile(
     window?: BrowserWindow
-  ): Promise<{ success: boolean; state?: DuelPuzzleState }> {
+  ): Promise<{ success: boolean; state?: DuelPuzzleState; filePath?: string }> {
     try {
       const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
         title: '打开决斗编辑器工程文件',
@@ -314,7 +413,7 @@ export class FileService {
       const rawState = JSON.parse(content) as DuelPuzzleState
       const state = normalizeDuelState(rawState)
       this.recordRecentProject(filePath)
-      return { success: true, state }
+      return { success: true, state, filePath }
     } catch (err) {
       console.error('[FileService] Load project failed:', err)
       return { success: false }

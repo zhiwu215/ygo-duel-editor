@@ -548,6 +548,13 @@ export interface IpcApi {
     state: DuelPuzzleState,
     targetPath?: string
   ) => Promise<{ success: boolean; filePath?: string; error?: string }>
+  testInYgo: (state: DuelPuzzleState) => Promise<{
+    success: boolean
+    exePath?: string
+    scriptPath?: string
+    errorCode?: 'no-game-directory' | 'ygopro-not-found'
+    error?: string
+  }>
   importLuaFile: () => Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }>
   exportScreenplayFile: (
     state: DuelPuzzleState
@@ -617,7 +624,11 @@ export interface IpcApi {
   }>
 
   saveProjectFile: (state: DuelPuzzleState) => Promise<{ success: boolean; filePath?: string }>
-  loadProjectFile: () => Promise<{ success: boolean; state?: DuelPuzzleState }>
+  saveProjectToPath: (
+    filePath: string,
+    state: DuelPuzzleState
+  ) => Promise<{ success: boolean; filePath?: string; error?: string }>
+  loadProjectFile: () => Promise<{ success: boolean; state?: DuelPuzzleState; filePath?: string }>
 
   getProjectList: () => Promise<DuelProjectMeta[]>
   loadProjectByPath: (

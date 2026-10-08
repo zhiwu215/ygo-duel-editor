@@ -34,6 +34,7 @@
 | zundo | Zustand 的撤销/重做中间件 | https://github.com/charkour/zundo |
 | better-sqlite3 | 同步式 SQLite 客户端 | https://github.com/WiseLibs/better-sqlite3 |
 | ocgcore-wasm | ocgcore 决斗引擎的 WebAssembly 移植 | https://github.com/mycard/ygopro-core |
+| ygopro-yrp-encode | YGOPro 录像(.yrp)编码库，用于导出对局回放 | https://www.npmjs.com/package/ygopro-yrp-encode |
 | @dnd-kit | React 拖拽交互套件 | https://dndkit.com/ |
 | Lucide React | 简洁的开源图标库 | https://lucide.dev/ |
 | electron-builder | Electron 应用打包工具 | https://www.electron.build/ |

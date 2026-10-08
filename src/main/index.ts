@@ -9,6 +9,7 @@ import { configService } from './services/configService'
 import { cdbService } from './db/cdbService'
 import { imageService } from './services/imageService'
 import { customCardService } from './services/customCardService'
+import { libraryService } from './services/libraryService'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -121,6 +122,8 @@ app.whenReady().then(() => {
       }
     }
   }
+
+  libraryService.reloadDataDirectory()
 
   createWindow()
 

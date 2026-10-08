@@ -1,142 +1,10 @@
-# AGENTS.md — YGO Duel Editor
+# AGENTS.md
 
-> 本文件是 AI 编码代理（Claude Code、Codex、Cursor、OpenCode 等）在修改本仓库时**必须遵守**的工作规范。>   
-> 写法参照 [agents.md](https://agents.md) 开放格式与 [apache/airflow](https://github.com/apache/airflow/blob/main/AGENTS.md) 的实践：指令式、边界明确、命令可执行。>   
-> 冲突时优先级：用户当前对话的明确指示 > 本文件 > 其他文档。若本文件与代码现实不符，**以代码为准**，并在同一个改动里顺手修正本文件。
+> 本文件是 AI 编码代理（Claude Code、Codex、Cursor 等）修改本仓库时必须遵守的工作规范。
 
+YGO Duel Editor：游戏王决斗内容创作桌面应用（Electron + React），可视化摆双方场面并导入/导出符合 ocgcore 标准的 Lua 残局脚本。卡片数据与卡图均来自用户本地游戏目录，仓库不内置。
 
-
----
-
-## 1. 项目定位与创作场景
-
-**YGO Duel Editor** 是一个用于游戏王 (Yu-Gi-Oh!) 决斗内容创作的桌面应用：可视化摆好双方场面，导出/导入符合 ocgcore 标准的 Lua 残局脚本。
-
-产品目标是服务**三类创作场景**，新增功能与设计决策应优先兼容它们：
-
-| 场景              | 说明                    | 数据形态                     |
-| --------------- | --------------------- | ------------------------ |
-| **残局布场**        | 摆出残局/教程局面的双方场地、手牌、生命值 | `DuelPuzzleState`（当前已实现） |
-| **同人剧情对局编排**    | 编排多段剧情：开场白、事件触发、多回合推演 | 需要序列/章节等状态扩展（规划中）        |
-| **卡组 Combo 教学** | 演示卡组起手与做场路线，分步骤讲解     | 需要步骤/回放等状态扩展（规划中）        |
-
-**当前实现范围**： MR2~MR5 场地编辑、拖拽摆卡、卡片检索（读取用户游戏目录的 `cards.cdb`）、Lua 脚本导入/导出、项目文件保存/加载、撤销/重做。
-
-**明确的非目标**： 本项目排布的 Lua 脚本没有实现引擎内的真实对局逻辑，也不内置任何卡表/卡图数据（均来自用户本地的游戏客户端，通过用户选择路径读取）。
-
-> 设计提示：三类场景的本质都是「初始局面 + 叙事/步骤说明」。涉及数据建模时不要把 `DuelPuzzleState` 假设成「只有一副残局」，为未来的多场景、多步骤结构预留可扩展性（如版本号迁移、状态嵌套），但**不要过度设计**未实现的功能。
-
----
-
-## 2. 环境与常用命令
-
-```bash
-pnpm install              # 安装依赖（postinstall 会自动对 better-sqlite3 执行 electron-builder install-app-deps）
-pnpm install --force --offline   # 【修复依赖损坏专用】强制重扫并从 store 重建，不联网。普通 install 报 “Already up to date” 但实际损坏时用它（见 2.1）
-pnpm dev                  # 开发模式（electron-vite dev，带 HMR）
-pnpm typecheck            # 双端类型检查 = typecheck:node + typecheck:web（Node 侧 + Web 侧）
-pnpm typecheck:node       #   仅检查 main / preload / shared（tsconfig.node.json）
-pnpm typecheck:web        #   仅检查 renderer（tsconfig.web.json）
-pnpm lint                 # ESLint 全仓（很慢：根目录参考子仓库未被 ignores 排除，日常勿用）
-pnpm exec eslint <file>   # 【推荐】只 lint 本次改动的文件，如 pnpm exec eslint src/renderer/src/stores/useDuelStore.ts
-pnpm format               # Prettier 全仓格式化（`prettier --write .`）
-pnpm exec prettier --write src # 【推荐】仅格式化源码目录，避免误扫根目录其他本地文件夹；单文件用 pnpm exec prettier --write <file>
-pnpm build                # 先 typecheck 再 electron-vite build
-pnpm build:win            # Windows 打包（另有 build:mac / build:linux / build:unpack）
-```
-
-**工作流硬性要求**：
-
-- **每次逻辑改完，必须跑 `pnpm typecheck` 且双端零错误**，再用 ESLint 检查**本次改动的文件**（`pnpm exec eslint <本次改动的文件列表>`）。**lint 只允许跑自己改动的文件，禁止跑根目录/全仓扫描**：`pnpm lint`（即 `eslint .`）会把根目录下未被 eslint ignores 排除的参考子仓库（pi、opencode、vscode、ygopro、deepseek-harness 等）整个扫一遍，慢到不可接受；不要在任何收尾流程、检查清单或自动化里写 `pnpm lint`。这是当前项目唯一的自动化质量门禁——**本项目暂无测试框架**，不要杜撰 `pnpm test` 命令；如果认为需要补测试框架，先询问用户。
-- `better-sqlite3` 是原生模块。若安装依赖后出现 `NODE_MODULE_VERSION` 不匹配报错，重新执行 `pnpm install`（依赖 postinstall自动 rebuild），不要手工改动构建配置。
-- 主流程开发环境为 **Windows**。主进程代码不硬编码路径分隔符或绝对路径，统一用 Node 的 `path` 模块和 IPC 拿到的用户目录。
-
-### 2.1 `node_modules` 损坏：根因与不可逆操作禁令
-
-`node_modules` 反复损坏**不是偶发**，根因已查明，必须严格遵守下列禁令。
-
-#### 根因：pnpm 硬链接 + 跨项目共享
-
-pnpm 默认从全局 store（`D:\.pnpm-store\v11`）以**硬链接**方式把包接入项目。实测数据：
-
-- store 中**42766 个文件里有 15192 个（36%）的 `nlink > 3`**，即被 3 个以上目录共享同一个 inode；最高一个达 **703 个链接**（各项目共用的 `package.json` 片段）。
-- 本项目 `node_modules/.pnpm/node_modules` 下有 **708 个hoist 包**，被所有依赖共享。
-
-由此推出三条必须遵守的结论：
-
-1. **删一个项目的 `node_modules` 可能连带破坏其他项目**（共享 inode）。看到「别的项目也报 `Cannot find module`」时，先怀疑 store 层面的连带损伤。
-2. **任何试图「修一修」的操作都可能扩散损伤**。本次事故中，把损坏目录改名成 `node_modules.broken` 留存、后来又整体删除，都是在共享图上做手术。
-3. **`pnpm install` 可能输出 `Already up to date` 却什么都没修**——`.modules.yaml` 记录着「已完成」状态，这是**假性完好**。此时必须 `--force`。
-
-#### 禁令
-
-- **禁止 `rm -rf node_modules`**，包括「重装一下肯定能好」这类直觉操作。需要清理时先征询用户。
-- **禁止手动 `mv`/`cp` 改写 `node_modules` 下的目录**（含改名成 `.broken`、`.old` 之类留存）。依赖树的正确状态只能由 `pnpm install` 生成。
-- **禁止在 `node_modules` 内手工增删文件或改写包内容**。需要 patch 依赖用 `pnpm patch`，或改用 `overrides` / `patchedDependencies`。
-- 修复一律走：`pnpm install --force --offline`（store 完好时全程不联网）。仅当 store 也损坏时才`--no-offline` 重下。
-
-#### 诊断与修复流程（照此顺序，不要跳步）
-
-**第一步：分清是「依赖损坏」还是「环境问题」。** 沙箱/自动化环境的报错极易误判为本项目缺陷，先排除：
-
-```bash
-env | grep -iE "electron|NODE_OPTIONS"   # Electron 项目必查
-```
-
-宿主可能注入 `ELECTRON_RUN_AS_NODE=1` + `NODE_OPTIONS=--require=...shim.cjs`。前者会让 electron 二进制退化成纯 node，`require('electron')` 返回 npm 包（路径字符串）而非运行时模块，报 `Cannot read properties of undefined (reading 'isPackaged')`。**看到这个报错不要改项目代码**，用 `env -u ELECTRON_RUN_AS_NODE -u NODE_OPTIONS pnpm dev` 验证。同理，无 GPU 的沙箱会报 `GPU process isn't usable. Goodbye.`（exit `-2147483645`），属环境限制，`--disable-gpu --no-sandbox` 可过。**用户在自己终端跑不会有这两类问题。**
-
-**第二步：确认损坏范围**（不要凭现象猜）：
-
-```bash
-# 顶层包是否齐全（electron-vite/react/vite缺失 = 顶层链接丢失）
-ls node_modules | wc -l
-for p in electron-vite vite electron react typescript; do [ -e "node_modules/$p" ] && echo "$p OK" || echo "$p MISSING"; done
-
-# .pnpm 内部是否有空壳包（须递归两层，只看第一层会漏）
-python -c "
-import os
-pn='node_modules/.pnpm'
-for name in os.listdir(pn):
-    if name in ('lock.yaml','node_modules'): continue  # pnpm 元数据文件，非包
-    nm=os.path.join(pn,name,'node_modules')
-    if not os.path.isdir(nm): print('缺 node_modules:',name); continue
-    for p in os.listdir(nm):
-        pp=os.path.join(nm,p)
-        for s in (os.listdir(pp) if p.startswith('@') else [p]):
-            q=os.path.join(pp,s)
-            if os.path.isdir(q) and not os.listdir(q): print('空包:',name,p,s)
-"
-```
-
-正常输出就是「什么都不打印」。`lock.yaml` / `node_modules` 是 pnpm 的元数据文件而非包，必须跳过，否则每次都会误报 2 项。
-
-注&#x610F;**「目录非空但缺关键文件」也要查**（本次 `@jridgewell/trace-mapping` 只剩 `types/`，丢了 `dist/`+`index.js`）——这类只能靠实际报错暴露，所以**必须跑到 `pnpm dev` 真的成功**才算修好，不能只看扫描结果。
-
-**第三步：修复。** `pnpm install --force --offline`。它可能以 `ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED` 收尾（多见 `esbuild postinstall: spawnSync node.exe EBUSY`）——**这是 pnpm 生命周期脚本执行器自锁，可忽略**：包内容此时已正确落地，`node_modules/.pnpm/esbuild@*/node_modules/esbuild/bin/esbuild` 存在即正常。**不要因为这个非零退出码就重装或回滚**，重装反而增加共享图损伤。
-
-**第四步：验证。** `pnpm dev` 完整构建成功（main + preload + renderer 三段都出现 `built successfully`）且 Electron 窗口起来、`[CdbService]` 正常加载；再跑 `pnpm typecheck` 双端零错误。
-
-#### 事故残留目录的处置
-
-若发现 `node_modules.broken` / `node_modules.old` / `node_modules.empty` 这类目录出现在仓库根：**它们会污染 `git status`**（`.gitignore` 只写了 `node_modules`，不匹配后缀名）。先验证确为无价值的空壳（逐个检查顶层包是否为空、`.bin/*.cmd` 里的绝对路径是否仍指向 `node_modules\.pnpm\...` 以确认它本来就是 `node_modules`），确认后再删除，且**删除前告知用户**。不要默认它们是垃圾。
-
----
-
-## 3. 术语约定（写代码时统一措辞）
-
-| 术语       | 约定                                                                                                                                     |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| 卡密       | 数据字段统一叫 `code`（`CdbCard.id` 是例外，它是数据库主键，等价于卡密）                                                                                         |
-| 场上实例     | `instanceId`（每张卡在场地上的唯一 ID），不要与卡密 `code` 混淆                                                                                            |
-| 控制者      | `controller: 0` = 我方，`controller: 1` = 对方。这是 ocgcore 硬约定，**任何地方都不得颠倒**                                                                 |
-| 归属者      | `owner: 0 \| 1` = 卡牌原型归属（洗回卡组时用它），通常与 controller 相同                                                                                    |
-| 规则版本     | 代码中 `MasterRule` 的取值是 `2 \| 3 \| 4 \| 5`，其中 `2` 覆盖 MR1/MR2（同为经典 5+5 布局）。文案写 MR1~MR5，代码守这个联合类型                                          |
-| 区域/表示形式  | 一律引用 `CardLocation` / `CardPosition` 常量（详见第 7 节），禁止裸写魔法数字                                                                              |
-| Lua 常量映射 | `CardLocation.DECK → 'LOCATION_DECK'`、`CardPosition.FACEUP_DEFENSE → 'POS_FACEUP_DEFENSE'`，映射表集中在 `luaGenerator.ts` / `luaParser.ts` 内 |
-
----
-
-## 4. 架构边界（进程模型）
+## 架构边界
 
 ```
 ┌──────────────────────────┐        ┌─────────────────────────────┐
@@ -151,228 +19,38 @@ for name in os.listdir(pn):
 └───────────────────────────┘        └─────────────────────────────┘
 ```
 
-**硬性边界**（违反即架构破坏，评审会打回）：
+- 组件统一使用 shadcn/ui（base-ui 版，`components/ui/`）。**禁用原生 `confirm()`/`alert()`/`prompt()` 与裸写 `<select>`/`<input type=file>`**；弹窗走 `useDialogStore`，文件选择走主进程 IPC。
+- Renderer 永不直接 import `electron` / `node` / `better-sqlite3`；宿主能力只经 `window.api`。`@shared` 必须平台无关（不引 electron/node/DOM）。
 
-1. **Renderer 永远不直接 import Electron / Node / better-sqlite3**。一切宿主能力只能通过 preload 暴露的 `window.api` 调用。
-2. **Preload 只做桥接，不写业务逻辑**。它实现在 `src/preload/index.ts`，类型声明在 `src/preload/index.d.ts`，形态是「与组件无关的函数签名 + `ipcRenderer.invoke` 转发」。
-3. **主进程与渲染进程互相不 import 对方代码**。两者唯一共享层是 `src/shared`（`@shared`）。
-4. **`@shared` 必须保持平台无关**：不 import `electron`、Node 内置模块或任何 DOM API，因为它同时被打进两个进程。`shared/engine` 下的 luaGenerator/luaParser 尤其要保持纯函数。
-5. **Lua 生成与解析必须双向闭环**：修改 `luaGenerator.ts` 或 `luaParser.ts` 任一侧后，必须验证「`generateLuaScript(parse(脚本))` round-trip 语义等价」，否则用户已保存的 `.lua` 项目会失效。
-6. **卡片数据与图片来自用户游戏目录**：CDB 只有只读连接 (`readonly: true`)，绝不能写入用户的 cards.cdb 或游戏目录。
+## 命令
 
----
+- `pnpm dev` 开发模式（electron-vite，带 HMR）
+- `pnpm typecheck` 双端类型检查（Node + Web），改动后必须零错误
+- `pnpm exec eslint <本次改动的文件>` 只 lint 改动文件（**禁止 `pnpm lint` / `eslint .` 全仓扫描**——会扫到根目录下的参考子仓库，极慢）
+- `pnpm exec prettier --write <file>` 格式化单文件（勿全仓 `prettier`）
 
-## 5. IPC 通信（新增能力时四件套同步）
+## 硬性规则
 
-所有宿主能力新增都必须同步四处，缺一即为不完整改动：
+- **禁止 `rm -rf node_modules`、手动 `mv`/`cp` 改写 `node_modules` 下目录**（pnpm 硬链接跨项目共享，会破坏其他项目）。依赖损坏统一 `pnpm install --force --offline`。
+- **代码不写注释**（行内/JSDoc 一律不要；仅 `// @ts-ignore`、`// eslint-disable-next-line` 等指令例外）。
+- **Lua 引擎改任一侧后必须验证 `generateLuaScript(parse(脚本))` round-trip 语义等价**，否则用户已保存 `.lua` 失效。
+- 新 IPC 能力四件套同步：`shared/types/ipc.ts` → `preload/index.ts` → `preload/index.d.ts` → `main/ipc/registerIpc.ts`。
+- 改变场面的操作必须走 `useDuelStore` action（保留撤销/重做）；CDB 只读，绝不写用户 `cards.cdb`。
 
-| 步骤              | 文件                            | 动作                                                       |
-| --------------- | ----------------------------- | -------------------------------------------------------- |
-| ① 定义参数/返回值类型    | `src/shared/types/ipc.ts`     | 新增 XxxParams/XxxResult，并加入 `IpcApi` 接口                   |
-| ② 渲染端调用入口声明     | `src/preload/index.ts`        | 在 `api` 对象里加 `xxx: () => ipcRenderer.invoke('<域>:<动作>')` |
-| ③ Preload 类型声明  | `src/preload/index.d.ts`      | 同步 `window.api` 的类型                                      |
-| ④ 注册主进程 handler | `src/main/ipc/registerIpc.ts` | `ipcMain.handle('<域>:<动作>', ...)`，业务逻辑尽量交给 services 层    |
+## Ask first（先问再做）
 
-- Channel 命名格式：`<域>:<动作>`，如 `cdb:search`、`file:export-lua`、`config:get`、`image:get-path`。域与 `services/` 目录一一对应。
-- 业务逻辑写在 `src/main/services/*`，`registerIpc.ts` 只做参数校验与转发。
+- 引入新 npm 依赖
+- 跨域大规模重构 / 改 `DuelPuzzleState` 结构 / 改 Electron 安全配置（sandbox、CSP、`webPreferences` 等）
+- 补测试框架 / CI / 新构建脚本
 
----
+## Git
 
-## 6. 目录结构与职责
+用户明确要求才提交/push；标题简短中文，参考仓库既有风格；只提交本次任务归属的改动，勿带入他人 WIP。
 
-```
-src/
-├── main/                       # 主进程 (Node.js)
-│   ├── index.ts                #   应用入口：窗口创建、生命周期
-│   ├── db/cdbService.ts        #   cards.cdb 只读访问（模块级单实例，export const cdbService）
-│   ├── ipc/registerIpc.ts      #   所有 ipcMain.handle 集中注册地
-│   └── services/               #   业务服务（configService/fileService/imageService/agentService/deckService/settingsWindowService）
-├── preload/                    # 安全桥接层
-│   ├── index.ts                #   contextBridge 实现 IpcApi
-│   └── index.d.ts              #   window.api 类型声明
-├── renderer/src/               # 渲染进程 (React SPA)
-│   ├── main.tsx / App.tsx      #   入口与顶层布局（Header + 左侧活动栏 + 战场 + 右侧栏）
-│   ├── components/             #   按功能域分目录（BehindSpirit/Board/CardDetail/CardSearch/Header/LeftSidebar/RightSidebar/Settings/StorySequencer/ui）
-│   ├── stores/                 #   Zustand store，每个文件一个业务关注点
-│   ├── lib/utils.ts            #   cn() 工具
-│   └── utils/cardImage.ts      #   卡图 URL / 卡背
-└── shared/                     # 双进程共享层（@shared），平台无关
-    ├── types/                  #   card.ts / duel.ts / rules.ts / ipc.ts / story.ts
-    ├── constants/              #   locations.ts / positions.ts（ocgcore 位掩码）
-    └── engine/                 #   luaGenerator.ts / luaParser.ts（Lua 双向引擎）
-                                #   agentModel.ts（模型供应商配置解析与归一化）
-```
+## 收尾自检
 
-
-**新代码放在哪里**（不确定时按此路由，动笔前先看同域文件）：
-
-- 新功能域组件 → `components/<域>/`，目录内平铺；仅服务单组件的子组件才进 `<域>/components/`
-- 新跨进程类型 → `shared/types/`，并从 `shared/index.ts` barrel 导入（统一 `from '@shared/index'`，不要深路径）
-- 新决斗业务常量/枚举 → `shared/constants/`；纯渲染层常量可放组件同文件
-- 新宿主能力 → 按 第 5 节 四件套
-- 新 store → `stores/useXxxStore.ts`（一个业务关注点一个文件）
-- 新工具函数 → 渲染层通用放 `renderer/src/utils/`；双进程通用放 `shared/`
-
-> 本目录树需随改动同步维护。若发现与实际代码有出入——如在分支中新增了文件——以 `ls`/读取实际文件的结果为准，并顺手更新此树。
-
----
-
-## 7. 业务领域知识（Yu-Gi-Oh! / ocgcore）
-
-### 7.1 MasterRule 与场地布局
-
-| `masterRule` | 名称       | 场地特征                                                                 |
-| ------------ | -------- | -------------------------------------------------------------------- |
-| `2`          | MR1/2 经典 | 无 EMZ、无灵摆区，5 主怪兽区 + 5 魔陷区，额外怪兽直接进主怪兽区                                |
-| `3`          | MR3 灵摆   | 同上 + 2 个**独立**灵摆区（`CardLocation.PZONE`，序号 0/1）                       |
-| `4`          | MR4 新大师  | 新增 2 个 **EMZ**（MZONE 序号 5/6）；灵摆区**合并**入魔陷区 0/4 号位（`pendulumInSZone`） |
-| `5`          | MR5 现行   | 同 MR4，现行规则（默认值）                                                      |
-
-布局差异全部由 `shared/types/rules.ts` 的 `MASTER_RULES` 信息表驱动（`hasEMZ` / `hasIndependentPZones` / `pendulumInSZone` 等布尔位）。**不要在 Board 组件里写死「MR 等级 → 布局」的 if 分支，一切从信息表推导。**
-
-### 7.2 CardLocation（区域，ocgcore 位掩码）
-
-`0x01` DECK / `0x02` HAND / `0x04` MZONE（0~~4 主怪兽区，5/6 EMZ）/ `0x08` SZONE（0~~4 魔陷区，MR1-3 另有 5 号场地魔法区）/ `0x10` GRAVE / `0x20` REMOVED / `0x40` EXTRA / `0x80` OVERLAY / `0x100` FZONE / `0x200` PZONE（MR3 独立灵摆区）
-
-### 7.3 CardPosition（表示形式）
-
-`0x1` FACEUP_ATTACK / `0x2` FACEDOWN_ATTACK / `0x4` FACEUP_DEFENSE / `0x8` FACEDOWN_DEFENSE / `0x5` FACEUP（0x1|0x4）/ `0xa` FACEDOWN（0x2|0x8）
-
-注意组合位：`FACEUP` 与 `FACEDOWN` 是**叠加位掩码**而非新值；`isDefense` 与 `isFacedown` 是两个独立维度（`POSITION_INFOS` 已给出每种表示形式的守备/盖伏与渲染旋转角度）。
-
-### 7.4 关键数据结构
-
-- `FieldCard` — 场上一张卡的运行时状态：`instanceId`（场上唯一）、`code`（卡密）、`card?`（检索到的 CdbCard 缓存，可缺省）、`controller` / `owner`、`location` + `sequence`（区域 + 格子序号）、`position`、`overlayMaterials`（超量素材存**卡密数组**）、counters / customAtk / customDef。
-- `DuelPuzzleState` — 整个决斗局面快照：`version`（数据迁移用，必须随结构变更递增）、`title` / `hint`、`masterRule`、`players`（`lp/maxHand/startHand`）、`turnPlayer`、`firstTurnAttack`、`cards[]`。空局面用工厂函数 `createInitialDuelState(masterRule = 5)` 创建，不要手写对象字面量。
-
-### 7.5 模型供应商配置（AI 顾问）
-
-- `AgentModelConfig.providers[]`（`AgentProviderConfig`）是**唯一事实来源**，扁平的 `provider/baseUrl/apiKey/model` 是由它派生的快照，仅供主进程直接消费；改动供应商后必须经 `syncActiveFields()` 重算派生字段。
-- **供应商预设（`PROVIDER_PRESETS`）只描述连接信息**（`baseUrl` / `apiFormat` / `apiKeyUrl` / `description` / `badge`），**坚决不内置模型清单**——模型版本迭代极快，硬编码必然过期。模型只能来自两条路径：用户在设置页点「拉取模型」走 `agent:fetch-models`（主进程代理请求厂商 `/v1/models`，规避 CORS），或手动「添加模型」。
-- 上述两条路径写入的模型必须标 `custom: true`；`normalizeAgentConfig()` 会清掉 `custom !== true` 的条目，用于自动清除历史版本内置模型的残留。
-- OpenAI 兼容的 `/v1/models` 只返回 `id`，因此模型名/上下文窗口/推理标记都可能是空的，UI 必须允许缺省（回退展示 id），不要为了补齐这些字段去维护本地表。
-
----
-
-## 8. 渲染层代码规范
-
-### 8.1 文件组织：Feature-Based 模块化
-
-- 组件**按业务功能域**组织，不按技术角色（hooks/types/styles）拍平。功能域目录内平铺，只有**仅服务某单个组件**的私有子组件才进 `components/` 子目录：
-
-```
-Board/
-├── DuelBoard.tsx
-├── ZoneSlot.tsx
-├── CardItem.tsx
-├── CardContextMenu.tsx
-└── components/          # 仅内部使用
-    └── HandTray.tsx
-```
-
-- 单文件职责边界以**语义**判断：一个组件内部出现可独立复用或自成体系的片段就拆出去；一个职责单一的长组件（如 `DuelBoard.tsx`）不要为凑行数拆碎。
-- **解耦是要求，碎拆不是手段。** 拆分只发生在职责真正独立或片段**第二个使用方出现**的时刻：同一段 UI / 逻辑用第二遍时抽公共组件/工具，而不是复制粘贴；没有第二使用方、职责也不独立的，留在原文件里。判断基准是社区主流 React 项目的约定俗成（feature 目录、平台无关 hooks、ui 库下沉），不是行数。
-- 写新界面前**先找能复用的部件**：同域组件查 `components/<域>/`，通用控件查 `components/ui/`，一条卡片结果行、一个确认弹窗、一种筛选抽屉在仓库里已有实现就复用并按需扩 props，禁止把现有部件重新手写一遍。
-- 常量配置对象（如 `VARIANT_CONFIGS`）可与组件同文件。
-- **严禁**为 Tailwind 类名建立独立 `.ts` 主题文件（如 `ZoneSlotTheme.ts`）。
-
-### 8.2 命名
-
-| 类别         | 约定                     | 示例                                         |
-| ---------- | ---------------------- | ------------------------------------------ |
-| React 组件文件 | PascalCase `.tsx`，具名导出 | `DuelBoard.tsx` → `export const DuelBoard` |
-| 工具/常量文件    | camelCase `.ts`        | `cardImage.ts`                             |
-| Store      | `use[Name]Store.ts`    | `useDuelStore.ts`                          |
-| 常量导出       | UPPER_SNAKE_CASE       | `CARD_BACK_IMAGE`                          |
-| 类型/接口      | PascalCase             | `FieldCard`                                |
-| CSS 变量     | kebab-case             | `--background`                             |
-
-### 8.3 导入导出
-
-- 具名导出优先。不再新增 `export default`（`App.tsx` 是历史遗留，别模仿它）。
-- 导入顺序：React/第三方 → `@shared/` → 本模块（stores → components → utils）。
-- `@renderer` → `src/renderer/src`，`@shared` → `src/shared`。
-
-### 8.4 样式（TailwindCSS v4, Vite 插件模式）
-
-- 无 `tailwind.config.ts`；全局变量定义在 `src/renderer/src/assets/globals.css`（`@theme` 指令）。
-- 类名**内联写在 JSX**，多条件合并用 `cn()`（`renderer/src/lib/utils.ts`）。
-- `components/ui/` 下的 shadcn/ui 组件由 CLI 生成，**不要修改内部实现**，定制一律从外部 `className` 覆盖。
-- **覆盖带响应式变体的默认类时，必须逐个变体补齐，或改用 `!` 重要修饰符。** 例如 `DialogContent` 默认类含 `sm:max-w-sm`，传 `max-w-none`（不带 `sm:`）**覆盖不掉**——tailwind-merge 视二者为不同组，两者都保留，且 Tailwind 中媒体查询规则优先级高于基础类，于是窗口 ≥640px 时 `max-width: 24rem` 生效，把全屏容器压成384px（曾导致 `CardImageViewer` 大图贴到屏幕左侧）。正确写法二选一：`max-w-none sm:max-w-none`，或 `!max-w-none`。改这类样式前可用 `node -e "const{twMerge}=require('tailwind-merge');console.log(twMerge('sm:max-w-sm','max-w-none sm:max-w-none'))"` 确认默认类是否被清掉。
-
-### 8.5 状态管理（Zustand）
-
-- 每个 store 单一业务关注点：`useDuelStore`（场面核心，挂 `zundo` temporal 撤销/重做，`partialize: (state) => ({ state: state.state })` 只追踪局面字段）、`useConfigStore`、`useCardSearchStore`、`useContextMenuStore`。
-- **业务逻辑全部放 store 的 action 内**，组件只读状态、调 action，不在 JSX/事件处理里堆业务规则。
-- 会改变场面的新操作**必须走 useDuelStore 的 action**，否则无法被撤销/重做。
-- 需要评估变更后局面的逻辑（如可解性检查、displays 统计）写成独立纯函数，而不是塞进 store 或组件。
-
-### 8.6 组件库：强制 shadcn/ui（base-ui 版），禁用原生控件
-
-- **通用 UI 只能出自 shadcn/ui**（Dialog、Select、Switch、Button、Textarea 等），底层是 `@base-ui/react`，**不是 radix**；`components.json` 的 `style` 为 `base-nova`。组件源码在 `src/renderer/src/components/ui/`。
-- `ui/` 里缺的组件**用 CLI 装，不要手写**：`pnpm exec shadcn add <name> --yes`。CLI 产物是双引号，装完跑 `pnpm exec prettier --write src/renderer/src/components/ui/<name>.tsx` 统一回项目风格（单引号），否则会连带把 `button.tsx` 等改出无关 diff。
-- **禁止使用浏览器原生弹窗与原生控件**：应用渲染层**严禁调用 `confirm()` / `alert()` / `prompt()`**（含 `window.` 前缀）。Electron 下它们渲染成操作系统级对话框，标题栏显示 "ygo-duel-editor"，与应用内 shadcn 风格完全割裂（实例：`LeftSidebar/DuelArchivesPanel.tsx` 删除对局档案曾直接调 `confirm()`）。同理禁止 `<select>`、`<input type=file>` 裸写交互控件——分别改用 `ui/select.tsx`、主进程文件选择 IPC。存量原生调用在改造到它们头上时应顺手替换为下述组件。
-- 弹窗类需求一律用 `stores/useDialogStore.ts` 的 `confirmDialog()`（确认）/ `alertDialog()`（提示），都返回 `Promise<boolean>`，语义同原生 `confirm()`。**该 store 依赖宿主 `ui/ConfirmDialogHost.tsx`，每个窗口入口都必须包一层**（已由 `main.tsx` 统一包裹），否则弹窗不渲染且 Promise 永远 pending。
-- **写任何通用 UI 前先 grep 现有实现**，复用优先于新写：已有 `hooks/useBackdropClose.ts`（自写弹窗遮罩兜底）、`ui/ConfirmDialogHost.tsx`、`Settings/components/ConfirmDialog.tsx` 等。同一交互形态（结果行用 `CardRowItem`、筛选抽屉用 `FilterDrawer`）在第二个位置出现时必须复用同一组件，扩展走 props。
-
----
-
-## 9. 代码风格（由工具强制，不要手工维护规则）
-
-Prettier（`.prettierrc.yaml`）与 ESLint（`eslint.config.mjs`）已强制：无分号、单引号、行宽 100、无尾逗号。**提交前跑 `pnpm exec prettier --write src`（推荐）或单文件 `pnpm exec prettier --write <file>`，避免全仓格式化误扫到根目录下的参考子仓库（如 pi、opencode 等）。风格问题不要手工争论。**
-
-需要人工遵守、工具管不着的：
-
-- TypeScript `strict` 模式，所有函数（包括组件）显式返回类型。
-- **代码里不写任何注释**（行内注释与 JSDoc 一律不要），语义靠命名、类型签名与文件组织表达；唯一例外是注释指令，如 `// @ts-ignore`、`// eslint-disable-next-line` 这类编译器/linter 指令。
-
----
-
-## 10. 行为边界（Agent 执行约束）
-
-### 项目阶段与代码组织
-
-- 项目当前处于开发阶段，默认不为历史版本保留向后兼容；不为旧数据、接口或配置额外增加迁移层、兼容分支或兜底，除非用户明确要求。
-- 代码组织以**解耦 + 复用**为准则：按职责拆分、优先遵循仓库现有的功能域组织和社区主流 React 规范；不在一个文件里堆无关的 UI、状态、业务逻辑和类型，也不为拆而拆、制造只被引用一次的碎片文件。**一段 UI / 逻辑出现第二个使用方时抽公共件复用**，没有复用前景且职责不独立时留在原文件。实现细节见第 8.1 节。
-
-### Git 提交与推送
-
-- 只有用户明确要求提交或 push 时，才暂存、提交或推送。
-- 用户要求 push 时，先检查工作区、暂存区并 fetch 对比分支；只提交和推送本助手在当前任务中完成且能明确归属的改动。必须显式暂存自己的文件/代码块，不能把用户、其他会话或其他 Agent 的未提交改动带入；同一文件混有不同来源的改动时只暂存自己的代码块。归属不清时先询问；没有自己的改动时不代提交用户的 WIP。
-- 提交标题使用简短中文，先参考仓库既有提交风格；避免冗长正文。
-
-### Ask first（先询问，再动手）
-
-- 引入任何新的 npm 依赖（每个依赖都会进 Electron 产物体积与安全面）。
-- 跨功能域的大规模重构、移动/重命名共享类型或 `DuelPuzzleState` 结构变更。
-- 修改 Electron 安全相关配置（`sandbox`、`contextIsolation`、`webPreferences`、CSP、window.open 行为）。
-- 补测试框架、CI 流程或新的构建脚本。
-
-### Never（禁止）
-
-- 修改 `src/renderer/src/components/ui/` 内任何文件（shadcn/ui CLI 产物）。
-- 在渲染层调用原生 `confirm()` / `alert()` / `prompt()` 或裸写 `<select>` / `<input type=file>` 等原生交互控件；普通组件不使用 shadcn/ui（base-ui）而手写一切（第 8.6 节）。
-- 用 `pnpm lint` / `eslint .` 全仓扫描作为改码后的检查；检查改动只能 `pnpm exec eslint <本次改动的文件>`（第 2 节）。
-- **硬编码卡密/卡表/卡图数据**进仓库，或将用户的 `cards.cdb` / 游戏目录路径写入任何文件（一切路径来自 configService 的用户配置）。
-- 让 `shared/` 引入 electron / node / DOM 依赖，或在 renderer 直接读文件/数据库。
-- 跳过 store 直接改局面状态，绕开 `temporal` 中间件。
-- 生成/修改 Lua 引擎后不验证 round-trip 就提交。
-- 编造 `pnpm test` 等不存在的命令；提交时将 typecheck/lint 错误归咎为「本来就存在」而不报备。
-- 提交 secrets、token 或任何凭证。
-- `rm -rf node_modules`、手动 `mv`/`cp` 改写 `node_modules` 下的目录、手工增删包内容 —— pnpm 硬链接跨项目共享，这些操作会损伤其它项目（详见 2.1）。
-- 把自动化/沙箱环境特有的报错（`ELECTRON_RUN_AS_NODE` 导致的 `isPackaged` 报错、无 GPU 的 `GPU process isn't usable`）当成本项目缺陷去改代码。
-
----
-
-## 11. 变更检查清单（收尾自检）
-
-- [ ] `pnpm typecheck` 双端零错误；`pnpm exec eslint <本次改动的文件>` 零错误（**禁止**跑 `pnpm lint` 全仓扫描）
-- [ ] 无 `window.confirm` / `alert` / 原生 `<select>` 等原生控件残留；弹窗走 `useDialogStore`，通用控件复用 `ui/`（第 8.6 节）
-- [ ] 新文件落在正确的功能域/共享层目录（对照第 6 节路由）
-- [ ] 新增 IPC 能力四件套齐全（第 5 节 ①②③④）
-- [ ] 新类型放 `shared/types/` 并经 `@shared` barrel 导出；新枚举用内置常量而非魔法数字
-- [ ] 场面相关操作封装为 store action，撤销/重做正常
-- [ ] 触及 Lua 引擎 → 已验证 generate ↔ parse round-trip
-- [ ] 触及 `MASTER_RULES` / 场地结构 → MR2~MR5 各状态在 dev 窗口实际切过一遍
-- [ ] 文档未被意外删除；如架构变化，同步更新本文件
-- [ ] 若本次动过依赖 → `pnpm dev` 完整构建成功（不能只看扫描或 install 返回码），且没有遗留 `node_modules.*` 事故目录在仓库根
+- [ ] `pnpm typecheck` 双端零错误；`pnpm exec eslint <本次改动的文件>` 零错误（禁 `pnpm lint`）
+- [ ] 无原生控件/弹窗残留；通用 UI 复用 `components/ui/`
+- [ ] 新文件落在正确功能域/共享层；新类型经 `@shared` barrel 导出，新枚举用内置常量而非魔法数字
+- [ ] 触及 Lua 引擎 → round-trip 已验证
+- [ ] 触及依赖 → `pnpm dev` 完整构建成功，无 `node_modules.*` 事故目录残留

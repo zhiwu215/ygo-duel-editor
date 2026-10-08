@@ -16,11 +16,15 @@ import {
   normalizeDuelState,
   generateLuaScript,
   parseLuaScript,
-  generateScreenplayMarkdown
+  generateScreenplayMarkdown,
+  EngineExportReplayParams,
+  EngineExportReplayResult
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 import { dataDirService } from './dataDirService'
+import { ruleCheckService } from './ruleCheckService'
+import { buildYrpSingleFile, DUEL_PSEUDO_SHUFFLE } from './yrpWriter'
 
 function sanitizeProjectFileName(name: string): string {
   const cleaned = name
@@ -230,7 +234,6 @@ export class FileService {
         finalPath = res.filePath
       }
 
-      // 如果缺少 card 属性，尝试补全
       this.completeCardDetails(state)
 
       const luaContent = generateLuaScript(state)
@@ -241,6 +244,79 @@ export class FileService {
       console.error('[FileService] Export lua failed:', err)
       const errorMsg = err instanceof Error ? err.message : String(err)
       return { success: false, error: errorMsg }
+    }
+  }
+
+  public async exportReplay(params: EngineExportReplayParams): Promise<EngineExportReplayResult> {
+    const gameDir = configService.get().gameDirectory
+    if (!gameDir) {
+      return { success: false, errorCode: 'no-game-directory' }
+    }
+    const exePath = this.locateYgoproExe(gameDir)
+    if (!exePath) {
+      return { success: false, errorCode: 'ygopro-not-found', error: gameDir }
+    }
+    if (params.entries.length === 0) {
+      return {
+        success: false,
+        errorCode: 'no-actions',
+        error: '还没有任何经过引擎的操作记录，无法进行录像导出'
+      }
+    }
+    try {
+      const gen = await ruleCheckService.exportReplay(params)
+      if ('error' in gen) {
+        return { success: false, errorCode: 'replay-failed', error: gen.error }
+      }
+      this.completeCardDetails(gen.engineState)
+      const luaContent = generateLuaScript(gen.engineState, { forReplay: true })
+      const name = sanitizeProjectFileName(params.state.title || '未命名对局')
+
+      const singleDir = join(gameDir, 'single')
+      const replayDir = join(gameDir, 'replay')
+      mkdirSync(singleDir, { recursive: true })
+      mkdirSync(replayDir, { recursive: true })
+      const luaPath = join(singleDir, `${name}.lua`)
+      const yrpPath = join(replayDir, `${name}.yrp`)
+      writeFileSync(luaPath, luaContent, 'utf-8')
+
+      const turnPlayer = (gen.engineState.turnPlayer ?? 0) as 0 | 1
+      const duelists = gen.engineState.duelists ?? []
+      const names: [string, string] = [
+        duelists.find((d) => d.team === turnPlayer)?.name || `Player ${turnPlayer + 1}`,
+        duelists.find((d) => d.team === ((1 - turnPlayer) as 0 | 1))?.name ||
+          `Player ${2 - turnPlayer}`
+      ]
+      const yrpBytes = buildYrpSingleFile({
+        names,
+        startLp: Number(gen.engineState.players[0]?.lp ?? 8000),
+        startHand: Number(gen.engineState.players[0]?.startHand ?? 0),
+        drawCount: Number(gen.engineState.players[0]?.maxHand ?? 0),
+        opt: DUEL_PSEUDO_SHUFFLE,
+        scriptFile: `./single/${name}.lua`,
+        responses: gen.responses
+      })
+      writeFileSync(yrpPath, Buffer.from(yrpBytes))
+
+      let launched = false
+      if (params.launch !== false) {
+        const child = spawn(exePath, ['-r', yrpPath], {
+          cwd: gameDir,
+          detached: true,
+          stdio: 'ignore'
+        })
+        child.unref()
+        launched = true
+      }
+      console.log(`[FileService] Exported replay to ${yrpPath}`)
+      return { success: true, luaPath, yrpPath, launched }
+    } catch (err) {
+      console.error('[FileService] Export replay failed:', err)
+      return {
+        success: false,
+        errorCode: 'replay-failed',
+        error: err instanceof Error ? err.message : String(err)
+      }
     }
   }
 

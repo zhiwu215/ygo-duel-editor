@@ -442,6 +442,146 @@ export interface AppConfig {
 
   /** 用户建立的作品分类名清单（允许存在尚未收录任何对局的空分类） */
   projectSeries?: string[]
+
+  ruleCheckEnabled?: boolean
+}
+
+export interface EngineProbeEntry {
+  code: number
+  controller: 0 | 1
+  location: number
+}
+
+export interface EngineProbeAttackEntry {
+  code: number
+  controller: 0 | 1
+  location: number
+  canDirect: boolean
+}
+
+export type EngineChainMode = 'auto' | 'always' | 'ignore'
+
+export interface EngineProbeOptionsParams {
+  state: DuelPuzzleState
+  currentPhase: DuelPhase
+  replay?: EngineProbeReplay
+  chainMode?: EngineChainMode
+}
+
+export interface EngineProbeOptionsResult {
+  ok: boolean
+  turnPlayer: 0 | 1
+  degraded: boolean
+  warnings: string[]
+  summon: EngineProbeEntry[]
+  spSummon: EngineProbeEntry[]
+  posChange: EngineProbeEntry[]
+  monsterSet: EngineProbeEntry[]
+  spellSet: EngineProbeEntry[]
+  activate: EngineProbeEntry[]
+  attack: EngineProbeAttackEntry[]
+}
+
+export type EngineProbeActionKind =
+  'SUMMON' | 'SP_SUMMON' | 'SET_MONSTER' | 'SET_SPELL' | 'ACTIVATE'
+
+export interface EngineProbeAction {
+  kind: EngineProbeActionKind
+  code: number
+  controller: 0 | 1
+  fromLocation: number
+  place?: { location: number; sequence: number }
+}
+
+export interface EngineProbeReplayAction {
+  action: EngineProbeAction
+  selections?: (number[] | null)[]
+}
+
+export interface EngineProbeReplay {
+  baseline: DuelPuzzleState
+  actions: EngineProbeReplayAction[]
+}
+
+export interface EngineProbeActionParams {
+  state: DuelPuzzleState
+  currentPhase: DuelPhase
+  action: EngineProbeAction
+  chainMode?: EngineChainMode
+}
+
+export interface EngineProbeCounterEntry {
+  code: number
+  controller: 0 | 1
+  location: number
+  sequence: number
+  counters: Record<number, number>
+}
+
+export interface EngineSelectCandidate {
+  code: number
+  controller: 0 | 1
+  location: number
+  sequence: number
+  toLocation?: number
+}
+
+export interface EnginePendingSelect {
+  kind: 'CARD' | 'TRIBUTE' | 'CHAIN' | 'POSITION'
+  min: number
+  max: number
+  canCancel: boolean
+  candidates: EngineSelectCandidate[]
+  positions?: number
+}
+
+export interface EngineGainedCard {
+  code: number
+  controller: 0 | 1
+}
+
+export interface EngineProbeActionResult {
+  ok: boolean
+  degraded: boolean
+  warnings: string[]
+  counters: EngineProbeCounterEntry[]
+  pendingSelect?: EnginePendingSelect
+  sessionId?: string
+  missing?: EngineSelectCandidate[]
+  gained?: EngineGainedCard[]
+}
+
+export interface EngineProbeSelectParams {
+  sessionId: string
+  indices: number[] | null
+}
+
+export type ReplayLogEntry =
+  | {
+      type: 'action'
+      id?: string
+      action: EngineProbeAction
+      selections: (number[] | null)[]
+      chainMode: EngineChainMode
+    }
+  | { type: 'phase'; to: 'BP' | 'M2' | 'EP' }
+  | { type: 'nextTurn' }
+
+export interface EngineExportReplayParams {
+  state: DuelPuzzleState
+  initialPhase: DuelPhase
+  entries: ReplayLogEntry[]
+  launch?: boolean
+}
+
+export interface EngineExportReplayResult {
+  success: boolean
+  errorCode?: 'no-game-directory' | 'ygopro-not-found' | 'replay-failed' | 'no-actions'
+  error?: string
+  luaPath?: string
+  yrpPath?: string
+  launched?: boolean
+  warnings?: string[]
 }
 
 export interface DuelProjectMeta {
@@ -460,7 +600,7 @@ export interface DuelProjectMeta {
   updatedAt: number
 }
 
-export type SettingsSectionId = 'appearance' | 'paths' | 'model-settings' | 'chat'
+export type SettingsSectionId = 'appearance' | 'paths' | 'duel' | 'model-settings' | 'chat'
 
 export type CardNoteKind = 'chant' | 'note'
 
@@ -525,6 +665,8 @@ export interface TextChapter {
 }
 
 export interface IpcApi {
+  getAppVersion: () => Promise<string>
+
   selectYgoDirectory: () => Promise<CdbSelectResult>
   addExtraCdb: () => Promise<CdbSelectResult & { picsDetected?: boolean }>
   removeExtraCdb: (cdbPath: string) => Promise<{ success: boolean; paths: string[] }>
@@ -713,6 +855,11 @@ export interface IpcApi {
   agentFetchModels: (params: AgentFetchModelsParams) => Promise<AgentFetchModelsResult>
 
   agentGetProviderPresets: () => Promise<AgentProviderPreset[]>
+  duelProbeOptions: (params: EngineProbeOptionsParams) => Promise<EngineProbeOptionsResult>
+  duelProbeAction: (params: EngineProbeActionParams) => Promise<EngineProbeActionResult>
+  duelProbeSelect: (params: EngineProbeSelectParams) => Promise<EngineProbeActionResult>
+  duelProbeCancelSelect: (sessionId: string) => Promise<void>
+  duelExportReplay: (params: EngineExportReplayParams) => Promise<EngineExportReplayResult>
   openSettingsWindow: (section?: SettingsSectionId) => Promise<void>
   onSettingsNavigate: (callback: (section: SettingsSectionId) => void) => () => void
   openExternal: (url: string) => Promise<boolean>

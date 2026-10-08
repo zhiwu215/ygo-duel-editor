@@ -1,4 +1,4 @@
-import { ipcMain, shell, BrowserWindow, dialog } from 'electron'
+import { ipcMain, shell, BrowserWindow, dialog, app } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import {
   CardSearchParams,
@@ -6,7 +6,14 @@ import {
   AppConfig,
   CardNote,
   CardNoteKind,
-  CustomCardInput
+  CustomCardInput,
+  EngineProbeOptionsParams,
+  EngineProbeOptionsResult,
+  EngineProbeActionParams,
+  EngineProbeActionResult,
+  EngineProbeSelectParams,
+  EngineExportReplayParams,
+  EngineExportReplayResult
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { fileService } from '../services/fileService'
@@ -14,6 +21,7 @@ import { configService } from '../services/configService'
 import { imageService } from '../services/imageService'
 import { deckService } from '../services/deckService'
 import { ocgcoreService } from '../services/ocgcoreService'
+import { ruleCheckService } from '../services/ruleCheckService'
 import { agentService } from '../services/agentService'
 import { settingsWindowService } from '../services/settingsWindowService'
 import { libraryService } from '../services/libraryService'
@@ -211,6 +219,10 @@ export function registerAllIpcHandlers(): void {
     return libraryService.resplitText(id)
   })
 
+  ipcMain.handle('app:get-version', () => {
+    return app.getVersion()
+  })
+
   ipcMain.handle('window:open-card-notes', async () => {
     cardNoteService.openWindow()
   })
@@ -267,6 +279,38 @@ export function registerAllIpcHandlers(): void {
       }
     }
   })
+
+  ipcMain.handle(
+    'duel:probe-options',
+    async (_, params: EngineProbeOptionsParams): Promise<EngineProbeOptionsResult> => {
+      return ruleCheckService.probeOptions(params)
+    }
+  )
+
+  ipcMain.handle(
+    'duel:probe-action',
+    async (_, params: EngineProbeActionParams): Promise<EngineProbeActionResult> => {
+      return ruleCheckService.probeAction(params)
+    }
+  )
+
+  ipcMain.handle(
+    'duel:probe-select',
+    async (_, params: EngineProbeSelectParams): Promise<EngineProbeActionResult> => {
+      return ruleCheckService.probeSelect(params)
+    }
+  )
+
+  ipcMain.handle('duel:probe-cancel-select', async (_, sessionId: string): Promise<void> => {
+    return ruleCheckService.cancelSelect(sessionId)
+  })
+
+  ipcMain.handle(
+    'duel:export-replay',
+    async (_, params: EngineExportReplayParams): Promise<EngineExportReplayResult> => {
+      return fileService.exportReplay(params)
+    }
+  )
 
   ipcMain.handle('file:save-project', async (_, state: DuelPuzzleState) => {
     return fileService.saveProjectFile(state)

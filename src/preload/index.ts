@@ -10,10 +10,19 @@ import {
   AgentHandoffRequest,
   CardNote,
   CardNoteKind,
-  SettingsSectionId
+  SettingsSectionId,
+  EngineProbeOptionsParams,
+  EngineProbeOptionsResult,
+  EngineProbeActionParams,
+  EngineProbeActionResult,
+  EngineProbeSelectParams,
+  EngineExportReplayParams,
+  EngineExportReplayResult
 } from '@shared/index'
 
 const api: IpcApi = {
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
+
   selectYgoDirectory: () => ipcRenderer.invoke('config:select-ygo-dir'),
   addExtraCdb: () => ipcRenderer.invoke('cdb:add-extra'),
   removeExtraCdb: (cdbPath: string) => ipcRenderer.invoke('cdb:remove-extra', cdbPath),
@@ -75,6 +84,21 @@ const api: IpcApi = {
     ipcRenderer.invoke('note:reorder', cardCode, kind, labels),
 
   testRunOcgcore: () => ipcRenderer.invoke('ocgcore:test-run'),
+
+  duelProbeOptions: (params: EngineProbeOptionsParams): Promise<EngineProbeOptionsResult> =>
+    ipcRenderer.invoke('duel:probe-options', params),
+
+  duelProbeAction: (params: EngineProbeActionParams): Promise<EngineProbeActionResult> =>
+    ipcRenderer.invoke('duel:probe-action', params),
+
+  duelProbeSelect: (params: EngineProbeSelectParams): Promise<EngineProbeActionResult> =>
+    ipcRenderer.invoke('duel:probe-select', params),
+
+  duelProbeCancelSelect: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke('duel:probe-cancel-select', sessionId),
+
+  duelExportReplay: (params: EngineExportReplayParams): Promise<EngineExportReplayResult> =>
+    ipcRenderer.invoke('duel:export-replay', params),
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   saveProjectToPath: (filePath: string, state: DuelPuzzleState) =>

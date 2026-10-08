@@ -53,7 +53,10 @@ function getPositionConstName(pos: number): string {
 /**
  * 将 DuelPuzzleState 格式化输出为符合 ocgcore 标准的 Lua 脚本
  */
-export function generateLuaScript(state: DuelPuzzleState): string {
+export function generateLuaScript(
+  state: DuelPuzzleState,
+  options?: { forReplay?: boolean }
+): string {
   // 校验当前对局是否符合 ocgcore 导出范围 (1v1 或 2v2)
   const team0Count =
     state.matchConfig?.team0Count ?? (state.duelists?.filter((d) => d.team === 0).length || 1)
@@ -208,7 +211,22 @@ export function generateLuaScript(state: DuelPuzzleState): string {
   // 5. 结束初始化
   lines.push(`-- 4. 结束初始化与启动残局判定`)
   lines.push(`Debug.ReloadFieldEnd()`)
-  lines.push(`aux.BeginPuzzle()`)
+  if (options?.forReplay) {
+    lines.push(`local e1=Effect.GlobalEffect()`)
+    lines.push(`e1:SetType(EFFECT_TYPE_FIELD)`)
+    lines.push(`e1:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
+    lines.push(`e1:SetCode(EFFECT_SKIP_DP)`)
+    lines.push(`e1:SetTargetRange(1,0)`)
+    lines.push(`Duel.RegisterEffect(e1,0)`)
+    lines.push(`local e2=Effect.GlobalEffect()`)
+    lines.push(`e2:SetType(EFFECT_TYPE_FIELD)`)
+    lines.push(`e2:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
+    lines.push(`e2:SetCode(EFFECT_SKIP_SP)`)
+    lines.push(`e2:SetTargetRange(1,0)`)
+    lines.push(`Duel.RegisterEffect(e2,0)`)
+  } else {
+    lines.push(`aux.BeginPuzzle()`)
+  }
 
   // 6. 过关提示
   if (state.hint && state.hint.trim().length > 0) {

@@ -6,6 +6,8 @@ import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
 import { CardContextMenu } from './CardContextMenu'
 import { PileListModal } from './PileListModal'
+import { EngineSelectModal } from './EngineSelectModal'
+import { ChainModeToggle } from './ChainModeToggle'
 import { OverlayListModal } from './OverlayListModal'
 import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardStatPopover } from './components/CardStatPopover'
@@ -581,6 +583,10 @@ export const DuelBoard: React.FC = () => {
 
       {/* 全局独立实战属性与指示物自由拖拽操作面板 (Shift+左键点击唤出，移动卡片时面板独立不跟随) */}
       <CardStatPopover />
+
+      <EngineSelectModal />
+
+      <ChainModeToggle />
 
       {/* 选中卡动作条 / 未完成动作的目标选择条 (浮层，不参与布局以免压缩棋盘尺寸) */}
       <ActionIntentBar />

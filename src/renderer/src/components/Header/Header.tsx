@@ -133,6 +133,51 @@ export const Header: React.FC = () => {
     }
   }, [loadState])
 
+  const handleExportYrp = React.useCallback(async (): Promise<void> => {
+    const { replayLog, replayInitial } = useDuelStore.getState()
+    if (!replayInitial || replayLog.length === 0) {
+      void alertDialog(
+        '无法导出录像\n\n还没有经过游戏引擎的操作记录。请先在对局中通过引擎召唤、发动、盖放卡片（右键卡片选择操作），再导出 YRP 录像。'
+      )
+      return
+    }
+    if (!isExportableMatch(replayInitial.state.matchConfig)) {
+      const t0 = replayInitial.state.matchConfig?.team0Count ?? 1
+      const t1 = replayInitial.state.matchConfig?.team1Count ?? 1
+      void alertDialog(
+        `无法导出录像\n\n当前对阵 (${t0}v${t1}) 仅用于剧情编排，暂无法导出 YRP。\nocgcore 单机引擎物理上仅支持 1v1 与 2v2 双打导出。`
+      )
+      return
+    }
+    const res = await window.api.duelExportReplay({
+      state: replayInitial.state,
+      initialPhase: replayInitial.phase,
+      entries: replayLog,
+      launch: true
+    })
+    if (res.success) {
+      void alertDialog(
+        `YRP 录像导出成功${res.launched ? '，已在 ygopro 中打开回放' : ''}\n\n录像: ${res.yrpPath}\n残局脚本: ${res.luaPath}\n\n之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。`
+      )
+      return
+    }
+    if (res.errorCode === 'no-game-directory') {
+      void confirmDialog({
+        title: '尚未设置 ygo 游戏目录',
+        description: '导出 YRP 录像前，需要先在 设置 → 路径 中选择 ygopro.exe 所在的游戏根目录。',
+        confirmText: '打开设置'
+      }).then((ok) => {
+        if (ok) void window.api.openSettingsWindow('paths')
+      })
+    } else if (res.errorCode === 'ygopro-not-found') {
+      void alertDialog(
+        `未在游戏目录中找到 ygopro.exe\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
+      )
+    } else if (res.error) {
+      void alertDialog(`导出 YRP 录像失败\n\n${res.error}`)
+    }
+  }, [])
+
   const handleExportScreenplay = React.useCallback(async (): Promise<void> => {
     if (!window.api?.exportScreenplayFile) return
     const res = await window.api.exportScreenplayFile(state)
@@ -162,12 +207,14 @@ export const Header: React.FC = () => {
       } else if (mod && e.key.toLowerCase() === 'z') {
         if (!isInput) {
           e.preventDefault()
+          useDuelStore.getState().clearEngineContext()
           if (e.shiftKey) redo()
           else undo()
         }
       } else if (mod && e.key.toLowerCase() === 'y') {
         if (!isInput) {
           e.preventDefault()
+          useDuelStore.getState().clearEngineContext()
           redo()
         }
       } else if (mod && e.altKey && e.key.toLowerCase() === 's') {
@@ -232,6 +279,7 @@ export const Header: React.FC = () => {
               onTestInYgo={handleTestInYgo}
               onImportLua={handleImportLua}
               onExportLua={handleExportLua}
+              onExportYrp={handleExportYrp}
               onExportScreenplay={handleExportScreenplay}
             />
           </div>

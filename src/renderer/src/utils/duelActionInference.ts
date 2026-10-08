@@ -13,6 +13,7 @@ export interface InferMoveActionParams {
   cardType?: number
   currentPhase: DuelPhase
   currentChain: number
+  chainResponse?: boolean
 }
 
 export interface InferredActionResult {
@@ -33,7 +34,8 @@ export function inferMoveAction(params: InferMoveActionParams): InferredActionRe
     cardName,
     cardCode,
     currentPhase,
-    currentChain
+    currentChain,
+    chainResponse
   } = params
 
   // 相同区域内移动且非关键区域转移不记录为对局步骤
@@ -74,7 +76,7 @@ export function inferMoveAction(params: InferMoveActionParams): InferredActionRe
         description: `${pName}覆盖魔陷【${cName}】`
       }
     }
-    const nextChain = currentChain + 1
+    const nextChain = chainResponse ? currentChain + 1 : 1
     return {
       actionType: 'ACTIVATE',
       chainIndex: nextChain,
@@ -90,7 +92,7 @@ export function inferMoveAction(params: InferMoveActionParams): InferredActionRe
         description: `${pName}覆盖场地魔法【${cName}】`
       }
     }
-    const nextChain = currentChain + 1
+    const nextChain = chainResponse ? currentChain + 1 : 1
     return {
       actionType: 'ACTIVATE_FIELD',
       chainIndex: nextChain,
@@ -220,6 +222,7 @@ export interface InferPositionChangeParams {
   cardCode?: number
   cardName?: string
   currentChain: number
+  chainResponse?: boolean
 }
 
 /**
@@ -228,8 +231,16 @@ export interface InferPositionChangeParams {
 export function inferPositionChangeAction(
   params: InferPositionChangeParams
 ): InferredActionResult | null {
-  const { location, oldPosition, newPosition, actionPlayer, cardName, cardCode, currentChain } =
-    params
+  const {
+    location,
+    oldPosition,
+    newPosition,
+    actionPlayer,
+    cardName,
+    cardCode,
+    currentChain,
+    chainResponse
+  } = params
   if (oldPosition === newPosition) return null
 
   const pName = actionPlayer === 0 ? '我方' : '对方'
@@ -240,7 +251,7 @@ export function inferPositionChangeAction(
     const wasFacedown = Boolean(oldPosition & CardPosition.FACEDOWN)
     const isNowFaceup = Boolean(newPosition & CardPosition.FACEUP)
     if (wasFacedown && isNowFaceup) {
-      const nextChain = currentChain + 1
+      const nextChain = chainResponse ? currentChain + 1 : 1
       return {
         actionType: 'ACTIVATE',
         chainIndex: nextChain,

@@ -23,6 +23,7 @@ import {
   Check,
   Copy,
   Play,
+  Clapperboard,
   X
 } from 'lucide-react'
 import appIcon from '../../assets/app-icon.png'
@@ -42,6 +43,7 @@ interface MenuBarProps {
   onTestInYgo: () => void
   onImportLua: () => void
   onExportLua: () => void
+  onExportYrp: () => void
   onExportScreenplay?: () => void
 }
 
@@ -70,6 +72,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   onTestInYgo,
   onImportLua,
   onExportLua,
+  onExportYrp,
   onExportScreenplay
 }) => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
@@ -77,7 +80,12 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showSupportDialog, setShowSupportDialog] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [appVersion, setAppVersion] = useState('')
   const menuBarRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    void window.api.getAppVersion().then(setAppVersion)
+  }, [])
 
   const handleCopyField = async (field: string, text: string): Promise<void> => {
     try {
@@ -174,6 +182,11 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           action: onExportLua
         },
         {
+          label: '导出 YRP 录像',
+          icon: Clapperboard,
+          action: onExportYrp
+        },
+        {
           label: '导出同人剧本台本',
           icon: FileText,
           action: onExportScreenplay
@@ -189,14 +202,20 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           icon: Undo2,
           shortcut: 'Ctrl+Z',
           disabled: !canUndo,
-          action: () => undo()
+          action: () => {
+            useDuelStore.getState().clearEngineContext()
+            undo()
+          }
         },
         {
           label: '重做',
           icon: Redo2,
           shortcut: 'Ctrl+Y',
           disabled: !canRedo,
-          action: () => redo()
+          action: () => {
+            useDuelStore.getState().clearEngineContext()
+            redo()
+          }
         },
         { label: '', separator: true },
         {
@@ -412,7 +431,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 draggable={false}
               />
               <h3 className="font-semibold text-base pt-1">YGO Duel Editor</h3>
-              <p className="text-xs text-muted-foreground">版本 1.0.0</p>
+              <p className="text-xs text-muted-foreground">版本 {appVersion}</p>
             </div>
             <div className="space-y-1.5 text-xs border-t border-border pt-3">
               {[

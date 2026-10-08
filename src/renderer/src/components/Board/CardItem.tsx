@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
 import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
 import { getLegalTargetIds } from '../../utils/duelActionTargets'
+import { engineCandidateIndex, enginePromptUsesModal } from '../../utils/ruleCheck'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
@@ -40,6 +41,16 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     if (getLegalTargetIds(s.state.cards, p).includes(card.instanceId)) return 'legal'
     return 'dim'
   })
+  const engineRole = useDuelStore((s): 'none' | 'legal' | 'chosen' | 'dim' => {
+    const sel = s.pendingEngineSelect
+    if (!sel) return 'none'
+    if (enginePromptUsesModal(sel.prompt)) return 'none'
+    const hit = engineCandidateIndex(sel.prompt.candidates, s.state.cards, card)
+    if (hit < 0) return 'dim'
+    return sel.chosen.includes(hit) ? 'chosen' : 'legal'
+  })
+  const role = engineRole !== 'none' ? engineRole : pendingRole
+  const commitEngineSelect = useDuelStore((s) => s.commitEngineSelect)
   const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
   const isPlacementSource =
     pendingPlacement !== null && pendingPlacement.sourceId === card.instanceId
@@ -159,6 +170,11 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       }}
       onClick={(e) => {
         e.stopPropagation()
+        if (engineRole === 'legal' || engineRole === 'chosen') {
+          commitEngineSelect(card.instanceId)
+          return
+        }
+        if (role === 'dim') return
         if (pendingRole === 'source') {
           useDuelStore.getState().cancelPendingAction()
           return
@@ -168,20 +184,17 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           return
         }
         if (isPlacementDisplaceTarget) {
-          useDuelStore
-            .getState()
-            .commitPlacement({
-              location: card.location,
-              sequence: card.sequence,
-              controller: card.controller
-            })
+          useDuelStore.getState().commitPlacement({
+            location: card.location,
+            sequence: card.sequence,
+            controller: card.controller
+          })
           return
         }
         if (pendingRole === 'legal' || pendingRole === 'chosen') {
           toggleActionTarget(card.instanceId)
           return
         }
-        if (pendingRole === 'dim') return
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
         if (e.shiftKey) {
@@ -229,8 +242,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       }
       className={cn(
         'w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none',
-        pendingRole === 'dim' && 'opacity-25',
-        pendingRole === 'legal' && 'cursor-crosshair'
+        role === 'dim' && 'opacity-25',
+        role === 'legal' && 'cursor-crosshair'
       )}
     >
       <div
@@ -285,11 +298,11 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           animate={{ rotate: isDefense ? 90 : 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
           className={`relative w-full h-full rounded overflow-hidden shadow-md ${
-            pendingRole === 'source'
+            role === 'source'
               ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background'
-              : pendingRole === 'chosen'
+              : role === 'chosen'
                 ? 'ring-2 ring-rose-500 ring-offset-1 ring-offset-background'
-                : pendingRole === 'legal'
+                : role === 'legal'
                   ? 'ring-2 ring-emerald-400/80 ring-offset-1 ring-offset-background'
                   : isSelected
                     ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background'

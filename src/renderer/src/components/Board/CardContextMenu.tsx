@@ -4,6 +4,8 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
+import { useRuleCheck } from '../../stores/useRuleCheckStore'
+import type { RuleCheckKind } from '../../utils/ruleCheck'
 import { CardPosition, CardLocation, CardType } from '@shared/index'
 import {
   Swords,
@@ -48,6 +50,7 @@ const LOCATION_LABELS: Record<number, string> = {
 /** 右键上下文菜单 */
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
+  const rule = useRuleCheck()
   const {
     updateCardPosition,
     moveCard,
@@ -173,20 +176,23 @@ export const CardContextMenu: React.FC = () => {
   const moveTo = (loc: number, ctrl?: 0 | 1): (() => void) =>
     act(() => moveCard(card.instanceId, loc, 0, ctrl))
 
+  const allow = (kind: RuleCheckKind): boolean => rule.allows(card, kind)
+
   // 决斗盘实战动作指令 (自动记谱与连锁推演)
   const isMonster = card.card ? (card.card.type & CardType.MONSTER) !== 0 : isMonsterZone
   const duelActionItems: MenuItemConfig[] = []
 
   // 1. 发动效果 / 卡片 / 翻开发动
-  if (isHand || isMonsterZone || isSpellTrapZone || card.location === CardLocation.GRAVE) {
+  if (
+    (isHand || isMonsterZone || isSpellTrapZone || card.location === CardLocation.GRAVE) &&
+    allow('ACTIVATE')
+  ) {
     const isFacedownST = isSpellTrapZone && Boolean(card.position & CardPosition.FACEDOWN)
     const activateLabel = isHand
       ? '发动 (选位置)'
       : isFacedownST
-        ? `翻开发动 (Chain ${currentChain + 1})`
-        : currentChain > 0
-          ? `发动 (进入 Chain ${currentChain + 1})`
-          : '发动卡片/效果 (Chain 1)'
+        ? '翻开发动 (Chain 1)'
+        : '发动卡片/效果 (Chain 1)'
     duelActionItems.push({
       icon: <Zap className="w-3.5 h-3.5 text-amber-500" />,
       label: activateLabel,
@@ -210,7 +216,7 @@ export const CardContextMenu: React.FC = () => {
   }
 
   // 2.5 里侧怪兽：反转召唤
-  if (isMonsterZone && card.position === CardPosition.FACEDOWN_DEFENSE) {
+  if (isMonsterZone && card.position === CardPosition.FACEDOWN_DEFENSE && allow('REPOSITION')) {
     duelActionItems.push({
       icon: <Sparkles className="w-3.5 h-3.5 text-yellow-400" />,
       label: '反转召唤 (表攻)',
@@ -222,7 +228,8 @@ export const CardContextMenu: React.FC = () => {
   if (
     isMonsterZone &&
     !(card.position & CardPosition.FACEUP_DEFENSE) &&
-    !(card.position & CardPosition.FACEDOWN_DEFENSE)
+    !(card.position & CardPosition.FACEDOWN_DEFENSE) &&
+    allow('ATTACK')
   ) {
     duelActionItems.push({
       icon: <Swords className="w-3.5 h-3.5 text-rose-500" />,
@@ -234,24 +241,28 @@ export const CardContextMenu: React.FC = () => {
   // 4. 召唤 / 覆盖
   if (isHand) {
     if (isMonster) {
-      duelActionItems.push(
-        {
+      if (allow('SUMMON')) {
+        duelActionItems.push({
           icon: <Sparkles className="w-3.5 h-3.5 text-blue-400" />,
           label: '通常召唤到前场',
           action: act(() => executeNormalSummon(card.instanceId))
-        },
-        {
+        })
+      }
+      if (allow('SP_SUMMON')) {
+        duelActionItems.push({
           icon: <Sparkles className="w-3.5 h-3.5 text-purple-400" />,
           label: '特殊召唤到前场',
           action: act(() => executeSpecialSummon(card.instanceId))
-        },
-        {
+        })
+      }
+      if (allow('SET_MONSTER')) {
+        duelActionItems.push({
           icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
           label: '里侧守备覆盖 (选位置)',
           action: act(() => useDuelStore.getState().beginPlacement('SET', card.instanceId))
-        }
-      )
-    } else {
+        })
+      }
+    } else if (allow('SET_SPELL')) {
       duelActionItems.push({
         icon: <RotateCw className="w-3.5 h-3.5 text-emerald-400" />,
         label: '覆盖到魔陷区 (选位置)',
@@ -259,7 +270,7 @@ export const CardContextMenu: React.FC = () => {
       })
     }
   } else if (card.location === CardLocation.GRAVE || card.location === CardLocation.EXTRA) {
-    if (isMonster) {
+    if (isMonster && allow('SP_SUMMON')) {
       duelActionItems.push({
         icon: <Sparkles className="w-3.5 h-3.5 text-purple-400" />,
         label: '特殊召唤到前场',
@@ -291,24 +302,27 @@ export const CardContextMenu: React.FC = () => {
     : []
 
   // 怪兽区表示形式操作项
+  const canReposition = isMonsterZone && allow('REPOSITION')
   const monsterItems: MenuItemConfig[] = isMonsterZone
-    ? [
-        {
-          icon: <Swords className="w-3.5 h-3.5 text-muted-foreground" />,
-          label: '表侧攻击表示',
-          action: setPos(CardPosition.FACEUP_ATTACK)
-        },
-        {
-          icon: <Shield className="w-3.5 h-3.5 text-muted-foreground" />,
-          label: '表侧守备表示',
-          action: setPos(CardPosition.FACEUP_DEFENSE)
-        },
-        {
-          icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
-          label: '里侧守备表示',
-          action: setPos(CardPosition.FACEDOWN_DEFENSE)
-        }
-      ]
+    ? canReposition
+      ? [
+          {
+            icon: <Swords className="w-3.5 h-3.5 text-muted-foreground" />,
+            label: '表侧攻击表示',
+            action: setPos(CardPosition.FACEUP_ATTACK)
+          },
+          {
+            icon: <Shield className="w-3.5 h-3.5 text-muted-foreground" />,
+            label: '表侧守备表示',
+            action: setPos(CardPosition.FACEUP_DEFENSE)
+          },
+          {
+            icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
+            label: '里侧守备表示',
+            action: setPos(CardPosition.FACEDOWN_DEFENSE)
+          }
+        ]
+      : []
     : []
 
   const hasOverlayMaterials =
@@ -353,7 +367,7 @@ export const CardContextMenu: React.FC = () => {
     : false
   const isPendulum = card.card ? !!(card.card.type & CardType.PENDULUM) : false
 
-  // 区域转移操作项
+  const moveRestricted = rule.active && card.controller === state.turnPlayer
   const moveItems: MenuItemConfig[] = [
     ...(card.location !== CardLocation.HAND
       ? [
@@ -364,7 +378,7 @@ export const CardContextMenu: React.FC = () => {
           }
         ]
       : []),
-    ...(card.location !== CardLocation.GRAVE
+    ...(card.location !== CardLocation.GRAVE && !moveRestricted
       ? [
           {
             icon: <ArrowDownToLine className="w-3.5 h-3.5 text-muted-foreground" />,
@@ -373,7 +387,7 @@ export const CardContextMenu: React.FC = () => {
           }
         ]
       : []),
-    ...(card.location !== CardLocation.REMOVED
+    ...(card.location !== CardLocation.REMOVED && !moveRestricted
       ? [
           {
             icon: <Ban className="w-3.5 h-3.5 text-muted-foreground" />,
@@ -431,6 +445,12 @@ export const CardContextMenu: React.FC = () => {
       <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-52">
         {card.card?.name || `卡片: ${card.code}`}
       </div>
+
+      {rule.degraded && (
+        <div className="px-2 py-1 text-[10px] text-amber-500/90 break-words border-b border-border/50 mb-1">
+          规则校验受限:{rule.warnings[0] || '引擎数据不完整'}，操作未过滤
+        </div>
+      )}
 
       {duelActionItems.length > 0 && (
         <>

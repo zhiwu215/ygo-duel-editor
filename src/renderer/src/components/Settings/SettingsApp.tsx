@@ -12,7 +12,8 @@ import {
   FolderPlus,
   Loader2,
   Eye,
-  EyeOff
+  EyeOff,
+  Swords
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useConfigStore } from '../../stores/useConfigStore'
@@ -21,6 +22,7 @@ import { AgentSettingsContent } from './AgentSettingsContent'
 import { SettingsSectionId } from '@shared/index'
 import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { Switch } from '../ui/switch'
 import { cn } from '../../lib/utils'
 
 interface SettingsNavItem {
@@ -50,6 +52,12 @@ const NAV_GROUPS: SettingsNavGroup[] = [
         label: '路径与目录',
         icon: FolderOpen,
         description: 'YGO 主程序目录与决斗档案保存位置'
+      },
+      {
+        id: 'duel',
+        label: '对局',
+        icon: Swords,
+        description: '规则校验 (ocgcore 引擎过滤操作)'
       }
     ]
   },
@@ -274,6 +282,24 @@ function PathsSection(): JSX.Element {
   )
 }
 
+function DuelSection(): JSX.Element {
+  const { config, setRuleCheckEnabled } = useConfigStore()
+  const enabled = config.ruleCheckEnabled !== false
+  return (
+    <section className="rounded-xl border border-border bg-card/60">
+      <SettingsRow
+        title="规则校验 (ygopro 式操作过滤)"
+        description={
+          '开启后点击卡片只显示 ocgcore 引擎判定合法的召唤 / 特殊召唤 / 盖放 / 发动 / 攻击 / 表示形式变更。' +
+          '使用无脚本的自建卡或与引擎不兼容的局面时建议临时关闭，回到自由编辑'
+        }
+      >
+        <Switch checked={enabled} onCheckedChange={(next) => void setRuleCheckEnabled(next)} />
+      </SettingsRow>
+    </section>
+  )
+}
+
 /** 附加卡库分区：可加载动漫卡等扩展 cdb，与主库合并搜索 */
 function ExtraCdbSection(): JSX.Element {
   const { config, addExtraCdb, removeExtraCdb, setExtraCdbEnabled } = useConfigStore()
@@ -472,6 +498,8 @@ export function SettingsApp(): JSX.Element {
               <PathsSection />
               <ExtraCdbSection />
             </div>
+          ) : section === 'duel' ? (
+            <DuelSection />
           ) : (
             <AgentSettingsContent section={section} />
           )}

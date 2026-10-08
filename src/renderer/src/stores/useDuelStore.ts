@@ -945,7 +945,12 @@ export const useDuelStore = create<DuelStoreState>()(
 
           const targetController = placement?.controller ?? card.controller
           const targetPos = placement?.position ?? CardPosition.FACEUP
-          const displaced = findZoneOccupant(state.cards, targetController, targetLocation, targetSeq)
+          const displaced = findZoneOccupant(
+            state.cards,
+            targetController,
+            targetLocation,
+            targetSeq
+          )
           const moves: MoveCardParams[] = []
           if (displaced && displaced.instanceId !== instanceId) {
             moves.push({
@@ -1081,13 +1086,15 @@ export const useDuelStore = create<DuelStoreState>()(
         if (!pendingPlacement) return
 
         if (pendingPlacement.mode === 'SUMMON') {
-          useDuelStore.getState().moveCard(
-            pendingPlacement.sourceId,
-            slot.location,
-            slot.sequence,
-            slot.controller,
-            CardPosition.FACEUP_ATTACK
-          )
+          useDuelStore
+            .getState()
+            .moveCard(
+              pendingPlacement.sourceId,
+              slot.location,
+              slot.sequence,
+              slot.controller,
+              CardPosition.FACEUP_ATTACK
+            )
         } else if (pendingPlacement.mode === 'ACTIVATE') {
           useDuelStore.getState().executeActivateCard(pendingPlacement.sourceId, {
             location: slot.location,
@@ -1248,7 +1255,12 @@ export const useDuelStore = create<DuelStoreState>()(
         }
 
         const targetController = placement?.controller ?? card.controller
-        const displaced = findZoneOccupant(state.cards, targetController, targetLocation, defaultSeq)
+        const displaced = findZoneOccupant(
+          state.cards,
+          targetController,
+          targetLocation,
+          defaultSeq
+        )
         const moves: MoveCardParams[] = []
         if (displaced && displaced.instanceId !== instanceId) {
           moves.push({

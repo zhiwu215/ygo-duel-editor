@@ -1,6 +1,6 @@
 import { CdbCard } from './card'
 import { CustomCard, CustomCardInput } from './customCard'
-import { DuelPuzzleState, DuelType } from './duel'
+import { DuelPuzzleState, DuelSourceRef, DuelType } from './duel'
 import { DeckData, DeckLibrary } from './deck'
 import { DuelPhase, DuelActionType } from './story'
 
@@ -451,6 +451,8 @@ export interface DuelProjectMeta {
   duelType: DuelType
   /** 所属作品分类名，未归类时为空字符串 */
   series?: string
+  /** 文本来源关联（从文本提取对局时写入） */
+  sourceRef?: DuelSourceRef
   hint?: string
   masterRule: number
   cardCount: number
@@ -590,6 +592,7 @@ export interface IpcApi {
   agentHandoff: (request: AgentHandoffRequest) => Promise<{ success: boolean; error?: string }>
 
   openCardNoteWindow: () => Promise<void>
+  openNovelLibrary: () => Promise<void>
   listCardNotes: () => Promise<CardNoteEntry[]>
   getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') => Promise<CardNote[]>
   saveCardNote: (note: CardNote) => Promise<{ success: boolean; error?: string }>

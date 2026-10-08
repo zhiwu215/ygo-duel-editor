@@ -104,6 +104,13 @@ export interface PlayerState {
   startHand: number // 起手抽卡数 (残局通常为 0)
 }
 
+/** 对局的文本来源关联：指向素材库中某本文本的若干章节 */
+export interface DuelSourceRef {
+  novelId: string
+  novelTitle: string
+  chapterIds: string[]
+}
+
 /**
  * 整个决斗局面的完整状态机
  */
@@ -118,6 +125,8 @@ export interface DuelPuzzleState {
   duelType?: DuelType
   /** 所属作品分类（小说/漫画等来源名，如《决斗者王国》），未归类时为空 */
   series?: string
+  /** 文本来源关联（从文本提取对局时自动写入；未关联时缺省） */
+  sourceRef?: DuelSourceRef
   /** 游戏规则版本 */
   masterRule: MasterRule // 规则版本: 2 (MR1/2), 3 (MR3), 4 (MR4), 5 (MR5)
   /** [我方, 对方]*/
@@ -228,7 +237,7 @@ export function createInitialDuelState(
   const duelists = createDefaultDuelists(1, 1)
 
   return {
-    version: '1.1.0',
+    version: '1.2.0',
     title: '未命名对局',
     hint: '',
     duelType,
@@ -306,7 +315,7 @@ export function normalizeDuelState(state: DuelPuzzleState): DuelPuzzleState {
 
   return {
     ...state,
-    version: state.version || '1.1.0',
+    version: state.version || '1.2.0',
     duelType: state.duelType || 'full',
     title: state.title || '未命名对局',
     hint: state.hint || '',

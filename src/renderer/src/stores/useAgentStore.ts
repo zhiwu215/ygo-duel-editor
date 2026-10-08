@@ -8,7 +8,7 @@ import {
   AgentContextCompactionState,
   AgentHandoffRequest,
   AgentModelConfig,
-  AgentNovelSourceRef,
+  AgentTextSourceRef,
   AgentProviderConfig,
   AgentProviderPreset,
   AgentStepProposal,
@@ -63,7 +63,7 @@ export interface AgentChatMessage {
 
   attachedCards?: { id: number; name: string }[]
 
-  novelSource?: { title: string; wordCount?: number }
+  textSource?: { title: string; wordCount?: number; textId?: string; chapterIds?: string[] }
   createdAt: number
 }
 
@@ -92,7 +92,7 @@ interface AgentStoreState {
     boardState?: DuelPuzzleState,
     injectedPrompt?: string,
     attachedCards?: { id: number; name: string }[],
-    novelSource?: AgentNovelSourceRef,
+    textSource?: AgentTextSourceRef,
     mode?: AgentTaskMode
   ) => Promise<void>
   abort: () => Promise<void>
@@ -196,7 +196,7 @@ function applyHandoff(request: AgentHandoffRequest): void {
   store.setOpen(true)
   void useAgentStore
     .getState()
-    .sendMessage(request.prompt, undefined, undefined, undefined, request.novelSource, request.mode)
+    .sendMessage(request.prompt, undefined, undefined, undefined, request.textSource, request.mode)
 }
 
 export const useAgentStore = create<AgentStoreState>((set, get) => ({
@@ -430,7 +430,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
     void get().saveConfig()
   },
 
-  sendMessage: async (prompt, boardState, injectedPrompt, attachedCards, novelSource, mode) => {
+  sendMessage: async (prompt, boardState, injectedPrompt, attachedCards, textSource, mode) => {
     if (!prompt.trim() && !injectedPrompt?.trim()) return
     if (get().isGenerating) return
 
@@ -439,8 +439,13 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       role: 'user',
       content: prompt.trim(),
       attachedCards,
-      novelSource: novelSource
-        ? { title: novelSource.title, wordCount: novelSource.wordCount }
+      textSource: textSource
+        ? {
+            title: textSource.title,
+            wordCount: textSource.wordCount,
+            textId: textSource.textId,
+            chapterIds: textSource.chapterIds
+          }
         : undefined,
       createdAt: Date.now()
     }
@@ -468,7 +473,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
       const res = await window.api.agentSendMessage({
         prompt: injectedPrompt?.trim() || prompt.trim(),
         boardState,
-        novelSource,
+        textSource,
         mode,
         configOverride: get().config
       })

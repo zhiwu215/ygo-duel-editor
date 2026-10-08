@@ -50,7 +50,7 @@ function tidyContent(text: string): string {
   return text.replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '')
 }
 
-export function splitNovelChapters(rawText: string, fallbackTitle: string): SplitResult {
+export function splitTextChapters(rawText: string, fallbackTitle: string): SplitResult {
   const text = normalizeText(rawText)
   if (!text.trim()) {
     return { chapters: [], strategy: 'whole' }
@@ -114,7 +114,7 @@ export function splitNovelChapters(rawText: string, fallbackTitle: string): Spli
   return { chapters, strategy: 'heading' }
 }
 
-export function inferNovelTitle(fileName: string): string {
+export function inferTextTitle(fileName: string): string {
   return (
     fileName
       .replace(/\.[^.]+$/, '')

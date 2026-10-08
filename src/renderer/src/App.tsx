@@ -7,6 +7,7 @@ import { DuelScreenplayModal } from './components/StorySequencer/DuelScreenplayM
 import { DeckEditorApp } from './components/DeckEditor/DeckEditorApp'
 import { CardNoteApp } from './components/LeftSidebar/CardNoteApp'
 import { SettingsApp } from './components/Settings/SettingsApp'
+import { TextLibraryApp } from './components/TextLibrary/TextLibraryApp'
 import { CdbSetupModal } from './components/CardSearch/CdbSetupModal'
 import { CustomCardEditorDialog } from './components/CustomCard/CustomCardEditorDialog'
 import { useConfigStore } from './stores/useConfigStore'
@@ -18,6 +19,7 @@ export function App(): React.JSX.Element {
   const isDeckEditor = window.location.hash === '#deck-editor'
   const isSettingsWindow = window.location.hash.startsWith('#settings')
   const isCardNotes = window.location.hash === '#card-notes'
+  const isTextLibrary = window.location.hash === '#text-library'
 
   useEffect(() => {
     loadConfig()
@@ -33,6 +35,10 @@ export function App(): React.JSX.Element {
 
   if (isSettingsWindow) {
     return <SettingsApp />
+  }
+
+  if (isTextLibrary) {
+    return <TextLibraryApp />
   }
 
   if (isCardNotes) {

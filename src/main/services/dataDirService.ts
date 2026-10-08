@@ -14,7 +14,7 @@ import { DataDirectoryResult } from '@shared/index'
 import { configService } from './configService'
 
 const DATA_FILES = ['ygo_duel_editor_decks.json', 'card_notes.json', 'custom_cards.json']
-const DATA_DIRS = ['pics/custom', 'projects', 'novels']
+const DATA_DIRS = ['pics/custom', 'projects', 'texts']
 
 export class DataDirService {
   public get defaultDirectory(): string {

@@ -2,27 +2,27 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Check, Loader2, Minus, Save, Search } from 'lucide-react'
-import { NovelChapter, NovelMeta } from '@shared/index'
+import { TextChapter, TextMeta } from '@shared/index'
 import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { cn } from '../../lib/utils'
 
 interface ChapterReaderProps {
-  novel: NovelMeta
+  text: TextMeta
   onBack: () => Promise<void>
-  onNovelUpdated: () => Promise<void>
+  onTextUpdated: () => Promise<void>
   onDeleted: () => Promise<void>
   flash: (msg: string) => void
 }
 
 export const ChapterReader: React.FC<ChapterReaderProps> = ({
-  novel,
+  text,
   onBack,
-  onNovelUpdated,
+  onTextUpdated,
   flash
 }) => {
-  const [chapters, setChapters] = useState<NovelChapter[]>([])
+  const [chapters, setChapters] = useState<TextChapter[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [picked, setPicked] = useState<Set<string>>(() => new Set())
@@ -35,7 +35,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   useEffect(() => {
     let cancelled = false
     window.api
-      .getNovelChapters(novel.id)
+      .getTextChapters(text.id)
       .then((list) => {
         if (cancelled) return
         setChapters(list)
@@ -51,13 +51,13 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     return () => {
       cancelled = true
     }
-  }, [novel.id])
+  }, [text.id])
 
   useEffect(() => {
     if (!activeId) return
     let cancelled = false
     window.api
-      .getNovelChapterContent(novel.id, activeId)
+      .getTextChapterContent(text.id, activeId)
       .then((res) => {
         if (cancelled) return
         const text = res.success && res.content ? res.content : ''
@@ -68,7 +68,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     return () => {
       cancelled = true
     }
-  }, [activeId, novel.id])
+  }, [activeId, text.id])
 
   const pickChapter = (id: string): void => {
     if (id === activeId) return
@@ -112,7 +112,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const handleSave = async (): Promise<void> => {
     if (!activeId || draft === savedText) return
     setSaving(true)
-    const res = await window.api.updateNovelChapterContent(novel.id, activeId, draft)
+    const res = await window.api.updateTextChapterContent(text.id, activeId, draft)
     setSaving(false)
     if (!res.success) {
       flash(res.error || '保存失败')
@@ -122,7 +122,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     setChapters((prev) =>
       prev.map((c) => (c.id === activeId ? { ...c, wordCount: countWords(draft) } : c))
     )
-    await onNovelUpdated()
+    await onTextUpdated()
     flash('已保存本章正文')
   }
 
@@ -137,7 +137,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     const label = names.length === 1 ? names[0] : `${names[0]} 等 ${names.length} 章`
 
     const res = await window.api.agentHandoff({
-      prompt: `请根据《${novel.title}》的「${label}」编排一场决斗剧情（共 ${list.length} 章、约 ${total.toLocaleString()} 字）。
+      prompt: `请根据《${text.title}》的「${label}」编排一场决斗剧情（共 ${list.length} 章、约 ${total.toLocaleString()} 字）。
 
 要求：
 - 先判断原文里哪几段适合改写成决斗，只编排这些段落；
@@ -145,12 +145,12 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 - 保留原文关键设定与人物性格，不要照抄原文叙述句式；
 - 同时给出开局盘面（双方 LP、场上卡片与表示形式、手牌），以便直接摆到决斗场上。
 
-已附加这 ${list.length} 章原文，请先用 read_novel_source 通读后再动笔。`,
-      novelSource: {
-        novelId: novel.id,
+已附加这 ${list.length} 章原文，请先用 read_text_source 通读后再动笔。`,
+      textSource: {
+        textId: text.id,
         chapterId: list[0].id,
         chapterIds: list.map((c) => c.id),
-        title: `《${novel.title}》· ${label}`,
+        title: `《${text.title}》· ${label}`,
         wordCount: total
       }
     })
@@ -186,7 +186,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             <TooltipContent>返回素材库</TooltipContent>
           </Tooltip>
           <div className="min-w-0">
-            <div className="font-bold text-sm truncate">{novel.title}</div>
+            <div className="font-bold text-sm truncate">{text.title}</div>
             <div className="text-[10px] text-muted-foreground font-mono">
               {chapters.length} 章 · 选中 {picked.size} 章
             </div>
@@ -353,7 +353,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                       return
                     }
                     void window.api
-                      .updateNovelChapterTitle(novel.id, activeChapter.id, title)
+                      .updateTextChapterTitle(text.id, activeChapter.id, title)
                       .then((res) => {
                         if (!res.success) {
                           flash(res.error || '重命名失败')
@@ -363,7 +363,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                         setChapters((prev) =>
                           prev.map((c) => (c.id === activeChapter.id ? { ...c, title } : c))
                         )
-                        void onNovelUpdated()
+                        void onTextUpdated()
                       })
                   }}
                   className="flex-1 min-w-0 bg-transparent font-semibold text-sm outline-none focus:border-b border-primary/60 h-6"

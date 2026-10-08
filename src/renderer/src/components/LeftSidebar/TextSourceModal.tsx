@@ -1,75 +1,64 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import { ScrollArea } from '../ui/scroll-area'
 import React, { useCallback, useEffect, useState } from 'react'
-import {
-  BookOpen,
-  ChevronDown,
-  ChevronRight,
-  Loader2,
-  Sparkles,
-  Trash2,
-  Upload,
-  X
-} from 'lucide-react'
-import { NovelChapter, NovelMeta } from '@shared/index'
+import { BookOpen, ChevronLeft, Loader2, Sparkles, Upload, X } from 'lucide-react'
+import { TextChapter, TextMeta } from '@shared/index'
+import { ScrollArea } from '../ui/scroll-area'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { confirmDialog } from '../../stores/useDialogStore'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Checkbox } from '../ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
-import { cn } from '../../lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { LibraryGrid } from '../TextLibrary/LibraryGrid'
 
-interface NovelSourceModalProps {
+interface TextSourceModalProps {
   onClose: () => void
   /** 已交给 AI 后回调，用于让宿主刷新状态或切换到背后灵 */
   onSent?: (chapterCount: number) => void
 }
 
-/**
- * 从小说提取对局：导入 → 拆章 → 选段 → 交给背后灵编排
- *
- * 这一环是「原料 → 成品」的入口，所以做成弹窗挂在决斗档案面板上，
- * 而不是常驻侧栏：原料本身不是可浏览的资产，它的价值完全体现在
- * 能生成出多少场对局。生成结果统一存进 `projects/*.ygoduel`，
- * 与其他对局在同一个列表里，不另立门户。
- */
-export const NovelSourceModal: React.FC<NovelSourceModalProps> = ({ onClose, onSent }) => {
+export const TextSourceModal: React.FC<TextSourceModalProps> = ({ onClose, onSent }) => {
   const { sendMessage, isGenerating } = useAgentStore()
   const { setSeries } = useDuelStore()
 
-  const [novels, setNovels] = useState<NovelMeta[]>([])
+  const [texts, setTexts] = useState<TextMeta[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  /** 展开的章节列表：novelId -> 章节数组 */
-  const [expanded, setExpanded] = useState<Record<string, NovelChapter[]>>({})
+  const [selectedText, setSelectedText] = useState<TextMeta | null>(null)
+  const [chapters, setChapters] = useState<TextChapter[]>([])
+  const [chaptersLoading, setChaptersLoading] = useState(false)
 
   const flash = useCallback((msg: string): void => {
     setFeedback(msg)
     setTimeout(() => setFeedback(null), 3000)
   }, [])
 
-  const fetchNovels = useCallback(async (): Promise<void> => {
+  const fetchTexts = useCallback(async (): Promise<void> => {
     try {
-      setNovels(await window.api.getNovelList())
+      setTexts(await window.api.getTextList())
     } catch (err) {
-      console.error('[NovelSourceModal] 获取小说列表失败:', err)
+      console.error('[TextSourceModal] 获取小说列表失败:', err)
       setError('读取小说列表失败')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     let cancelled = false
     window.api
-      .getNovelList()
+      .getTextList()
       .then((list) => {
-        if (!cancelled) setNovels(list)
+        if (!cancelled) setTexts(list)
       })
       .catch((err) => {
-        console.error('[NovelSourceModal] 初始获取小说列表失败:', err)
+        console.error('[TextSourceModal] 初始获取小说列表失败:', err)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
@@ -80,54 +69,65 @@ export const NovelSourceModal: React.FC<NovelSourceModalProps> = ({ onClose, onS
     setBusy(true)
     setError(null)
     try {
-      const res = await window.api.importNovelFile()
-      if (res.success && res.novel) {
-        await fetchNovels()
-        flash(`已导入《${res.novel.title}》`)
-      } else if (!res.success) {
+      const res = await window.api.importTextFile()
+      if (res.canceled) return
+      if (res.success && res.text) {
+        await fetchTexts()
+        flash(`已导入《${res.text.title}》`)
+      } else {
         setError(res.error || '导入失败')
       }
     } catch (err) {
-      console.error('[NovelSourceModal] 导入小说失败:', err)
+      console.error('[TextSourceModal] 导入文本失败:', err)
       setError('导入失败')
     } finally {
       setBusy(false)
     }
   }
 
-  const handleDelete = async (e: React.MouseEvent, item: NovelMeta): Promise<void> => {
-    e.stopPropagation()
+  const handleDelete = async (item: TextMeta): Promise<void> => {
     const ok = await confirmDialog({
       title: `删除《${item.title}》`,
       description: '原文与拆分结果都会移除。',
       confirmText: '删除'
     })
     if (!ok) return
-    const res = await window.api.deleteNovel(item.id)
+    const res = await window.api.deleteText(item.id)
     if (!res.success) {
       flash(res.error || '删除失败')
       return
     }
-    setExpanded((prev) => {
-      const next = { ...prev }
-      delete next[item.id]
-      return next
-    })
-    await fetchNovels()
+    if (selectedText?.id === item.id) setSelectedText(null)
+    await fetchTexts()
     flash('已删除')
   }
 
-  const toggleChapters = async (item: NovelMeta): Promise<void> => {
-    if (expanded[item.id]) {
-      setExpanded((prev) => {
-        const next = { ...prev }
-        delete next[item.id]
-        return next
-      })
+  const handleResplit = async (text: TextMeta): Promise<void> => {
+    const res = await window.api.resplitText(text.id)
+    if (!res.success) {
+      flash(res.error || '重新拆分失败')
       return
     }
-    const chapters = await window.api.getNovelChapters(item.id)
-    setExpanded((prev) => ({ ...prev, [item.id]: chapters }))
+    await fetchTexts()
+    if (selectedText?.id === text.id) {
+      setSelectedText(res.text ?? null)
+      setChapters([])
+    }
+    flash(`《${text.title}》已重新拆分为 ${res.text?.chapterCount ?? 0} 章`)
+  }
+
+  const handleOpenText = async (text: TextMeta): Promise<void> => {
+    setSelectedText(text)
+    setChapters([])
+    setChaptersLoading(true)
+    try {
+      setChapters(await window.api.getTextChapters(text.id))
+    } catch (err) {
+      console.error('[TextSourceModal] 章节读取失败:', err)
+      flash('章节读取失败')
+    } finally {
+      setChaptersLoading(false)
+    }
   }
 
   /**
@@ -148,21 +148,21 @@ export const NovelSourceModal: React.FC<NovelSourceModalProps> = ({ onClose, onS
     try {
       await window.api.createProjectSeries(name)
     } catch (err) {
-      console.warn('[NovelSourceModal] 登记作品分类失败:', err)
+      console.warn('[TextSourceModal] 登记作品分类失败:', err)
     }
     setSeries(name)
   }
 
-  const handleSend = async (novel: NovelMeta, chapters: NovelChapter[]): Promise<void> => {
-    const picked = chapters.filter((c) => c.content)
+  const handleSend = async (text: TextMeta, pickedChapters: TextChapter[]): Promise<void> => {
+    const picked = pickedChapters.filter((c) => c.content)
     if (picked.length === 0) {
       flash('所选章节没有正文内容')
       return
     }
-    await registerSeries(novel.title)
+    await registerSeries(text.title)
     const total = picked.reduce((sum, c) => sum + (c.content?.length || 0), 0)
     const materials = picked.map((c) => `【${c.title}】\n${c.content}`).join('\n\n---\n\n')
-    const injected = `以下是我从《${novel.title}》中挑选的章节原文，请据此编排一场《游戏王》决斗剧情。
+    const injected = `以下是我从《${text.title}》中挑选的章节原文，请据此编排一场《游戏王》决斗剧情。
 要求：
 - 先判断原文里哪几段适合改写成决斗，再只编排这些段落；
 - 把角色与冲突改写为决斗双方的动作与台词，按回合与阶段拆分为可执行步骤；
@@ -174,15 +174,22 @@ export const NovelSourceModal: React.FC<NovelSourceModalProps> = ({ onClose, onS
 ${materials}`
 
     await sendMessage(
-      `请根据《${novel.title}》的这几章内容，编排一场决斗剧情（共 ${picked.length} 章、约 ${total} 字）。`,
+      `请根据《${text.title}》的这几章内容，编排一场决斗剧情（共 ${picked.length} 章、约 ${total} 字）。`,
       undefined,
-      injected
+      injected,
+      undefined,
+      {
+        textId: text.id,
+        title: text.title,
+        wordCount: total,
+        chapterIds: picked.map((c) => c.id)
+      }
     )
     flash(`已把 ${picked.length} 章原文交给背后灵`)
     onSent?.(picked.length)
   }
 
-  const filtered = novels.filter((n) =>
+  const filtered = texts.filter((n) =>
     search.trim() ? n.title.toLowerCase().includes(search.trim().toLowerCase()) : true
   )
 
@@ -195,10 +202,9 @@ ${materials}`
         <DialogHeader className="!flex !flex-row items-center gap-2 px-4 py-3 border-b border-border/60 shrink-0 space-y-0">
           <BookOpen className="w-4 h-4 text-primary shrink-0" />
           <div className="min-w-0 flex-1">
-            <DialogTitle className="font-bold text-sm">从小说提取对局</DialogTitle>
-            <DialogDescription className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-              导入原文、挑选章节交给背后灵，编排完成并存入对局档案
-            </DialogDescription>
+            <DialogTitle className="font-bold text-sm">
+              {selectedText ? `挑选章节 · ${selectedText.title}` : '从文本提取对局'}
+            </DialogTitle>
           </div>
           <Button
             variant="ghost"
@@ -211,24 +217,42 @@ ${materials}`
         </DialogHeader>
 
         <div className="px-4 py-2.5 border-b border-border/60 flex items-center gap-2 shrink-0">
-          <div className="relative flex-1">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索已导入的小说"
-              className="h-7 pl-2.5 text-[11px] bg-muted/40"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void handleImport()}
-            disabled={busy}
-            className="h-7 text-[11px] gap-1.5 shrink-0"
-          >
-            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-            <span>导入小说</span>
-          </Button>
+          {selectedText ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedText(null)}
+              className="h-7 gap-1 text-[11px] shrink-0"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>返回列表</span>
+            </Button>
+          ) : (
+            <>
+              <div className="relative flex-1">
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="搜索已导入的文本"
+                  className="h-7 pl-2.5 text-[11px] bg-muted/40"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleImport()}
+                disabled={busy}
+                className="h-7 text-[11px] gap-1.5 shrink-0"
+              >
+                {busy ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Upload className="w-3 h-3" />
+                )}
+                <span>导入文本</span>
+              </Button>
+            </>
+          )}
         </div>
 
         {error && (
@@ -242,93 +266,46 @@ ${materials}`
           </div>
         )}
 
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="p-3 space-y-2">
-            {filtered.length === 0 ? (
-              <div className="py-12 text-center">
-                <p className="text-[11px] font-semibold text-foreground">
-                  {search ? '没有匹配的小说' : '还没有导入小说'}
+        {selectedText ? (
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="p-3">
+              {chaptersLoading ? (
+                <div className="py-12 flex items-center justify-center text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                </div>
+              ) : chapters.length === 0 ? (
+                <p className="py-8 text-center text-[11px] text-muted-foreground">
+                  未能从该文件拆出章节，可能是格式不受支持；可在素材库中重新拆分。
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed px-6">
-                  {search
-                    ? '换个关键词试试'
-                    : '支持 txt / md / epub。导入后按章节拆分，勾选需要的章节交给背后灵改写成决斗。'}
-                </p>
-              </div>
-            ) : (
-              filtered.map((item) => {
-                const chapters = expanded[item.id]
-                return (
-                  <div
-                    key={item.id}
-                    className="rounded-lg border border-border/70 bg-background/40 p-2.5"
-                  >
-                    <div className="flex items-start gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void toggleChapters(item)}
-                        className="min-w-0 flex-1 text-left"
-                      >
-                        <div className="flex items-center gap-1">
-                          {chapters ? (
-                            <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
-                          ) : (
-                            <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                          )}
-                          <span className="text-xs font-semibold text-foreground truncate">
-                            {item.title}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 ml-4 text-[10px] text-muted-foreground">
-                          <span className="font-mono">
-                            {(item.wordCount || 0).toLocaleString()} 字
-                          </span>
-                          {item.chapterCount !== undefined && (
-                            <span className="font-mono">{item.chapterCount} 章</span>
-                          )}
-                        </div>
-                      </button>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <button
-                              type="button"
-                              onClick={(e) => void handleDelete(e, item)}
-                              className={cn(
-                                'p-1 rounded transition-colors cursor-pointer shrink-0',
-                                'text-muted-foreground hover:text-destructive hover:bg-destructive/10'
-                              )}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          }
-                        />
-                        <TooltipContent>删除</TooltipContent>
-                      </Tooltip>
-                    </div>
-
-                    {chapters && (
-                      <ChapterPicker
-                        chapters={chapters}
-                        busy={isGenerating}
-                        onSend={(picked) => void handleSend(item, picked)}
-                      />
-                    )}
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </ScrollArea>
+              ) : (
+                <ChapterPicker
+                  chapters={chapters}
+                  busy={isGenerating}
+                  onSend={(picked) => void handleSend(selectedText, picked)}
+                />
+              )}
+            </div>
+          </ScrollArea>
+        ) : (
+          <LibraryGrid
+            texts={filtered}
+            loading={loading}
+            search={search}
+            onOpen={(text) => void handleOpenText(text)}
+            onDelete={(text) => void handleDelete(text)}
+            onResplit={(text) => void handleResplit(text)}
+            onImport={() => void handleImport()}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
 }
 
 interface ChapterPickerProps {
-  chapters: NovelChapter[]
+  chapters: TextChapter[]
   busy: boolean
-  onSend: (picked: NovelChapter[]) => void
+  onSend: (picked: TextChapter[]) => void
 }
 
 /**

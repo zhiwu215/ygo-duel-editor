@@ -22,8 +22,7 @@ import { DuelProjectMeta, DuelType } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { Input } from '../ui/input'
-import { Button } from '../ui/button'
-import { NovelSourceModal } from './NovelSourceModal'
+import { TextSourceModal } from './TextSourceModal'
 import { SeriesPicker } from './SeriesPicker'
 import { SeriesNameDialog } from './SeriesNameDialog'
 import { confirmDialog, alertDialog } from '../../stores/useDialogStore'
@@ -49,14 +48,14 @@ interface SeriesGroup {
 
 export const DuelArchivesPanel: React.FC = () => {
   const { loadProjectAndStart, state: currentState } = useDuelStore()
-  const { config, selectProjectsDir, loadConfig } = useConfigStore()
+  const { config, loadConfig } = useConfigStore()
 
   const [projects, setProjects] = useState<DuelProjectMeta[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [lastLoadedPath, setLastLoadedPath] = useState<string | null>(null)
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
-  const [showNovelModal, setShowNovelModal] = useState(false)
+  const [showTextModal, setShowTextModal] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
   const [pickerTarget, setPickerTarget] = useState<{ filePath: string; rect: DOMRect } | null>(null)
   const [nameDialog, setNameDialog] = useState<
@@ -94,14 +93,6 @@ export const DuelArchivesPanel: React.FC = () => {
       cancelled = true
     }
   }, [])
-
-  const handleSelectDir = async (): Promise<void> => {
-    const dir = await selectProjectsDir()
-    if (dir) {
-      await fetchProjects()
-      flash(`已切换存储目录: ${dir}`)
-    }
-  }
 
   const handleLoadProject = async (item: DuelProjectMeta): Promise<void> => {
     try {
@@ -275,6 +266,21 @@ export const DuelArchivesPanel: React.FC = () => {
     <div className="h-full flex flex-col bg-background/50 select-none overflow-hidden">
       <div className="h-10 px-3 border-b border-border/80 flex items-center justify-between shrink-0 bg-muted/20">
         <span className="text-xs font-semibold text-foreground tracking-wide">决斗档案</span>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => setShowTextModal(true)}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>提取对局</span>
+              </button>
+            }
+          />
+          <TooltipContent>从文本（txt / md / epub）提取对局</TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -552,50 +558,6 @@ export const DuelArchivesPanel: React.FC = () => {
         </div>
       </ScrollArea>
 
-      <div className="p-2 border-t border-border/60 bg-muted/20 shrink-0 flex flex-col gap-1.5">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowNovelModal(true)}
-          className="w-full h-7 text-[11px] gap-1.5 border-dashed"
-        >
-          <BookOpen className="w-3 h-3" />
-          <span>从小说提取对局</span>
-        </Button>
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground/80">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className="truncate max-w-[190px]">
-                  目录: {config.projectsDirectory || '默认 (AppData)'}
-                </span>
-              }
-            />
-            <TooltipContent>
-              {config.projectsDirectory
-                ? `当前存储目录: ${config.projectsDirectory}`
-                : '默认保存在系统 AppData 目录'}
-            </TooltipContent>
-          </Tooltip>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={handleSelectDir}
-                    className="text-primary hover:underline font-medium cursor-pointer"
-                  >
-                    更换目录
-                  </button>
-                }
-              />
-              <TooltipContent>更换保存目录</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </div>
-
       {pickerTarget && (
         <SeriesPicker
           anchor={pickerTarget.rect}
@@ -627,9 +589,10 @@ export const DuelArchivesPanel: React.FC = () => {
         />
       )}
 
-      {showNovelModal && (
-        <NovelSourceModal onClose={() => setShowNovelModal(false)} onSent={() => {}} />
+      {showTextModal && (
+        <TextSourceModal onClose={() => setShowTextModal(false)} onSent={() => {}} />
       )}
+
     </div>
   )
 }

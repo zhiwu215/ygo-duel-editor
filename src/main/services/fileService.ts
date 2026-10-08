@@ -344,10 +344,10 @@ export class FileService {
         const duelType = data.duelType || 'full'
         const series = typeof data.series === 'string' ? data.series : ''
         const sourceRef =
-          data.sourceRef && data.sourceRef.novelId && Array.isArray(data.sourceRef.chapterIds)
+          data.sourceRef && data.sourceRef.textId && Array.isArray(data.sourceRef.chapterIds)
             ? {
-                novelId: data.sourceRef.novelId,
-                novelTitle: data.sourceRef.novelTitle || '',
+                textId: data.sourceRef.textId,
+                textTitle: data.sourceRef.textTitle || '',
                 chapterIds: data.sourceRef.chapterIds
               }
             : undefined

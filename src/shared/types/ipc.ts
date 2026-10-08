@@ -337,8 +337,8 @@ export type AgentStreamEvent =
       boardSetup?: AgentBoardSetupProposal
     }
 
-export interface AgentNovelSourceRef {
-  novelId?: string
+export interface AgentTextSourceRef {
+  textId?: string
 
   chapterId?: string
 
@@ -354,7 +354,7 @@ export interface AgentNovelSourceRef {
 export interface AgentHandoffRequest {
   prompt: string
 
-  novelSource?: AgentNovelSourceRef
+  textSource?: AgentTextSourceRef
 
   mode?: AgentTaskMode
 }
@@ -364,7 +364,7 @@ export interface AgentSendMessageParams {
 
   boardState?: DuelPuzzleState
 
-  novelSource?: AgentNovelSourceRef
+  textSource?: AgentTextSourceRef
 
   mode?: AgentTaskMode
 
@@ -496,24 +496,24 @@ export interface CardNoteEntry {
   notes: CardNote[]
 }
 
-export type NovelProgress = 'raw' | 'splitting' | 'split' | 'done'
+export type TextSplitProgress = 'raw' | 'splitting' | 'split' | 'done'
 
-export interface NovelMeta {
+export interface TextMeta {
   id: string
   filePath: string
   title: string
   author?: string
 
   wordCount?: number
-  progress: NovelProgress
+  progress: TextSplitProgress
   chapterCount?: number
   updatedAt: number
 }
 
-export interface NovelChapter {
+export interface TextChapter {
   id: string
 
-  novelId: string
+  textId: string
 
   title: string
 
@@ -557,42 +557,42 @@ export interface IpcApi {
     state: DuelPuzzleState
   ) => Promise<{ success: boolean; filePath?: string; error?: string }>
 
-  getNovelList: () => Promise<NovelMeta[]>
+  getTextList: () => Promise<TextMeta[]>
 
-  importNovelFile: () => Promise<{
+  importTextFile: () => Promise<{
     success: boolean
     canceled?: boolean
-    novel?: NovelMeta
+    text?: TextMeta
     error?: string
   }>
 
-  getNovelChapters: (novelId: string) => Promise<NovelChapter[]>
+  getTextChapters: (textId: string) => Promise<TextChapter[]>
 
-  getNovelChapterContent: (
-    novelId: string,
+  getTextChapterContent: (
+    textId: string,
     chapterId: string
   ) => Promise<{ success: boolean; content?: string; error?: string }>
 
-  updateNovelChapterContent: (
-    novelId: string,
+  updateTextChapterContent: (
+    textId: string,
     chapterId: string,
     content: string
   ) => Promise<{ success: boolean; error?: string }>
 
-  updateNovelChapterTitle: (
-    novelId: string,
+  updateTextChapterTitle: (
+    textId: string,
     chapterId: string,
     title: string
   ) => Promise<{ success: boolean; error?: string }>
 
-  deleteNovel: (id: string) => Promise<{ success: boolean; error?: string }>
+  deleteText: (id: string) => Promise<{ success: boolean; error?: string }>
 
-  resplitNovel: (id: string) => Promise<{ success: boolean; novel?: NovelMeta; error?: string }>
+  resplitText: (id: string) => Promise<{ success: boolean; text?: TextMeta; error?: string }>
 
   agentHandoff: (request: AgentHandoffRequest) => Promise<{ success: boolean; error?: string }>
 
   openCardNoteWindow: () => Promise<void>
-  openNovelLibrary: () => Promise<void>
+  openTextLibrary: () => Promise<void>
   listCardNotes: () => Promise<CardNoteEntry[]>
   getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') => Promise<CardNote[]>
   saveCardNote: (note: CardNote) => Promise<{ success: boolean; error?: string }>

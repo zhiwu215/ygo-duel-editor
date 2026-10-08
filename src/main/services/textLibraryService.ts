@@ -3,7 +3,7 @@ import { is } from '@electron-toolkit/utils'
 import { join } from 'path'
 import icon from '../../../resources/icon.png?asset'
 
-export class NovelLibraryService {
+export class TextLibraryService {
   private window: BrowserWindow | null = null
 
   public openWindow(): void {
@@ -45,13 +45,13 @@ export class NovelLibraryService {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.window.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#novel-library`)
+      this.window.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#text-library`)
     } else {
       this.window.loadFile(join(__dirname, '../renderer/index.html'), {
-        hash: 'novel-library'
+        hash: 'text-library'
       })
     }
   }
 }
 
-export const novelLibraryService = new NovelLibraryService()
+export const textLibraryService = new TextLibraryService()

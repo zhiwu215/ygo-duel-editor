@@ -46,21 +46,22 @@ const api: IpcApi = {
   saveProjectToLibrary: (state: DuelPuzzleState) =>
     ipcRenderer.invoke('file:save-to-library', state),
 
-  getNovelList: () => ipcRenderer.invoke('library:novel-list'),
-  importNovelFile: () => ipcRenderer.invoke('library:novel-import'),
-  getNovelChapters: (novelId: string) => ipcRenderer.invoke('library:novel-chapters', novelId),
-  getNovelChapterContent: (novelId: string, chapterId: string) =>
-    ipcRenderer.invoke('library:novel-chapter-content', novelId, chapterId),
-  updateNovelChapterContent: (novelId: string, chapterId: string, content: string) =>
-    ipcRenderer.invoke('library:novel-chapter-update', novelId, chapterId, content),
-  updateNovelChapterTitle: (novelId: string, chapterId: string, title: string) =>
-    ipcRenderer.invoke('library:novel-chapter-title-update', novelId, chapterId, title),
-  deleteNovel: (id: string) => ipcRenderer.invoke('library:novel-delete', id),
-  resplitNovel: (id: string) => ipcRenderer.invoke('library:novel-resplit', id),
+  getTextList: () => ipcRenderer.invoke('library:text-list'),
+  importTextFile: () => ipcRenderer.invoke('library:text-import'),
+  getTextChapters: (textId: string) => ipcRenderer.invoke('library:text-chapters', textId),
+  getTextChapterContent: (textId: string, chapterId: string) =>
+    ipcRenderer.invoke('library:text-chapter-content', textId, chapterId),
+  updateTextChapterContent: (textId: string, chapterId: string, content: string) =>
+    ipcRenderer.invoke('library:text-chapter-update', textId, chapterId, content),
+  updateTextChapterTitle: (textId: string, chapterId: string, title: string) =>
+    ipcRenderer.invoke('library:text-chapter-title-update', textId, chapterId, title),
+  deleteText: (id: string) => ipcRenderer.invoke('library:text-delete', id),
+  resplitText: (id: string) => ipcRenderer.invoke('library:text-resplit', id),
 
   agentHandoff: (request) => ipcRenderer.invoke('agent:handoff', request),
 
   openCardNoteWindow: () => ipcRenderer.invoke('window:open-card-notes'),
+  openTextLibrary: () => ipcRenderer.invoke('window:open-text-library'),
   listCardNotes: () => ipcRenderer.invoke('note:list-all'),
   getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') =>
     ipcRenderer.invoke('note:get', cardCode, kind),

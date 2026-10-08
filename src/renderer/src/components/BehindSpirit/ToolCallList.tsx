@@ -28,7 +28,7 @@ const TOOL_LABELS: Record<string, string> = {
   search_cards: '搜索卡片',
   get_card_info: '查询卡片详情',
   find_cards_by_intent: '按意图检索卡片',
-  read_novel_source: '读取小说素材',
+  read_text_source: '读取文本素材',
   propose_duel_steps: '整理决斗步骤',
   propose_board_setup: '复盘场面布局',
   propose_card_replacement: '替换手牌与盖卡提案',
@@ -50,7 +50,7 @@ const TOOL_ICONS: Record<string, JSX.Element> = {
   search_cards: <Search className="h-3 w-3 shrink-0 text-muted-foreground" />,
   get_card_info: <Info className="h-3 w-3 shrink-0 text-muted-foreground" />,
   find_cards_by_intent: <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" />,
-  read_novel_source: <BookOpen className="h-3 w-3 shrink-0 text-muted-foreground" />,
+  read_text_source: <BookOpen className="h-3 w-3 shrink-0 text-muted-foreground" />,
   propose_duel_steps: <ListOrdered className="h-3 w-3 shrink-0 text-muted-foreground" />,
   propose_board_setup: <Wand2 className="h-3 w-3 shrink-0 text-muted-foreground" />,
   propose_card_replacement: <Wand2 className="h-3 w-3 shrink-0 text-muted-foreground" />,
@@ -109,7 +109,7 @@ function getToolParamsSummary(tool: AgentToolCallItem): string | null {
     const codes = tool.params.codes
     return `卡密：${codes.slice(0, 5).join(', ')}${codes.length > 5 ? ` 等 ${codes.length} 张` : ''}`
   }
-  if (tool.toolName === 'read_novel_source') {
+  if (tool.toolName === 'read_text_source') {
     const offset = typeof tool.params.offset === 'number' ? tool.params.offset : 0
     return offset > 0 ? `续读：第 ${offset} 字起` : '从头通读素材'
   }

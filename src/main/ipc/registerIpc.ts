@@ -19,7 +19,7 @@ import { settingsWindowService } from '../services/settingsWindowService'
 import { libraryService } from '../services/libraryService'
 import { cardNoteService } from '../services/cardNoteService'
 import { customCardService } from '../services/customCardService'
-import { novelLibraryService } from '../services/novelLibraryService'
+import { textLibraryService } from '../services/textLibraryService'
 import { dataDirService } from '../services/dataDirService'
 
 const notifyCdbUpdated = (): void => {
@@ -158,11 +158,11 @@ export function registerAllIpcHandlers(): void {
     return fileService.saveProjectToLibrary(state)
   })
 
-  ipcMain.handle('library:novel-list', async () => {
-    return libraryService.getNovelList()
+  ipcMain.handle('library:text-list', async () => {
+    return libraryService.getTextList()
   })
 
-  ipcMain.handle('library:novel-import', async () => {
+  ipcMain.handle('library:text-import', async () => {
     const picked = await dialog.showOpenDialog(BrowserWindow.getFocusedWindow()!, {
       title: '导入小说资料',
       properties: ['openFile'],
@@ -174,45 +174,45 @@ export function registerAllIpcHandlers(): void {
     if (picked.canceled || picked.filePaths.length === 0) {
       return { success: false, canceled: true }
     }
-    return libraryService.importNovelFile(picked.filePaths)
+    return libraryService.importTextFile(picked.filePaths)
   })
 
-  ipcMain.handle('library:novel-chapters', async (_, novelId: string) => {
-    return libraryService.getNovelChapters(novelId)
+  ipcMain.handle('library:text-chapters', async (_, textId: string) => {
+    return libraryService.getTextChapters(textId)
   })
 
-  ipcMain.handle('library:novel-chapter-content', async (_, novelId: string, chapterId: string) => {
-    return libraryService.getNovelChapterContent(novelId, chapterId)
+  ipcMain.handle('library:text-chapter-content', async (_, textId: string, chapterId: string) => {
+    return libraryService.getTextChapterContent(textId, chapterId)
   })
 
   ipcMain.handle(
-    'library:novel-chapter-update',
-    async (_, novelId: string, chapterId: string, content: string) => {
-      return libraryService.updateNovelChapterContent(novelId, chapterId, content)
+    'library:text-chapter-update',
+    async (_, textId: string, chapterId: string, content: string) => {
+      return libraryService.updateTextChapterContent(textId, chapterId, content)
     }
   )
 
   ipcMain.handle(
-    'library:novel-chapter-title-update',
-    async (_, novelId: string, chapterId: string, title: string) => {
-      return libraryService.updateNovelChapterTitle(novelId, chapterId, title)
+    'library:text-chapter-title-update',
+    async (_, textId: string, chapterId: string, title: string) => {
+      return libraryService.updateTextChapterTitle(textId, chapterId, title)
     }
   )
 
-  ipcMain.handle('library:novel-delete', async (_, id: string) => {
-    return libraryService.deleteNovel(id)
+  ipcMain.handle('library:text-delete', async (_, id: string) => {
+    return libraryService.deleteText(id)
   })
 
-  ipcMain.handle('library:novel-resplit', async (_, id: string) => {
-    return libraryService.resplitNovel(id)
+  ipcMain.handle('library:text-resplit', async (_, id: string) => {
+    return libraryService.resplitText(id)
   })
 
   ipcMain.handle('window:open-card-notes', async () => {
     cardNoteService.openWindow()
   })
 
-  ipcMain.handle('window:open-novel-library', async () => {
-    novelLibraryService.openWindow()
+  ipcMain.handle('window:open-text-library', async () => {
+    textLibraryService.openWindow()
   })
 
   ipcMain.handle('note:list-all', async () => {

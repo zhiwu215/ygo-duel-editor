@@ -175,23 +175,23 @@ function ChatMessageItemImpl({
 
           {message.compaction && <ContextCompactBlock compaction={message.compaction} />}
 
-          {isUser && message.novelSource && (
+          {isUser && message.textSource && (
             <div className="mb-1.5 flex items-center gap-1.5">
               <Tooltip>
                 <TooltipTrigger
                   render={
                     <span className="flex min-w-0 items-center gap-1 rounded bg-background/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
                       <BookOpen className="h-3 w-3 shrink-0" />
-                      <span className="max-w-64 truncate">{message.novelSource.title}</span>
-                      {message.novelSource.wordCount ? (
+                      <span className="max-w-64 truncate">{message.textSource.title}</span>
+                      {message.textSource.wordCount ? (
                         <span className="shrink-0 font-mono">
-                          约 {message.novelSource.wordCount} 字
+                          约 {message.textSource.wordCount} 字
                         </span>
                       ) : null}
                     </span>
                   }
                 />
-                <TooltipContent>已附加的小说素材，正文经 read_novel_source 工具读取</TooltipContent>
+                <TooltipContent>已附加的文本素材，正文经 read_text_source 工具读取</TooltipContent>
               </Tooltip>
             </div>
           )}

@@ -106,8 +106,8 @@ export interface PlayerState {
 
 /** 对局的文本来源关联：指向素材库中某本文本的若干章节 */
 export interface DuelSourceRef {
-  novelId: string
-  novelTitle: string
+  textId: string
+  textTitle: string
   chapterIds: string[]
 }
 

@@ -249,8 +249,8 @@ export class AgentService {
 
   private collectedBoardSetup: AgentBoardSetupProposal | null = null
 
-  private currentNovelSource: {
-    novelId?: string
+  private currentTextSource: {
+    textId?: string
     chapterId?: string
     title: string
     content: string
@@ -262,7 +262,7 @@ export class AgentService {
 
   private cachedSession: { session: AgentSession; signature: string } | null = null
 
-  private static readonly NOVEL_CHUNK_SIZE = 8000
+  private static readonly TEXT_CHUNK_SIZE = 8000
 
   private emitEvent(event: AgentStreamEvent): void {
     const windows = BrowserWindow.getAllWindows()
@@ -274,7 +274,7 @@ export class AgentService {
   }
 
   /**
-   * 跨窗口提交：小说素材库窗口把选中的章节交给主窗口的对话。
+   * 跨窗口提交：文本素材库窗口把选中的章节交给主窗口的对话。
    * 只广播请求，真正的取正文与发消息仍在主窗口的 store 里完成，
    * 避免两个窗口各持一份 Zustand 实例导致状态不共享。
    */
@@ -541,34 +541,34 @@ export class AgentService {
     this.collectedProposals = []
     this.collectedBoardSetup = null
     // 装载本轮附加的素材：直接文本（拖入的临时文件）优先，
-    // 其次按 id 从资料库读正文。正文留在主进程，模型经 read_novel_source
+    // 其次按 id 从资料库读正文。正文留在主进程，模型经 read_text_source
     // 分段读取；读取失败如实广播，不静默吞掉。
-    this.currentNovelSource = null
-    const novelRef = params.novelSource
-    const directText = novelRef?.content?.trim()
+    this.currentTextSource = null
+    const textRef = params.textSource
+    const directText = textRef?.content?.trim()
     if (directText) {
-      this.currentNovelSource = {
-        novelId: novelRef?.novelId ?? '',
-        chapterId: novelRef?.chapterId ?? '',
-        title: novelRef?.title?.trim() || '附加文本',
+      this.currentTextSource = {
+        textId: textRef?.textId ?? '',
+        chapterId: textRef?.chapterId ?? '',
+        title: textRef?.title?.trim() || '附加文本',
         content: directText
       }
-    } else if (novelRef?.novelId && (novelRef.chapterIds?.length || novelRef.chapterId)) {
-      const chapterIds = novelRef.chapterIds?.length ? novelRef.chapterIds : [novelRef.chapterId!]
-      const contents = libraryService.getNovelChapters(novelRef.novelId)
+    } else if (textRef?.textId && (textRef.chapterIds?.length || textRef.chapterId)) {
+      const chapterIds = textRef.chapterIds?.length ? textRef.chapterIds : [textRef.chapterId!]
+      const contents = libraryService.getTextChapters(textRef.textId)
       const picked = contents
         .filter((c) => chapterIds.includes(c.id))
         .sort((a, b) => chapterIds.indexOf(a.id) - chapterIds.indexOf(b.id))
       if (picked.length === 0) {
         this.emitEvent({
           type: 'status',
-          message: `小说素材《${novelRef.title}》读取失败（可能已被删除或重新拆分），本次按无素材处理`
+          message: `文本素材《${textRef.title}》读取失败（可能已被删除或重新拆分），本次按无素材处理`
         })
       } else {
-        this.currentNovelSource = {
-          novelId: novelRef.novelId,
+        this.currentTextSource = {
+          textId: textRef.textId,
           chapterId: picked[0].id,
-          title: novelRef.title.trim() || novelRef.novelId,
+          title: textRef.title.trim() || textRef.textId,
           content: picked.map((c) => c.content || '').join('\n\n'),
           chapters: picked.map((c) => ({ title: c.title, content: c.content || '' }))
         }
@@ -804,11 +804,11 @@ export class AgentService {
       }
     })
 
-    const readNovelSourceTool = defineTool({
-      name: 'read_novel_source',
-      label: '分段读取小说素材',
+    const readTextSourceTool = defineTool({
+      name: 'read_text_source',
+      label: '分段读取文本素材',
       description:
-        '分段读取创作者随消息附加的小说/文本素材。消息里标注了【小说素材】时必须先用它通读全文（从 offset 缺省开始，按返回指引传 offset 续读直到读完），再开始整理对局；未附加素材时不要调用',
+        '分段读取创作者随消息附加的小说/文本素材。消息里标注了【文本素材】时必须先用它通读全文（从 offset 缺省开始，按返回指引传 offset 续读直到读完），再开始整理对局；未附加素材时不要调用',
       parameters: Type.Object({
         chapter: Type.Optional(
           Type.String({
@@ -826,23 +826,23 @@ export class AgentService {
         this.emitEvent({
           type: 'tool_call_start',
           id: _toolCallId,
-          toolName: 'read_novel_source',
+          toolName: 'read_text_source',
           params: { chapter: p.chapter ?? null, offset: p.offset ?? 0 }
         })
 
-        const source = this.currentNovelSource
+        const source = this.currentTextSource
         if (!source) {
           this.emitEvent({
             type: 'tool_call_end',
             id: _toolCallId,
-            toolName: 'read_novel_source',
-            resultSummary: '本轮未附加小说素材'
+            toolName: 'read_text_source',
+            resultSummary: '本轮未附加文本素材'
           })
           return {
             content: [
               {
                 type: 'text',
-                text: '本轮消息没有附加小说素材。若创作者的诉求需要原文，请直接请对方通过「附加小说素材」按钮选择章节后再发送，不要凭空猜测剧情。'
+                text: '本轮消息没有附加文本素材。若创作者的诉求需要原文，请直接请对方通过「附加文本素材」按钮选择章节后再发送，不要凭空猜测剧情。'
               }
             ],
             details: { attached: false }
@@ -856,11 +856,11 @@ export class AgentService {
           this.emitEvent({
             type: 'tool_call_end',
             id: _toolCallId,
-            toolName: 'read_novel_source',
+            toolName: 'read_text_source',
             resultSummary: `《${source.title}》共 ${source.chapters.length} 章，返回目录`
           })
           const text = [
-            `【小说素材】《${source.title}》`,
+            `【文本素材】《${source.title}》`,
             `共 ${source.chapters.length} 章。请先看目录定位需要改写成决斗的段落，再用 chapter 参数读取对应章节（可多次调用）。`,
             '',
             toc
@@ -878,7 +878,7 @@ export class AgentService {
           this.emitEvent({
             type: 'tool_call_end',
             id: _toolCallId,
-            toolName: 'read_novel_source',
+            toolName: 'read_text_source',
             resultSummary: `章节「${p.chapter}」不存在`
           })
           return {
@@ -894,7 +894,7 @@ export class AgentService {
 
         const total = text.length
         const offset = Math.min(Math.max(0, Math.trunc(p.offset ?? 0)), total)
-        const chunk = text.slice(offset, offset + AgentService.NOVEL_CHUNK_SIZE)
+        const chunk = text.slice(offset, offset + AgentService.TEXT_CHUNK_SIZE)
         const end = offset + chunk.length
         const remaining = total - end
 
@@ -903,12 +903,12 @@ export class AgentService {
         this.emitEvent({
           type: 'tool_call_end',
           id: _toolCallId,
-          toolName: 'read_novel_source',
+          toolName: 'read_text_source',
           resultSummary: `读取${scope}第 ${offset}-${end} 字，共 ${total} 字`
         })
 
         const header = [
-          `【小说素材】${scope}`,
+          `【文本素材】${scope}`,
           `共 ${total} 字；本次输出第 ${offset}-${end} 字。`,
           remaining > 0
             ? `本章尚未读完（剩余 ${remaining} 字），请继续调用本工具并传 offset: ${end}。`
@@ -1306,7 +1306,7 @@ export class AgentService {
         searchCardsTool,
         getCardInfoTool,
         getCurrentBoardTool,
-        readNovelSourceTool,
+        readTextSourceTool,
         proposeStepsTool,
         proposeBoardSetupTool,
         validateWithOcgcoreTool

@@ -21,7 +21,7 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 import {
   AgentProviderModelConfig,
-  AgentNovelSourceRef,
+  AgentTextSourceRef,
   countWords,
   isProviderReady,
   CdbCard,
@@ -30,7 +30,7 @@ import {
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { DuelProposalSummaryCard } from './DuelProposalSummaryCard'
 import { MarkdownContent } from './MarkdownContent'
-import { NovelSourcePicker } from './NovelSourcePicker'
+import { TextSourcePicker } from './TextSourcePicker'
 import { ToolCallList } from './ToolCallList'
 import { Button } from '../ui/button'
 import { Textarea } from '../ui/textarea'
@@ -72,12 +72,10 @@ export function BehindSpiritPanel(): JSX.Element {
   const [attachedCards, setAttachedCards] = useState<CdbCard[]>([])
   const [isCardDragOver, setIsCardDragOver] = useState(false)
 
-  const [attachedNovel, setAttachedNovel] = useState<AgentNovelSourceRef | null>(null)
-  const [novelPickerOpen, setNovelPickerOpen] = useState(false)
-  const [novelPickerPos, setNovelPickerPos] = useState<{ right: number; bottom: number } | null>(
-    null
-  )
-  const novelPickerAnchorRef = useRef<HTMLDivElement>(null)
+  const [attachedText, setAttachedText] = useState<AgentTextSourceRef | null>(null)
+  const [textPickerOpen, setTextPickerOpen] = useState(false)
+  const [textPickerPos, setTextPickerPos] = useState<{ right: number; bottom: number } | null>(null)
+  const textPickerAnchorRef = useRef<HTMLDivElement>(null)
 
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [openProviderKey, setOpenProviderKey] = useState<string | null>(null)
@@ -186,20 +184,19 @@ export function BehindSpiritPanel(): JSX.Element {
   }
 
   const handleSend = (): void => {
-    if ((!inputPrompt.trim() && attachedCards.length === 0 && !attachedNovel) || isGenerating)
-      return
+    if ((!inputPrompt.trim() && attachedCards.length === 0 && !attachedText) || isGenerating) return
     shouldAutoScrollRef.current = true
 
     sendMessage(
-      inputPrompt.trim() || (attachedNovel ? '请把附加的对局原文整理成可演示的对局流程' : ''),
+      inputPrompt.trim() || (attachedText ? '请把附加的对局原文整理成可演示的对局流程' : ''),
       currentBoardState,
-      buildInjectedPrompt(inputPrompt.trim(), attachedCards, attachedNovel),
+      buildInjectedPrompt(inputPrompt.trim(), attachedCards, attachedText),
       attachedCards.map((c) => ({ id: c.id, name: c.name })),
-      attachedNovel ?? undefined
+      attachedText ?? undefined
     )
     setInputPrompt('')
     setAttachedCards([])
-    setAttachedNovel(null)
+    setAttachedText(null)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -230,14 +227,14 @@ export function BehindSpiritPanel(): JSX.Element {
   const buildInjectedPrompt = (
     prompt: string,
     cards: CdbCard[],
-    novel: AgentNovelSourceRef | null
+    text: AgentTextSourceRef | null
   ): string => {
     const blocks: string[] = []
     if (cards.length > 0) blocks.push(buildCardsBlock(cards))
-    if (novel) {
-      const size = novel.wordCount ? `约 ${novel.wordCount} 字` : ''
+    if (text) {
+      const size = text.wordCount ? `约 ${text.wordCount} 字` : ''
       blocks.push(
-        `【小说素材】已附加《${novel.title}》${size ? `（${size}）` : ''}。正文不随消息直接发送，请先用 read_novel_source 分段通读全文。`
+        `【文本素材】已附加《${text.title}》${size ? `（${size}）` : ''}。正文不随消息直接发送，请先用 read_text_source 分段通读全文。`
       )
     }
     if (blocks.length === 0) return prompt
@@ -285,7 +282,7 @@ export function BehindSpiritPanel(): JSX.Element {
         return
       }
 
-      setAttachedNovel({
+      setAttachedText({
         title: file.name,
         wordCount: countWords(content),
         content
@@ -300,20 +297,20 @@ export function BehindSpiritPanel(): JSX.Element {
     setAttachedCards((prev) => prev.filter((c) => c.id !== cardId))
   }
 
-  const openNovelPicker = (): void => {
-    if (novelPickerOpen) {
-      setNovelPickerOpen(false)
+  const openTextPicker = (): void => {
+    if (textPickerOpen) {
+      setTextPickerOpen(false)
       return
     }
-    const anchor = novelPickerAnchorRef.current
+    const anchor = textPickerAnchorRef.current
     if (anchor) {
       const rect = anchor.getBoundingClientRect()
-      setNovelPickerPos({
+      setTextPickerPos({
         right: window.innerWidth - rect.right,
         bottom: window.innerHeight - rect.top
       })
     }
-    setNovelPickerOpen(true)
+    setTextPickerOpen(true)
   }
 
   const handleApplyProposal = async (messageId: string): Promise<void> => {
@@ -475,24 +472,24 @@ export function BehindSpiritPanel(): JSX.Element {
                     </div>
                   )}
 
-                  {msg.role === 'user' && msg.novelSource && (
+                  {msg.role === 'user' && msg.textSource && (
                     <div className="mb-1.5 flex items-center gap-1.5">
                       <Tooltip>
                         <TooltipTrigger
                           render={
                             <span className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground min-w-0">
                               <BookOpen className="w-3 h-3 shrink-0" />
-                              <span className="truncate max-w-64">{msg.novelSource.title}</span>
-                              {msg.novelSource.wordCount ? (
+                              <span className="truncate max-w-64">{msg.textSource.title}</span>
+                              {msg.textSource.wordCount ? (
                                 <span className="shrink-0 font-mono">
-                                  约 {msg.novelSource.wordCount} 字
+                                  约 {msg.textSource.wordCount} 字
                                 </span>
                               ) : null}
                             </span>
                           }
                         />
                         <TooltipContent>
-                          已附加的小说素材，正文经 read_novel_source 工具读取
+                          已附加的文本素材，正文经 read_text_source 工具读取
                         </TooltipContent>
                       </Tooltip>
                     </div>
@@ -591,16 +588,16 @@ export function BehindSpiritPanel(): JSX.Element {
               </div>
             )}
 
-            {attachedNovel && (
+            {attachedText && (
               <div className="flex flex-wrap gap-1.5">
                 <div className="group flex items-center gap-1.5 rounded border border-border bg-muted/60 pl-2 pr-1 py-1 max-w-full">
                   <BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   <div className="min-w-0">
                     <p className="text-[11px] font-medium leading-tight truncate max-w-52">
-                      {attachedNovel.title}
+                      {attachedText.title}
                     </p>
                     <p className="text-[9px] text-muted-foreground font-mono leading-tight">
-                      {attachedNovel.wordCount ? `约 ${attachedNovel.wordCount} 字` : '文本素材'}
+                      {attachedText.wordCount ? `约 ${attachedText.wordCount} 字` : '文本素材'}
                     </p>
                   </div>
                   <Tooltip>
@@ -608,14 +605,14 @@ export function BehindSpiritPanel(): JSX.Element {
                       render={
                         <button
                           type="button"
-                          onClick={() => setAttachedNovel(null)}
+                          onClick={() => setAttachedText(null)}
                           className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
                         >
                           <X className="w-3 h-3" />
                         </button>
                       }
                     />
-                    <TooltipContent>移除这本小说素材</TooltipContent>
+                    <TooltipContent>移除这本文本素材</TooltipContent>
                   </Tooltip>
                 </div>
               </div>
@@ -626,7 +623,7 @@ export function BehindSpiritPanel(): JSX.Element {
               onChange={(e) => setInputPrompt(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                attachedNovel
+                attachedText
                   ? '已附加素材，说明要怎么整理这段对局即可...'
                   : attachedCards.length > 0
                     ? '已引用卡片，直接提问即可...'
@@ -639,16 +636,16 @@ export function BehindSpiritPanel(): JSX.Element {
 
           <div className="flex items-center justify-between gap-1.5" ref={toolbarRef}>
             <div className="flex items-center gap-1 min-w-0 flex-1">
-              <div ref={novelPickerAnchorRef} className="shrink-0">
+              <div ref={textPickerAnchorRef} className="shrink-0">
                 <Tooltip>
                   <TooltipTrigger
                     render={
                       <button
                         type="button"
-                        onClick={openNovelPicker}
+                        onClick={openTextPicker}
                         className={cn(
                           'w-6 h-6 rounded flex items-center justify-center transition-colors',
-                          novelPickerOpen
+                          textPickerOpen
                             ? 'bg-muted text-foreground'
                             : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                         )}
@@ -813,15 +810,15 @@ export function BehindSpiritPanel(): JSX.Element {
           document.body
         )}
 
-      {novelPickerOpen &&
+      {textPickerOpen &&
         createPortal(
-          <NovelSourcePicker
-            pos={novelPickerPos}
-            anchorRef={novelPickerAnchorRef}
-            onClose={() => setNovelPickerOpen(false)}
+          <TextSourcePicker
+            pos={textPickerPos}
+            anchorRef={textPickerAnchorRef}
+            onClose={() => setTextPickerOpen(false)}
             onAttach={(selection) => {
-              setAttachedNovel(selection)
-              setNovelPickerOpen(false)
+              setAttachedText(selection)
+              setTextPickerOpen(false)
             }}
           />,
           document.body

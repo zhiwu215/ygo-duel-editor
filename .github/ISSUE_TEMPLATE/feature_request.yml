@@ -1,0 +1,40 @@
+name: 功能建议
+description: 如果你有对项目的需求、功能建议、或其他意见，请使用此模板
+title: "【功能建议】"
+labels: ["enhancement"]
+assignees: []
+body:
+  - type: textarea
+    attributes:
+      label: 背景与问题
+      description: 描述当前痛点、为什么需要做改进
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 期望方案
+      description: 你希望它具体怎么工作？越具体越好
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: 截图 / 参考
+      description: 原型草图、其他软件的类似功能截图、相关规则说明等
+    validations:
+      required: false
+
+  - type: checkboxes
+    attributes:
+      label: 确认不是重复问题
+      options:
+        - label: 我已搜索过现有 Issue，确认没有重复
+          required: true
+
+  - type: checkboxes
+    attributes:
+      label: 你愿意提交 PR 吗？
+      description: 这不是必需的，但我们很乐意在贡献过程中为您提供指导，特别是如果你已经很好地理解了如何实现修复
+      options:
+        - label: 是的，我愿意提交 PR

@@ -10,6 +10,8 @@ import { SettingsApp } from './components/Settings/SettingsApp'
 import { CdbSetupModal } from './components/CardSearch/CdbSetupModal'
 import { CustomCardEditorDialog } from './components/CustomCard/CustomCardEditorDialog'
 import { useConfigStore } from './stores/useConfigStore'
+import { useDeckEditorStore } from './stores/useDeckEditorStore'
+import { useCustomCardStore } from './stores/useCustomCardStore'
 
 export function App(): React.JSX.Element {
   const { loadConfig } = useConfigStore()
@@ -20,6 +22,14 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     loadConfig()
   }, [loadConfig])
+
+  useEffect(() => {
+    if (!window.api?.onDataDirectoryChanged) return
+    return window.api.onDataDirectoryChanged(() => {
+      void useDeckEditorStore.getState().fetchDeckList()
+      void useCustomCardStore.getState().load()
+    })
+  }, [])
 
   if (isSettingsWindow) {
     return <SettingsApp />

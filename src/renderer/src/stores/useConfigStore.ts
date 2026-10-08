@@ -17,6 +17,10 @@ interface ConfigStoreState {
   setTheme: (theme: 'dark' | 'light') => Promise<void>
   toggleTheme: () => Promise<void>
 
+  selectDataDir: (migrate: boolean) => Promise<boolean>
+  resetDataDir: (migrate: boolean) => Promise<void>
+  openDataDir: () => Promise<void>
+
   setDeckLoadDrawCount: (drawCount: 0 | 5) => Promise<void>
 }
 
@@ -69,6 +73,39 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     const currentTheme = get().config.theme || 'light'
     const nextTheme = currentTheme === 'dark' ? 'light' : 'dark'
     await get().setTheme(nextTheme)
+  },
+
+  selectDataDir: async (migrate) => {
+    try {
+      const res = await window.api.selectDataDirectory(migrate)
+      if (!res) return false
+      if (res.error) {
+        void alertDialog(res.error)
+        return false
+      }
+      await get().loadConfig()
+      return true
+    } catch (err) {
+      console.error('[useConfigStore] selectDataDir error:', err)
+      return false
+    }
+  },
+
+  resetDataDir: async (migrate) => {
+    try {
+      await window.api.resetDataDirectory(migrate)
+      await get().loadConfig()
+    } catch (err) {
+      console.error('[useConfigStore] resetDataDir error:', err)
+    }
+  },
+
+  openDataDir: async () => {
+    try {
+      await window.api.openDataDirectory()
+    } catch (err) {
+      console.error('[useConfigStore] openDataDir error:', err)
+    }
   },
 
   setDeckLoadDrawCount: async (drawCount) => {

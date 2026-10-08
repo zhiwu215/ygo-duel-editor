@@ -343,6 +343,14 @@ export class FileService {
         const title = data.title || nameWithoutExt || '未命名对局'
         const duelType = data.duelType || 'full'
         const series = typeof data.series === 'string' ? data.series : ''
+        const sourceRef =
+          data.sourceRef && data.sourceRef.novelId && Array.isArray(data.sourceRef.chapterIds)
+            ? {
+                novelId: data.sourceRef.novelId,
+                novelTitle: data.sourceRef.novelTitle || '',
+                chapterIds: data.sourceRef.chapterIds
+              }
+            : undefined
         const hint = data.hint || ''
         const masterRule = data.masterRule || 5
         const cardCount = Array.isArray(data.cards) ? data.cards.length : 0
@@ -354,6 +362,7 @@ export class FileService {
           title,
           duelType,
           series,
+          sourceRef,
           hint,
           masterRule,
           cardCount,

@@ -19,6 +19,7 @@ import { settingsWindowService } from '../services/settingsWindowService'
 import { libraryService } from '../services/libraryService'
 import { cardNoteService } from '../services/cardNoteService'
 import { customCardService } from '../services/customCardService'
+import { novelLibraryService } from '../services/novelLibraryService'
 import { dataDirService } from '../services/dataDirService'
 
 const notifyCdbUpdated = (): void => {
@@ -208,6 +209,10 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('window:open-card-notes', async () => {
     cardNoteService.openWindow()
+  })
+
+  ipcMain.handle('window:open-novel-library', async () => {
+    novelLibraryService.openWindow()
   })
 
   ipcMain.handle('note:list-all', async () => {

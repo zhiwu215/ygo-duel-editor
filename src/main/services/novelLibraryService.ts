@@ -22,7 +22,7 @@ export class NovelLibraryService {
       show: false,
       autoHideMenuBar: true,
       frame: false,
-      title: '小说素材库 - YGO Duel Editor',
+      title: '文本素材库 - YGO Duel Editor',
       icon,
       backgroundColor: '#0f1115',
       webPreferences: {

@@ -327,7 +327,14 @@ export function BehindSpiritPanel(): JSX.Element {
     }
     setApplyingProposalMsgId(messageId)
     setProposalError(null)
-    const res = await applyDuelProposal(msg.boardSetup ?? null, msg.proposals ?? [])
+    const sourceRef = msg.textSource?.textId
+      ? {
+          textId: msg.textSource.textId,
+          textTitle: msg.textSource.title,
+          chapterIds: msg.textSource.chapterIds ?? []
+        }
+      : undefined
+    const res = await applyDuelProposal(msg.boardSetup ?? null, msg.proposals ?? [], sourceRef)
     setApplyingProposalMsgId(null)
     if (res.ok) {
       setAppliedMessageId(messageId)

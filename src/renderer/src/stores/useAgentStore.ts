@@ -101,7 +101,8 @@ interface AgentStoreState {
 
   applyDuelProposal: (
     setup: AgentBoardSetupProposal | null,
-    proposals: AgentStepProposal[]
+    proposals: AgentStepProposal[],
+    sourceRef?: { textId: string; textTitle: string; chapterIds: string[] }
   ) => Promise<{ ok: boolean; error?: string }>
 
   applyCardSwap: (proposal: AgentCardSwapProposal) => Promise<{ ok: boolean; error?: string }>
@@ -536,7 +537,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
     set({ messages: [], isGenerating: false })
   },
 
-  applyDuelProposal: async (setup, proposals) => {
+  applyDuelProposal: async (setup, proposals, sourceRef) => {
     const placements: AgentBoardCardPlacement[] = setup?.cards ?? []
     const lpTargets = setup?.lp ?? []
     if (placements.length === 0 && lpTargets.length === 0 && proposals.length === 0) {
@@ -618,6 +619,15 @@ export const useAgentStore = create<AgentStoreState>((set, get) => ({
         lpChange: p.lpChange
       }))
     })
+    useDuelStore.getState().setSourceRef(
+      sourceRef && sourceRef.textId && sourceRef.chapterIds.length > 0
+        ? {
+            textId: sourceRef.textId,
+            textTitle: sourceRef.textTitle,
+            chapterIds: [...sourceRef.chapterIds]
+          }
+        : undefined
+    )
     return { ok: true }
   },
 

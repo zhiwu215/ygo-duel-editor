@@ -14,6 +14,7 @@ import {
   DuelPhase,
   DuelActionType,
   Duelist,
+  DuelSourceRef,
   MatchConfig,
   DuelSceneSnapshot,
   getMatchScenarioKey,
@@ -489,6 +490,7 @@ interface DuelStoreState {
   setSeries: (series: string) => void
   setTitle: (title: string) => void
   setHint: (hint: string) => void
+  setSourceRef: (sourceRef?: DuelSourceRef) => void
   setPlayerLp: (player: 0 | 1, lp: number) => void
   setTurnPlayer: (player: 0 | 1) => void
   setFirstTurnAttack: (allow: boolean) => void
@@ -1437,6 +1439,11 @@ export const useDuelStore = create<DuelStoreState>()(
       setHint: (hint) =>
         set((prev) => ({
           state: { ...prev.state, hint }
+        })),
+
+      setSourceRef: (sourceRef) =>
+        set((prev) => ({
+          state: { ...prev.state, sourceRef }
         })),
 
       setPlayerLp: (player, lp) =>

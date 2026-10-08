@@ -18,11 +18,12 @@ import {
   Pencil,
   FolderInput
 } from 'lucide-react'
-import { DuelProjectMeta, DuelType } from '@shared/index'
+import { DuelProjectMeta, DuelSourceRef, DuelType } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { Input } from '../ui/input'
 import { TextSourceModal } from './TextSourceModal'
+import { DuelSourceReaderDialog } from './DuelSourceReaderDialog'
 import { SeriesPicker } from './SeriesPicker'
 import { SeriesNameDialog } from './SeriesNameDialog'
 import { confirmDialog, alertDialog } from '../../stores/useDialogStore'
@@ -56,6 +57,7 @@ export const DuelArchivesPanel: React.FC = () => {
   const [lastLoadedPath, setLastLoadedPath] = useState<string | null>(null)
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
   const [showTextModal, setShowTextModal] = useState(false)
+  const [sourceViewer, setSourceViewer] = useState<DuelSourceRef | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
   const [pickerTarget, setPickerTarget] = useState<{ filePath: string; rect: DOMRect } | null>(null)
   const [nameDialog, setNameDialog] = useState<
@@ -533,6 +535,28 @@ export const DuelArchivesPanel: React.FC = () => {
                                 </p>
                               )}
 
+                              {item.sourceRef && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSourceViewer(item.sourceRef ?? null)
+                                  }}
+                                  className={cn(
+                                    'mt-1.5 w-full flex items-center gap-1.5 text-left px-1.5 py-1 rounded border transition-colors',
+                                    'bg-violet-500/8 border-violet-500/25 hover:border-violet-500/50 hover:bg-violet-500/10'
+                                  )}
+                                >
+                                  <BookOpen className="w-3 h-3 text-violet-500 shrink-0" />
+                                  <span className="text-[10px] text-violet-600 dark:text-violet-300 truncate flex-1">
+                                    《{item.sourceRef.textTitle || '未命名文本'}》
+                                  </span>
+                                  <span className="text-[9px] font-mono text-violet-500/70 shrink-0">
+                                    {item.sourceRef.chapterIds.length} 章
+                                  </span>
+                                </button>
+                              )}
+
                               <div className="flex items-center justify-between text-[10px] text-muted-foreground/75 mt-2 pt-1.5 border-t border-border/40">
                                 <div className="flex items-center gap-2">
                                   <span className="font-mono">MR{item.masterRule}</span>
@@ -594,6 +618,9 @@ export const DuelArchivesPanel: React.FC = () => {
         <TextSourceModal onClose={() => setShowTextModal(false)} onSent={() => {}} />
       )}
 
+      {sourceViewer && (
+        <DuelSourceReaderDialog sourceRef={sourceViewer} onClose={() => setSourceViewer(null)} />
+      )}
     </div>
   )
 }

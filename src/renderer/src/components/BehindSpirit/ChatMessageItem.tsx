@@ -90,9 +90,20 @@ function ChatMessageItemImpl({
     }
     setApplying(true)
     setApplyError(null)
-    const res = await applyDuelProposal(message.boardSetup ?? null, message.proposals ?? [])
+    const sourceRef = message.textSource?.textId
+      ? {
+          textId: message.textSource.textId,
+          textTitle: message.textSource.title,
+          chapterIds: message.textSource.chapterIds ?? []
+        }
+      : undefined
+    const res = await applyDuelProposal(
+      message.boardSetup ?? null,
+      message.proposals ?? [],
+      sourceRef
+    )
     finishApply(res.ok, res.error)
-  }, [applyDuelProposal, finishApply, message.boardSetup, message.proposals])
+  }, [applyDuelProposal, finishApply, message.boardSetup, message.proposals, message.textSource])
 
   const handleApplySwap = useCallback(async (): Promise<void> => {
     if (!message.cardSwap?.placements?.length) return

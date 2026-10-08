@@ -405,6 +405,12 @@ export interface AgentFetchModelsResult {
   error?: string
 }
 
+export interface DataDirectoryResult {
+  directory: string
+  migrated: boolean
+  error?: string
+}
+
 export interface AppConfig {
   gameDirectory?: string
 
@@ -426,6 +432,9 @@ export interface AppConfig {
   agentConfig?: AgentModelConfig
 
   recentProjectPaths?: string[]
+
+  /** 数据保存目录（卡组库/卡牌图鉴/自建卡/决斗档案/小说）。留空表示 userData 默认目录 */
+  dataDirectory?: string
 
   projectsDirectory?: string
 
@@ -619,6 +628,12 @@ export interface IpcApi {
   getProjectsDirectory: () => Promise<string>
   openProjectsDirectory: () => Promise<void>
   selectProjectsDirectory: () => Promise<string | null>
+
+  getDataDirectory: () => Promise<string>
+  openDataDirectory: () => Promise<void>
+  selectDataDirectory: (migrate: boolean) => Promise<DataDirectoryResult | null>
+  resetDataDirectory: (migrate: boolean) => Promise<DataDirectoryResult>
+  onDataDirectoryChanged: (callback: () => void) => () => void
 
   createProjectSeries: (name: string) => Promise<{ success: boolean; error?: string }>
   renameProjectSeries: (

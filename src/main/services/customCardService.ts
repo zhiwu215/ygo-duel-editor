@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { BrowserWindow, dialog } from 'electron'
 import {
   copyFileSync,
   existsSync,
@@ -22,6 +22,7 @@ import {
   CUSTOM_CARD_ID_MAX
 } from '@shared/index'
 import { cdbService, compareCards, parseSearchTokens } from '../db/cdbService'
+import { dataDirService } from './dataDirService'
 
 const LIBRARY_FILE = 'custom_cards.json'
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
@@ -31,11 +32,16 @@ export class CustomCardService {
   private loaded = false
 
   private get filePath(): string {
-    return join(app.getPath('userData'), LIBRARY_FILE)
+    return dataDirService.resolve(LIBRARY_FILE)
   }
 
   private get imageDir(): string {
-    return join(app.getPath('userData'), 'pics', 'custom')
+    return dataDirService.ensureDirectory(join('pics', 'custom'))
+  }
+
+  public resetCache(): void {
+    this.cards = []
+    this.loaded = false
   }
 
   private ensureLoaded(): void {

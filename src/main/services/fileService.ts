@@ -1,4 +1,4 @@
-import { dialog, BrowserWindow, app, shell } from 'electron'
+import { dialog, BrowserWindow, shell } from 'electron'
 import {
   readFileSync,
   writeFileSync,
@@ -19,6 +19,7 @@ import {
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
+import { dataDirService } from './dataDirService'
 
 function sanitizeProjectFileName(name: string): string {
   const cleaned = name
@@ -31,11 +32,8 @@ function sanitizeProjectFileName(name: string): string {
 }
 
 export class FileService {
-  private projectsDir: string
-
-  constructor() {
-    this.projectsDir = join(app.getPath('userData'), 'projects')
-    this.ensureProjectsDirectory()
+  private get projectsDir(): string {
+    return dataDirService.ensureDirectory('projects')
   }
 
   /**

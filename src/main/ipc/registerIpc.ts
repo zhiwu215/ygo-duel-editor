@@ -19,6 +19,7 @@ import { settingsWindowService } from '../services/settingsWindowService'
 import { libraryService } from '../services/libraryService'
 import { cardNoteService } from '../services/cardNoteService'
 import { customCardService } from '../services/customCardService'
+import { dataDirService } from '../services/dataDirService'
 
 const notifyCdbUpdated = (): void => {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -30,6 +31,12 @@ const enabledExtraPaths = (): string[] => {
   const cfg = configService.get()
   const disabled = cfg.disabledCdbPaths || []
   return (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
+}
+
+const reloadDataServices = (): void => {
+  customCardService.resetCache()
+  libraryService.reloadDataDirectory()
+  fileService.ensureProjectsDirectory()
 }
 
 export function registerAllIpcHandlers(): void {
@@ -290,6 +297,26 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('file:select-projects-dir', async () => {
     return fileService.selectProjectsDirectory()
+  })
+
+  ipcMain.handle('data:get-dir', async () => {
+    return dataDirService.getDataDirectory()
+  })
+
+  ipcMain.handle('data:open-dir', async () => {
+    return dataDirService.openDataDirectory()
+  })
+
+  ipcMain.handle('data:select-dir', async (_, migrate: boolean) => {
+    const res = await dataDirService.selectDataDirectory(undefined, migrate)
+    if (res && !res.error) reloadDataServices()
+    return res
+  })
+
+  ipcMain.handle('data:reset-dir', async (_, migrate: boolean) => {
+    const res = dataDirService.resetToDefault(migrate)
+    reloadDataServices()
+    return res
   })
 
   ipcMain.handle('file:create-project-series', async (_, name: string) => {

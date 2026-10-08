@@ -11,6 +11,7 @@ import {
   DefaultCardNote
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
+import { dataDirService } from './dataDirService'
 import icon from '../../../resources/icon.png?asset'
 
 const LIBRARY_FILE = 'card_notes.json'
@@ -20,11 +21,10 @@ const LEGACY_FILE = 'summon_chants.json'
 const DEFAULT_FILE = 'card_default.json'
 
 export class CardNoteService {
-  private filePath: string
   private window: BrowserWindow | null = null
 
-  constructor() {
-    this.filePath = join(app.getPath('userData'), LIBRARY_FILE)
+  private get filePath(): string {
+    return dataDirService.resolve(LIBRARY_FILE)
   }
 
   normalizeCode(cardCode: number): number {
@@ -101,7 +101,7 @@ export class CardNoteService {
       }
     }
 
-    const legacyRaw = this.readFile(join(app.getPath('userData'), LEGACY_FILE))
+    const legacyRaw = this.readFile(dataDirService.resolve(LEGACY_FILE))
     if (legacyRaw) {
       const legacy = legacyRaw as {
         chants?: Record<string, Omit<CardNote, 'kind'>[]>
@@ -144,7 +144,7 @@ export class CardNoteService {
 
   private writeLibrary(lib: CardNoteLibrary): { success: boolean; error?: string } {
     try {
-      const dir = join(app.getPath('userData'))
+      const dir = dataDirService.getDataDirectory()
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
       writeFileSync(this.filePath, JSON.stringify(lib, null, 2), 'utf-8')
       return { success: true }

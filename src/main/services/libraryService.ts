@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import {
   existsSync,
   mkdirSync,
@@ -17,6 +16,7 @@ import {
   inferNovelTitle,
   splitNovelChapters
 } from '@shared/index'
+import { dataDirService } from './dataDirService'
 
 const NOVEL_EXTS = ['.txt', '.md', '.epub']
 
@@ -43,19 +43,22 @@ function sanitizeFileName(name: string): string {
  * 脱离 .ygoduel 无法回放，属于把同一份数据存两遍。
  */
 export class LibraryService {
-  private novelsDir: string
+  private get novelsDir(): string {
+    return this.ensureDirs()
+  }
 
-  constructor() {
-    this.novelsDir = join(app.getPath('userData'), 'novels')
+  public reloadDataDirectory(): void {
     this.ensureDirs()
   }
 
-  private ensureDirs(): void {
+  private ensureDirs(): string {
+    const dir = dataDirService.resolve('novels')
     try {
-      if (!existsSync(this.novelsDir)) mkdirSync(this.novelsDir, { recursive: true })
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     } catch (err) {
-      console.error('[LibraryService] Failed to ensure dir:', this.novelsDir, err)
+      console.error('[LibraryService] Failed to ensure dir:', dir, err)
     }
+    return dir
   }
 
   /* ------------------------------ 小说素材 ------------------------------ */

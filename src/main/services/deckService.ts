@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
@@ -16,6 +16,9 @@ import {
 } from '@shared/index'
 import icon from '../../../resources/icon.png?asset'
 import { configService } from './configService'
+import { dataDirService } from './dataDirService'
+
+const LIBRARY_FILE = 'ygo_duel_editor_decks.json'
 
 const LEGACY_PRESET_DECK_IDS = new Set([
   'deck_preset_story_darkness',
@@ -26,10 +29,9 @@ const LEGACY_PRESET_DECK_IDS = new Set([
 export class DeckService {
   private deckWindow: BrowserWindow | null = null
   private pendingEditDeck: DeckData | null = null
-  private libraryFilePath: string
 
-  constructor() {
-    this.libraryFilePath = join(app.getPath('userData'), 'ygo_duel_editor_decks.json')
+  private get libraryFilePath(): string {
+    return dataDirService.resolve(LIBRARY_FILE)
   }
 
   /**

@@ -88,6 +88,18 @@ const api: IpcApi = {
   openProjectsDirectory: () => ipcRenderer.invoke('file:open-projects-dir'),
   selectProjectsDirectory: () => ipcRenderer.invoke('file:select-projects-dir'),
 
+  getDataDirectory: () => ipcRenderer.invoke('data:get-dir'),
+  openDataDirectory: () => ipcRenderer.invoke('data:open-dir'),
+  selectDataDirectory: (migrate: boolean) => ipcRenderer.invoke('data:select-dir', migrate),
+  resetDataDirectory: (migrate: boolean) => ipcRenderer.invoke('data:reset-dir', migrate),
+  onDataDirectoryChanged: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('data-dir:changed', listener)
+    return () => {
+      ipcRenderer.removeListener('data-dir:changed', listener)
+    }
+  },
+
   createProjectSeries: (name: string) => ipcRenderer.invoke('file:create-project-series', name),
   renameProjectSeries: (oldName: string, newName: string) =>
     ipcRenderer.invoke('file:rename-project-series', oldName, newName),

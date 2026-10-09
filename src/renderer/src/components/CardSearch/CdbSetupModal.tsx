@@ -5,11 +5,19 @@ import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { useConfigStore } from '../../stores/useConfigStore'
 
-const INFO_ROWS: Array<{ label: string; value: string }> = [
+const INFO_ROWS: Array<{ label: string; value: string; href?: string }> = [
   { label: '作者', value: '知兀' },
   { label: '邮箱', value: 'zhiwu_215@qq.com' },
-  { label: 'B 站', value: 'space.bilibili.com/3546704263514722' },
-  { label: '项目地址', value: 'github.com/zhiwu215/ygo-duel-editor' }
+  {
+    label: 'B 站',
+    value: 'space.bilibili.com/3546704263514722',
+    href: 'https://space.bilibili.com/3546704263514722'
+  },
+  {
+    label: '项目地址',
+    value: 'github.com/zhiwu215/ygo-duel-editor',
+    href: 'https://github.com/zhiwu215/ygo-duel-editor'
+  }
 ]
 
 export const CdbSetupModal: React.FC = () => {
@@ -50,30 +58,43 @@ export const CdbSetupModal: React.FC = () => {
         </DialogHeader>
 
         <div className="w-full space-y-2 text-xs">
-          {INFO_ROWS.map((row) => (
-            <div key={row.label} className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground shrink-0">{row.label}</span>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      onClick={() => void handleCopy(row.value)}
-                      className="flex items-center gap-1 text-foreground hover:text-foreground/70 transition-colors cursor-pointer"
-                    >
-                      <span>{row.value}</span>
-                      {copied === row.value ? (
-                        <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                      ) : (
-                        <span className="w-3 h-3 shrink-0" />
-                      )}
-                    </button>
-                  }
-                />
-                <TooltipContent>点击复制</TooltipContent>
-              </Tooltip>
-            </div>
-          ))}
+          {INFO_ROWS.map((row) => {
+            const isLink = !!row.href
+            return (
+              <div key={row.label} className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground shrink-0">{row.label}</span>
+                {isLink ? (
+                  <button
+                    type="button"
+                    onClick={() => void window.api.openExternal(row.href as string)}
+                    className="flex items-center gap-1 text-primary hover:underline transition-colors cursor-pointer"
+                  >
+                    <span>{row.value}</span>
+                  </button>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          onClick={() => void handleCopy(row.value)}
+                          className="flex items-center gap-1 text-foreground hover:text-foreground/70 transition-colors cursor-pointer"
+                        >
+                          <span>{row.value}</span>
+                          {copied === row.value ? (
+                            <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                          ) : (
+                            <span className="w-3 h-3 shrink-0" />
+                          )}
+                        </button>
+                      }
+                    />
+                    <TooltipContent>点击复制</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         <div className="w-full h-px bg-border/60" />

@@ -4,6 +4,7 @@ import { CardLocation, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { fetchCardDataByCodes } from '../../utils/cardData'
 import { Layers, Ghost, Ban, X, Trash2, Search, ArrowUpCircle, ArrowDownToLine } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -22,8 +23,11 @@ export const OverlayListModal: React.FC = () => {
   } = useDuelStore()
 
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [cardNames, setCardNames] = useState<Record<number, string>>({})
+  const [cardDataMap, setCardDataMap] = useState<Record<number, CdbCard>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  const pendingCodesRef = useRef<Set<number>>(new Set())
+  const unknownCodesRef = useRef<Set<number>>(new Set())
 
   const hostCard = hostInstanceId ? state.cards.find((c) => c.instanceId === hostInstanceId) : null
 
@@ -34,39 +38,50 @@ export const OverlayListModal: React.FC = () => {
   }, [setHoveredInstanceId])
 
   useEffect(() => {
-    if (!hostCard?.overlayMaterials?.length) return
-    const missingCodes = hostCard.overlayMaterials.filter((code) => !cardNames[code])
+    const materials = hostCard?.overlayMaterials
+    if (!materials?.length) return
+    const missingCodes = materials.filter(
+      (code) =>
+        !cardDataMap[code] &&
+        !pendingCodesRef.current.has(code) &&
+        !unknownCodesRef.current.has(code)
+    )
     if (missingCodes.length === 0) return
+    for (const code of missingCodes) pendingCodesRef.current.add(code)
 
-    let isMounted = true
-    window.api
-      .getCardsByIds(missingCodes)
+    fetchCardDataByCodes(missingCodes)
       .then((map) => {
-        if (!isMounted) return
-        setCardNames((prev) => {
+        for (const code of missingCodes) {
+          pendingCodesRef.current.delete(code)
+          if (!map[code]) unknownCodesRef.current.add(code)
+        }
+        setCardDataMap((prev) => {
           const next = { ...prev }
+          let changed = false
           for (const code of missingCodes) {
-            next[code] = map[code]?.name || `[${code}]`
+            const cardData = map[code]
+            if (cardData && !next[code]) {
+              next[code] = cardData
+              changed = true
+            }
           }
-          return next
+          return changed ? next : prev
         })
       })
       .catch((err) => {
+        for (const code of missingCodes) pendingCodesRef.current.delete(code)
         void err
       })
-
-    return () => {
-      isMounted = false
-    }
-  }, [hostCard?.overlayMaterials, cardNames])
+  }, [hostCard?.overlayMaterials, cardDataMap])
 
   if (!hostInstanceId || !hostCard) return null
 
   const materials = hostCard.overlayMaterials || []
-  const hostName = hostCard.card?.name || `卡片 [${hostCard.code}]`
+  const hostName =
+    hostCard.card?.name || cardDataMap[hostCard.code]?.name || `卡片 [${hostCard.code}]`
 
   const filteredMaterials = materials
-    .map((code, index) => ({ code, index, name: cardNames[code] || String(code) }))
+    .map((code, index) => ({ code, index, name: cardDataMap[code]?.name || `[${code}]` }))
     .filter((item) => {
       const q = searchQuery.trim().toLowerCase()
       if (!q) return true
@@ -184,14 +199,9 @@ export const OverlayListModal: React.FC = () => {
               return (
                 <div
                   key={`mat_${item.code}_${item.index}`}
-                  onMouseEnter={async () => {
-                    try {
-                      const cardMap = await window.api.getCardsByIds([item.code])
-                      const card = cardMap[item.code]
-                      if (card) setHoveredCard(card)
-                    } catch (err) {
-                      void err
-                    }
+                  onMouseEnter={() => {
+                    const card = cardDataMap[item.code]
+                    if (card) setHoveredCard(card)
                   }}
                   className="flex flex-col items-center gap-2 p-2.5 rounded-lg border border-border/80 bg-card/70 hover:border-amber-400/50 hover:bg-card shadow-sm transition-all shrink-0 w-[140px] group"
                 >

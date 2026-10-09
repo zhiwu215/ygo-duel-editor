@@ -594,6 +594,18 @@ interface DuelStoreState {
 
   setCardData: (instanceId: string, card: CdbCard) => void
 
+  /**
+   * 撤销栈的精细控制，供「一串连续操作合成一次撤销」使用（堆叠弹窗滚轮挪卡）。
+   *
+   * zundo 的 temporal 在 set 时把**上一个**状态压栈，且只有 isTracking 为真才记录。
+   * 所以一串操作要合成一次撤销，靠的是：整串期间 pause（一个都不记），
+   * 停稳后用 `resumeAndPushUndo(snapshot)` 手动把「整串之前的状态」补压一条。
+   * 注意 resume 本身不记录任何东西，必须显式补压，否则这串操作就永久无法撤销。
+   */
+  pauseUndoTracking: () => void
+  resumeUndoTracking: () => void
+  resumeAndPushUndo: (snapshot: DuelPuzzleState) => void
+
   reorderPileCards: (
     controller: 0 | 1,
     location: number,
@@ -1516,6 +1528,33 @@ export const useDuelStore = create<DuelStoreState>()(
           hoveredCard: null
         })
         useDuelStore.temporal.getState().clear()
+      },
+
+      pauseUndoTracking: (): void => useDuelStore.temporal.getState().pause(),
+      resumeUndoTracking: (): void => useDuelStore.temporal.getState().resume(),
+      /**
+       * 恢复跟踪并补压一条指定快照作为撤销点。
+       *
+       * zundo 的 temporal 没有公开的 push API，只能走内部的 `_handleSet`
+       * （d.ts 里被 Omit 掉但运行时存在）。它会走 limit 裁剪与 futureStates 清空，
+       * 语义与正常 set 记账完全一致。
+       *
+       * 注意补压的快照形状必须与 `partialize` 严格一致（`{ state }`），
+       * 否则 undo 里的 userSet 写不进去，表现成「撤销没反应」。
+       */
+      resumeAndPushUndo: (snapshot: DuelPuzzleState): void => {
+        const temporal = useDuelStore.temporal.getState()
+        temporal.resume()
+        const handleSet = (
+          temporal as unknown as {
+            _handleSet: (
+              pastState: { state: DuelPuzzleState },
+              replace: undefined,
+              currentState: { state: DuelPuzzleState }
+            ) => void
+          }
+        )._handleSet
+        handleSet({ state: snapshot }, undefined, { state: useDuelStore.getState().state })
       },
 
       setActiveRightTab: (tab) => set({ activeRightTab: tab }),

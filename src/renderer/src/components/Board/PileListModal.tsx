@@ -1,6 +1,6 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { CardLocation, CardPosition, CdbCard } from '@shared/index'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { CardLocation, CardPosition, CdbCard, DuelPuzzleState } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
@@ -48,7 +48,10 @@ const PileListContent: React.FC = () => {
     reorderPileCards,
     updateCardPosition,
     addCardToZone,
-    moveCard
+    moveCard,
+    pauseUndoTracking,
+    resumeUndoTracking,
+    resumeAndPushUndo
   } = useDuelStore()
 
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -60,6 +63,7 @@ const PileListContent: React.FC = () => {
   } | null>(null)
 
   const [isOutsideList, setIsOutsideList] = useState(false)
+  const [wheelMovingId, setWheelMovingId] = useState<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const listRectRef = useRef<DOMRect | null>(null)
@@ -173,6 +177,103 @@ const PileListContent: React.FC = () => {
     })
   }, [pileCards, searchQuery, cardDataMap])
 
+  const ownerDuelist =
+    state.duelists?.find((d) => d.id === activeDuelistId && d.team === target?.controller) || null
+
+  /**
+   * 选中一张卡后用滚轮把它往后 / 往前挪一格。
+   *
+   * 为什么要单独做这一套：原生 HTML5 拖拽会话期间浏览器吞掉 wheel 事件，
+   * 列表滚不动，卡组下半部分的卡永远够不着；而改用 dnd-kit 确实能滚动了，
+   * 它的拖拽却不产生 dataTransfer，拖出弹窗放到场上/手牌这条路直接断掉。
+   * 两条路都要，所以内部换序走「选中 + 滚轮」，做场仍走原生拖拽，互不干扰。
+   *
+   * 一串滚动会产生几十次 set，逐条压进撤销栈会让 Ctrl+Z 退化成逐格回退。
+   * 这里整串期间 pause（实测 pause 后 set 完全不记账），停稳 400ms 后用
+   * `resumeAndPushUndo` 把「本串移动之前的状态」补压成唯一一条撤销，
+   * 于是无论滚了几格，Ctrl+Z 一次都回到移动前。
+   */
+  const wheelMoveRef = useRef<{
+    instanceId: string
+    snapshot: DuelPuzzleState | null
+    timer: number | null
+  }>({ instanceId: '', snapshot: null, timer: null })
+
+  const finishWheelMove = useCallback((): void => {
+    const { instanceId, snapshot, timer } = wheelMoveRef.current
+    if (timer !== null) window.clearTimeout(timer)
+    wheelMoveRef.current = { instanceId: '', snapshot: null, timer: null }
+    if (instanceId && snapshot) resumeAndPushUndo(snapshot)
+    else if (instanceId) resumeUndoTracking()
+  }, [resumeAndPushUndo, resumeUndoTracking])
+
+  const scheduleWheelMoveEnd = (): void => {
+    if (wheelMoveRef.current.timer !== null) {
+      window.clearTimeout(wheelMoveRef.current.timer)
+    }
+    wheelMoveRef.current.timer = window.setTimeout(() => {
+      finishWheelMove()
+    }, 400)
+  }
+
+  const handleWheel = (e: WheelEvent): void => {
+    if (!wheelMovingId || !target) return
+    if (searchQuery.trim().length > 0) return
+    if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    const currentIndex = pileCards.findIndex((c) => c.instanceId === wheelMovingId)
+    if (currentIndex < 0) return
+    const direction: 1 | -1 = e.deltaY > 0 ? 1 : -1
+    const nextIndex = currentIndex + direction
+    if (nextIndex < 0 || nextIndex >= pileCards.length) return
+
+    // 本轮第一次移动：先把「移动前」的完整状态存下来，再暂停记账
+    if (wheelMoveRef.current.instanceId !== wheelMovingId) {
+      finishWheelMove()
+      wheelMoveRef.current.instanceId = wheelMovingId
+      wheelMoveRef.current.snapshot = state
+      pauseUndoTracking()
+    }
+
+    reorderPileCards(target.controller, target.location, currentIndex, nextIndex, ownerDuelist?.id)
+    scheduleWheelMoveEnd()
+
+    // 换序后把该卡滚回可视区，否则连续下移会一路走出视野
+    window.requestAnimationFrame(() => {
+      const element = scrollContainerRef.current?.querySelector<HTMLElement>(
+        `[data-pile-card-instance="${wheelMovingId}"]`
+      )
+      element?.scrollIntoView({ block: 'nearest' })
+    })
+  }
+
+  // 弹窗关闭时若还有未落定的滚轮移动，必须补上撤销点，否则撤销栈会一直停在暂停态
+  useEffect(() => {
+    const wheelMove = wheelMoveRef.current
+    return () => {
+      if (wheelMove.instanceId) {
+        if (wheelMove.timer !== null) window.clearTimeout(wheelMove.timer)
+        if (wheelMove.snapshot) resumeAndPushUndo(wheelMove.snapshot)
+        else resumeUndoTracking()
+      }
+    }
+  }, [resumeAndPushUndo, resumeUndoTracking])
+
+  /**
+   * 必须用ref 手动绑非 passive 监听：React 的 onWheel 是 passive 的，
+   * 里面调preventDefault 无效（滚轮照样滚列表），浏览器还会打控制台警告。
+   * 只有非 passive 才能拦住默认滚动，把滚轮让给「挪动选中卡」。
+   */
+  useEffect(() => {
+    const element = scrollContainerRef.current
+    if (!element) return
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => element.removeEventListener('wheel', handleWheel)
+  })
+
   if (!target) return null
 
   const meta = LOCATION_META[target.location] || {
@@ -182,8 +283,6 @@ const PileListContent: React.FC = () => {
   }
   const IconComponent = meta.icon
 
-  const ownerDuelist =
-    state.duelists?.find((d) => d.id === activeDuelistId && d.team === target.controller) || null
   const ctrlLabel = ownerDuelist ? ownerDuelist.name : target.controller === 0 ? '我方' : '对方'
   const title = `${ctrlLabel}${meta.name}`
 
@@ -286,7 +385,10 @@ const PileListContent: React.FC = () => {
   return (
     <div
       className="absolute inset-0 z-40 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-in fade-in"
-      onClick={closePile}
+      onClick={() => {
+        setWheelMovingId(null)
+        closePile()
+      }}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('text/pile-reorder-id')) return
         if (!isPointerOutsideList(e.clientX, e.clientY)) {
@@ -333,7 +435,10 @@ const PileListContent: React.FC = () => {
                 render={
                   <button
                     type="button"
-                    onClick={closePile}
+                    onClick={() => {
+                      setWheelMovingId(null)
+                      closePile()
+                    }}
                     className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4" />
@@ -441,6 +546,7 @@ const PileListContent: React.FC = () => {
                     key={card.instanceId}
                     draggable
                     data-pile-card-index={originalIndex}
+                    data-pile-card-instance={card.instanceId}
                     title={cardName}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/pile-reorder-id', card.instanceId)
@@ -519,6 +625,7 @@ const PileListContent: React.FC = () => {
                     }}
                     onClick={() => {
                       setSelectedCardId(card.instanceId)
+                      setWheelMovingId(card.instanceId)
                       if (cardDetail) setHoveredCard(cardDetail)
                     }}
                   >
@@ -538,6 +645,12 @@ const PileListContent: React.FC = () => {
                       <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
                         #{originalIndex + 1}
                       </span>
+
+                      {wheelMovingId === card.instanceId && (
+                        <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 py-0.5 bg-blue-500/85 text-white text-[9px] leading-[13px] font-sans text-center pointer-events-none">
+                          滚轮挪动中
+                        </span>
+                      )}
 
                       {target.location === CardLocation.DECK && originalIndex === 0 && (
                         <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
@@ -644,9 +757,17 @@ const PileListContent: React.FC = () => {
 
         <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
           <span className="text-[11px] text-muted-foreground">
-            拖拽卡片可调整顺序，拖出窗口可关闭；右键卡片可移动至其他区域
+            点击选中后用滚轮左右挪动顺序 · 拖拽可调整顺序，拖出列表框自动关窗并可放到场上/ 手牌 ·
+            右键卡片可移动至其他区域
           </span>
-          <Button size="sm" onClick={closePile} className="px-5 h-7 text-xs">
+          <Button
+            size="sm"
+            onClick={() => {
+              setWheelMovingId(null)
+              closePile()
+            }}
+            className="px-5 h-7 text-xs"
+          >
             确定
           </Button>
         </div>

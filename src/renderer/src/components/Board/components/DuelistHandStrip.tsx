@@ -542,7 +542,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
                     mass: 1
                   }
                 }}
-                className={cn('shrink-0', draggedHandCardId === c.instanceId && 'invisible')}
+                className={cn(draggedHandCardId === c.instanceId ? 'hidden' : 'shrink-0')}
                 data-hand-instance-id={c.instanceId}
               >
                 <MemoizedHandZoneSlot

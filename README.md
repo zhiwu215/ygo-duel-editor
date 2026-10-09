@@ -18,7 +18,29 @@
 
 首次启动后到选择你的 YGOPro 客户端根目录。只有选了之后卡图与卡密解析才能正常工作。
 
+![image-20261009074736795](docs/images/image-20261009074736795.png)
+
 ![image-20261009003649892](docs/images/image-20261009003649892.png)
+
+> 备注：
+>
+> ygopro 下载自 [MyCard - 萌卡](https://mycard.world/)
+>
+> ![image-20261009075018441](docs/images/image-20261009075018441.png)
+>
+> 因为需要用到
+>
+> - `cards.cdb`：卡片数据
+> - `pics`：卡图
+> - `script`：脚本
+> - `lflist.conf`：禁限
+> - `strings.conf`：文案表
+>
+> **MDPro3不行**，因为：
+>
+> MDPro3 属于完全基于 Unity 重构的现代游戏客户端，其内部未提供散列暴露的 `.lua` 文件，所有的卡片效果逻辑均被打包并高压缩保存在 **Data/script.zip** 归档文件中
+>
+> 卡片数据库位于多语言子目录（**Data/locales/zh-CN/cards.cdb**），卡图资源则放置于 **Picture/** 目录下以 Unity AssetBundle 格式封装
 
 ## 技术栈
 

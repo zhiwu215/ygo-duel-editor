@@ -10,8 +10,8 @@ import {
 } from '@shared/index'
 import { useConfigStore } from './useConfigStore'
 import { useDuelStore } from './useDuelStore'
-import { duelStateProbeKey, ruleCheckAllows } from '../utils/ruleCheck'
-import type { RuleCheckKind, RuleCheckApi } from '../utils/ruleCheck'
+import { duelStateProbeKey, ruleCheckAllows, getCardAvailableActions } from '../utils/ruleCheck'
+import type { RuleCheckKind, RuleCheckApi, CardActionOptions } from '../utils/ruleCheck'
 
 interface RuleCheckState {
   probe: EngineProbeOptionsResult | null
@@ -171,6 +171,9 @@ export function useRuleCheck(): RuleCheckApi {
     degraded,
     warnings,
     allows: (card: FieldCard, kind: RuleCheckKind): boolean =>
-      ruleCheckAllows(active, turnPlayer, probe, card, kind)
+      ruleCheckAllows(active, turnPlayer, probe, card, kind),
+    getActions: (card: FieldCard): CardActionOptions =>
+      getCardAvailableActions(probe, card, turnPlayer, active),
+    probe
   }
 }

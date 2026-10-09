@@ -5,6 +5,7 @@ import { CardLocation, MASTER_RULES, FieldCard } from '@shared/index'
 import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
 import { CardContextMenu } from './CardContextMenu'
+import { CardCommandMenu } from './CardCommandMenu'
 import { PileListModal } from './PileListModal'
 import { EngineSelectModal } from './EngineSelectModal'
 import { ChainModeToggle } from './ChainModeToggle'
@@ -12,6 +13,7 @@ import { OverlayListModal } from './OverlayListModal'
 import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardStatPopover } from './components/CardStatPopover'
 import { ActionIntentBar } from './ActionIntentBar'
+import { PhaseStatusButton, PhaseMiddleButton, PhaseEpButton } from './PhaseControlButtons'
 
 export const DuelBoard: React.FC = () => {
   const { state, activeDuelistId } = useDuelStore()
@@ -385,7 +387,9 @@ export const DuelBoard: React.FC = () => {
               {/* 中央对战台交界：MR4/5 规范桥接两个 EMZ；MR1/2/3 留出纯净极简中线 */}
               {ruleInfo.hasEMZ ? (
                 <div className="flex items-center gap-2 px-2.5 my-0.5">
-                  <div className="w-[92px] h-[92px] invisible shrink-0" />
+                  <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
+                    <PhaseStatusButton />
+                  </div>
                   <ZoneSlot
                     label="EX 怪兽 1"
                     controller={0}
@@ -394,7 +398,9 @@ export const DuelBoard: React.FC = () => {
                     card={getCard(0, CardLocation.MZONE, 5) || getCard(1, CardLocation.MZONE, 5)}
                     colorVariant="emz"
                   />
-                  <div className="w-[92px] h-[92px] invisible shrink-0" />
+                  <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
+                    <PhaseMiddleButton />
+                  </div>
                   <ZoneSlot
                     label="EX 怪兽 2"
                     controller={0}
@@ -403,11 +409,22 @@ export const DuelBoard: React.FC = () => {
                     card={getCard(0, CardLocation.MZONE, 6) || getCard(1, CardLocation.MZONE, 6)}
                     colorVariant="emz"
                   />
-                  <div className="w-[92px] h-[92px] invisible shrink-0" />
+                  <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
+                    <PhaseEpButton />
+                  </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 px-2.5 my-0.5 w-[512px] h-[92px] justify-center shrink-0">
-                  <div className="w-full h-px bg-border dark:bg-white/15" />
+                <div className="flex items-center gap-2 px-2.5 my-0.5 w-[512px] h-[92px] justify-between px-6 shrink-0 relative">
+                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-border dark:bg-white/15" />
+                  <div className="relative z-10 w-[92px] flex items-center justify-center">
+                    <PhaseStatusButton />
+                  </div>
+                  <div className="relative z-10 w-[92px] flex items-center justify-center">
+                    <PhaseMiddleButton />
+                  </div>
+                  <div className="relative z-10 w-[92px] flex items-center justify-center">
+                    <PhaseEpButton />
+                  </div>
                 </div>
               )}
 
@@ -580,6 +597,8 @@ export const DuelBoard: React.FC = () => {
 
       {/* 全局单例右键上下文菜单 */}
       <CardContextMenu />
+
+      <CardCommandMenu />
 
       {/* 全局独立实战属性与指示物自由拖拽操作面板 (Shift+左键点击唤出，移动卡片时面板独立不跟随) */}
       <CardStatPopover />

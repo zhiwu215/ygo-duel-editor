@@ -5,9 +5,11 @@ import type {
   EngineProbeOptionsResult,
   EngineProbeReplay,
   EngineSelectCandidate,
+  EngineProbeEntry,
+  EngineProbeActivateOption,
   FieldCard
 } from '@shared/index'
-import { CardLocation } from '@shared/index'
+import { CardLocation, CardPosition, CardType, isCustomCardId } from '@shared/index'
 
 export type RuleCheckKind =
   | 'SUMMON'
@@ -20,11 +22,25 @@ export type RuleCheckKind =
   | 'TO_GRAVE'
   | 'BANISH'
 
+export interface CardActionOptions {
+  canSummon: boolean
+  canSpSummon: boolean
+  canMonsterSet: boolean
+  canSpellSet: boolean
+  canActivate: boolean
+  activateOptions: EngineProbeActivateOption[]
+  canRepos: boolean
+  canAttack: boolean
+  hasAnyAction: boolean
+}
+
 export interface RuleCheckApi {
   active: boolean
   degraded: boolean
   warnings: string[]
   allows: (card: FieldCard, kind: RuleCheckKind) => boolean
+  getActions: (card: FieldCard) => CardActionOptions
+  probe: EngineProbeOptionsResult | null
 }
 
 export function duelStateProbeKey(
@@ -80,7 +96,8 @@ function listContains(
     (entry) =>
       entry.code === card.code &&
       entry.controller === card.controller &&
-      entry.location === card.location
+      entry.location === card.location &&
+      (entry.sequence === undefined || entry.sequence === card.sequence)
   )
 }
 
@@ -89,11 +106,150 @@ function attackContains(probe: EngineProbeOptionsResult, card: FieldCard): boole
     (entry) =>
       entry.code === card.code &&
       entry.controller === card.controller &&
-      entry.location === CardLocation.MZONE
+      entry.location === CardLocation.MZONE &&
+      (entry.sequence === undefined || entry.sequence === card.sequence)
   )
 }
 
+export function getFallbackActions(card: FieldCard): CardActionOptions {
+  const cdb = card.card
+  const isMonster = cdb ? (cdb.type & CardType.MONSTER) !== 0 : card.location === CardLocation.MZONE
+  const isHand = card.location === CardLocation.HAND
+  const isField =
+    card.location === CardLocation.MZONE ||
+    card.location === CardLocation.SZONE ||
+    card.location === CardLocation.FZONE
+  const isPile =
+    card.location === CardLocation.GRAVE ||
+    card.location === CardLocation.REMOVED ||
+    card.location === CardLocation.EXTRA
+
+  let canSummon = false
+  let canSpSummon = false
+  let canMonsterSet = false
+  let canSpellSet = false
+  let canActivate = false
+  let canRepos = false
+  let canAttack = false
+
+  if (isHand) {
+    if (isMonster) {
+      canSummon = true
+      canSpSummon = true
+      canMonsterSet = true
+      canActivate = cdb ? (cdb.type & CardType.EFFECT) !== 0 : true
+    } else {
+      canActivate = true
+      canSpellSet = true
+    }
+  } else if (isField) {
+    if (isMonster) {
+      canRepos = true
+      canAttack = card.position !== CardPosition.FACEDOWN_DEFENSE
+      canActivate = cdb ? (cdb.type & CardType.EFFECT) !== 0 : true
+    } else {
+      canActivate = true
+    }
+  } else if (isPile) {
+    canSpSummon = isMonster
+    canActivate = true
+  }
+
+  const hasAnyAction =
+    canSummon || canSpSummon || canMonsterSet || canSpellSet || canActivate || canRepos || canAttack
+
+  return {
+    canSummon,
+    canSpSummon,
+    canMonsterSet,
+    canSpellSet,
+    canActivate,
+    activateOptions: [],
+    canRepos,
+    canAttack,
+    hasAnyAction
+  }
+}
+
+export function getCardAvailableActions(
+  probe: EngineProbeOptionsResult | null,
+  card: FieldCard,
+  turnPlayer: 0 | 1,
+  active: boolean
+): CardActionOptions {
+  const isCustom = Boolean(card.card?.isCustom || isCustomCardId(card.code))
+
+  if (active && probe && card.controller === turnPlayer) {
+    const match = (entry: EngineProbeEntry): boolean =>
+      entry.code === card.code &&
+      entry.controller === card.controller &&
+      entry.location === card.location &&
+      (card.location === CardLocation.HAND ||
+        entry.sequence === undefined ||
+        entry.sequence === card.sequence)
+
+    const canSummon = probe.summon.some(match)
+    const canSpSummon = probe.spSummon.some(match)
+    const canMonsterSet = probe.monsterSet.some(match)
+    const canSpellSet = probe.spellSet.some(match)
+    const canRepos = probe.posChange.some(match)
+    const canAttack = probe.attack.some(
+      (entry) =>
+        entry.code === card.code &&
+        entry.controller === card.controller &&
+        entry.location === CardLocation.MZONE &&
+        (entry.sequence === undefined || entry.sequence === card.sequence)
+    )
+
+    const activateEntry = probe.activate.find(match)
+    const canActivate = Boolean(activateEntry)
+    const activateOptions = activateEntry?.options ?? []
+
+    const hasAnyAction =
+      canSummon ||
+      canSpSummon ||
+      canMonsterSet ||
+      canSpellSet ||
+      canActivate ||
+      canRepos ||
+      canAttack
+
+    if (hasAnyAction || !isCustom) {
+      return {
+        canSummon,
+        canSpSummon,
+        canMonsterSet,
+        canSpellSet,
+        canActivate,
+        activateOptions,
+        canRepos,
+        canAttack,
+        hasAnyAction
+      }
+    }
+  }
+
+  if (isCustom || !active || !probe) {
+    return getFallbackActions(card)
+  }
+
+  return {
+    canSummon: false,
+    canSpSummon: false,
+    canMonsterSet: false,
+    canSpellSet: false,
+    canActivate: false,
+    activateOptions: [],
+    canRepos: false,
+    canAttack: false,
+    hasAnyAction: false
+  }
+}
+
 export function enginePromptUsesModal(prompt: EnginePendingSelect): boolean {
+  if (prompt.kind === 'YESNO' || prompt.kind === 'OPTION' || prompt.kind === 'POSITION') {
+    return true
+  }
   return prompt.candidates.some(
     (c) =>
       c.location === CardLocation.DECK ||
@@ -116,6 +272,13 @@ export function engineCandidateIndex(
       c.sequence === card.sequence
   )
   if (exact >= 0) return exact
+  const fieldMatch = candidates.findIndex(
+    (c) =>
+      c.controller === card.controller &&
+      c.location === card.location &&
+      c.sequence === card.sequence
+  )
+  if (fieldMatch >= 0) return fieldMatch
   if (card.location !== CardLocation.HAND) return -1
   const sameCodeCandidates = candidates
     .map((candidate, index) => ({ candidate, index }))

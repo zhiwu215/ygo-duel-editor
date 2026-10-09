@@ -446,16 +446,25 @@ export interface AppConfig {
   ruleCheckEnabled?: boolean
 }
 
+export interface EngineProbeActivateOption {
+  desc: number
+  descText: string
+  effectIndex: number
+}
+
 export interface EngineProbeEntry {
   code: number
   controller: 0 | 1
   location: number
+  sequence?: number
+  options?: EngineProbeActivateOption[]
 }
 
 export interface EngineProbeAttackEntry {
   code: number
   controller: 0 | 1
   location: number
+  sequence?: number
   canDirect: boolean
 }
 
@@ -480,16 +489,30 @@ export interface EngineProbeOptionsResult {
   spellSet: EngineProbeEntry[]
   activate: EngineProbeEntry[]
   attack: EngineProbeAttackEntry[]
+  toBp?: boolean
+  toM2?: boolean
+  toEp?: boolean
 }
 
 export type EngineProbeActionKind =
-  'SUMMON' | 'SP_SUMMON' | 'SET_MONSTER' | 'SET_SPELL' | 'ACTIVATE'
+  | 'SUMMON'
+  | 'SP_SUMMON'
+  | 'SET_MONSTER'
+  | 'SET_SPELL'
+  | 'ACTIVATE'
+  | 'REPOS'
+  | 'ATTACK'
+  | 'TO_BP'
+  | 'TO_M2'
+  | 'TO_EP'
 
 export interface EngineProbeAction {
   kind: EngineProbeActionKind
   code: number
   controller: 0 | 1
   fromLocation: number
+  fromSequence?: number
+  effectIndex?: number
   place?: { location: number; sequence: number }
 }
 
@@ -527,12 +550,14 @@ export interface EngineSelectCandidate {
 }
 
 export interface EnginePendingSelect {
-  kind: 'CARD' | 'TRIBUTE' | 'CHAIN' | 'POSITION'
+  kind: 'CARD' | 'TRIBUTE' | 'CHAIN' | 'POSITION' | 'OPTION' | 'YESNO'
   min: number
   max: number
   canCancel: boolean
   candidates: EngineSelectCandidate[]
   positions?: number
+  options?: string[]
+  hint?: string
 }
 
 export interface EngineGainedCard {
@@ -549,6 +574,7 @@ export interface EngineProbeActionResult {
   sessionId?: string
   missing?: EngineSelectCandidate[]
   gained?: EngineGainedCard[]
+  placedCard?: EngineSelectCandidate
 }
 
 export interface EngineProbeSelectParams {

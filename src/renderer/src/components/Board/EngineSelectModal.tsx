@@ -50,6 +50,69 @@ export const EngineSelectModal: React.FC = () => {
     prompt.min === prompt.max ? `${prompt.min} 张` : `${prompt.min}~${prompt.max} 张`
   const ready = pendingEngineSelect.chosen.length >= prompt.min
 
+  if (prompt.kind === 'YESNO') {
+    return (
+      <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-4 select-none animate-in fade-in">
+        <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-sm flex flex-col overflow-hidden animate-in zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
+            <Sparkles className="w-4 h-4 shrink-0 text-amber-500" />
+            <h2 className="font-bold text-sm tracking-tight truncate">效果发动确认</h2>
+          </div>
+          <div className="p-4 flex flex-col gap-3">
+            <p className="text-xs text-foreground/90 leading-relaxed font-medium">
+              {prompt.hint || '是否发动该卡片的效果？'}
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-4 text-xs"
+                onClick={() => useDuelStore.getState().chooseEngineYesNo(false)}
+              >
+                否
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 px-4 text-xs"
+                onClick={() => useDuelStore.getState().chooseEngineYesNo(true)}
+              >
+                是
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (prompt.kind === 'OPTION') {
+    const options = prompt.options ?? []
+    return (
+      <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-4 select-none animate-in fade-in">
+        <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-md flex flex-col overflow-hidden animate-in zoom-in-95 duration-100">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
+            <Sparkles className="w-4 h-4 shrink-0 text-emerald-500" />
+            <h2 className="font-bold text-sm tracking-tight truncate">请选择要执行的效果</h2>
+          </div>
+          <div className="p-3 flex flex-col gap-2 max-h-[60vh] overflow-y-auto">
+            {options.map((opt, idx) => (
+              <Button
+                key={idx}
+                variant="outline"
+                size="sm"
+                className="w-full h-auto py-2.5 px-3 text-xs justify-start text-left whitespace-normal leading-relaxed hover:border-emerald-500/70 hover:bg-emerald-500/10"
+                onClick={() => useDuelStore.getState().chooseEngineOption(idx)}
+              >
+                <span className="font-bold mr-2 text-muted-foreground">{idx + 1}.</span>
+                <span>{opt}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (isPosition) {
     const candidate = prompt.candidates[0]
     const info = candidate ? cdb[candidate.code] : undefined

@@ -6,10 +6,12 @@ import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
 import { getLegalTargetIds } from '../../utils/duelActionTargets'
 import { engineCandidateIndex, enginePromptUsesModal } from '../../utils/ruleCheck'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useRuleCheck } from '../../stores/useRuleCheckStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { CardHudOverlay } from './components/CardHudOverlay'
+import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { cn } from '../../lib/utils'
 
 export const HAND_REORDER_DRAG_TYPE = 'application/x-ygo-hand-reorder'
@@ -67,6 +69,13 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const { openMenu } = useContextMenuStore()
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openPile = usePileListStore((s) => s.openPile)
+  const {
+    card: menuCard,
+    openMenu: openCommandMenu,
+    closeMenu: closeCommandMenu
+  } = useCardCommandMenuStore()
+  const rule = useRuleCheck()
+  const availableActions = rule.getActions(card)
 
   const isSelected = selectedCardId === card.instanceId
   const isDefense =
@@ -198,7 +207,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
         if (e.shiftKey) {
-          // Shift + 鼠标左键点击：切换打开/关闭独立操作面板
+          closeCommandMenu()
           if (activeStatPopoverCardId === card.instanceId) {
             closeStatPopover()
           } else {
@@ -208,10 +217,19 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
             const defaultY = Math.max(16, Math.min(rect.top - 20, window.innerHeight - 380))
             openStatPopover(card.instanceId, statPopoverPosition || { x: defaultX, y: defaultY })
           }
+        } else if (availableActions.hasAnyAction) {
+          if (menuCard?.instanceId === card.instanceId) {
+            closeCommandMenu()
+          } else {
+            openCommandMenu(card, availableActions, e.currentTarget.getBoundingClientRect())
+          }
+        } else {
+          closeCommandMenu()
         }
       }}
       onDoubleClick={(e) => {
         e.stopPropagation()
+        closeCommandMenu()
         if (showOverlayBadge) {
           openOverlayList(card.instanceId)
         } else if (isPileZone) {
@@ -229,6 +247,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
+        closeCommandMenu()
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
         openMenu(card, e.clientX, e.clientY)
@@ -398,7 +417,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         </Tooltip>
       )}
 
-      {/* 战术全息状态 HUD (Tab 战术透视或鼠标悬停有状态卡片时显示) */}
       {showHud && <CardHudOverlay card={card} />}
     </div>
   )

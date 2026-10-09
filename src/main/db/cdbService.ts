@@ -378,17 +378,56 @@ export class CdbService {
             if (systemMatch) {
               const id = Number(systemMatch[1])
               const label = systemMatch[2].trim()
-              if (id >= 1100 && id < 1132 && label) this.systemStringMap.set(id, label)
+              if (!isNaN(id) && label) this.systemStringMap.set(id, label)
             }
           }
           console.log(
-            `[CdbService] Loaded ${this.setnameMap.size} setnames and ${this.systemStringMap.size} effect labels from ${p}`
+            `[CdbService] Loaded ${this.setnameMap.size} setnames and ${this.systemStringMap.size} system strings from ${p}`
           )
         } catch (err) {
           console.error(`[CdbService] Failed to parse ${p}:`, err)
         }
       }
     }
+  }
+
+  public getEffectDescription(descCode: number, defaultCode?: number): string {
+    if (descCode <= 10000) {
+      const sys = this.systemStringMap.get(descCode)
+      if (sys) return sys
+      return '发动效果'
+    }
+    const cardCode = (descCode >> 4) & 0x0fffffff
+    const offset = descCode & 0xf
+    const strIndex = offset + 1
+    const targetCode = cardCode || defaultCode
+    if (targetCode) {
+      for (const conn of this.connections) {
+        try {
+          const row = conn.db
+            .prepare(`SELECT str${strIndex} as str FROM texts WHERE id = ?`)
+            .get(targetCode) as { str?: string } | undefined
+          if (row?.str && row.str.trim()) {
+            return row.str.trim()
+          }
+        } catch (err) {
+          void err
+        }
+      }
+      const card = this.getCardById(targetCode)
+      if (card?.desc) {
+        const lines = card.desc
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean)
+        const prefix = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'][offset]
+        if (prefix) {
+          const found = lines.find((l) => l.startsWith(prefix))
+          if (found) return found
+        }
+      }
+    }
+    return `效果 (${offset + 1})`
   }
 
   public getSetnames(setcode: number | bigint): string[] {

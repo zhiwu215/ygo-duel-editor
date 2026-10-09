@@ -11,6 +11,7 @@ import {
 } from 'ocgcore-wasm'
 import {
   EngineProbeEntry,
+  EngineProbeActivateOption,
   EngineProbeAttackEntry,
   EngineProbeOptionsParams,
   EngineProbeOptionsResult,
@@ -30,6 +31,7 @@ import {
   DuelPuzzleState
 } from '@shared/index'
 import { ocgcoreService } from './ocgcoreService'
+import { cdbService } from '../db/cdbService'
 import { encodeResponseBytes, UnsupportedReplayQuestionError } from './yrpWriter'
 
 class ReplayRecorder {
@@ -77,7 +79,7 @@ interface EngineSession {
   before: EngineSelectCandidate[]
   beforeHand: EngineSelectCandidate[]
   placed: EngineSelectCandidate[]
-  pendingKind: 'CARD' | 'TRIBUTE' | 'CHAIN' | 'POSITION'
+  pendingKind: 'CARD' | 'TRIBUTE' | 'CHAIN' | 'POSITION' | 'OPTION' | 'YESNO'
   pendingMsgType: number | null
   chainIndexMap: number[] | null
   chainMode: EngineChainMode
@@ -94,6 +96,8 @@ interface RawCardEntry {
   controller?: number
   location?: number
   sequence?: number
+  desc?: number | bigint
+  description?: number | bigint
 }
 
 interface IdleMessage {
@@ -105,6 +109,7 @@ interface IdleMessage {
   spellSet: RawCardEntry[]
   activate: RawCardEntry[]
   toBp: boolean
+  toEp: boolean
 }
 
 const CHILD_SELECT_KINDS = new Set<number>([
@@ -286,10 +291,104 @@ export class RuleCheckService {
       }
       ocgcoreService.seedCounters(created.handle, engineState.cards)
       const settle = this.settleToWait(created.core, created.handle)
-      if (!settle.wait || settle.wait.kind !== 'idle') {
+      if (!settle.wait) {
         warnings.push('引擎未进入可操作状态，无法重放该动作')
         return fail(false, true)
       }
+
+      if (params.action.kind === 'TO_BP') {
+        const battleWait = this.advanceToPhase(created.core, created.handle, settle.wait)
+        if (!battleWait || battleWait.kind !== 'battle') {
+          return fail(false, false)
+        }
+        return { ok: true, degraded: false, warnings: [], counters: [] }
+      }
+
+      if (params.action.kind === 'TO_EP') {
+        created.core.duelSetResponse(created.handle, {
+          type: OcgResponseType.SELECT_IDLECMD,
+          action: SelectIdleCMDAction.TO_EP,
+          index: null
+        } as OcgResponse)
+        this.advanceUntilWait(created.core, created.handle)
+        return { ok: true, degraded: false, warnings: [], counters: [] }
+      }
+
+      if (params.action.kind === 'TO_M2') {
+        const battleWait = this.advanceToPhase(created.core, created.handle, settle.wait)
+        if (battleWait?.battle?.toM2) {
+          created.core.duelSetResponse(created.handle, {
+            type: OcgResponseType.SELECT_BATTLECMD,
+            action: 2,
+            index: null
+          } as OcgResponse)
+          this.advanceUntilWait(created.core, created.handle)
+          return { ok: true, degraded: false, warnings: [], counters: [] }
+        }
+        return fail(false, false)
+      }
+
+      if (params.action.kind === 'ATTACK') {
+        const battleWait = this.advanceToPhase(created.core, created.handle, settle.wait)
+        if (!battleWait || battleWait.kind !== 'battle') return fail(false, false)
+        const attacks = battleWait.battle?.attacks ?? []
+        const attackIndex = attacks.findIndex(
+          (a, i) =>
+            Number(a.code) === params.action.code &&
+            (params.action.fromSequence === undefined ||
+              Number((a as { sequence?: number }).sequence ?? i) === params.action.fromSequence)
+        )
+        if (attackIndex < 0) return fail(false, false)
+        const before = this.readFieldEntries(created.core, created.handle, turnPlayer)
+        const beforeHand = this.readHandEntries(created.core, created.handle, turnPlayer)
+        created.core.duelSetResponse(created.handle, {
+          type: OcgResponseType.SELECT_BATTLECMD,
+          action: 1,
+          index: attackIndex
+        } as OcgResponse)
+        const outcome = this.advanceInteractive(
+          created.core,
+          created.handle,
+          turnPlayer,
+          undefined,
+          params.chainMode ?? 'auto'
+        )
+        if (outcome.status === 'parked' && outcome.pending) {
+          const sessionId = this.createSession(
+            {
+              core: created.core,
+              handle: created.handle,
+              turnPlayer,
+              before,
+              beforeHand,
+              placed: [],
+              pendingKind: outcome.pending.kind,
+              pendingMsgType: outcome.pendingMsg,
+              chainIndexMap: outcome.chainIndexMap,
+              chainMode: params.chainMode ?? 'auto'
+            },
+            outcome.pending.canCancel
+          )
+          return {
+            ok: true,
+            degraded: false,
+            warnings: [...warnings],
+            counters: [],
+            pendingSelect: outcome.pending,
+            sessionId
+          }
+        }
+        return this.finalizeAction(
+          created.core,
+          created.handle,
+          turnPlayer,
+          before,
+          beforeHand,
+          [],
+          warnings
+        )
+      }
+
       const index = this.findIdleActionIndex(
         created.core,
         created.handle,
@@ -392,6 +491,16 @@ export class RuleCheckService {
       core.duelSetResponse(handle, {
         type: OcgResponseType.SELECT_EFFECTYN,
         yes: !canceling
+      } as OcgResponse)
+    } else if (pendingMsgType === OcgMessageType.SELECT_YESNO) {
+      core.duelSetResponse(handle, {
+        type: OcgResponseType.SELECT_YESNO,
+        yes: !canceling && (params.indices?.[0] === 1 || params.indices?.[0] === 0)
+      } as OcgResponse)
+    } else if (pendingMsgType === OcgMessageType.SELECT_OPTION) {
+      core.duelSetResponse(handle, {
+        type: OcgResponseType.SELECT_OPTION,
+        index: params.indices?.[0] ?? 0
       } as OcgResponse)
     } else if (pendingMsgType === OcgMessageType.SELECT_POSITION) {
       core.duelSetResponse(handle, {
@@ -645,13 +754,24 @@ export class RuleCheckService {
         })
       }
     }
+    const placedCard = afterField.find(
+      (a) =>
+        !before.some(
+          (b) =>
+            b.code === a.code &&
+            b.controller === a.controller &&
+            b.location === a.location &&
+            b.sequence === a.sequence
+        )
+    )
     return {
       ok: true,
       degraded: false,
       warnings: [...warnings],
       counters,
       missing,
-      gained
+      gained,
+      placedCard
     }
   }
 
@@ -661,11 +781,19 @@ export class RuleCheckService {
         return SelectIdleCMDAction.SELECT_SUMMON
       case 'SP_SUMMON':
         return SelectIdleCMDAction.SELECT_SPECIAL_SUMMON
+      case 'REPOS':
+        return SelectIdleCMDAction.SELECT_POS_CHANGE
       case 'SET_MONSTER':
         return SelectIdleCMDAction.SELECT_MONSTER_SET
       case 'SET_SPELL':
         return SelectIdleCMDAction.SELECT_SPELL_SET
       case 'ACTIVATE':
+        return SelectIdleCMDAction.SELECT_ACTIVATE
+      case 'TO_BP':
+        return SelectIdleCMDAction.TO_BP
+      case 'TO_EP':
+        return SelectIdleCMDAction.TO_EP
+      default:
         return SelectIdleCMDAction.SELECT_ACTIVATE
     }
   }
@@ -678,22 +806,34 @@ export class RuleCheckService {
   ): number | null {
     const idle = this.readIdleMessage(core, handle)
     if (!idle) return null
+    if (action.kind === 'TO_BP' || action.kind === 'TO_EP' || action.kind === 'TO_M2') return null
     const list =
       action.kind === 'SUMMON'
         ? idle.summon
         : action.kind === 'SP_SUMMON'
           ? idle.spSummon
-          : action.kind === 'SET_MONSTER'
-            ? idle.monsterSet
-            : action.kind === 'SET_SPELL'
-              ? idle.spellSet
-              : idle.activate
+          : action.kind === 'REPOS'
+            ? idle.posChange
+            : action.kind === 'SET_MONSTER'
+              ? idle.monsterSet
+              : action.kind === 'SET_SPELL'
+                ? idle.spellSet
+                : idle.activate
     const engineController = action.controller === turnPlayer ? 0 : 1
+    if (action.kind === 'ACTIVATE' && typeof action.effectIndex === 'number') {
+      if (action.effectIndex >= 0 && action.effectIndex < list.length) {
+        return action.effectIndex
+      }
+    }
+    const isHand = action.fromLocation === CardLocation.HAND
     const index = list.findIndex(
       (raw) =>
         Number(raw.code ?? 0) === action.code &&
         Number(raw.controller ?? 0) === engineController &&
-        this.mapLocationBack(Number(raw.location ?? 0)) === action.fromLocation
+        this.mapLocationBack(Number(raw.location ?? 0)) === action.fromLocation &&
+        (isHand ||
+          action.fromSequence === undefined ||
+          Number(raw.sequence ?? 0) === action.fromSequence)
     )
     return index >= 0 ? index : null
   }
@@ -968,13 +1108,19 @@ export class RuleCheckService {
         return result()
       }
       const attacks = reached.battle?.attacks ?? []
-      const mapped: EngineProbeAttackEntry[] = attacks.map((a) => ({
+      const mapped: EngineProbeAttackEntry[] = attacks.map((a, i) => ({
         code: Number(a.code),
         controller: turnPlayer,
         location: CardLocation.MZONE,
+        sequence: Number((a as { sequence?: number }).sequence ?? i),
         canDirect: a.can_direct === true
       }))
-      return { ...result(), attack: mapped }
+      return {
+        ...result(),
+        attack: mapped,
+        toM2: reached.battle?.toM2 === true,
+        toEp: reached.battle?.toEp === true
+      }
     }
 
     if (currentPhase === 'M2') {
@@ -991,7 +1137,7 @@ export class RuleCheckService {
         const m2wait = this.advanceUntilWait(core, handle)
         if (m2wait && m2wait.kind === 'idle') {
           const idle = this.readIdleMessage(core, handle)
-          if (idle) return { ...result(), ...this.mapIdle(idle, turnPlayer) }
+          if (idle) return { ...result(), ...this.mapIdle(idle, turnPlayer), toEp: idle.toEp }
         }
         return result()
       }
@@ -1007,7 +1153,12 @@ export class RuleCheckService {
     }
     const idle = this.readIdleMessage(core, handle)
     if (!idle) return result()
-    return { ...result(), ...this.mapIdle(idle, turnPlayer) }
+    return {
+      ...result(),
+      ...this.mapIdle(idle, turnPlayer),
+      toBp: idle.toBp,
+      toEp: idle.toEp
+    }
   }
 
   private mapIdle(
@@ -1025,16 +1176,50 @@ export class RuleCheckService {
         return {
           code: Number(raw.code ?? 0),
           controller: editorController,
-          location: this.mapLocationBack(Number(raw.location ?? 0))
+          location: this.mapLocationBack(Number(raw.location ?? 0)),
+          sequence: Number(raw.sequence ?? 0)
         }
       })
+
+    const activateMap = new Map<
+      string,
+      { entry: EngineProbeEntry; options: EngineProbeActivateOption[] }
+    >()
+    idle.activate.forEach((raw, effectIndex) => {
+      const engineController = (Number(raw.controller ?? 0) === 1 ? 1 : 0) as 0 | 1
+      const editorController: 0 | 1 =
+        engineController === 0 ? turnPlayer : ((1 - turnPlayer) as 0 | 1)
+      const code = Number(raw.code ?? 0)
+      const location = this.mapLocationBack(Number(raw.location ?? 0))
+      const sequence = Number(raw.sequence ?? 0)
+      const desc = Number(raw.description ?? raw.desc ?? 0)
+      const descText = cdbService.getEffectDescription(desc, code)
+      const key = `${editorController}:${location}:${sequence}:${code}`
+      let existing = activateMap.get(key)
+      if (!existing) {
+        existing = {
+          entry: { code, controller: editorController, location, sequence },
+          options: []
+        }
+        activateMap.set(key, existing)
+      }
+      existing.options.push({ desc, descText, effectIndex })
+    })
+
+    const activate: EngineProbeEntry[] = Array.from(activateMap.values()).map(
+      ({ entry, options }) => ({
+        ...entry,
+        options
+      })
+    )
+
     return {
       summon: mapAll(idle.summon),
       spSummon: mapAll(idle.spSummon),
       posChange: mapAll(idle.posChange),
       monsterSet: mapAll(idle.monsterSet),
       spellSet: mapAll(idle.spellSet),
-      activate: mapAll(idle.activate)
+      activate
     }
   }
 
@@ -1118,6 +1303,16 @@ export class RuleCheckService {
         }
         if (kind === OcgMessageType.SELECT_EFFECTYN) {
           const pending = this.effectYnPromptFrom(msg, turnPlayer)
+          if (pending) return { status: 'parked', pending, pendingMsg: kind, chainIndexMap: null }
+          continue
+        }
+        if (kind === OcgMessageType.SELECT_YESNO) {
+          const pending = this.yesNoPromptFrom(msg)
+          if (pending) return { status: 'parked', pending, pendingMsg: kind, chainIndexMap: null }
+          continue
+        }
+        if (kind === OcgMessageType.SELECT_OPTION) {
+          const pending = this.optionPromptFrom(msg)
           if (pending) return { status: 'parked', pending, pendingMsg: kind, chainIndexMap: null }
           continue
         }
@@ -1373,6 +1568,34 @@ export class RuleCheckService {
     }
   }
 
+  private yesNoPromptFrom(msg: unknown): EnginePendingSelect | null {
+    const m = msg as { player?: number; description?: number | bigint }
+    if (Number(m.player ?? 0) !== 0) return null
+    const descText = cdbService.getEffectDescription(Number(m.description ?? 0))
+    return {
+      kind: 'YESNO',
+      min: 1,
+      max: 1,
+      canCancel: false,
+      candidates: [],
+      hint: descText
+    }
+  }
+
+  private optionPromptFrom(msg: unknown): EnginePendingSelect | null {
+    const m = msg as { player?: number; options?: (number | bigint)[] }
+    if (Number(m.player ?? 0) !== 0) return null
+    const options = (m.options ?? []).map((desc) => cdbService.getEffectDescription(Number(desc)))
+    return {
+      kind: 'OPTION',
+      min: 1,
+      max: 1,
+      canCancel: false,
+      candidates: [],
+      options
+    }
+  }
+
   private ownChainIndices(selects: RawCardEntry[]): number[] {
     const out: number[] = []
     selects.forEach((raw, i) => {
@@ -1595,6 +1818,7 @@ export class RuleCheckService {
         spell_sets: RawCardEntry[]
         activates: RawCardEntry[]
         to_bp: boolean
+        to_ep: boolean
       }
       return {
         player: Number(m.player),
@@ -1604,7 +1828,8 @@ export class RuleCheckService {
         monsterSet: m.monster_sets ?? [],
         spellSet: m.spell_sets ?? [],
         activate: m.activates ?? [],
-        toBp: m.to_bp === true
+        toBp: m.to_bp === true,
+        toEp: m.to_ep === true
       }
     }
     return null

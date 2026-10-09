@@ -31,6 +31,7 @@ export interface PendingPlacement {
   cardType: number
   /** 当前可落子的所有空槽 (高亮显示 + 点击生效) */
   allowedSlots: PendingPlacementSlot[]
+  effectIndex?: number
 }
 
 export interface BattlePreview {

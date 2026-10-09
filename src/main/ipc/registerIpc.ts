@@ -363,6 +363,10 @@ export function registerAllIpcHandlers(): void {
     return dataDirService.getDataDirectory()
   })
 
+  ipcMain.handle('data:get-default-dir', async () => {
+    return dataDirService.defaultDirectory
+  })
+
   ipcMain.handle('data:open-dir', async () => {
     return dataDirService.openDataDirectory()
   })

@@ -117,6 +117,7 @@ const api: IpcApi = {
   selectProjectsDirectory: () => ipcRenderer.invoke('file:select-projects-dir'),
 
   getDataDirectory: () => ipcRenderer.invoke('data:get-dir'),
+  getDefaultDataDirectory: () => ipcRenderer.invoke('data:get-default-dir'),
   openDataDirectory: () => ipcRenderer.invoke('data:open-dir'),
   selectDataDirectory: (migrate: boolean) => ipcRenderer.invoke('data:select-dir', migrate),
   resetDataDirectory: (migrate: boolean) => ipcRenderer.invoke('data:reset-dir', migrate),

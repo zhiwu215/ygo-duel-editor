@@ -7,6 +7,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   writeFileSync
 } from 'fs'
@@ -16,8 +17,49 @@ import { configService } from './configService'
 const DATA_FILES = ['ygo_duel_editor_decks.json', 'card_notes.json', 'custom_cards.json']
 const DATA_DIRS = ['pics/custom', 'projects', 'texts']
 
+let installDataDirectory: string | null | undefined
+
+function readInstallerChoice(): string | null {
+  if (!app.isPackaged) return null
+  try {
+    const marker = join(dirname(app.getPath('exe')), 'data-dir.txt')
+    if (!existsSync(marker)) return null
+    const value = readFileSync(marker, 'utf-8').trim()
+    if (!value) return null
+    mkdirSync(value, { recursive: true })
+    return value
+  } catch {
+    return null
+  }
+}
+
+function resolveInstallDataDirectory(): string | null {
+  if (!app.isPackaged) return null
+  const chosen = readInstallerChoice()
+  if (chosen) return chosen
+  const localAppData = process.env['LOCALAPPDATA']
+  if (!localAppData) return null
+  try {
+    const fallback = join(localAppData, 'ygo-duel-editor-data')
+    mkdirSync(fallback, { recursive: true })
+    return fallback
+  } catch {
+    return null
+  }
+}
+
 export class DataDirService {
+  public get installDataDirectory(): string | null {
+    if (installDataDirectory === undefined) installDataDirectory = resolveInstallDataDirectory()
+    return installDataDirectory
+  }
+
   public get defaultDirectory(): string {
+    const target = this.installDataDirectory
+    if (target) {
+      this.migrateFromUserData(target)
+      return target
+    }
     return app.getPath('userData')
   }
 
@@ -54,31 +96,57 @@ export class DataDirService {
     }
   }
 
+  private copyData(from: string, to: string): string[] {
+    const moved: string[] = []
+    for (const name of DATA_FILES) {
+      const src = join(from, name)
+      const dest = join(to, name)
+      if (!existsSync(src) || existsSync(dest)) continue
+      copyFileSync(src, dest)
+      moved.push(name)
+    }
+    for (const rel of DATA_DIRS) {
+      const src = join(from, rel)
+      const dest = join(to, rel)
+      if (!existsSync(src) || existsSync(dest)) continue
+      mkdirSync(dirname(dest), { recursive: true })
+      cpSync(src, dest, { recursive: true })
+      moved.push(rel)
+    }
+    return moved
+  }
+
   public migrate(target: string): string[] {
     const from = this.getDataDirectory()
     if (from === target) return []
-    const moved: string[] = []
     try {
       if (!existsSync(target)) mkdirSync(target, { recursive: true })
-      for (const name of DATA_FILES) {
-        const src = join(from, name)
-        const dest = join(target, name)
-        if (!existsSync(src) || existsSync(dest)) continue
-        copyFileSync(src, dest)
-        moved.push(name)
-      }
-      for (const rel of DATA_DIRS) {
-        const src = join(from, rel)
-        const dest = join(target, rel)
-        if (!existsSync(src) || existsSync(dest)) continue
-        mkdirSync(dirname(dest), { recursive: true })
-        cpSync(src, dest, { recursive: true })
-        moved.push(rel)
-      }
+      return this.copyData(from, target)
     } catch (err) {
       console.error('[DataDirService] migrate failed:', err)
+      return []
     }
-    return moved
+  }
+
+  private legacyMigrated = false
+
+  private migrateFromUserData(target: string): void {
+    if (this.legacyMigrated) return
+    this.legacyMigrated = true
+    if (configService.get().dataDirectory) return
+    const legacy = app.getPath('userData')
+    if (legacy === target) return
+    const hasData =
+      DATA_FILES.some((name) => existsSync(join(legacy, name))) ||
+      DATA_DIRS.some((rel) => existsSync(join(legacy, rel)))
+    if (!hasData) return
+    try {
+      mkdirSync(target, { recursive: true })
+      const moved = this.copyData(legacy, target)
+      if (moved.length) console.log('[DataDirService] migrated from userData:', moved.join(', '))
+    } catch (err) {
+      console.error('[DataDirService] migrateFromUserData failed:', err)
+    }
   }
 
   public async selectDataDirectory(

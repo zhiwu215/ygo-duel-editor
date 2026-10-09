@@ -151,7 +151,12 @@ function DataDirectorySection(): JSX.Element {
   const { config, selectDataDir, resetDataDir, openDataDir } = useConfigStore()
   const [migrate, setMigrate] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [defaultDir, setDefaultDir] = useState('')
   const current = config.dataDirectory
+
+  useEffect(() => {
+    void window.api.getDefaultDataDirectory().then(setDefaultDir)
+  }, [])
 
   const handleSelect = async (): Promise<void> => {
     setBusy(true)
@@ -178,7 +183,7 @@ function DataDirectorySection(): JSX.Element {
         description={
           current
             ? current
-            : `默认目录 (${'userData'})：卡组库、卡牌图鉴、自建卡、决斗档案、文本素材都存这里`
+            : `${defaultDir || '默认目录'}：卡组库、卡牌图鉴、自建卡、决斗档案、文本素材都存这里`
         }
       >
         <div className="flex items-center gap-1.5">
@@ -249,6 +254,12 @@ function DataDirectorySection(): JSX.Element {
 /** 路径与目录分区：数据目录 / YGO 主程序目录 / 决斗档案目录 */
 function PathsSection(): JSX.Element {
   const { config, selectYgoDir, selectProjectsDir } = useConfigStore()
+  const [defaultDir, setDefaultDir] = useState('')
+
+  useEffect(() => {
+    void window.api.getDefaultDataDirectory().then(setDefaultDir)
+  }, [])
+
   return (
     <section className="rounded-xl border border-border bg-card/60">
       <SettingsRow
@@ -266,7 +277,10 @@ function PathsSection(): JSX.Element {
       </SettingsRow>
       <SettingsRow
         title="决斗档案保存目录"
-        description={config.projectsDirectory || '默认目录 (userData/projects)'}
+        description={
+          config.projectsDirectory ||
+          (defaultDir ? `${defaultDir}\\projects` : '默认目录 (数据保存目录下的 projects)')
+        }
       >
         <Button
           size="xs"

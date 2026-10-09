@@ -786,6 +786,7 @@ export interface IpcApi {
   selectProjectsDirectory: () => Promise<string | null>
 
   getDataDirectory: () => Promise<string>
+  getDefaultDataDirectory: () => Promise<string>
   openDataDirectory: () => Promise<void>
   selectDataDirectory: (migrate: boolean) => Promise<DataDirectoryResult | null>
   resetDataDirectory: (migrate: boolean) => Promise<DataDirectoryResult>

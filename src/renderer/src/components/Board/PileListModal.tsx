@@ -4,20 +4,9 @@ import { CardLocation, CardPosition, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE, setCardDragImage } from '../../utils/cardImage'
 import { getDropPosOverride } from '../../utils/zoneDrop'
-import {
-  Layers,
-  Ghost,
-  Ban,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Trash2,
-  Search,
-  GripVertical,
-  MoreHorizontal
-} from 'lucide-react'
+import { Layers, Ghost, Ban, X, Trash2, Search, MoreHorizontal } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
@@ -50,6 +39,7 @@ const PileListContent: React.FC = () => {
   const {
     state,
     activeDuelistId,
+    selectedCardId,
     setHoveredCard,
     setHoveredInstanceId,
     setSelectedCardId,
@@ -150,18 +140,6 @@ const PileListContent: React.FC = () => {
   const ctrlLabel = ownerDuelist ? ownerDuelist.name : target.controller === 0 ? '我方' : '对方'
   const title = `${ctrlLabel}${meta.name}`
 
-  const handleScrollLeft = (): void => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: -320, behavior: 'smooth' })
-    }
-  }
-
-  const handleScrollRight = (): void => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: 320, behavior: 'smooth' })
-    }
-  }
-
   const isPointerOutsideList = (clientX: number, clientY: number): boolean => {
     const rect = listRectRef.current
     if (!rect) return false
@@ -170,8 +148,9 @@ const PileListContent: React.FC = () => {
     )
   }
 
-  const getPileInsertionAtX = (
-    clientX: number
+  const getPileInsertionAtPointer = (
+    clientX: number,
+    clientY: number
   ): { index: number; side: 'before' | 'after' } | null => {
     const cardElements =
       scrollContainerRef.current?.querySelectorAll<HTMLElement>('[data-pile-card-index]')
@@ -181,8 +160,11 @@ const PileListContent: React.FC = () => {
     let nearestDistance = Number.POSITIVE_INFINITY
     for (const element of Array.from(cardElements)) {
       const rect = element.getBoundingClientRect()
-      const distance =
+      const offsetX =
         clientX < rect.left ? rect.left - clientX : clientX > rect.right ? clientX - rect.right : 0
+      const offsetY =
+        clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0
+      const distance = offsetX * offsetX + offsetY * offsetY
       if (distance < nearestDistance) {
         nearestCard = element
         nearestDistance = distance
@@ -272,7 +254,7 @@ const PileListContent: React.FC = () => {
       }}
     >
       <div
-        className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-4xl max-h-[92%] flex flex-col overflow-hidden animate-in zoom-in-95 duration-100"
+        className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-6xl max-h-[92%] flex flex-col overflow-hidden animate-in zoom-in-95 duration-100"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
@@ -317,11 +299,17 @@ const PileListContent: React.FC = () => {
         </div>
 
         <div
+          ref={scrollContainerRef}
           onDragOver={(e) => {
-            if (
-              e.dataTransfer.types.includes('text/pile-reorder-id') &&
-              isPointerOutsideList(e.clientX, e.clientY)
-            ) {
+            if (e.dataTransfer.types.includes('text/pile-reorder-id')) {
+              if (isPointerOutsideList(e.clientX, e.clientY)) return
+              e.preventDefault()
+              e.stopPropagation()
+              e.dataTransfer.dropEffect = 'move'
+              if (!(e.target as HTMLElement).closest('[data-pile-card-index]')) {
+                const insertion = getPileInsertionAtPointer(e.clientX, e.clientY)
+                if (insertion) setDragOverInfo(insertion)
+              }
               return
             }
             const isExternal =
@@ -332,10 +320,15 @@ const PileListContent: React.FC = () => {
               e.dataTransfer.dropEffect = 'copy'
             }
           }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              if (isOutsideList) setIsOutsideList(false)
+            }
+          }}
           onDrop={(e) => {
             if (e.dataTransfer.types.includes('text/pile-reorder-id')) {
               if (isPointerOutsideList(e.clientX, e.clientY)) return
-              const dropPosition = dragOverInfo ?? getPileInsertionAtX(e.clientX)
+              const dropPosition = dragOverInfo ?? getPileInsertionAtPointer(e.clientX, e.clientY)
               if (dropPosition) {
                 handlePileCardDrop(e, dropPosition.index, dropPosition.side)
               }
@@ -350,7 +343,7 @@ const PileListContent: React.FC = () => {
               setDragOverInfo(null)
             }
           }}
-          className="relative flex-1 min-h-[360px] max-h-[60vh] flex items-center overflow-hidden p-4 bg-muted/10"
+          className="relative flex-1 min-h-[300px] max-h-[66vh] overflow-y-auto overflow-x-hidden p-4 bg-muted/10"
         >
           {filteredCards.length === 0 ? (
             <div
@@ -373,7 +366,7 @@ const PileListContent: React.FC = () => {
                   setDragOverInfo(null)
                 }
               }}
-              className="w-full flex flex-col items-center justify-center text-muted-foreground py-16 text-xs gap-2 border-2 border-dashed border-border/40 rounded-lg"
+              className="h-full min-h-[260px] w-full flex flex-col items-center justify-center text-muted-foreground py-16 text-xs gap-2 border-2 border-dashed border-border/40 rounded-lg"
             >
               <IconComponent className="w-10 h-10 opacity-30 stroke-[1.5]" />
               <p>
@@ -385,350 +378,221 @@ const PileListContent: React.FC = () => {
               </p>
             </div>
           ) : (
-            <>
-              {filteredCards.length > 5 && (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        onClick={handleScrollLeft}
-                        className="absolute left-2 z-20 w-8 h-8 rounded-full bg-background/80 hover:bg-background border border-border shadow-md flex items-center justify-center text-foreground/80 hover:text-foreground transition-all cursor-pointer"
-                      >
-                        <ChevronLeft className="w-5 h-5" />
-                      </button>
-                    }
-                  />
-                  <TooltipContent>向左滚动</TooltipContent>
-                </Tooltip>
-              )}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2.5">
+              {filteredCards.map((card) => {
+                const originalIndex = pileCards.findIndex((c) => c.instanceId === card.instanceId)
+                const isDragging = draggingIndex === originalIndex
+                const isDragOver =
+                  dragOverInfo?.index === originalIndex && draggingIndex !== originalIndex
+                const isSelected = selectedCardId === card.instanceId
+                const cardName = card.card?.name || String(card.code)
 
-              <div
-                ref={scrollContainerRef}
-                onWheel={(e) => {
-                  if (scrollContainerRef.current && e.deltaY !== 0) {
-                    scrollContainerRef.current.scrollLeft += e.deltaY
-                  }
-                }}
-                onDragOver={(e) => {
-                  if (e.dataTransfer.types.includes('text/pile-reorder-id')) {
-                    if (isPointerOutsideList(e.clientX, e.clientY)) return
-                    e.preventDefault()
-                    e.stopPropagation()
-                    e.dataTransfer.dropEffect = 'move'
-                    if (!(e.target as HTMLElement).closest('[data-pile-card-index]')) {
-                      const insertion = getPileInsertionAtX(e.clientX)
-                      if (insertion) setDragOverInfo(insertion)
-                    }
-                    return
-                  }
-                  const isExternal =
-                    e.dataTransfer.types.includes('application/json') ||
-                    e.dataTransfer.types.includes('text/instanceid')
-                  if (isExternal) {
-                    e.preventDefault()
-                    e.dataTransfer.dropEffect = 'copy'
-                  }
-                }}
-                onDragLeave={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                    if (isOutsideList) setIsOutsideList(false)
-                  }
-                }}
-                onDrop={(e) => {
-                  if (e.dataTransfer.types.includes('text/pile-reorder-id')) {
-                    if (isPointerOutsideList(e.clientX, e.clientY)) return
-                    const dropPosition = dragOverInfo ?? getPileInsertionAtX(e.clientX)
-                    if (dropPosition) {
-                      handlePileCardDrop(e, dropPosition.index, dropPosition.side)
-                    }
-                    return
-                  }
-                  const isExternal =
-                    e.dataTransfer.types.includes('application/json') ||
-                    e.dataTransfer.types.includes('text/instanceid')
-                  if (isExternal) {
-                    e.preventDefault()
-                    handleExternalCardDrop(e, pileCards.length)
-                    setDragOverInfo(null)
-                  }
-                }}
-                className="relative w-full h-full flex items-center gap-3 overflow-x-auto overflow-y-hidden px-4 py-2"
-              >
-                {filteredCards.map((card) => {
-                  const originalIndex = pileCards.findIndex((c) => c.instanceId === card.instanceId)
-                  const tagText = `${meta.short}[${originalIndex + 1}]`
-                  const isDragging = draggingIndex === originalIndex
-                  const isDragOver =
-                    dragOverInfo?.index === originalIndex && draggingIndex !== originalIndex
-                  const gapBefore = isDragOver && dragOverInfo.side === 'before'
-                  const gapAfter = isDragOver && dragOverInfo.side === 'after'
-                  const renderGap = (side: 'before' | 'after'): React.ReactNode => (
-                    <div
-                      aria-hidden="true"
-                      onDragOver={(e) => {
+                return (
+                  <div
+                    key={card.instanceId}
+                    draggable
+                    data-pile-card-index={originalIndex}
+                    title={cardName}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/pile-reorder-id', card.instanceId)
+                      e.dataTransfer.setData('text/pile-reorder-index', String(originalIndex))
+                      if (card.card) {
+                        e.dataTransfer.setData('application/json', JSON.stringify(card.card))
+                      }
+                      e.dataTransfer.setData('text/instanceId', card.instanceId)
+                      e.dataTransfer.effectAllowed = 'copyMove'
+                      setCardDragImage(e.dataTransfer, e.currentTarget)
+
+                      window.requestAnimationFrame(() => setDraggingIndex(originalIndex))
+
+                      listRectRef.current =
+                        scrollContainerRef.current?.getBoundingClientRect() ?? null
+                    }}
+                    onDragOver={(e) => {
+                      const isReorder = e.dataTransfer.types.includes('text/pile-reorder-id')
+                      const isExternal =
+                        e.dataTransfer.types.includes('application/json') ||
+                        e.dataTransfer.types.includes('text/instanceid')
+                      if (isReorder || isExternal) {
+                        if (isReorder && isPointerOutsideList(e.clientX, e.clientY)) return
                         e.preventDefault()
                         e.stopPropagation()
-                        setDragOverInfo((current) =>
-                          current?.index === originalIndex && current.side === side
-                            ? current
-                            : { index: originalIndex, side }
-                        )
-                      }}
-                      onDrop={(e) => handlePileCardDrop(e, originalIndex, side)}
-                      className="w-36 h-[280px] shrink-0 rounded-md border border-dashed border-border/50 bg-muted/10"
-                    />
-                  )
-
-                  return (
-                    <React.Fragment key={card.instanceId}>
-                      {gapBefore && renderGap('before')}
-                      <div
-                        draggable
-                        data-pile-card-index={originalIndex}
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/pile-reorder-id', card.instanceId)
-                          e.dataTransfer.setData('text/pile-reorder-index', String(originalIndex))
-                          if (card.card) {
-                            e.dataTransfer.setData('application/json', JSON.stringify(card.card))
-                          }
-                          e.dataTransfer.setData('text/instanceId', card.instanceId)
-                          e.dataTransfer.effectAllowed = 'copyMove'
-                          const sourceImage = e.currentTarget.querySelector('img')
-                          if (sourceImage?.complete && sourceImage.naturalWidth > 0) {
-                            const preview = document.createElement('canvas')
-                            preview.width = 64
-                            preview.height = 92
-                            preview.style.cssText =
-                              'position:fixed;left:0;top:0;opacity:0.01;pointer-events:none'
-                            const context = preview.getContext('2d')
-                            if (context) {
-                              context.drawImage(sourceImage, 0, 0, preview.width, preview.height)
-                              document.body.appendChild(preview)
-
-                              const cleanupPreview = (): void => {
-                                preview.remove()
-                                document.removeEventListener('dragend', cleanupPreview, true)
-                                window.clearTimeout(cleanupTimer)
-                              }
-                              document.addEventListener('dragend', cleanupPreview, true)
-                              const cleanupTimer = window.setTimeout(cleanupPreview, 30_000)
-
-                              e.dataTransfer.setDragImage(
-                                preview,
-                                preview.width / 2,
-                                preview.height / 2
-                              )
-                            } else {
-                              e.dataTransfer.setDragImage(
-                                sourceImage,
-                                sourceImage.width / 2,
-                                sourceImage.height / 2
-                              )
-                            }
-                          } else if (sourceImage) {
-                            e.dataTransfer.setDragImage(
-                              sourceImage,
-                              sourceImage.width / 2,
-                              sourceImage.height / 2
-                            )
-                          }
-
-                          window.requestAnimationFrame(() => setDraggingIndex(originalIndex))
-
-                          listRectRef.current =
-                            scrollContainerRef.current?.getBoundingClientRect() ?? null
-                        }}
-                        onDragOver={(e) => {
-                          const isReorder = e.dataTransfer.types.includes('text/pile-reorder-id')
-                          const isExternal =
-                            e.dataTransfer.types.includes('application/json') ||
-                            e.dataTransfer.types.includes('text/instanceid')
-                          if (isReorder || isExternal) {
-                            if (isReorder && isPointerOutsideList(e.clientX, e.clientY)) return
-                            e.preventDefault()
-                            e.stopPropagation()
-                            e.dataTransfer.dropEffect = isReorder ? 'move' : 'copy'
-                            const rect = e.currentTarget.getBoundingClientRect()
-                            const mouseX = e.clientX - rect.left
-                            const side = mouseX < rect.width / 2 ? 'before' : 'after'
-                            if (
-                              !dragOverInfo ||
-                              dragOverInfo.index !== originalIndex ||
-                              dragOverInfo.side !== side
-                            ) {
-                              setDragOverInfo({ index: originalIndex, side })
-                            }
+                        e.dataTransfer.dropEffect = isReorder ? 'move' : 'copy'
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const mouseX = e.clientX - rect.left
+                        const side = mouseX < rect.width / 2 ? 'before' : 'after'
+                        if (
+                          !dragOverInfo ||
+                          dragOverInfo.index !== originalIndex ||
+                          dragOverInfo.side !== side
+                        ) {
+                          setDragOverInfo({ index: originalIndex, side })
+                        }
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                      if (scrollContainerRef.current?.contains(e.relatedTarget as Node)) return
+                      if (dragOverInfo?.index === originalIndex && !isOutsideList) {
+                        setDragOverInfo(null)
+                      }
+                    }}
+                    onDrop={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const side = e.clientX >= rect.left + rect.width / 2 ? 'after' : 'before'
+                      handlePileCardDrop(e, originalIndex, side)
+                    }}
+                    onDragEnd={() => {
+                      setDraggingIndex(null)
+                      setDragOverInfo(null)
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      openContextMenu(card, e.clientX, e.clientY)
+                    }}
+                    className={cn(
+                      'group relative flex flex-col rounded-md border bg-card p-1.5 shadow-sm transition-colors select-none cursor-grab active:cursor-grabbing',
+                      isDragging
+                        ? 'opacity-25 border-dashed border-border pointer-events-none'
+                        : isSelected
+                          ? 'border-blue-500 ring-1 ring-blue-500/50'
+                          : 'border-border/80 hover:border-blue-500/70 hover:shadow-md'
+                    )}
+                    onMouseEnter={() => {
+                      setHoveredInstanceId(card.instanceId)
+                      if (card.card) setHoveredCard(card.card)
+                    }}
+                    onMouseLeave={() => {
+                      if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {
+                        setHoveredInstanceId(null)
+                      }
+                    }}
+                    onClick={() => {
+                      setSelectedCardId(card.instanceId)
+                      if (card.card) setHoveredCard(card.card)
+                    }}
+                  >
+                    <div className="relative w-full aspect-[59/86] rounded overflow-hidden border border-border/70 bg-black/30">
+                      <img
+                        src={getCardImageUrl(card.code, true)}
+                        alt={cardName}
+                        className="w-full h-full object-cover pointer-events-none"
+                        onError={(e) => {
+                          const targetEl = e.currentTarget
+                          if (targetEl.src !== UNKNOWN_CARD_IMAGE) {
+                            targetEl.src = UNKNOWN_CARD_IMAGE
                           }
                         }}
-                        onDragLeave={(e) => {
-                          if (e.currentTarget.contains(e.relatedTarget as Node)) return
-                          if (scrollContainerRef.current?.contains(e.relatedTarget as Node)) return
-                          if (dragOverInfo?.index === originalIndex && !isOutsideList) {
-                            setDragOverInfo(null)
-                          }
-                        }}
-                        onDrop={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect()
-                          const side = e.clientX >= rect.left + rect.width / 2 ? 'after' : 'before'
-                          handlePileCardDrop(e, originalIndex, side)
-                        }}
-                        onDragEnd={() => {
-                          setDraggingIndex(null)
-                          setDragOverInfo(null)
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          openContextMenu(card, e.clientX, e.clientY)
-                        }}
-                        className={cn(
-                          'group relative flex flex-col items-center shrink-0 w-36 bg-card border rounded-md p-2 shadow-sm transition-all select-none cursor-grab active:cursor-grabbing',
-                          isDragging
-                            ? 'opacity-0 pointer-events-none'
-                            : 'border-border/80 hover:border-blue-500/70 hover:shadow-md'
-                        )}
-                        onMouseEnter={() => {
-                          setHoveredInstanceId(card.instanceId)
-                        }}
-                        onMouseLeave={() => {
-                          if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {
-                            setHoveredInstanceId(null)
-                          }
-                        }}
-                        onClick={() => {
-                          setSelectedCardId(card.instanceId)
-                          if (card.card) setHoveredCard(card.card)
-                        }}
-                      >
-                        <div className="w-full flex items-center justify-between text-[11px] font-mono text-muted-foreground mb-1.5 px-0.5">
-                          <span className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                            <GripVertical className="w-3 h-3 opacity-40 group-hover:opacity-80 transition-opacity" />
-                            {tagText}
-                            {target.location === CardLocation.DECK && originalIndex === 0 && (
-                              <span className="ml-0.5 px-1 py-0.5 rounded border border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-sans text-[9px] font-bold leading-none">
-                                下一抽
-                              </span>
-                            )}
-                          </span>
-                          {target.location === CardLocation.EXTRA && (
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      updateCardPosition(
-                                        card.instanceId,
-                                        card.position === CardPosition.FACEUP
-                                          ? CardPosition.FACEDOWN
-                                          : CardPosition.FACEUP
-                                      )
-                                    }}
-                                    className={cn(
-                                      'text-[9px] px-1 py-0.5 rounded font-sans transition-colors cursor-pointer border leading-none',
+                      />
+
+                      <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
+                        #{originalIndex + 1}
+                      </span>
+
+                      {target.location === CardLocation.DECK && originalIndex === 0 && (
+                        <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
+                          下一抽
+                        </span>
+                      )}
+
+                      {target.location === CardLocation.EXTRA && (
+                        <span className="absolute right-1 top-1 inline-flex">
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    updateCardPosition(
+                                      card.instanceId,
                                       card.position === CardPosition.FACEUP
-                                        ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/40 font-semibold'
-                                        : 'bg-muted/80 text-muted-foreground border-border hover:text-foreground'
-                                    )}
-                                  >
-                                    {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
-                                  </button>
-                                }
-                              />
-                              <TooltipContent>点击切换 表侧 / 里侧 表示形式</TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
-
-                        <div className="relative w-32 h-[186px] rounded overflow-hidden shadow border border-border/80 bg-black/30 transition-transform duration-150 group-hover:scale-[1.02]">
-                          <img
-                            src={getCardImageUrl(card.code, true)}
-                            alt={card.card?.name || String(card.code)}
-                            className="w-full h-full object-cover pointer-events-none"
-                            onError={(e) => {
-                              const targetEl = e.currentTarget
-                              if (targetEl.src !== UNKNOWN_CARD_IMAGE) {
-                                targetEl.src = UNKNOWN_CARD_IMAGE
+                                        ? CardPosition.FACEDOWN
+                                        : CardPosition.FACEUP
+                                    )
+                                  }}
+                                  className={cn(
+                                    'px-1 rounded font-sans text-[9px] leading-[14px] border transition-colors cursor-pointer',
+                                    card.position === CardPosition.FACEUP
+                                      ? 'bg-cyan-500/85 text-black border-cyan-500/50 font-bold'
+                                      : 'bg-black/65 text-white/85 border-white/25 hover:text-white'
+                                  )}
+                                >
+                                  {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
+                                </button>
                               }
-                            }}
+                            />
+                            <TooltipContent>点击切换 表侧 / 里侧 表示形式</TooltipContent>
+                          </Tooltip>
+                        </span>
+                      )}
+
+                      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  openContextMenu(card, rect.left, rect.bottom + 4)
+                                }}
+                                className="p-1 rounded text-white/85 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
+                              >
+                                <MoreHorizontal className="w-3.5 h-3.5" />
+                              </button>
+                            }
                           />
-                        </div>
-
-                        <div className="w-full flex items-center justify-between mt-2 pt-1.5 border-t border-border/50 text-muted-foreground">
-                          <span className="text-[10px] font-mono text-muted-foreground/60 px-0.5">
-                            #{originalIndex + 1}
-                          </span>
-
-                          <div className="flex items-center gap-1">
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      const rect = e.currentTarget.getBoundingClientRect()
-                                      openContextMenu(card, rect.left, rect.bottom + 4)
-                                    }}
-                                    className="p-1 rounded hover:bg-muted hover:text-foreground text-muted-foreground transition-colors cursor-pointer"
-                                  >
-                                    <MoreHorizontal className="w-3.5 h-3.5" />
-                                  </button>
-                                }
-                              />
-                              <TooltipContent>
-                                更多操作 (手牌/墓地/除外/回卡组，也可右键卡片)
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      removeCard(card.instanceId)
-                                    }}
-                                    className="p-1 rounded hover:bg-rose-500/10 hover:text-rose-500 text-muted-foreground transition-colors cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                }
-                              />
-                              <TooltipContent>从决斗中移除</TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </div>
+                          <TooltipContent>
+                            更多操作 (手牌/墓地/除外/回卡组，也可右键卡片)
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  removeCard(card.instanceId)
+                                }}
+                                className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            }
+                          />
+                          <TooltipContent>从决斗中移除</TooltipContent>
+                        </Tooltip>
                       </div>
-                      {gapAfter && renderGap('after')}
-                    </React.Fragment>
-                  )
-                })}
-              </div>
+                    </div>
 
-              {filteredCards.length > 5 && (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        onClick={handleScrollRight}
-                        className="absolute right-2 z-20 w-8 h-8 rounded-full bg-background/80 hover:bg-background border border-border shadow-md flex items-center justify-center text-foreground/80 hover:text-foreground transition-all cursor-pointer"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
-                    }
-                  />
-                  <TooltipContent>向右滚动</TooltipContent>
-                </Tooltip>
-              )}
-            </>
+                    <span className="mt-1 min-h-[26px] px-0.5 text-[10.5px] leading-[13px] text-center text-foreground/85 line-clamp-2 break-all">
+                      {cardName}
+                    </span>
+
+                    {isDragOver && (
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          'pointer-events-none absolute inset-y-1 w-[3px] rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.75)]',
+                          dragOverInfo?.side === 'before' ? '-left-[7px]' : '-right-[7px]'
+                        )}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
 
-        <div className="flex items-center justify-end px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
+          <span className="text-[11px] text-muted-foreground">
+            拖拽卡片可调整顺序，拖出窗口可关闭；右键卡片可移动至其他区域
+          </span>
           <Button size="sm" onClick={closePile} className="px-5 h-7 text-xs">
             确定
           </Button>

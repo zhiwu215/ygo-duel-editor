@@ -1,10 +1,12 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { CardLocation, CardPosition, CdbCard, DuelPuzzleState } from '@shared/index'
+import { createPortal } from 'react-dom'
+import { motion } from 'framer-motion'
+import { CardLocation, CardPosition, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE, setCardDragImage } from '../../utils/cardImage'
+import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { fetchCardDataByCodes } from '../../utils/cardData'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { Layers, Ghost, Ban, X, Trash2, Search, MoreHorizontal } from 'lucide-react'
@@ -34,6 +36,22 @@ export const PileListModal: React.FC = () => {
   return <PileListContent key={`${openSeq}_${target.controller}_${target.location}`} />
 }
 
+type CdbCardItem = ReturnType<typeof useDuelStore.getState>['state']['cards'][number]
+
+type PileRenderItem =
+  { type: 'card'; card: CdbCardItem; remainingIndex: number } | { type: 'placeholder'; key: string }
+
+interface PointerDragState {
+  card: CdbCardItem
+  originalIndex: number
+  clientX: number
+  clientY: number
+  offsetX: number
+  offsetY: number
+  width: number
+  height: number
+}
+
 const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
   const openContextMenu = useContextMenuStore((s) => s.openMenu)
@@ -48,30 +66,51 @@ const PileListContent: React.FC = () => {
     reorderPileCards,
     updateCardPosition,
     addCardToZone,
-    moveCard,
-    pauseUndoTracking,
-    resumeUndoTracking,
-    resumeAndPushUndo
+    moveCard
   } = useDuelStore()
 
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [cardDataMap, setCardDataMap] = useState<Record<number, CdbCard>>({})
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
-  const [dragOverInfo, setDragOverInfo] = useState<{
-    index: number
-    side: 'before' | 'after'
+  const [draggedCardId, setDraggedCardId] = useState<string | null>(null)
+  const [dropSlotIndex, setDropSlotIndex] = useState<number | null>(null)
+  const [isExternalDrag, setIsExternalDrag] = useState<boolean>(false)
+  const [pointerDrag, setPointerDrag] = useState<PointerDragState | null>(null)
+
+  const pointerDragRef = useRef<PointerDragState | null>(null)
+  const dragStartPosRef = useRef<{ x: number; y: number } | null>(null)
+  const pendingDragCardRef = useRef<{
+    card: CdbCardItem
+    originalIndex: number
+    rect: DOMRect
+    offsetX: number
+    offsetY: number
   } | null>(null)
 
-  const [isOutsideList, setIsOutsideList] = useState(false)
-  const [wheelMovingId, setWheelMovingId] = useState<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
 
-  const listRectRef = useRef<DOMRect | null>(null)
+  const autoScrollRafRef = useRef<number | null>(null)
+  const scrollVelocityRef = useRef<number>(0)
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (!target) return
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
+        if (pointerDragRef.current) {
+          pointerDragRef.current = null
+          setPointerDrag(null)
+          setDraggedCardId(null)
+          setDropSlotIndex(null)
+          dragStartPosRef.current = null
+          pendingDragCardRef.current = null
+          if (autoScrollRafRef.current !== null) {
+            window.cancelAnimationFrame(autoScrollRafRef.current)
+            autoScrollRafRef.current = null
+          }
+          scrollVelocityRef.current = 0
+          return
+        }
         closePile()
       }
     }
@@ -82,27 +121,151 @@ const PileListContent: React.FC = () => {
     }
   }, [target, closePile, setHoveredInstanceId])
 
-  useEffect(() => {
-    if (!target) return
-    const handleDragEnd = (): void => {
-      setDraggingIndex(null)
-      setDragOverInfo(null)
-      setIsOutsideList(false)
+  const stopAutoScroll = useCallback((): void => {
+    if (autoScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(autoScrollRafRef.current)
+      autoScrollRafRef.current = null
     }
-    window.addEventListener('dragend', handleDragEnd, true)
-    return () => {
-      window.removeEventListener('dragend', handleDragEnd, true)
+    scrollVelocityRef.current = 0
+    lastPointerRef.current = null
+  }, [])
+
+  const updateSlotAtPointer = useCallback(
+    (clientX: number, clientY: number): void => {
+      if (searchQuery.trim().length > 0) return
+
+      const elements =
+        scrollContainerRef.current?.querySelectorAll<HTMLElement>('[data-remaining-index]')
+      if (!elements || elements.length === 0) {
+        setDropSlotIndex(0)
+        return
+      }
+
+      let nearestElement: HTMLElement | null = null
+      let nearestDistance = Number.POSITIVE_INFINITY
+
+      for (const el of Array.from(elements)) {
+        const rect = el.getBoundingClientRect()
+        const offsetX =
+          clientX < rect.left
+            ? rect.left - clientX
+            : clientX > rect.right
+              ? clientX - rect.right
+              : 0
+        const offsetY =
+          clientY < rect.top
+            ? rect.top - clientY
+            : clientY > rect.bottom
+              ? clientY - rect.bottom
+              : 0
+        const distance = offsetX * offsetX + offsetY * offsetY
+        if (distance < nearestDistance) {
+          nearestElement = el
+          nearestDistance = distance
+        }
+      }
+
+      if (!nearestElement) return
+
+      const remainingIdx = Number(nearestElement.dataset.remainingIndex)
+      const rect = nearestElement.getBoundingClientRect()
+
+      let targetSlot = remainingIdx
+      if (clientY < rect.top) {
+        targetSlot = remainingIdx
+      } else if (clientY > rect.bottom) {
+        targetSlot = remainingIdx + 1
+      } else if (clientX >= rect.left + rect.width / 2) {
+        targetSlot = remainingIdx + 1
+      } else {
+        targetSlot = remainingIdx
+      }
+
+      const clamped = Math.max(0, Math.min(elements.length, targetSlot))
+      setDropSlotIndex((prev) => (prev === clamped ? prev : clamped))
+    },
+    [searchQuery]
+  )
+
+  const startAutoScrollIfNeeded = useCallback((): void => {
+    if (autoScrollRafRef.current !== null) return
+
+    const scrollLoop = (): void => {
+      const container = scrollContainerRef.current
+      const velocity = scrollVelocityRef.current
+      if (container && velocity !== 0) {
+        container.scrollTop += velocity
+        if (lastPointerRef.current) {
+          updateSlotAtPointer(lastPointerRef.current.x, lastPointerRef.current.y)
+        }
+      }
+      autoScrollRafRef.current = window.requestAnimationFrame(scrollLoop)
     }
-  }, [target])
+
+    autoScrollRafRef.current = window.requestAnimationFrame(scrollLoop)
+  }, [updateSlotAtPointer])
+
+  const isPointerOutsideList = useCallback((clientX: number, clientY: number): boolean => {
+    const rect = modalRef.current?.getBoundingClientRect()
+    if (!rect) return false
+    return (
+      clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom
+    )
+  }, [])
+
+  const handlePointerAutoScroll = useCallback(
+    (clientX: number, clientY: number): void => {
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      lastPointerRef.current = { x: clientX, y: clientY }
+      if (isPointerOutsideList(clientX, clientY)) {
+        scrollVelocityRef.current = 0
+        return
+      }
+
+      const rect = container.getBoundingClientRect()
+      const EDGE_ZONE = 70
+      const MAX_SPEED = 16
+
+      if (clientY <= rect.top + EDGE_ZONE) {
+        const ratio = Math.max(0, Math.min(1, (rect.top + EDGE_ZONE - clientY) / EDGE_ZONE))
+        scrollVelocityRef.current = -Math.max(3, ratio * MAX_SPEED)
+        startAutoScrollIfNeeded()
+      } else if (clientY >= rect.bottom - EDGE_ZONE) {
+        const ratio = Math.max(0, Math.min(1, (clientY - (rect.bottom - EDGE_ZONE)) / EDGE_ZONE))
+        scrollVelocityRef.current = Math.max(3, ratio * MAX_SPEED)
+        startAutoScrollIfNeeded()
+      } else {
+        scrollVelocityRef.current = 0
+      }
+    },
+    [isPointerOutsideList, startAutoScrollIfNeeded]
+  )
 
   useEffect(() => {
-    if (!isOutsideList) return
-    const timer = window.setTimeout(() => {
-      setDraggingIndex(null)
-      closePile()
-    }, 60)
-    return () => window.clearTimeout(timer)
-  }, [isOutsideList, closePile])
+    return () => {
+      stopAutoScroll()
+    }
+  }, [stopAutoScroll])
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const handleWheelDuringPointerDrag = (e: WheelEvent): void => {
+      if (!pointerDragRef.current) return
+      if (e.deltaY !== 0) {
+        container.scrollTop += e.deltaY
+        if (lastPointerRef.current) {
+          updateSlotAtPointer(lastPointerRef.current.x, lastPointerRef.current.y)
+        }
+      }
+    }
+
+    container.addEventListener('wheel', handleWheelDuringPointerDrag, { passive: true })
+    return () => container.removeEventListener('wheel', handleWheelDuringPointerDrag)
+  }, [updateSlotAtPointer])
 
   const pileCards = useMemo(() => {
     if (!target) return []
@@ -180,99 +343,132 @@ const PileListContent: React.FC = () => {
   const ownerDuelist =
     state.duelists?.find((d) => d.id === activeDuelistId && d.team === target?.controller) || null
 
-  /**
-   * 选中一张卡后用滚轮把它往后 / 往前挪一格。
-   *
-   * 为什么要单独做这一套：原生 HTML5 拖拽会话期间浏览器吞掉 wheel 事件，
-   * 列表滚不动，卡组下半部分的卡永远够不着；而改用 dnd-kit 确实能滚动了，
-   * 它的拖拽却不产生 dataTransfer，拖出弹窗放到场上/手牌这条路直接断掉。
-   * 两条路都要，所以内部换序走「选中 + 滚轮」，做场仍走原生拖拽，互不干扰。
-   *
-   * 一串滚动会产生几十次 set，逐条压进撤销栈会让 Ctrl+Z 退化成逐格回退。
-   * 这里整串期间 pause（实测 pause 后 set 完全不记账），停稳 400ms 后用
-   * `resumeAndPushUndo` 把「本串移动之前的状态」补压成唯一一条撤销，
-   * 于是无论滚了几格，Ctrl+Z 一次都回到移动前。
-   */
-  const wheelMoveRef = useRef<{
-    instanceId: string
-    snapshot: DuelPuzzleState | null
-    timer: number | null
-  }>({ instanceId: '', snapshot: null, timer: null })
-
-  const finishWheelMove = useCallback((): void => {
-    const { instanceId, snapshot, timer } = wheelMoveRef.current
-    if (timer !== null) window.clearTimeout(timer)
-    wheelMoveRef.current = { instanceId: '', snapshot: null, timer: null }
-    if (instanceId && snapshot) resumeAndPushUndo(snapshot)
-    else if (instanceId) resumeUndoTracking()
-  }, [resumeAndPushUndo, resumeUndoTracking])
-
-  const scheduleWheelMoveEnd = (): void => {
-    if (wheelMoveRef.current.timer !== null) {
-      window.clearTimeout(wheelMoveRef.current.timer)
-    }
-    wheelMoveRef.current.timer = window.setTimeout(() => {
-      finishWheelMove()
-    }, 400)
-  }
-
-  const handleWheel = (e: WheelEvent): void => {
-    if (!wheelMovingId || !target) return
-    if (searchQuery.trim().length > 0) return
-    if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return
-
-    e.preventDefault()
-    e.stopPropagation()
-
-    const currentIndex = pileCards.findIndex((c) => c.instanceId === wheelMovingId)
-    if (currentIndex < 0) return
-    const direction: 1 | -1 = e.deltaY > 0 ? 1 : -1
-    const nextIndex = currentIndex + direction
-    if (nextIndex < 0 || nextIndex >= pileCards.length) return
-
-    // 本轮第一次移动：先把「移动前」的完整状态存下来，再暂停记账
-    if (wheelMoveRef.current.instanceId !== wheelMovingId) {
-      finishWheelMove()
-      wheelMoveRef.current.instanceId = wheelMovingId
-      wheelMoveRef.current.snapshot = state
-      pauseUndoTracking()
-    }
-
-    reorderPileCards(target.controller, target.location, currentIndex, nextIndex, ownerDuelist?.id)
-    scheduleWheelMoveEnd()
-
-    // 换序后把该卡滚回可视区，否则连续下移会一路走出视野
-    window.requestAnimationFrame(() => {
-      const element = scrollContainerRef.current?.querySelector<HTMLElement>(
-        `[data-pile-card-instance="${wheelMovingId}"]`
-      )
-      element?.scrollIntoView({ block: 'nearest' })
-    })
-  }
-
-  // 弹窗关闭时若还有未落定的滚轮移动，必须补上撤销点，否则撤销栈会一直停在暂停态
   useEffect(() => {
-    const wheelMove = wheelMoveRef.current
-    return () => {
-      if (wheelMove.instanceId) {
-        if (wheelMove.timer !== null) window.clearTimeout(wheelMove.timer)
-        if (wheelMove.snapshot) resumeAndPushUndo(wheelMove.snapshot)
-        else resumeUndoTracking()
+    const handleWindowPointerMove = (e: PointerEvent): void => {
+      lastPointerRef.current = { x: e.clientX, y: e.clientY }
+
+      if (pendingDragCardRef.current && dragStartPosRef.current) {
+        const dx = e.clientX - dragStartPosRef.current.x
+        const dy = e.clientY - dragStartPosRef.current.y
+        if (dx * dx + dy * dy >= 16) {
+          const pending = pendingDragCardRef.current
+          pendingDragCardRef.current = null
+          const dragInfo: PointerDragState = {
+            card: pending.card,
+            originalIndex: pending.originalIndex,
+            clientX: e.clientX,
+            clientY: e.clientY,
+            offsetX: pending.offsetX,
+            offsetY: pending.offsetY,
+            width: pending.rect.width,
+            height: pending.rect.height
+          }
+          pointerDragRef.current = dragInfo
+          setPointerDrag(dragInfo)
+          setDraggedCardId(pending.card.instanceId)
+          setDropSlotIndex(pending.originalIndex)
+        }
+      }
+
+      if (pointerDragRef.current) {
+        const updated: PointerDragState = {
+          ...pointerDragRef.current,
+          clientX: e.clientX,
+          clientY: e.clientY
+        }
+        pointerDragRef.current = updated
+        setPointerDrag(updated)
+
+        handlePointerAutoScroll(e.clientX, e.clientY)
+        updateSlotAtPointer(e.clientX, e.clientY)
       }
     }
-  }, [resumeAndPushUndo, resumeUndoTracking])
 
-  /**
-   * 必须用ref 手动绑非 passive 监听：React 的 onWheel 是 passive 的，
-   * 里面调preventDefault 无效（滚轮照样滚列表），浏览器还会打控制台警告。
-   * 只有非 passive 才能拦住默认滚动，把滚轮让给「挪动选中卡」。
-   */
-  useEffect(() => {
-    const element = scrollContainerRef.current
-    if (!element) return
-    element.addEventListener('wheel', handleWheel, { passive: false })
-    return () => element.removeEventListener('wheel', handleWheel)
-  })
+    const handleWindowPointerUp = (): void => {
+      if (pointerDragRef.current) {
+        stopAutoScroll()
+        const fromIndex = pointerDragRef.current.originalIndex
+        const toIndex = dropSlotIndex
+
+        if (toIndex !== null && fromIndex !== null && fromIndex !== toIndex && target) {
+          reorderPileCards(target.controller, target.location, fromIndex, toIndex, ownerDuelist?.id)
+        }
+
+        pointerDragRef.current = null
+        setPointerDrag(null)
+        setDraggedCardId(null)
+        setDropSlotIndex(null)
+        dragStartPosRef.current = null
+        pendingDragCardRef.current = null
+        return
+      }
+
+      if (pendingDragCardRef.current) {
+        const pending = pendingDragCardRef.current
+        pendingDragCardRef.current = null
+        dragStartPosRef.current = null
+        setSelectedCardId(pending.card.instanceId)
+        const detail = pending.card.card || cardDataMap[pending.card.code]
+        if (detail) setHoveredCard(detail)
+      }
+    }
+
+    window.addEventListener('pointermove', handleWindowPointerMove)
+    window.addEventListener('pointerup', handleWindowPointerUp)
+    window.addEventListener('pointercancel', handleWindowPointerUp)
+
+    return () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove)
+      window.removeEventListener('pointerup', handleWindowPointerUp)
+      window.removeEventListener('pointercancel', handleWindowPointerUp)
+    }
+  }, [
+    dropSlotIndex,
+    target,
+    reorderPileCards,
+    ownerDuelist,
+    stopAutoScroll,
+    handlePointerAutoScroll,
+    updateSlotAtPointer,
+    cardDataMap,
+    setSelectedCardId,
+    setHoveredCard
+  ])
+
+  const renderItems = useMemo<PileRenderItem[]>(() => {
+    if (!draggedCardId && !isExternalDrag) {
+      return filteredCards.map((card, idx) => ({
+        type: 'card',
+        card,
+        remainingIndex: idx
+      }))
+    }
+
+    const remaining = draggedCardId
+      ? filteredCards.filter((c) => c.instanceId !== draggedCardId)
+      : filteredCards
+
+    if (dropSlotIndex === null) {
+      return remaining.map((card, idx) => ({
+        type: 'card',
+        card,
+        remainingIndex: idx
+      }))
+    }
+
+    const clampedSlot = Math.max(0, Math.min(remaining.length, dropSlotIndex))
+    const items: PileRenderItem[] = []
+
+    for (let i = 0; i < clampedSlot; i++) {
+      items.push({ type: 'card', card: remaining[i], remainingIndex: i })
+    }
+    items.push({ type: 'placeholder', key: '__drag_slot_placeholder__' })
+    for (let i = clampedSlot; i < remaining.length; i++) {
+      items.push({ type: 'card', card: remaining[i], remainingIndex: i })
+    }
+
+    return items
+  }, [filteredCards, draggedCardId, isExternalDrag, dropSlotIndex])
 
   if (!target) return null
 
@@ -285,82 +481,6 @@ const PileListContent: React.FC = () => {
 
   const ctrlLabel = ownerDuelist ? ownerDuelist.name : target.controller === 0 ? '我方' : '对方'
   const title = `${ctrlLabel}${meta.name}`
-
-  const isPointerOutsideList = (clientX: number, clientY: number): boolean => {
-    const rect = listRectRef.current
-    if (!rect) return false
-    return (
-      clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom
-    )
-  }
-
-  const getPileInsertionAtPointer = (
-    clientX: number,
-    clientY: number
-  ): { index: number; side: 'before' | 'after' } | null => {
-    const cardElements =
-      scrollContainerRef.current?.querySelectorAll<HTMLElement>('[data-pile-card-index]')
-    if (!cardElements?.length) return null
-
-    let nearestCard: HTMLElement | undefined
-    let nearestDistance = Number.POSITIVE_INFINITY
-    for (const element of Array.from(cardElements)) {
-      const rect = element.getBoundingClientRect()
-      const offsetX =
-        clientX < rect.left ? rect.left - clientX : clientX > rect.right ? clientX - rect.right : 0
-      const offsetY =
-        clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0
-      const distance = offsetX * offsetX + offsetY * offsetY
-      if (distance < nearestDistance) {
-        nearestCard = element
-        nearestDistance = distance
-      }
-    }
-
-    if (!nearestCard) return null
-    const rect = nearestCard.getBoundingClientRect()
-    return {
-      index: Number(nearestCard.dataset.pileCardIndex),
-      side: clientX >= rect.left + rect.width / 2 ? 'after' : 'before'
-    }
-  }
-
-  const handlePileCardDrop = (
-    e: React.DragEvent,
-    targetIndex: number,
-    side: 'before' | 'after'
-  ): void => {
-    e.preventDefault()
-    e.stopPropagation()
-    const isReorder = e.dataTransfer.types.includes('text/pile-reorder-id')
-    if (isReorder) {
-      const fromStr = e.dataTransfer.getData('text/pile-reorder-index')
-      const fromIndex = fromStr ? parseInt(fromStr, 10) : draggingIndex
-      if (fromIndex !== null && fromIndex !== undefined && !isNaN(fromIndex)) {
-        const finalIndex =
-          side === 'before'
-            ? fromIndex < targetIndex
-              ? targetIndex - 1
-              : targetIndex
-            : fromIndex < targetIndex
-              ? targetIndex
-              : targetIndex + 1
-        if (finalIndex !== fromIndex) {
-          reorderPileCards(
-            target.controller,
-            target.location,
-            fromIndex,
-            finalIndex,
-            ownerDuelist?.id
-          )
-        }
-      }
-    } else {
-      handleExternalCardDrop(e, targetIndex + (side === 'after' ? 1 : 0))
-    }
-    setDraggingIndex(null)
-    setDragOverInfo(null)
-  }
 
   const handleExternalCardDrop = (e: React.DragEvent, insertIndex: number): void => {
     e.preventDefault()
@@ -386,23 +506,11 @@ const PileListContent: React.FC = () => {
     <div
       className="absolute inset-0 z-40 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-in fade-in"
       onClick={() => {
-        setWheelMovingId(null)
         closePile()
-      }}
-      onDragOver={(e) => {
-        if (!e.dataTransfer.types.includes('text/pile-reorder-id')) return
-        if (!isPointerOutsideList(e.clientX, e.clientY)) {
-          if (isOutsideList) setIsOutsideList(false)
-          return
-        }
-
-        if (!isOutsideList) {
-          setIsOutsideList(true)
-          setDragOverInfo(null)
-        }
       }}
     >
       <div
+        ref={modalRef}
         className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-6xl max-h-[92%] flex flex-col overflow-hidden animate-in zoom-in-95 duration-100"
         onClick={(e) => e.stopPropagation()}
       >
@@ -436,7 +544,6 @@ const PileListContent: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      setWheelMovingId(null)
                       closePile()
                     }}
                     className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
@@ -453,46 +560,38 @@ const PileListContent: React.FC = () => {
         <div
           ref={scrollContainerRef}
           onDragOver={(e) => {
-            if (e.dataTransfer.types.includes('text/pile-reorder-id')) {
-              if (isPointerOutsideList(e.clientX, e.clientY)) return
-              e.preventDefault()
-              e.stopPropagation()
-              e.dataTransfer.dropEffect = 'move'
-              if (!(e.target as HTMLElement).closest('[data-pile-card-index]')) {
-                const insertion = getPileInsertionAtPointer(e.clientX, e.clientY)
-                if (insertion) setDragOverInfo(insertion)
-              }
-              return
-            }
             const isExternal =
               e.dataTransfer.types.includes('application/json') ||
               e.dataTransfer.types.includes('text/instanceid')
-            if (isExternal) {
-              e.preventDefault()
-              e.dataTransfer.dropEffect = 'copy'
-            }
+
+            if (!isExternal) return
+
+            e.preventDefault()
+            e.stopPropagation()
+            e.dataTransfer.dropEffect = 'copy'
+
+            setIsExternalDrag(true)
+            handlePointerAutoScroll(e.clientX, e.clientY)
+            updateSlotAtPointer(e.clientX, e.clientY)
           }}
           onDragLeave={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-              if (isOutsideList) setIsOutsideList(false)
+              setDropSlotIndex(null)
+              setIsExternalDrag(false)
+              stopAutoScroll()
             }
           }}
           onDrop={(e) => {
-            if (e.dataTransfer.types.includes('text/pile-reorder-id')) {
-              if (isPointerOutsideList(e.clientX, e.clientY)) return
-              const dropPosition = dragOverInfo ?? getPileInsertionAtPointer(e.clientX, e.clientY)
-              if (dropPosition) {
-                handlePileCardDrop(e, dropPosition.index, dropPosition.side)
-              }
-              return
-            }
             const isExternal =
               e.dataTransfer.types.includes('application/json') ||
               e.dataTransfer.types.includes('text/instanceid')
-            if (isExternal) {
+            if (isExternal && target) {
               e.preventDefault()
-              handleExternalCardDrop(e, pileCards.length)
-              setDragOverInfo(null)
+              e.stopPropagation()
+              handleExternalCardDrop(e, dropSlotIndex ?? pileCards.length)
+              setDropSlotIndex(null)
+              setIsExternalDrag(false)
+              stopAutoScroll()
             }
           }}
           className="relative flex-1 min-h-[300px] max-h-[66vh] overflow-y-auto overflow-x-hidden p-4 bg-muted/10"
@@ -515,7 +614,8 @@ const PileListContent: React.FC = () => {
                 if (isExternal) {
                   e.preventDefault()
                   handleExternalCardDrop(e, 0)
-                  setDragOverInfo(null)
+                  setDropSlotIndex(null)
+                  setIsExternalDrag(false)
                 }
               }}
               className="h-full min-h-[260px] w-full flex flex-col items-center justify-center text-muted-foreground py-16 text-xs gap-2 border-2 border-dashed border-border/40 rounded-lg"
@@ -531,135 +631,146 @@ const PileListContent: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2.5">
-              {filteredCards.map((card) => {
+              {renderItems.map((item) => {
+                if (item.type === 'placeholder') {
+                  return (
+                    <motion.div
+                      key={item.key}
+                      layout="position"
+                      transition={{
+                        layout: {
+                          type: 'spring',
+                          stiffness: 280,
+                          damping: 28,
+                          mass: 0.8
+                        }
+                      }}
+                      aria-hidden="true"
+                      className="rounded-md border border-dashed border-border/40 bg-muted/5 flex flex-col p-1.5 pointer-events-none select-none"
+                    >
+                      <div className="w-full aspect-[59/86] rounded" />
+                      <div className="mt-1 min-h-[26px]" />
+                    </motion.div>
+                  )
+                }
+
+                const card = item.card
                 const originalIndex = pileCards.findIndex((c) => c.instanceId === card.instanceId)
-                const isDragging = draggingIndex === originalIndex
-                const isDragOver =
-                  dragOverInfo?.index === originalIndex && draggingIndex !== originalIndex
                 const isSelected = selectedCardId === card.instanceId
                 const cardName =
                   card.card?.name || cardDataMap[card.code]?.name || String(card.code)
                 const cardDetail = card.card || cardDataMap[card.code]
+                const isBeingDragged = draggedCardId === card.instanceId
 
                 return (
-                  <div
+                  <motion.div
                     key={card.instanceId}
-                    draggable
-                    data-pile-card-index={originalIndex}
-                    data-pile-card-instance={card.instanceId}
-                    title={cardName}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/pile-reorder-id', card.instanceId)
-                      e.dataTransfer.setData('text/pile-reorder-index', String(originalIndex))
-                      if (cardDetail) {
-                        e.dataTransfer.setData('application/json', JSON.stringify(cardDetail))
+                    layout="position"
+                    transition={{
+                      layout: {
+                        type: 'spring',
+                        stiffness: 280,
+                        damping: 28,
+                        mass: 0.8
                       }
-                      e.dataTransfer.setData('text/instanceId', card.instanceId)
-                      e.dataTransfer.effectAllowed = 'copyMove'
-                      setCardDragImage(e.dataTransfer, e.currentTarget)
-
-                      window.requestAnimationFrame(() => setDraggingIndex(originalIndex))
-
-                      listRectRef.current =
-                        scrollContainerRef.current?.getBoundingClientRect() ?? null
                     }}
-                    onDragOver={(e) => {
-                      const isReorder = e.dataTransfer.types.includes('text/pile-reorder-id')
-                      const isExternal =
-                        e.dataTransfer.types.includes('application/json') ||
-                        e.dataTransfer.types.includes('text/instanceid')
-                      if (isReorder || isExternal) {
-                        if (isReorder && isPointerOutsideList(e.clientX, e.clientY)) return
+                    data-remaining-index={item.remainingIndex}
+                    className={cn('h-full', isBeingDragged && 'opacity-0 pointer-events-none')}
+                  >
+                    <div
+                      title={cardName}
+                      onDragStart={(e) => {
+                        e.preventDefault()
+                      }}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return
+                        dragStartPosRef.current = { x: e.clientX, y: e.clientY }
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        pendingDragCardRef.current = {
+                          card,
+                          originalIndex,
+                          rect,
+                          offsetX: e.clientX - rect.left,
+                          offsetY: e.clientY - rect.top
+                        }
+                      }}
+                      onContextMenu={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        e.dataTransfer.dropEffect = isReorder ? 'move' : 'copy'
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        const mouseX = e.clientX - rect.left
-                        const side = mouseX < rect.width / 2 ? 'before' : 'after'
-                        if (
-                          !dragOverInfo ||
-                          dragOverInfo.index !== originalIndex ||
-                          dragOverInfo.side !== side
-                        ) {
-                          setDragOverInfo({ index: originalIndex, side })
-                        }
-                      }
-                    }}
-                    onDragLeave={(e) => {
-                      if (e.currentTarget.contains(e.relatedTarget as Node)) return
-                      if (scrollContainerRef.current?.contains(e.relatedTarget as Node)) return
-                      if (dragOverInfo?.index === originalIndex && !isOutsideList) {
-                        setDragOverInfo(null)
-                      }
-                    }}
-                    onDrop={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect()
-                      const side = e.clientX >= rect.left + rect.width / 2 ? 'after' : 'before'
-                      handlePileCardDrop(e, originalIndex, side)
-                    }}
-                    onDragEnd={() => {
-                      setDraggingIndex(null)
-                      setDragOverInfo(null)
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      openContextMenu({ ...card, card: cardDetail }, e.clientX, e.clientY)
-                    }}
-                    className={cn(
-                      'group relative flex flex-col rounded-md border bg-card p-1.5 shadow-sm transition-colors select-none cursor-grab active:cursor-grabbing',
-                      isDragging
-                        ? 'opacity-25 border-dashed border-border pointer-events-none'
-                        : isSelected
+                        openContextMenu({ ...card, card: cardDetail }, e.clientX, e.clientY)
+                      }}
+                      className={cn(
+                        'group relative flex flex-col rounded-md border bg-card p-1.5 shadow-sm transition-colors select-none cursor-grab active:cursor-grabbing',
+                        isSelected
                           ? 'border-blue-500 ring-1 ring-blue-500/50'
                           : 'border-border/80 hover:border-blue-500/70 hover:shadow-md'
-                    )}
-                    onMouseEnter={() => {
-                      setHoveredInstanceId(card.instanceId)
-                      if (cardDetail) setHoveredCard(cardDetail)
-                    }}
-                    onMouseLeave={() => {
-                      if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {
-                        setHoveredInstanceId(null)
-                      }
-                    }}
-                    onClick={() => {
-                      setSelectedCardId(card.instanceId)
-                      setWheelMovingId(card.instanceId)
-                      if (cardDetail) setHoveredCard(cardDetail)
-                    }}
-                  >
-                    <div className="relative w-full aspect-[59/86] rounded overflow-hidden border border-border/70 bg-black/30">
-                      <img
-                        src={getCardImageUrl(card.code, true)}
-                        alt={cardName}
-                        className="w-full h-full object-cover pointer-events-none"
-                        onError={(e) => {
-                          const targetEl = e.currentTarget
-                          if (targetEl.src !== UNKNOWN_CARD_IMAGE) {
-                            targetEl.src = UNKNOWN_CARD_IMAGE
-                          }
-                        }}
-                      />
-
-                      <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
-                        #{originalIndex + 1}
-                      </span>
-
-                      {wheelMovingId === card.instanceId && (
-                        <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 py-0.5 bg-blue-500/85 text-white text-[9px] leading-[13px] font-sans text-center pointer-events-none">
-                          滚轮挪动中
-                        </span>
                       )}
+                      onMouseEnter={() => {
+                        setHoveredInstanceId(card.instanceId)
+                        if (cardDetail) setHoveredCard(cardDetail)
+                      }}
+                      onMouseLeave={() => {
+                        if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {
+                          setHoveredInstanceId(null)
+                        }
+                      }}
+                    >
+                      <div className="relative w-full aspect-[59/86] rounded overflow-hidden border border-border/70 bg-black/30">
+                        <img
+                          src={getCardImageUrl(card.code, true)}
+                          alt={cardName}
+                          className="w-full h-full object-cover pointer-events-none"
+                          onError={(e) => {
+                            const targetEl = e.currentTarget
+                            if (targetEl.src !== UNKNOWN_CARD_IMAGE) {
+                              targetEl.src = UNKNOWN_CARD_IMAGE
+                            }
+                          }}
+                        />
 
-                      {target.location === CardLocation.DECK && originalIndex === 0 && (
-                        <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
-                          下一抽
+                        <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
+                          #{originalIndex + 1}
                         </span>
-                      )}
 
-                      {target.location === CardLocation.EXTRA && (
-                        <span className="absolute right-1 top-1 inline-flex">
+                        {target.location === CardLocation.DECK && originalIndex === 0 && (
+                          <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
+                            下一抽
+                          </span>
+                        )}
+
+                        {target.location === CardLocation.EXTRA && (
+                          <span className="absolute right-1 top-1 inline-flex">
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      updateCardPosition(
+                                        card.instanceId,
+                                        card.position === CardPosition.FACEUP
+                                          ? CardPosition.FACEDOWN
+                                          : CardPosition.FACEUP
+                                      )
+                                    }}
+                                    className={cn(
+                                      'px-1 rounded font-sans text-[9px] leading-[14px] border transition-colors cursor-pointer',
+                                      card.position === CardPosition.FACEUP
+                                        ? 'bg-cyan-500/85 text-black border-cyan-500/50 font-bold'
+                                        : 'bg-black/65 text-white/85 border-white/25 hover:text-white'
+                                    )}
+                                  >
+                                    {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
+                                  </button>
+                                }
+                              />
+                              <TooltipContent>点击切换 表侧 / 里侧 表示形式</TooltipContent>
+                            </Tooltip>
+                          </span>
+                        )}
+
+                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
                           <Tooltip>
                             <TooltipTrigger
                               render={
@@ -667,88 +778,48 @@ const PileListContent: React.FC = () => {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    updateCardPosition(
-                                      card.instanceId,
-                                      card.position === CardPosition.FACEUP
-                                        ? CardPosition.FACEDOWN
-                                        : CardPosition.FACEUP
+                                    const rect = e.currentTarget.getBoundingClientRect()
+                                    openContextMenu(
+                                      { ...card, card: cardDetail },
+                                      rect.left,
+                                      rect.bottom + 4
                                     )
                                   }}
-                                  className={cn(
-                                    'px-1 rounded font-sans text-[9px] leading-[14px] border transition-colors cursor-pointer',
-                                    card.position === CardPosition.FACEUP
-                                      ? 'bg-cyan-500/85 text-black border-cyan-500/50 font-bold'
-                                      : 'bg-black/65 text-white/85 border-white/25 hover:text-white'
-                                  )}
+                                  className="p-1 rounded text-white/85 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
                                 >
-                                  {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
+                                  <MoreHorizontal className="w-3.5 h-3.5" />
                                 </button>
                               }
                             />
-                            <TooltipContent>点击切换 表侧 / 里侧 表示形式</TooltipContent>
+                            <TooltipContent>
+                              更多操作 (手牌/墓地/除外/回卡组，也可右键卡片)
+                            </TooltipContent>
                           </Tooltip>
-                        </span>
-                      )}
-
-                      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  const rect = e.currentTarget.getBoundingClientRect()
-                                  openContextMenu(
-                                    { ...card, card: cardDetail },
-                                    rect.left,
-                                    rect.bottom + 4
-                                  )
-                                }}
-                                className="p-1 rounded text-white/85 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
-                              >
-                                <MoreHorizontal className="w-3.5 h-3.5" />
-                              </button>
-                            }
-                          />
-                          <TooltipContent>
-                            更多操作 (手牌/墓地/除外/回卡组，也可右键卡片)
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  removeCard(card.instanceId)
-                                }}
-                                className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            }
-                          />
-                          <TooltipContent>从决斗中移除</TooltipContent>
-                        </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    removeCard(card.instanceId)
+                                  }}
+                                  className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              }
+                            />
+                            <TooltipContent>从决斗中移除</TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
+
+                      <span className="mt-1 min-h-[26px] px-0.5 text-[10.5px] leading-[13px] text-center text-foreground/85 line-clamp-2 break-all">
+                        {cardName}
+                      </span>
                     </div>
-
-                    <span className="mt-1 min-h-[26px] px-0.5 text-[10.5px] leading-[13px] text-center text-foreground/85 line-clamp-2 break-all">
-                      {cardName}
-                    </span>
-
-                    {isDragOver && (
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'pointer-events-none absolute inset-y-1 w-[3px] rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.75)]',
-                          dragOverInfo?.side === 'before' ? '-left-[7px]' : '-right-[7px]'
-                        )}
-                      />
-                    )}
-                  </div>
+                  </motion.div>
                 )
               })}
             </div>
@@ -757,13 +828,11 @@ const PileListContent: React.FC = () => {
 
         <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
           <span className="text-[11px] text-muted-foreground">
-            点击选中后用滚轮左右挪动顺序 · 拖拽可调整顺序，拖出列表框自动关窗并可放到场上/ 手牌 ·
-            右键卡片可移动至其他区域
+            按住拖拽卡片调整顺序（拖拽中可用滚轮上下滚动） · 右键卡片可移动至其他区域
           </span>
           <Button
             size="sm"
             onClick={() => {
-              setWheelMovingId(null)
               closePile()
             }}
             className="px-5 h-7 text-xs"
@@ -772,6 +841,34 @@ const PileListContent: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {pointerDrag &&
+        createPortal(
+          <div
+            className="fixed pointer-events-none z-[9999] rounded-md border border-border/80 shadow-2xl overflow-hidden bg-card p-1.5"
+            style={{
+              left: pointerDrag.clientX - pointerDrag.offsetX,
+              top: pointerDrag.clientY - pointerDrag.offsetY,
+              width: pointerDrag.width,
+              height: pointerDrag.height,
+              opacity: 0.9
+            }}
+          >
+            <div className="relative w-full aspect-[59/86] rounded overflow-hidden border border-border/70 bg-black/30">
+              <img
+                src={getCardImageUrl(pointerDrag.card.code, true)}
+                alt=""
+                className="w-full h-full object-cover pointer-events-none"
+              />
+            </div>
+            <span className="mt-1 min-h-[26px] px-0.5 text-[10.5px] leading-[13px] text-center text-foreground/85 line-clamp-2 break-all block">
+              {pointerDrag.card.card?.name ||
+                cardDataMap[pointerDrag.card.code]?.name ||
+                String(pointerDrag.card.code)}
+            </span>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

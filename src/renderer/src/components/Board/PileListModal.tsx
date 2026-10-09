@@ -52,6 +52,16 @@ interface PointerDragState {
   height: number
 }
 
+interface GridMetrics {
+  containerLeft: number
+  containerTop: number
+  colWidth: number
+  rowHeight: number
+  gap: number
+  columns: number
+  totalCards: number
+}
+
 const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
   const openContextMenu = useContextMenuStore((s) => s.openMenu)
@@ -77,6 +87,7 @@ const PileListContent: React.FC = () => {
   const [pointerDrag, setPointerDrag] = useState<PointerDragState | null>(null)
 
   const pointerDragRef = useRef<PointerDragState | null>(null)
+  const floatingCardRef = useRef<HTMLDivElement>(null)
   const dragStartPosRef = useRef<{ x: number; y: number } | null>(null)
   const pendingDragCardRef = useRef<{
     card: CdbCardItem
@@ -88,184 +99,12 @@ const PileListContent: React.FC = () => {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
+  const gridInfoRef = useRef<GridMetrics | null>(null)
 
   const autoScrollRafRef = useRef<number | null>(null)
+  const slotRafRef = useRef<number | null>(null)
   const scrollVelocityRef = useRef<number>(0)
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
-
-  useEffect(() => {
-    if (!target) return
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        if (pointerDragRef.current) {
-          pointerDragRef.current = null
-          setPointerDrag(null)
-          setDraggedCardId(null)
-          setDropSlotIndex(null)
-          dragStartPosRef.current = null
-          pendingDragCardRef.current = null
-          if (autoScrollRafRef.current !== null) {
-            window.cancelAnimationFrame(autoScrollRafRef.current)
-            autoScrollRafRef.current = null
-          }
-          scrollVelocityRef.current = 0
-          return
-        }
-        closePile()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      setHoveredInstanceId(null)
-    }
-  }, [target, closePile, setHoveredInstanceId])
-
-  const stopAutoScroll = useCallback((): void => {
-    if (autoScrollRafRef.current !== null) {
-      window.cancelAnimationFrame(autoScrollRafRef.current)
-      autoScrollRafRef.current = null
-    }
-    scrollVelocityRef.current = 0
-    lastPointerRef.current = null
-  }, [])
-
-  const updateSlotAtPointer = useCallback(
-    (clientX: number, clientY: number): void => {
-      if (searchQuery.trim().length > 0) return
-
-      const elements =
-        scrollContainerRef.current?.querySelectorAll<HTMLElement>('[data-remaining-index]')
-      if (!elements || elements.length === 0) {
-        setDropSlotIndex(0)
-        return
-      }
-
-      let nearestElement: HTMLElement | null = null
-      let nearestDistance = Number.POSITIVE_INFINITY
-
-      for (const el of Array.from(elements)) {
-        const rect = el.getBoundingClientRect()
-        const offsetX =
-          clientX < rect.left
-            ? rect.left - clientX
-            : clientX > rect.right
-              ? clientX - rect.right
-              : 0
-        const offsetY =
-          clientY < rect.top
-            ? rect.top - clientY
-            : clientY > rect.bottom
-              ? clientY - rect.bottom
-              : 0
-        const distance = offsetX * offsetX + offsetY * offsetY
-        if (distance < nearestDistance) {
-          nearestElement = el
-          nearestDistance = distance
-        }
-      }
-
-      if (!nearestElement) return
-
-      const remainingIdx = Number(nearestElement.dataset.remainingIndex)
-      const rect = nearestElement.getBoundingClientRect()
-
-      let targetSlot = remainingIdx
-      if (clientY < rect.top) {
-        targetSlot = remainingIdx
-      } else if (clientY > rect.bottom) {
-        targetSlot = remainingIdx + 1
-      } else if (clientX >= rect.left + rect.width / 2) {
-        targetSlot = remainingIdx + 1
-      } else {
-        targetSlot = remainingIdx
-      }
-
-      const clamped = Math.max(0, Math.min(elements.length, targetSlot))
-      setDropSlotIndex((prev) => (prev === clamped ? prev : clamped))
-    },
-    [searchQuery]
-  )
-
-  const startAutoScrollIfNeeded = useCallback((): void => {
-    if (autoScrollRafRef.current !== null) return
-
-    const scrollLoop = (): void => {
-      const container = scrollContainerRef.current
-      const velocity = scrollVelocityRef.current
-      if (container && velocity !== 0) {
-        container.scrollTop += velocity
-        if (lastPointerRef.current) {
-          updateSlotAtPointer(lastPointerRef.current.x, lastPointerRef.current.y)
-        }
-      }
-      autoScrollRafRef.current = window.requestAnimationFrame(scrollLoop)
-    }
-
-    autoScrollRafRef.current = window.requestAnimationFrame(scrollLoop)
-  }, [updateSlotAtPointer])
-
-  const isPointerOutsideList = useCallback((clientX: number, clientY: number): boolean => {
-    const rect = modalRef.current?.getBoundingClientRect()
-    if (!rect) return false
-    return (
-      clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom
-    )
-  }, [])
-
-  const handlePointerAutoScroll = useCallback(
-    (clientX: number, clientY: number): void => {
-      const container = scrollContainerRef.current
-      if (!container) return
-
-      lastPointerRef.current = { x: clientX, y: clientY }
-      if (isPointerOutsideList(clientX, clientY)) {
-        scrollVelocityRef.current = 0
-        return
-      }
-
-      const rect = container.getBoundingClientRect()
-      const EDGE_ZONE = 70
-      const MAX_SPEED = 16
-
-      if (clientY <= rect.top + EDGE_ZONE) {
-        const ratio = Math.max(0, Math.min(1, (rect.top + EDGE_ZONE - clientY) / EDGE_ZONE))
-        scrollVelocityRef.current = -Math.max(3, ratio * MAX_SPEED)
-        startAutoScrollIfNeeded()
-      } else if (clientY >= rect.bottom - EDGE_ZONE) {
-        const ratio = Math.max(0, Math.min(1, (clientY - (rect.bottom - EDGE_ZONE)) / EDGE_ZONE))
-        scrollVelocityRef.current = Math.max(3, ratio * MAX_SPEED)
-        startAutoScrollIfNeeded()
-      } else {
-        scrollVelocityRef.current = 0
-      }
-    },
-    [isPointerOutsideList, startAutoScrollIfNeeded]
-  )
-
-  useEffect(() => {
-    return () => {
-      stopAutoScroll()
-    }
-  }, [stopAutoScroll])
-
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
-
-    const handleWheelDuringPointerDrag = (e: WheelEvent): void => {
-      if (!pointerDragRef.current) return
-      if (e.deltaY !== 0) {
-        container.scrollTop += e.deltaY
-        if (lastPointerRef.current) {
-          updateSlotAtPointer(lastPointerRef.current.x, lastPointerRef.current.y)
-        }
-      }
-    }
-
-    container.addEventListener('wheel', handleWheelDuringPointerDrag, { passive: true })
-    return () => container.removeEventListener('wheel', handleWheelDuringPointerDrag)
-  }, [updateSlotAtPointer])
 
   const pileCards = useMemo(() => {
     if (!target) return []
@@ -343,6 +182,172 @@ const PileListContent: React.FC = () => {
   const ownerDuelist =
     state.duelists?.find((d) => d.id === activeDuelistId && d.team === target?.controller) || null
 
+  const stopAutoScroll = useCallback((): void => {
+    if (autoScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(autoScrollRafRef.current)
+      autoScrollRafRef.current = null
+    }
+    scrollVelocityRef.current = 0
+    lastPointerRef.current = null
+  }, [])
+
+  const queueSlotUpdate = useCallback((clientX: number, clientY: number): void => {
+    if (slotRafRef.current !== null) return
+    slotRafRef.current = window.requestAnimationFrame(() => {
+      slotRafRef.current = null
+      const grid = gridInfoRef.current
+      const container = scrollContainerRef.current
+      if (!grid || !container) return
+
+      const relX = clientX - grid.containerLeft
+      const relY = clientY - grid.containerTop + container.scrollTop
+      const col = Math.min(
+        grid.columns - 1,
+        Math.max(0, Math.floor(relX / (grid.colWidth + grid.gap)))
+      )
+      const row = Math.max(0, Math.floor(relY / (grid.rowHeight + grid.gap)))
+      const targetSlot = Math.max(0, Math.min(grid.totalCards - 1, row * grid.columns + col))
+
+      setDropSlotIndex((prev) => (prev === targetSlot ? prev : targetSlot))
+    })
+  }, [])
+
+  const startAutoScrollIfNeeded = useCallback((): void => {
+    if (autoScrollRafRef.current !== null) return
+
+    const scrollLoop = (): void => {
+      const container = scrollContainerRef.current
+      const velocity = scrollVelocityRef.current
+      if (container && velocity !== 0) {
+        container.scrollTop += velocity
+        if (lastPointerRef.current) {
+          queueSlotUpdate(lastPointerRef.current.x, lastPointerRef.current.y)
+        }
+      }
+      autoScrollRafRef.current = window.requestAnimationFrame(scrollLoop)
+    }
+
+    autoScrollRafRef.current = window.requestAnimationFrame(scrollLoop)
+  }, [queueSlotUpdate])
+
+  const isPointerOutsideList = useCallback((clientX: number, clientY: number): boolean => {
+    const rect = modalRef.current?.getBoundingClientRect()
+    if (!rect) return false
+    return (
+      clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom
+    )
+  }, [])
+
+  const handlePointerAutoScroll = useCallback(
+    (clientX: number, clientY: number): void => {
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      lastPointerRef.current = { x: clientX, y: clientY }
+      if (isPointerOutsideList(clientX, clientY)) {
+        scrollVelocityRef.current = 0
+        return
+      }
+
+      const rect = container.getBoundingClientRect()
+      const EDGE_ZONE = 70
+      const MAX_SPEED = 16
+
+      if (clientY <= rect.top + EDGE_ZONE) {
+        const ratio = Math.max(0, Math.min(1, (rect.top + EDGE_ZONE - clientY) / EDGE_ZONE))
+        scrollVelocityRef.current = -Math.max(3, ratio * MAX_SPEED)
+        startAutoScrollIfNeeded()
+      } else if (clientY >= rect.bottom - EDGE_ZONE) {
+        const ratio = Math.max(0, Math.min(1, (clientY - (rect.bottom - EDGE_ZONE)) / EDGE_ZONE))
+        scrollVelocityRef.current = Math.max(3, ratio * MAX_SPEED)
+        startAutoScrollIfNeeded()
+      } else {
+        scrollVelocityRef.current = 0
+      }
+    },
+    [isPointerOutsideList, startAutoScrollIfNeeded]
+  )
+
+  const initGridMetrics = useCallback((): void => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const gridEl = container.querySelector('.grid') as HTMLElement | null
+    if (!gridEl) return
+
+    const gridRect = gridEl.getBoundingClientRect()
+    const firstChild = gridEl.firstElementChild as HTMLElement | null
+    const childRect = firstChild?.getBoundingClientRect()
+
+    const colWidth = childRect?.width ?? 104
+    const rowHeight = childRect?.height ?? 180
+    const gap = 10
+    const style = window.getComputedStyle(gridEl)
+    const columns = Math.max(1, style.gridTemplateColumns.split(' ').length)
+
+    gridInfoRef.current = {
+      containerLeft: gridRect.left,
+      containerTop: gridRect.top - container.scrollTop,
+      colWidth,
+      rowHeight,
+      gap,
+      columns,
+      totalCards: pileCards.length
+    }
+  }, [pileCards.length])
+
+  useEffect(() => {
+    if (!target) return
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        if (pointerDragRef.current) {
+          pointerDragRef.current = null
+          gridInfoRef.current = null
+          setPointerDrag(null)
+          setDraggedCardId(null)
+          setDropSlotIndex(null)
+          dragStartPosRef.current = null
+          pendingDragCardRef.current = null
+          stopAutoScroll()
+          return
+        }
+        closePile()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      setHoveredInstanceId(null)
+    }
+  }, [target, closePile, setHoveredInstanceId, stopAutoScroll])
+
+  useEffect(() => {
+    return () => {
+      stopAutoScroll()
+      if (slotRafRef.current !== null) {
+        window.cancelAnimationFrame(slotRafRef.current)
+      }
+    }
+  }, [stopAutoScroll])
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const handleWheelDuringPointerDrag = (e: WheelEvent): void => {
+      if (!pointerDragRef.current) return
+      if (e.deltaY !== 0) {
+        container.scrollTop += e.deltaY
+        if (lastPointerRef.current) {
+          queueSlotUpdate(lastPointerRef.current.x, lastPointerRef.current.y)
+        }
+      }
+    }
+
+    container.addEventListener('wheel', handleWheelDuringPointerDrag, { passive: true })
+    return () => container.removeEventListener('wheel', handleWheelDuringPointerDrag)
+  }, [queueSlotUpdate])
+
   useEffect(() => {
     const handleWindowPointerMove = (e: PointerEvent): void => {
       lastPointerRef.current = { x: e.clientX, y: e.clientY }
@@ -353,6 +358,7 @@ const PileListContent: React.FC = () => {
         if (dx * dx + dy * dy >= 16) {
           const pending = pendingDragCardRef.current
           pendingDragCardRef.current = null
+          initGridMetrics()
           const dragInfo: PointerDragState = {
             card: pending.card,
             originalIndex: pending.originalIndex,
@@ -371,16 +377,17 @@ const PileListContent: React.FC = () => {
       }
 
       if (pointerDragRef.current) {
-        const updated: PointerDragState = {
-          ...pointerDragRef.current,
-          clientX: e.clientX,
-          clientY: e.clientY
+        pointerDragRef.current.clientX = e.clientX
+        pointerDragRef.current.clientY = e.clientY
+
+        if (floatingCardRef.current) {
+          const x = e.clientX - pointerDragRef.current.offsetX
+          const y = e.clientY - pointerDragRef.current.offsetY
+          floatingCardRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`
         }
-        pointerDragRef.current = updated
-        setPointerDrag(updated)
 
         handlePointerAutoScroll(e.clientX, e.clientY)
-        updateSlotAtPointer(e.clientX, e.clientY)
+        queueSlotUpdate(e.clientX, e.clientY)
       }
     }
 
@@ -395,6 +402,7 @@ const PileListContent: React.FC = () => {
         }
 
         pointerDragRef.current = null
+        gridInfoRef.current = null
         setPointerDrag(null)
         setDraggedCardId(null)
         setDropSlotIndex(null)
@@ -429,7 +437,8 @@ const PileListContent: React.FC = () => {
     ownerDuelist,
     stopAutoScroll,
     handlePointerAutoScroll,
-    updateSlotAtPointer,
+    queueSlotUpdate,
+    initGridMetrics,
     cardDataMap,
     setSelectedCardId,
     setHoveredCard
@@ -572,7 +581,7 @@ const PileListContent: React.FC = () => {
 
             setIsExternalDrag(true)
             handlePointerAutoScroll(e.clientX, e.clientY)
-            updateSlotAtPointer(e.clientX, e.clientY)
+            queueSlotUpdate(e.clientX, e.clientY)
           }}
           onDragLeave={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -640,9 +649,8 @@ const PileListContent: React.FC = () => {
                       transition={{
                         layout: {
                           type: 'spring',
-                          stiffness: 280,
-                          damping: 28,
-                          mass: 0.8
+                          stiffness: 300,
+                          damping: 30
                         }
                       }}
                       aria-hidden="true"
@@ -669,9 +677,8 @@ const PileListContent: React.FC = () => {
                     transition={{
                       layout: {
                         type: 'spring',
-                        stiffness: 280,
-                        damping: 28,
-                        mass: 0.8
+                        stiffness: 300,
+                        damping: 30
                       }
                     }}
                     data-remaining-index={item.remainingIndex}
@@ -845,12 +852,12 @@ const PileListContent: React.FC = () => {
       {pointerDrag &&
         createPortal(
           <div
-            className="fixed pointer-events-none z-[9999] rounded-md border border-border/80 shadow-2xl overflow-hidden bg-card p-1.5"
+            ref={floatingCardRef}
+            className="fixed left-0 top-0 pointer-events-none z-[9999] rounded-md border border-border shadow-2xl overflow-hidden bg-card p-1.5 will-change-transform"
             style={{
-              left: pointerDrag.clientX - pointerDrag.offsetX,
-              top: pointerDrag.clientY - pointerDrag.offsetY,
               width: pointerDrag.width,
               height: pointerDrag.height,
+              transform: `translate3d(${pointerDrag.clientX - pointerDrag.offsetX}px, ${pointerDrag.clientY - pointerDrag.offsetY}px, 0)`,
               opacity: 0.9
             }}
           >

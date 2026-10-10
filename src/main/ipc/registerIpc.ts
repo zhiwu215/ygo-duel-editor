@@ -20,7 +20,7 @@ import { fileService } from '../services/fileService'
 import { configService } from '../services/configService'
 import { imageService } from '../services/imageService'
 import { deckService } from '../services/deckService'
-import { ocgcoreService } from '../services/ocgcoreService'
+import { nativeOcgcoreService } from '../services/nativeOcgcoreService'
 import { ruleCheckService } from '../services/ruleCheckService'
 import { agentService } from '../services/agentService'
 import { settingsWindowService } from '../services/settingsWindowService'
@@ -264,18 +264,17 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('ocgcore:test-run', async () => {
     try {
-      const core = await ocgcoreService.getCore()
-      const [maj, min] = core.getVersion()
+      const [maj, min] = nativeOcgcoreService.getVersion()
       return {
         success: true,
         version: `${maj}.${min}`,
-        message: 'ocgcore-wasm 核心加载成功，随时可执行模拟与校验'
+        message: '原生 ygopro-core (C++ ocgcore.dll) 核心加载成功，随时可执行模拟与校验'
       }
     } catch (err: unknown) {
       console.error('[registerIpc] ocgcore:test-run failed:', err)
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'ocgcore-wasm 加载失败'
+        error: err instanceof Error ? err.message : 'ocgcore 加载失败'
       }
     }
   })

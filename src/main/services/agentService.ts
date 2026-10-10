@@ -234,7 +234,7 @@ import {
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 import { libraryService } from './libraryService'
-import { ocgcoreService } from './ocgcoreService'
+import { nativeOcgcoreService as ocgcoreService } from './nativeOcgcoreService'
 
 type SessionConfig = AgentModelConfig &
   Pick<

@@ -1,4 +1,4 @@
-import { OcgMessageType, OcgResponse } from 'ocgcore-wasm'
+import { OcgMessageType, OcgResponse } from '@shared/index'
 
 export const YRP2_ID = 0x32707279
 export const YRP_VERSION = 0x1362

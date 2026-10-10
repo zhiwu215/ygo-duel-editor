@@ -1,15 +1,4 @@
 import {
-  OcgCoreSync,
-  OcgDuelHandle,
-  OcgLocation,
-  OcgMessageType,
-  OcgProcessResult,
-  OcgResponseType,
-  OcgResponse,
-  OcgQueryFlags,
-  SelectIdleCMDAction
-} from 'ocgcore-wasm'
-import {
   EngineProbeEntry,
   EngineProbeActivateOption,
   EngineProbeAttackEntry,
@@ -28,9 +17,20 @@ import {
   EngineExportReplayParams,
   CardLocation,
   DuelPhase,
-  DuelPuzzleState
+  DuelPuzzleState,
+  OcgDuelHandle,
+  OcgLocation,
+  OcgMessageType,
+  OcgProcessResult,
+  OcgResponseType,
+  OcgResponse,
+  OcgQueryFlags,
+  SelectIdleCMDAction
 } from '@shared/index'
-import { ocgcoreService } from './ocgcoreService'
+import {
+  nativeOcgcoreService as ocgcoreService,
+  NativeOcgcoreService
+} from './nativeOcgcoreService'
 import { cdbService } from '../db/cdbService'
 import { encodeResponseBytes, UnsupportedReplayQuestionError } from './yrpWriter'
 
@@ -41,7 +41,7 @@ class ReplayRecorder {
     this.chunks.push(encodeResponseBytes(msgType, response))
   }
 
-  public retryCheck(messages: ReturnType<OcgCoreSync['duelGetMessage']>): void {
+  public retryCheck(messages: ReturnType<NativeOcgcoreService['duelGetMessage']>): void {
     for (const msg of messages) {
       if (Number(msg.type) === OcgMessageType.RETRY && this.chunks.length > 0) this.chunks.pop()
     }
@@ -55,6 +55,7 @@ const MAX_SESSIONS = 8
 interface TopLevelWait {
   kind: 'idle' | 'battle'
   battle: EngineBattle | null
+  messages: ReturnType<NativeOcgcoreService['duelGetMessage']>
 }
 
 interface SettleOutcome {
@@ -73,7 +74,7 @@ type ReplayStepOutcome =
   { status: 'wait'; wait: TopLevelWait } | { status: 'end' } | { status: 'fail' }
 
 interface EngineSession {
-  core: OcgCoreSync
+  core: NativeOcgcoreService
   handle: OcgDuelHandle
   turnPlayer: 0 | 1
   before: EngineSelectCandidate[]
@@ -160,13 +161,9 @@ export class RuleCheckService {
       ocgcoreService.seedCounters(created.handle, engineBaseline.cards)
       const settle = this.settleToWait(created.core, created.handle)
       if (!settle.wait || settle.wait.kind !== 'idle') return null
+      let currentWait = settle.wait
       for (const entry of replay.actions) {
-        const index = this.findIdleActionIndex(
-          created.core,
-          created.handle,
-          entry.action,
-          baseTurnPlayer
-        )
+        const index = this.findIdleActionIndex(currentWait.messages, entry.action, baseTurnPlayer)
         if (index === null) {
           warnings.push('回放中断：引擎判定先前操作不可执行')
           return null
@@ -187,6 +184,7 @@ export class RuleCheckService {
           warnings.push('回放中断：历史操作缺少玩家选择记录')
           return null
         }
+        if (stepOutcome.status === 'wait') currentWait = stepOutcome.wait
       }
       const wait = this.findWait(created.core.duelGetMessage(created.handle))
       if (!wait || wait.kind !== 'idle') {
@@ -389,12 +387,7 @@ export class RuleCheckService {
         )
       }
 
-      const index = this.findIdleActionIndex(
-        created.core,
-        created.handle,
-        params.action,
-        turnPlayer
-      )
+      const index = this.findIdleActionIndex(settle.wait.messages, params.action, turnPlayer)
       if (index === null) {
         warnings.push('引擎判定该操作当前不可执行')
         return fail(false, false)
@@ -560,8 +553,7 @@ export class RuleCheckService {
         startingDrawCount: Math.max(
           Number(engineState.players[0]?.startHand ?? 0),
           Number(engineState.players[1]?.startHand ?? 0)
-        ),
-        skipDrawStandby: true
+        )
       })
     } catch (err) {
       return fail(err instanceof Error ? err.message : String(err))
@@ -578,7 +570,7 @@ export class RuleCheckService {
         if (!wait) return '引擎对局已提前结束'
         if (target === 'BP') {
           if (wait.kind !== 'idle') return null
-          const idle = this.readIdleMessage(core, handle)
+          const idle = this.readIdleMessage(wait.messages)
           if (!idle || !idle.toBp) return '引擎判定当前无法进入战斗阶段'
           this.respond(
             core,
@@ -653,7 +645,7 @@ export class RuleCheckService {
         if (!wait || wait.kind !== 'idle') {
           return fail(`第 ${ordinal} 个操作回放时引擎不在主要阶段`)
         }
-        const index = this.findIdleActionIndex(core, handle, entry.action, turnPlayer)
+        const index = this.findIdleActionIndex(wait.messages, entry.action, turnPlayer)
         if (index === null) {
           return fail(`第 ${ordinal} 个操作无法被引擎重现（编排中可能包含自由改动）`)
         }
@@ -705,7 +697,7 @@ export class RuleCheckService {
   }
 
   private finalizeAction(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     turnPlayer: 0 | 1,
     before: EngineSelectCandidate[],
@@ -799,12 +791,11 @@ export class RuleCheckService {
   }
 
   private findIdleActionIndex(
-    core: OcgCoreSync,
-    handle: OcgDuelHandle,
+    messages: ReturnType<NativeOcgcoreService['duelGetMessage']>,
     action: EngineProbeAction,
     turnPlayer: 0 | 1
   ): number | null {
-    const idle = this.readIdleMessage(core, handle)
+    const idle = this.readIdleMessage(messages)
     if (!idle) return null
     if (action.kind === 'TO_BP' || action.kind === 'TO_EP' || action.kind === 'TO_M2') return null
     const list =
@@ -839,7 +830,7 @@ export class RuleCheckService {
   }
 
   private readFieldCounters(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     turnPlayer: 0 | 1
   ): EngineProbeCounterEntry[] {
@@ -860,9 +851,9 @@ export class RuleCheckService {
           if (!info?.code) continue
           const raw = (info.counters ?? {}) as Record<string, number>
           const counters: Record<number, number> = {}
-          for (const [countStr, typeUnknown] of Object.entries(raw)) {
-            const count = Number(countStr)
-            const type = Number(typeUnknown)
+          for (const [typeStr, countUnknown] of Object.entries(raw)) {
+            const type = Number(typeStr)
+            const count = Number(countUnknown)
             if (count > 0 && type > 0) counters[type] = count
           }
           if (Object.keys(counters).length === 0) continue
@@ -893,7 +884,7 @@ export class RuleCheckService {
   }
 
   private respond(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     msgType: number,
     response: OcgResponse,
@@ -904,7 +895,7 @@ export class RuleCheckService {
   }
 
   private settleToWait(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     rec: ReplayRecorder | null = null
   ): SettleOutcome {
@@ -926,11 +917,13 @@ export class RuleCheckService {
     return { wait: null, autoAnswers }
   }
 
-  private findWait(messages: ReturnType<OcgCoreSync['duelGetMessage']>): TopLevelWait | null {
+  private findWait(
+    messages: ReturnType<NativeOcgcoreService['duelGetMessage']>
+  ): TopLevelWait | null {
     for (const msg of messages) {
       const kind = Number(msg.type)
       if (kind === OcgMessageType.SELECT_IDLECMD) {
-        return { kind: 'idle', battle: null }
+        return { kind: 'idle', battle: null, messages }
       }
       if (kind === OcgMessageType.SELECT_BATTLECMD) {
         const m = msg as unknown as {
@@ -940,7 +933,8 @@ export class RuleCheckService {
         }
         return {
           kind: 'battle',
-          battle: { attacks: m.attacks ?? [], toM2: m.to_m2 === true, toEp: m.to_ep === true }
+          battle: { attacks: m.attacks ?? [], toM2: m.to_m2 === true, toEp: m.to_ep === true },
+          messages
         }
       }
     }
@@ -948,9 +942,9 @@ export class RuleCheckService {
   }
 
   private autoAnswerNext(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
-    messages: ReturnType<OcgCoreSync['duelGetMessage']>,
+    messages: ReturnType<NativeOcgcoreService['duelGetMessage']>,
     rec: ReplayRecorder | null = null
   ): boolean {
     for (const msg of messages) {
@@ -979,7 +973,7 @@ export class RuleCheckService {
   }
 
   private autoAnswerSelect(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     msg: unknown,
     rec: ReplayRecorder | null = null
@@ -1044,14 +1038,26 @@ export class RuleCheckService {
       return
     }
     if (kind === OcgMessageType.SELECT_DISFIELD) {
-      respond({ type: OcgResponseType.SELECT_DISFIELD, places: [] } as OcgResponse)
+      const place = this.pickFirstPlace(m)
+      respond({
+        type: OcgResponseType.SELECT_DISFIELD,
+        places: place
+          ? [{ player: place.player, location: place.location, sequence: place.sequence }]
+          : []
+      } as OcgResponse)
       return
     }
     if (kind === OcgMessageType.SELECT_COUNTER) {
-      respond({
-        type: OcgResponseType.SELECT_COUNTER,
-        counters: ((m.counters as number[]) ?? []).slice(0, 1)
-      } as OcgResponse)
+      const cards = (m.cards as { count?: number }[] | undefined) ?? []
+      const total = Number(m.count ?? 0)
+      const alloc: number[] = []
+      let remain = total
+      for (const c of cards) {
+        const take = Math.min(Math.max(0, remain), Math.max(0, Number(c.count ?? 0)))
+        alloc.push(take)
+        remain -= take
+      }
+      respond({ type: OcgResponseType.SELECT_COUNTER, counters: alloc } as OcgResponse)
       return
     }
     if (kind === OcgMessageType.SELECT_POSITION) {
@@ -1080,7 +1086,7 @@ export class RuleCheckService {
   }
 
   private collectFromWait(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     currentPhase: DuelPhase,
     turnPlayer: 0 | 1,
@@ -1136,7 +1142,7 @@ export class RuleCheckService {
         } as OcgResponse)
         const m2wait = this.advanceUntilWait(core, handle)
         if (m2wait && m2wait.kind === 'idle') {
-          const idle = this.readIdleMessage(core, handle)
+          const idle = this.readIdleMessage(m2wait.messages)
           if (idle) return { ...result(), ...this.mapIdle(idle, turnPlayer), toEp: idle.toEp }
         }
         return result()
@@ -1151,7 +1157,7 @@ export class RuleCheckService {
     if (wait.kind === 'battle') {
       return result()
     }
-    const idle = this.readIdleMessage(core, handle)
+    const idle = this.readIdleMessage(wait.messages)
     if (!idle) return result()
     return {
       ...result(),
@@ -1224,12 +1230,12 @@ export class RuleCheckService {
   }
 
   private advanceToPhase(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     wait: TopLevelWait
   ): TopLevelWait | null {
     if (wait.kind === 'battle') return wait
-    const idle = this.readIdleMessage(core, handle)
+    const idle = this.readIdleMessage(wait.messages)
     if (!idle || !idle.toBp) return null
     core.duelSetResponse(handle, {
       type: OcgResponseType.SELECT_IDLECMD,
@@ -1240,7 +1246,7 @@ export class RuleCheckService {
   }
 
   private advanceUntilWait(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     rec: ReplayRecorder | null = null
   ): TopLevelWait | null {
@@ -1261,7 +1267,7 @@ export class RuleCheckService {
   }
 
   private advanceInteractive(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     turnPlayer: 0 | 1,
     place?: { location: number; sequence: number },
@@ -1339,7 +1345,7 @@ export class RuleCheckService {
   }
 
   private advanceReplayStep(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     selections?: (number[] | null)[] | null,
     place?: { location: number; sequence: number },
@@ -1666,7 +1672,7 @@ export class RuleCheckService {
   }
 
   private respondPlace(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     msg: unknown,
     place?: { location: number; sequence: number },
@@ -1701,7 +1707,7 @@ export class RuleCheckService {
   }
 
   private readFieldEntries(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     turnPlayer: 0 | 1
   ): EngineSelectCandidate[] {
@@ -1733,7 +1739,7 @@ export class RuleCheckService {
   }
 
   private readHandEntries(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     turnPlayer: 0 | 1
   ): EngineSelectCandidate[] {
@@ -1763,7 +1769,7 @@ export class RuleCheckService {
   }
 
   private readDeepEntries(
-    core: OcgCoreSync,
+    core: NativeOcgcoreService,
     handle: OcgDuelHandle,
     turnPlayer: 0 | 1
   ): EngineSelectCandidate[] {
@@ -1804,8 +1810,9 @@ export class RuleCheckService {
     return out
   }
 
-  private readIdleMessage(core: OcgCoreSync, handle: OcgDuelHandle): IdleMessage | null {
-    const messages = core.duelGetMessage(handle)
+  private readIdleMessage(
+    messages: ReturnType<NativeOcgcoreService['duelGetMessage']>
+  ): IdleMessage | null {
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i]
       if (Number(msg.type) !== OcgMessageType.SELECT_IDLECMD) continue
@@ -1845,6 +1852,8 @@ export class RuleCheckService {
         return CardLocation.MZONE
       case OcgLocation.SZONE:
         return CardLocation.SZONE
+      case OcgLocation.FZONE:
+        return CardLocation.FZONE
       case OcgLocation.GRAVE:
         return CardLocation.GRAVE
       case OcgLocation.REMOVED:

@@ -6,36 +6,21 @@ YGO Duel Editor：游戏王决斗内容创作桌面应用（Electron + React）�
 
 ## 架构边界
 
-```
-┌──────────────────────────┐        ┌─────────────────────────────┐
-│  Renderer (React SPA)    │        │  Main (Node.js 主进程)      │
-│  stores + components     │  IPC   │  cdbService / fileService   │
-│  不接触 Node API / 数据库 │ ─────► │  configService / imageService│
-└──────────────────────────┘        └─────────────────────────────┘
-        │  仅经 window.api（contextBridge）          │
-┌────────▼──────────────────┐        ┌──────────────┴──────────────┐
-│  Preload (contextBridge)  │        │  shared (@shared)           │
-│  类型完备的 IPC 桥接层     │        │  类型 / 常量 / Lua 引擎      │
-└───────────────────────────┘        └─────────────────────────────┘
-```
-
-- 组件统一使用 shadcn/ui（base-ui 版，`components/ui/`）。**禁用原生 `confirm()`/`alert()`/`prompt()` 与裸写 `<select>`/`<input type=file>`**；弹窗走 `useDialogStore`，文件选择走主进程 IPC。
-- Renderer 永不直接 import `electron` / `node` / `better-sqlite3`；宿主能力只经 `window.api`。`@shared` 必须平台无关（不引 electron/node/DOM）。
+- 组件统一使用 shadcn/ui，没有相关组件就去官方寻找使用
+- 交互设计严格遵循 [`design-invariants.md`](docs/rules/design-invariants.md)，每次更新都需确保这些交互和设计正常
 
 ## 命令
 
-- `pnpm dev` 开发模式（electron-vite，带 HMR）
+- `pnpm dev` 开发模式
 - `pnpm typecheck` 双端类型检查（Node + Web），改动后必须零错误
 - `pnpm exec eslint <本次改动的文件>` 只 lint 改动文件（**禁止 `pnpm lint` / `eslint .` 全仓扫描**——会扫到根目录下的参考子仓库，极慢）
 - `pnpm exec prettier --write <file>` 格式化单文件（勿全仓 `prettier`）
 
 ## 硬性规则
 
-- **禁止 `rm -rf node_modules`、手动 `mv`/`cp` 改写 `node_modules` 下目录**（pnpm 硬链接跨项目共享，会破坏其他项目）。依赖损坏统一 `pnpm install --force --offline`。
 - **代码不写注释**（行内/JSDoc 一律不要；仅 `// @ts-ignore`、`// eslint-disable-next-line` 等指令例外）。
-- **Lua 引擎改任一侧后必须验证 `generateLuaScript(parse(脚本))` round-trip 语义等价**，否则用户已保存 `.lua` 失效。
+- **交互改动必须符合 [`design-invariants.md`](docs/rules/design-invariants.md)**：严禁破坏既有交互设计。
 - 新 IPC 能力四件套同步：`shared/types/ipc.ts` → `preload/index.ts` → `preload/index.d.ts` → `main/ipc/registerIpc.ts`。
-- 改变场面的操作必须走 `useDuelStore` action（保留撤销/重做）；CDB 只读，绝不写用户 `cards.cdb`。
 
 ## Ask first（先问再做）
 
@@ -50,7 +35,9 @@ YGO Duel Editor：游戏王决斗内容创作桌面应用（Electron + React）�
 ## 收尾自检
 
 - [ ] `pnpm typecheck` 双端零错误；`pnpm exec eslint <本次改动的文件>` 零错误（禁 `pnpm lint`）
+- [ ] 交互对照 [`design-invariants.md`](docs/rules/design-invariants.md) 防退化清单
 - [ ] 无原生控件/弹窗残留；通用 UI 复用 `components/ui/`
 - [ ] 新文件落在正确功能域/共享层；新类型经 `@shared` barrel 导出，新枚举用内置常量而非魔法数字
 - [ ] 触及 Lua 引擎 → round-trip 已验证
 - [ ] 触及依赖 → `pnpm dev` 完整构建成功，无 `node_modules.*` 事故目录残留
+

@@ -4,6 +4,7 @@ import {
   DuelPuzzleState,
   FieldCard,
   MasterRule,
+  MASTER_RULES,
   PlayerState,
   createInitialDuelState,
   CardLocation,
@@ -1140,16 +1141,28 @@ export const useDuelStore = create<DuelStoreState>()(
       beginPlacement: (mode, sourceId, effectIndex) => {
         const { state } = useDuelStore.getState()
         const card = state.cards.find((c) => c.instanceId === sourceId)
-        if (!card || card.location !== CardLocation.HAND) return
+        const validLocations =
+          mode === 'SP_SUMMON'
+            ? [
+                CardLocation.HAND,
+                CardLocation.EXTRA,
+                CardLocation.GRAVE,
+                CardLocation.REMOVED,
+                CardLocation.MZONE
+              ]
+            : [CardLocation.HAND]
+        if (!card || !(validLocations as readonly number[]).includes(card.location)) return
 
         const cardType = card.card?.type ?? 0
-        const isMonster = card.card !== undefined ? (cardType & CardType.MONSTER) !== 0 : false
+        const isMonster =
+          mode === 'SUMMON' ||
+          mode === 'SP_SUMMON' ||
+          (card.card !== undefined ? (cardType & CardType.MONSTER) !== 0 : false)
 
         const allowedSlots: PendingPlacementSlot[] = []
         const controller = card.controller
 
         if (isFieldSpellCard(card)) {
-          // 场地魔法：仅 SZONE seq 5。该格已有卡也可选——落子时会顶掉旧卡送去墓地。
           allowedSlots.push({
             location: CardLocation.SZONE,
             sequence: FIELD_ZONE_SEQ,
@@ -1157,7 +1170,6 @@ export const useDuelStore = create<DuelStoreState>()(
             displaces: true
           })
         } else if (isMonster) {
-          // 怪兽：MZONE seq 0~4 中空位
           for (let seq = 0; seq <= 4; seq++) {
             const taken = state.cards.some(
               (c) =>
@@ -1167,6 +1179,16 @@ export const useDuelStore = create<DuelStoreState>()(
             )
             if (!taken) {
               allowedSlots.push({ location: CardLocation.MZONE, sequence: seq, controller })
+            }
+          }
+          if (MASTER_RULES[state.masterRule]?.hasEMZ && mode === 'SP_SUMMON') {
+            for (const emzSeq of [5, 6]) {
+              const taken = state.cards.some(
+                (c) => c.location === CardLocation.MZONE && c.sequence === emzSeq
+              )
+              if (!taken) {
+                allowedSlots.push({ location: CardLocation.MZONE, sequence: emzSeq, controller })
+              }
             }
           }
         } else {
@@ -1300,11 +1322,13 @@ export const useDuelStore = create<DuelStoreState>()(
           !sourceCard?.card?.isCustom &&
           !isCustomCardId(sourceCard?.code ?? 0)
 
-        if (pendingPlacement.mode === 'SUMMON') {
+        if (pendingPlacement.mode === 'SUMMON' || pendingPlacement.mode === 'SP_SUMMON') {
+          const kind: EngineProbeActionKind =
+            pendingPlacement.mode === 'SP_SUMMON' ? 'SP_SUMMON' : 'SUMMON'
           if (ruleCheckOn && sourceCard) {
             set({ pendingPlacement: null })
             const action: EngineProbeAction = {
-              kind: 'SUMMON',
+              kind,
               code: sourceCard.code,
               controller: sourceCard.controller,
               fromLocation: sourceCard.location,
@@ -1338,10 +1362,12 @@ export const useDuelStore = create<DuelStoreState>()(
             position: CardPosition.FACEUP
           })
         } else {
+          const isMonsterCard = (pendingPlacement.cardType & CardType.MONSTER) !== 0
           useDuelStore.getState().executeSetCard(pendingPlacement.sourceId, {
             location: slot.location,
             sequence: slot.sequence,
-            controller: slot.controller
+            controller: slot.controller,
+            position: isMonsterCard ? CardPosition.FACEDOWN_DEFENSE : CardPosition.FACEDOWN
           })
         }
         set({ pendingPlacement: null })

@@ -247,6 +247,19 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
+        const s = useDuelStore.getState()
+        if (s.pendingPlacement) {
+          s.cancelPlacement()
+          return
+        }
+        if (s.pendingAction) {
+          s.cancelPendingAction()
+          return
+        }
+        if (s.pendingEngineSelect?.prompt.canCancel) {
+          s.cancelEngineSelect()
+          return
+        }
         closeCommandMenu()
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
@@ -317,7 +330,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           animate={{ rotate: isDefense ? 90 : 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
           className={`relative w-full h-full rounded overflow-hidden shadow-md ${
-            role === 'source'
+            role === 'source' || isPlacementSource
               ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background'
               : role === 'chosen'
                 ? 'ring-2 ring-rose-500 ring-offset-1 ring-offset-background'

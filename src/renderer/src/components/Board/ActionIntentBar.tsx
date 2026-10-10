@@ -42,7 +42,6 @@ export const ActionIntentBar: React.FC = () => {
   const executeActivateCard = useDuelStore((s) => s.executeActivateCard)
   const executeSendToGrave = useDuelStore((s) => s.executeSendToGrave)
   const executeBanishCard = useDuelStore((s) => s.executeBanishCard)
-  const executeSpecialSummon = useDuelStore((s) => s.executeSpecialSummon)
   const turnLog = useDuelStore((s) => s.turnLog)
   const rule = useRuleCheck()
 
@@ -317,7 +316,9 @@ export const ActionIntentBar: React.FC = () => {
               ? '发动'
               : pendingPlacement.mode === 'SET'
                 ? '盖放'
-                : '召唤'}
+                : pendingPlacement.mode === 'SP_SUMMON'
+                  ? '特殊召唤'
+                  : '召唤'}
           </span>
           <Button
             variant="ghost"
@@ -369,7 +370,7 @@ export const ActionIntentBar: React.FC = () => {
               variant="ghost"
               size="sm"
               className="h-6 shrink-0 px-1.5 text-[11px]"
-              onClick={() => selectedCard && executeSpecialSummon(selectedCard.instanceId)}
+              onClick={() => selectedCard && beginPlacement('SP_SUMMON', selectedCard.instanceId)}
             >
               <Sparkles className="h-3 w-3" />
               特殊召唤

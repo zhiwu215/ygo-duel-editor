@@ -9,7 +9,7 @@ import type {
   EngineProbeActivateOption,
   FieldCard
 } from '@shared/index'
-import { CardLocation, CardPosition, CardType, isCustomCardId } from '@shared/index'
+import { CardLocation, CardPosition, CardType } from '@shared/index'
 
 export type RuleCheckKind =
   | 'SUMMON'
@@ -177,8 +177,6 @@ export function getCardAvailableActions(
   turnPlayer: 0 | 1,
   active: boolean
 ): CardActionOptions {
-  const isCustom = Boolean(card.card?.isCustom || isCustomCardId(card.code))
-
   if (active && probe && card.controller === turnPlayer) {
     const match = (entry: EngineProbeEntry): boolean =>
       entry.code === card.code &&
@@ -214,36 +212,20 @@ export function getCardAvailableActions(
       canRepos ||
       canAttack
 
-    if (hasAnyAction || !isCustom) {
-      return {
-        canSummon,
-        canSpSummon,
-        canMonsterSet,
-        canSpellSet,
-        canActivate,
-        activateOptions,
-        canRepos,
-        canAttack,
-        hasAnyAction
-      }
+    return {
+      canSummon,
+      canSpSummon,
+      canMonsterSet,
+      canSpellSet,
+      canActivate,
+      activateOptions,
+      canRepos,
+      canAttack,
+      hasAnyAction
     }
   }
 
-  if (isCustom || !active || !probe) {
-    return getFallbackActions(card)
-  }
-
-  return {
-    canSummon: false,
-    canSpSummon: false,
-    canMonsterSet: false,
-    canSpellSet: false,
-    canActivate: false,
-    activateOptions: [],
-    canRepos: false,
-    canAttack: false,
-    hasAnyAction: false
-  }
+  return getFallbackActions(card)
 }
 
 export function enginePromptUsesModal(prompt: EnginePendingSelect): boolean {

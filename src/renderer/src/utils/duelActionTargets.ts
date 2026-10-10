@@ -12,7 +12,7 @@ export interface PendingAction {
 }
 
 /** 「发动 / 盖放 / 召唤」放置待选模式：用户先选卡，按钮后必须点击场上某个空格才落子 */
-export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON'
+export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON' | 'SP_SUMMON'
 
 export interface PendingPlacementSlot {
   location: number

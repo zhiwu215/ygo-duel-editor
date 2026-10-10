@@ -482,8 +482,25 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         }
       }}
       onContextMenuCapture={(e) => {
-        // 主卡组格**为空**时右键：没有卡片可依附，由格子自身提供区域菜单（切换卡组）。
-        // 有卡片时放行给 CardItem，走常规卡片菜单（其中也已含「切换卡组」）。
+        const s = useDuelStore.getState()
+        if (s.pendingPlacement) {
+          e.preventDefault()
+          e.stopPropagation()
+          s.cancelPlacement()
+          return
+        }
+        if (s.pendingAction) {
+          e.preventDefault()
+          e.stopPropagation()
+          s.cancelPendingAction()
+          return
+        }
+        if (s.pendingEngineSelect?.prompt.canCancel) {
+          e.preventDefault()
+          e.stopPropagation()
+          s.cancelEngineSelect()
+          return
+        }
         if (location !== CardLocation.DECK || card) return
         e.preventDefault()
         e.stopPropagation()
@@ -509,7 +526,15 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         isTokenDropTarget
           ? `点击放下「${pendingToken.name}」`
           : isPlacementTarget
-            ? `点击把【${pendingPlacement?.sourceName}】放到此格 (${pendingPlacement?.mode === 'ACTIVATE' ? '发动' : '盖放'})`
+            ? `点击把【${pendingPlacement?.sourceName}】放到此格 (${
+                pendingPlacement?.mode === 'ACTIVATE'
+                  ? '发动'
+                  : pendingPlacement?.mode === 'SET'
+                    ? '盖放'
+                    : pendingPlacement?.mode === 'SP_SUMMON'
+                      ? '特殊召唤'
+                      : '召唤'
+              })`
             : location === CardLocation.DECK
               ? '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
               : card &&

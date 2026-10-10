@@ -45,6 +45,32 @@ export const DuelBoard: React.FC = () => {
     appliedScaleRef.current = scale
   }, [scale])
 
+  useEffect(() => {
+    const handleContextMenuCapture = (e: MouseEvent): void => {
+      const s = useDuelStore.getState()
+      if (s.pendingPlacement) {
+        e.preventDefault()
+        e.stopPropagation()
+        s.cancelPlacement()
+        return
+      }
+      if (s.pendingAction) {
+        e.preventDefault()
+        e.stopPropagation()
+        s.cancelPendingAction()
+        return
+      }
+      if (s.pendingEngineSelect?.prompt.canCancel) {
+        e.preventDefault()
+        e.stopPropagation()
+        s.cancelEngineSelect()
+        return
+      }
+    }
+    window.addEventListener('contextmenu', handleContextMenuCapture, true)
+    return () => window.removeEventListener('contextmenu', handleContextMenuCapture, true)
+  }, [])
+
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     const wrapper = wrapperRef.current

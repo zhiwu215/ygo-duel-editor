@@ -12,13 +12,19 @@ interface CardCommandMenuProps {
   anchorRect?: DOMRect | null
 }
 
-export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
-  const store = useCardCommandMenuStore()
-  const card = props.card ?? store.card
-  const actions = props.actions ?? store.actions
-  const anchorRect = props.anchorRect ?? store.anchorRect
-  const onClose = props.onClose ?? store.closeMenu
+interface CardCommandMenuContentProps {
+  card: FieldCard
+  actions: CardActionOptions
+  anchorRect: DOMRect
+  onClose: () => void
+}
 
+const CardCommandMenuContent: React.FC<CardCommandMenuContentProps> = ({
+  card,
+  actions,
+  anchorRect,
+  onClose
+}) => {
   const [showOptions, setShowOptions] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const {
@@ -26,7 +32,6 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
     executeSpecialSummon,
     executeActivateCard,
     executeSetCard,
-    executeAttackCard,
     executeReposCard
   } = useDuelStore()
 
@@ -41,27 +46,45 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
         onClose()
       }
     }
+    const handleContextMenu = (e: MouseEvent): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
+    }
     window.addEventListener('pointerdown', handlePointerDown)
     window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('contextmenu', handleContextMenu, true)
     return () => {
       window.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('contextmenu', handleContextMenu, true)
     }
   }, [onClose])
-
-  if (!card || !actions || !anchorRect || !actions.hasAnyAction) return null
 
   const cdb = card.card
   const isPendulum = cdb ? (cdb.type & CardType.PENDULUM) !== 0 : false
   const setLabel = isPendulum && actions.canSpellSet && !actions.canMonsterSet ? '放置' : '盖放'
 
   const handleSummon = (): void => {
-    executeNormalSummon(card.instanceId)
+    if (card.location === CardLocation.HAND) {
+      useDuelStore.getState().beginPlacement('SUMMON', card.instanceId)
+    } else {
+      executeNormalSummon(card.instanceId)
+    }
     onClose()
   }
 
   const handleSpSummon = (): void => {
-    executeSpecialSummon(card.instanceId)
+    if (
+      card.location === CardLocation.HAND ||
+      card.location === CardLocation.EXTRA ||
+      card.location === CardLocation.GRAVE ||
+      card.location === CardLocation.REMOVED
+    ) {
+      useDuelStore.getState().beginPlacement('SP_SUMMON', card.instanceId)
+    } else {
+      executeSpecialSummon(card.instanceId)
+    }
     onClose()
   }
 
@@ -89,7 +112,11 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
   }
 
   const handleSet = (): void => {
-    executeSetCard(card.instanceId)
+    if (card.location === CardLocation.HAND) {
+      useDuelStore.getState().beginPlacement('SET', card.instanceId)
+    } else {
+      executeSetCard(card.instanceId)
+    }
     onClose()
   }
 
@@ -99,7 +126,7 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
   }
 
   const handleAttack = (): void => {
-    executeAttackCard(card.instanceId)
+    useDuelStore.getState().beginAction('ATTACK', card.instanceId)
     onClose()
   }
 
@@ -222,5 +249,24 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
         </div>
       )}
     </div>
+  )
+}
+
+export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
+  const store = useCardCommandMenuStore()
+  const card = props.card ?? store.card
+  const actions = props.actions ?? store.actions
+  const anchorRect = props.anchorRect ?? store.anchorRect
+  const onClose = props.onClose ?? store.closeMenu
+
+  if (!card || !actions || !anchorRect || !actions.hasAnyAction) return null
+
+  return (
+    <CardCommandMenuContent
+      card={card}
+      actions={actions}
+      anchorRect={anchorRect}
+      onClose={onClose}
+    />
   )
 }

@@ -11,22 +11,17 @@ import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { WindowControls } from '../ui/window-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Box, ShieldCheck, Square, Play } from 'lucide-react'
+import { ShieldCheck, Square, Play } from 'lucide-react'
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
 import { ExportStatusBadge } from './components/ExportStatusBadge'
 import { SaveProjectModal } from './components/SaveProjectModal'
-import { useBoardViewStore } from '../../stores/useBoardViewStore'
-import { cn } from '../../lib/utils'
 
 export const Header: React.FC = () => {
   const engineMode = useDuelEngineStore((s) => s.engineMode)
   const isEngineLoading = useDuelEngineStore((s) => s.loading)
   const startEngine = useDuelEngineStore((s) => s.startEngine)
   const stopEngine = useDuelEngineStore((s) => s.stopEngine)
-  const is3D = useBoardViewStore((s) => s.is3D)
-  const toggle3D = useBoardViewStore((s) => s.toggle3D)
-  const planeRotateX = useBoardViewStore((s) => s.planeRotateX)
   const {
     state,
     setMasterRule,
@@ -405,30 +400,6 @@ export const Header: React.FC = () => {
               </Tooltip>
             )}
           </div>
-
-          <Separator orientation="vertical" className="h-4" />
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant={is3D ? 'secondary' : 'outline'}
-                  size="xs"
-                  onClick={toggle3D}
-                  className={cn(
-                    'h-7 px-2 text-[11px] font-bold gap-1 transition-colors',
-                    is3D
-                      ? 'bg-primary/20 text-primary border-primary/40 hover:bg-primary/30'
-                      : 'bg-background/60 text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Box className="w-3.5 h-3.5" />
-                  <span>{is3D ? `3D 视角 (${planeRotateX}°)` : '2D 视角'}</span>
-                </Button>
-              }
-            />
-            <TooltipContent>切换 2D 平面编辑 / 3D 沉浸决斗盘视角 (Neos 视角)</TooltipContent>
-          </Tooltip>
 
           <Separator orientation="vertical" className="h-4" />
 

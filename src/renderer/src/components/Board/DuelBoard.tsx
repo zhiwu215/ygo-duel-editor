@@ -14,13 +14,9 @@ import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardStatPopover } from './components/CardStatPopover'
 import { ActionIntentBar } from './ActionIntentBar'
 import { PhaseStatusButton, PhaseMiddleButton, PhaseEpButton } from './PhaseControlButtons'
-import { useBoardViewStore } from '../../stores/useBoardViewStore'
 
 export const DuelBoard: React.FC = () => {
   const { state, activeDuelistId } = useDuelStore()
-  const is3D = useBoardViewStore((s) => s.is3D)
-  const planeRotateX = useBoardViewStore((s) => s.planeRotateX)
-  const perspective = useBoardViewStore((s) => s.perspective)
   const ruleInfo = MASTER_RULES[state.masterRule]
 
   // 多人对局时「当前查看的决斗者」：棋盘上的主卡组 / 额外卡组等堆叠区跟着TA 切换，
@@ -213,8 +209,7 @@ export const DuelBoard: React.FC = () => {
         ref={viewportRef}
         className="w-full flex-1 overflow-auto p-2 sm:p-3 flex flex-col items-center relative z-10 min-h-0"
         style={{
-          scrollbarGutter: 'stable',
-          perspective: is3D ? `${perspective}px` : undefined
+          scrollbarGutter: 'stable'
         }}
       >
         <div
@@ -222,9 +217,7 @@ export const DuelBoard: React.FC = () => {
           className="flex flex-col items-center gap-2.5 m-auto shrink-0 transition-transform duration-500 ease-out"
           style={{
             width: naturalW > 0 ? naturalW : undefined,
-            zoom: String(scale),
-            transform: is3D ? `rotateX(${planeRotateX}deg)` : 'none',
-            transformStyle: 'preserve-3d'
+            zoom: String(scale)
           }}
         >
           {/* 顶部：对方手牌托盘 */}

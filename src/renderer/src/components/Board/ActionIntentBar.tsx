@@ -1,74 +1,48 @@
-import React, { useEffect } from 'react'
-import { CardLocation, CardType } from '@shared/index'
+import React, { useEffect, useMemo } from 'react'
+import { CardLocation, CardPosition, isCardMatchingEngineOption } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useRuleCheck } from '../../stores/useRuleCheckStore'
-import { enginePromptUsesModal } from '../../utils/ruleCheck'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import {
-  isDefensePosition,
-  resolveBattle,
-  resolveDirectAttack,
-  getLegalTargetIds
-} from '../../utils/duelActionTargets'
+  enginePromptUsesModal,
+  getActionsFromEngine,
+  getFallbackActions
+} from '../../utils/ruleCheck'
 import {
-  Swords,
-  Zap,
-  ArrowDownToLine,
-  Ban,
+  Sparkles,
+  MapPin,
   Check,
   X,
   Crosshair,
-  MapPin,
-  ShieldAlert,
-  Sparkles,
-  EyeOff
+  ArrowDownToLine,
+  Ban,
+  EyeOff,
+  Zap
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
 export const ActionIntentBar: React.FC = () => {
-  const pendingAction = useDuelStore((s) => s.pendingAction)
+  const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const enginePendingAction = useDuelEngineStore((s) => s.pendingAction)
   const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
-  const pendingEngineSelect = useDuelStore((s) => s.pendingEngineSelect)
-  const cancelEngineSelect = useDuelStore((s) => s.cancelEngineSelect)
-  const confirmEngineSelect = useDuelStore((s) => s.confirmEngineSelect)
+  const cancelPlacement = useDuelStore((s) => s.cancelPlacement)
   const selectedCardId = useDuelStore((s) => s.selectedCardId)
   const cards = useDuelStore((s) => s.state.cards)
-  const beginAction = useDuelStore((s) => s.beginAction)
   const beginPlacement = useDuelStore((s) => s.beginPlacement)
-  const commitPendingAction = useDuelStore((s) => s.commitPendingAction)
-  const cancelPendingAction = useDuelStore((s) => s.cancelPendingAction)
-  const cancelPlacement = useDuelStore((s) => s.cancelPlacement)
-  const setActionTargetPlayer = useDuelStore((s) => s.setActionTargetPlayer)
   const executeActivateCard = useDuelStore((s) => s.executeActivateCard)
   const executeSendToGrave = useDuelStore((s) => s.executeSendToGrave)
   const executeBanishCard = useDuelStore((s) => s.executeBanishCard)
   const executeSpecialSummon = useDuelStore((s) => s.executeSpecialSummon)
-  const turnLog = useDuelStore((s) => s.turnLog)
-  const rule = useRuleCheck()
+  const executeReposCard = useDuelStore((s) => s.executeReposCard)
+  const executeAttackCard = useDuelStore((s) => s.executeAttackCard)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         const s = useDuelStore.getState()
-        if (s.pendingEngineSelect) {
-          if (s.pendingEngineSelect.prompt.canCancel) {
-            e.preventDefault()
-            s.cancelEngineSelect()
-          }
-          return
-        }
-        if (s.pendingAction) {
-          e.preventDefault()
-          s.cancelPendingAction()
-        } else if (s.pendingPlacement) {
+        if (s.pendingPlacement) {
           e.preventDefault()
           s.cancelPlacement()
-        }
-      } else if (e.key === 'Enter') {
-        const s = useDuelStore.getState()
-        if (s.pendingAction) {
-          e.preventDefault()
-          s.commitPendingAction()
         }
       }
     }
@@ -80,234 +54,152 @@ export const ActionIntentBar: React.FC = () => {
     ? cards.find((c) => c.instanceId === selectedCardId)
     : undefined
 
-  const sourceCard = pendingAction
-    ? cards.find((c) => c.instanceId === pendingAction.sourceId)
-    : undefined
+  const isModalActive = enginePromptUsesModal(enginePendingAction)
 
-  const preview = (() => {
-    if (!pendingAction || !sourceCard || pendingAction.kind !== 'ATTACK') return null
-    if (pendingAction.targetPlayer !== null) return resolveDirectAttack(sourceCard)
-    const targetId = pendingAction.targetIds[0]
-    if (!targetId) return null
-    const target = cards.find((c) => c.instanceId === targetId)
-    if (!target) return null
-    return resolveBattle(sourceCard, target)
-  })()
+  const hasEngineInteractive =
+    Boolean(enginePendingAction) &&
+    !isModalActive &&
+    [
+      'SELECT_PLACE',
+      'SELECT_CHAIN',
+      'SELECT_YESNO',
+      'SELECT_EFFECTYN',
+      'SELECT_CARD',
+      'SELECT_TRIBUTE'
+    ].includes(enginePendingAction!.kind)
 
-  const legalCount = pendingAction ? getLegalTargetIds(cards, pendingAction).length : 0
-  const hasTarget =
-    !!pendingAction && (pendingAction.targetIds.length > 0 || pendingAction.targetPlayer !== null)
-
-  const canAttack =
-    !!selectedCard &&
-    selectedCard.location === CardLocation.MZONE &&
-    !isDefensePosition(selectedCard.position) &&
-    rule.allows(selectedCard, 'ATTACK')
-
-  const isSelectedMonster =
-    !!selectedCard &&
-    selectedCard.location === CardLocation.HAND &&
-    selectedCard.card !== undefined &&
-    (selectedCard.card.type & CardType.MONSTER) !== 0
-
-  const showSummon =
-    !!selectedCard &&
-    selectedCard.location === CardLocation.HAND &&
-    isSelectedMonster &&
-    rule.allows(selectedCard, 'SUMMON')
-  const showSpecialSummon =
-    !!selectedCard &&
-    selectedCard.location === CardLocation.HAND &&
-    isSelectedMonster &&
-    rule.allows(selectedCard, 'SP_SUMMON')
-  const showSet =
-    !!selectedCard &&
-    selectedCard.location === CardLocation.HAND &&
-    rule.allows(selectedCard, isSelectedMonster ? 'SET_MONSTER' : 'SET_SPELL')
-  const showActivate = !!selectedCard && rule.allows(selectedCard, 'ACTIVATE')
-  const showSendToGrave = !!selectedCard && rule.allows(selectedCard, 'TO_GRAVE')
-  const showBanish = !!selectedCard && rule.allows(selectedCard, 'BANISH')
-
-  if (!pendingAction && !pendingPlacement && !pendingEngineSelect && !selectedCard) return null
-  if (pendingEngineSelect && enginePromptUsesModal(pendingEngineSelect.prompt)) return null
-
-  const selectTargetCount =
-    pendingEngineSelect && pendingEngineSelect.prompt.min === pendingEngineSelect.prompt.max
-      ? String(pendingEngineSelect.prompt.min)
-      : pendingEngineSelect
-        ? `${pendingEngineSelect.prompt.min}~${pendingEngineSelect.prompt.max}`
-        : ''
-
-  const chainCardNames =
-    pendingEngineSelect && pendingEngineSelect.prompt.kind === 'CHAIN'
-      ? pendingEngineSelect.prompt.candidates.map(
-          (c) =>
-            cards.find((card) => card.code === c.code && card.controller === c.controller)?.card
-              ?.name || String(c.code)
-        )
-      : []
-  const chainUniqueNames = [...new Set(chainCardNames)]
-  const chainEventName = (() => {
-    if (!pendingEngineSelect || pendingEngineSelect.prompt.kind !== 'CHAIN') return ''
-    const entry = turnLog.find((e) => e.id === pendingEngineSelect.logId)
-    if (!entry) return ''
-    if (
-      pendingEngineSelect.prompt.candidates.length === 1 &&
-      pendingEngineSelect.prompt.candidates[0].code === entry.action.code
-    ) {
-      return ''
+  const cardActions = useMemo(() => {
+    if (!selectedCard) return null
+    if (!isEngine) {
+      return getFallbackActions(selectedCard)
     }
-    const eventCard = cards.find((card) => card.code === entry.action.code)
-    return eventCard?.card?.name || String(entry.action.code)
-  })()
-  const chainSelfEffect =
-    !!pendingEngineSelect &&
-    pendingEngineSelect.prompt.kind === 'CHAIN' &&
-    pendingEngineSelect.prompt.candidates.length === 1 &&
-    pendingEngineSelect.prompt.candidates[0].code ===
-      turnLog.find((e) => e.id === pendingEngineSelect.logId)?.action.code
-  const chainTitle =
-    chainUniqueNames.length === 1
-      ? `要发动【${chainUniqueNames[0]}】${chainSelfEffect ? '的效果' : ''}吗？`
-      : chainUniqueNames.length > 1
-        ? `要发动哪张卡？${chainUniqueNames.map((n) => `【${n}】`).join('')}`
-        : '是否发动效果？'
-  const chainPrefix = chainEventName ? `连锁【${chainEventName}】：` : ''
+    return getActionsFromEngine(selectedCard, enginePendingAction?.options || [])
+  }, [selectedCard, isEngine, enginePendingAction])
+
+  const engineActions = useMemo(() => {
+    if (!selectedCard || !enginePendingAction || !enginePendingAction.options) return []
+    return enginePendingAction.options.filter((opt) =>
+      isCardMatchingEngineOption(selectedCard, opt)
+    )
+  }, [selectedCard, enginePendingAction])
+
+  const summonOpt = engineActions.find((o) => o.type === 'SUMMON')
+  const spSummonOpt = engineActions.find((o) => o.type === 'SPSUMMON')
+  const setOpt = engineActions.find((o) => o.type === 'SSET' || o.type === 'MSET')
+  const activateOpt = engineActions.find((o) => o.type === 'ACTIVATE')
+  const reposOpt = engineActions.find((o) => o.type === 'REPOS')
+  const attackOpt = engineActions.find((o) => o.type === 'ATTACK')
+
+  const handleSummon = (): void => {
+    if (!selectedCard) return
+    if (summonOpt) {
+      void useDuelEngineStore.getState().submitAction(summonOpt.id)
+    } else if (!isEngine) {
+      beginPlacement('SUMMON', selectedCard.instanceId)
+    }
+  }
+
+  const handleSpSummon = (): void => {
+    if (!selectedCard) return
+    if (spSummonOpt) {
+      void useDuelEngineStore.getState().submitAction(spSummonOpt.id)
+    } else if (!isEngine) {
+      executeSpecialSummon(selectedCard.instanceId)
+    }
+  }
+
+  const handleSet = (): void => {
+    if (!selectedCard) return
+    if (setOpt) {
+      void useDuelEngineStore.getState().submitAction(setOpt.id)
+    } else if (!isEngine) {
+      beginPlacement('SET', selectedCard.instanceId)
+    }
+  }
+
+  const handleActivate = (): void => {
+    if (!selectedCard) return
+    if (activateOpt) {
+      void useDuelEngineStore.getState().submitAction(activateOpt.id)
+    } else if (!isEngine) {
+      if (selectedCard.location === CardLocation.HAND) {
+        beginPlacement('ACTIVATE', selectedCard.instanceId)
+      } else {
+        executeActivateCard(selectedCard.instanceId)
+      }
+    }
+  }
+
+  const handleRepos = (): void => {
+    if (!selectedCard) return
+    if (reposOpt) {
+      void useDuelEngineStore.getState().submitAction(reposOpt.id)
+    } else if (!isEngine) {
+      void executeReposCard(selectedCard.instanceId)
+    }
+  }
+
+  const handleAttack = (): void => {
+    if (!selectedCard) return
+    if (attackOpt) {
+      void useDuelEngineStore.getState().submitAction(attackOpt.id)
+    } else if (!isEngine) {
+      executeAttackCard(selectedCard.instanceId)
+    }
+  }
+
+  const reposLabel =
+    selectedCard?.position === CardPosition.FACEDOWN_DEFENSE
+      ? '反转召唤'
+      : selectedCard?.position === CardPosition.FACEUP_ATTACK
+        ? '转为守备'
+        : '转为攻击'
+
+  if (!hasEngineInteractive && !pendingPlacement && (!selectedCard || !cardActions?.hasAnyAction)) {
+    return null
+  }
 
   return (
     <div
       className={cn(
-        'absolute bottom-2 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs shadow-lg',
-        pendingAction
-          ? 'border-amber-500/40 bg-popover'
+        'absolute bottom-2 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs shadow-lg select-none',
+        hasEngineInteractive
+          ? 'border-sky-500/50 bg-popover ring-1 ring-sky-500/20'
           : pendingPlacement
             ? 'border-amber-400/60 bg-popover'
             : 'border-border bg-popover'
       )}
     >
-      {pendingEngineSelect ? (
-        pendingEngineSelect.prompt.kind === 'POSITION' ? (
-          <>
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-            <span className="shrink-0 font-medium">请选择表示形式</span>
-            {[
-              { bit: 0x1, label: '表侧攻击' },
-              { bit: 0x4, label: '表侧守备' },
-              { bit: 0x8, label: '里侧守备' },
-              { bit: 0x2, label: '里侧攻击' }
-            ]
-              .filter((o) => ((pendingEngineSelect.prompt.positions ?? 0) & o.bit) !== 0)
-              .map((o) => (
-                <Button
-                  key={o.bit}
-                  size="sm"
-                  className="h-6 shrink-0 px-1.5 text-[11px]"
-                  onClick={() => useDuelStore.getState().chooseEnginePosition(o.bit)}
-                >
-                  {o.label}
-                </Button>
-              ))}
-          </>
-        ) : (
-          <>
-            {pendingEngineSelect.prompt.kind === 'CHAIN' ? (
-              <Sparkles className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-            ) : (
-              <Crosshair className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-            )}
-            <span className="shrink-0 font-medium">
-              {pendingEngineSelect.prompt.kind === 'TRIBUTE'
-                ? '请选择祭品'
-                : pendingEngineSelect.prompt.kind === 'CHAIN'
-                  ? `${chainPrefix}${chainTitle}`
-                  : '请选择卡'}
-            </span>
-            {pendingEngineSelect.prompt.kind === 'CHAIN' ? (
-              <span className="shrink-0 text-muted-foreground">
-                点发光的卡连锁发动，不需要则选「不发动」
-              </span>
-            ) : (
-              <span className="shrink-0 text-muted-foreground">
-                {selectTargetCount} 张（点击手上/场上高亮的卡）
-              </span>
-            )}
-            {pendingEngineSelect.chosen.length > 0 &&
-              pendingEngineSelect.prompt.max > pendingEngineSelect.prompt.min && (
-                <Button
-                  size="sm"
-                  disabled={pendingEngineSelect.chosen.length < pendingEngineSelect.prompt.min}
-                  className="h-6 shrink-0 px-1.5 text-[11px]"
-                  onClick={confirmEngineSelect}
-                >
-                  <Check className="h-3 w-3" />
-                  确认（{pendingEngineSelect.chosen.length}）
-                </Button>
-              )}
-            {pendingEngineSelect.prompt.canCancel && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 shrink-0 px-1.5 text-[11px]"
-                onClick={cancelEngineSelect}
-              >
-                <X className="h-3 w-3" />
-                {pendingEngineSelect.prompt.kind === 'CHAIN' ? '不发动' : '取消'}
-              </Button>
-            )}
-          </>
-        )
-      ) : pendingAction ? (
-        <>
-          <Crosshair className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-          <span className="shrink-0 font-medium">
-            【{pendingAction.sourceName}】{pendingAction.kind === 'ATTACK' ? '攻击' : '发动'}
+      {hasEngineInteractive && enginePendingAction ? (
+        <div className="flex items-center gap-2">
+          {enginePendingAction.kind === 'SELECT_PLACE' && (
+            <MapPin className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+          )}
+          {enginePendingAction.kind === 'SELECT_CHAIN' && (
+            <Sparkles className="h-3.5 w-3.5 text-sky-400" />
+          )}
+          {(enginePendingAction.kind === 'SELECT_YESNO' ||
+            enginePendingAction.kind === 'SELECT_EFFECTYN') && (
+            <Check className="h-3.5 w-3.5 text-emerald-400" />
+          )}
+          <span className="font-medium text-xs text-foreground">
+            {enginePendingAction.title}
+            {enginePendingAction.subtitle ? ` (${enginePendingAction.subtitle})` : ''}
           </span>
-          {preview ? (
-            <span className="min-w-0 truncate text-muted-foreground">
-              {pendingAction.targetPlayer !== null
-                ? `直接攻击 → 造成 ${preview.damage} 伤害`
-                : `${preview.attackerAtk} vs ${preview.targetIsDefense ? '守备 ' : ''}${preview.targetValue} → ${
-                    preview.destroyTarget
-                      ? '战斗破坏对方怪兽'
-                      : preview.destroyAttacker
-                        ? '攻击怪兽被破坏'
-                        : '未分胜负'
-                  }${preview.damage > 0 ? `，${preview.damageRecipient === 0 ? '我方' : '对方'} -${preview.damage}` : ''}`}
-            </span>
-          ) : (
-            <span className="shrink-0 text-muted-foreground">
-              请选择目标（{legalCount} 个可选）
-            </span>
-          )}
-          {pendingAction.kind === 'ATTACK' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 shrink-0 px-1.5 text-[11px]"
-              onClick={() => setActionTargetPlayer(pendingAction.sourceController === 0 ? 1 : 0)}
-            >
-              直接攻击
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 shrink-0 px-1.5 text-[11px]"
-            onClick={cancelPendingAction}
-          >
-            <X className="h-3 w-3" />
-            取消
-          </Button>
-          <Button
-            size="sm"
-            disabled={!hasTarget}
-            className="h-6 shrink-0 px-1.5 text-[11px]"
-            onClick={commitPendingAction}
-          >
-            <Check className="h-3 w-3" />
-            记录
-          </Button>
-        </>
+          <div className="flex items-center gap-1">
+            {enginePendingAction.options.map((opt) => (
+              <Button
+                key={opt.id}
+                size="sm"
+                variant={opt.type === 'PASS' || opt.type === 'NO' ? 'secondary' : 'default'}
+                className="h-6 px-2 text-[11px]"
+                onClick={() => void useDuelEngineStore.getState().submitAction(opt.id)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+        </div>
       ) : pendingPlacement ? (
         <>
           <MapPin className="h-3.5 w-3.5 shrink-0 text-amber-400" />
@@ -325,106 +217,100 @@ export const ActionIntentBar: React.FC = () => {
             className="h-6 shrink-0 px-1.5 text-[11px]"
             onClick={cancelPlacement}
           >
-            <X className="h-3 w-3" />
+            <X className="h-3 w-3 mr-1" />
             取消
           </Button>
         </>
       ) : (
         <>
-          <span className="shrink-0 max-w-32 truncate font-medium">
+          <span className="shrink-0 max-w-32 truncate font-medium text-foreground">
             {selectedCard?.card?.name || `卡片 ${selectedCard?.code}`}
           </span>
-          {rule.degraded && (
-            <span
-              className="flex shrink-0 items-center gap-1 text-amber-500"
-              title={`规则校验受限：${rule.warnings.join('；')}`}
-            >
-              <ShieldAlert className="h-3.5 w-3.5" />
-            </span>
-          )}
-          {canAttack && (
+          {cardActions?.canSummon && (
             <Button
-              variant="ghost"
+              variant="default"
               size="sm"
-              className="h-6 shrink-0 px-1.5 text-[11px] text-rose-500 hover:text-rose-400 hover:bg-rose-500/10"
-              onClick={() => selectedCard && beginAction('ATTACK', selectedCard.instanceId)}
+              className="h-6 shrink-0 px-2 text-[11px] font-bold cursor-pointer"
+              onClick={handleSummon}
             >
-              <Swords className="h-3 w-3" />
-              攻击
-            </Button>
-          )}
-          {showSummon && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 shrink-0 px-1.5 text-[11px]"
-              onClick={() => selectedCard && beginPlacement('SUMMON', selectedCard.instanceId)}
-            >
-              <Crosshair className="h-3 w-3" />
+              <Crosshair className="h-3 w-3 mr-1" />
               召唤
             </Button>
           )}
-          {showSpecialSummon && (
+          {cardActions?.canSpSummon && (
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
-              className="h-6 shrink-0 px-1.5 text-[11px]"
-              onClick={() => selectedCard && executeSpecialSummon(selectedCard.instanceId)}
+              className="h-6 shrink-0 px-2 text-[11px] font-bold cursor-pointer"
+              onClick={handleSpSummon}
             >
-              <Sparkles className="h-3 w-3" />
+              <Sparkles className="h-3 w-3 mr-1" />
               特殊召唤
             </Button>
           )}
-          {showSet && (
+          {(cardActions?.canMonsterSet || cardActions?.canSpellSet) && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-6 shrink-0 px-1.5 text-[11px]"
-              onClick={() => selectedCard && beginPlacement('SET', selectedCard.instanceId)}
+              className="h-6 shrink-0 px-2 text-[11px] font-bold cursor-pointer"
+              onClick={handleSet}
             >
-              <EyeOff className="h-3 w-3" />
+              <EyeOff className="h-3 w-3 mr-1" />
               盖放
             </Button>
           )}
-          {showActivate && (
+          {cardActions?.canActivate && (
             <Button
-              variant="ghost"
+              variant="default"
               size="sm"
-              className="h-6 shrink-0 px-1.5 text-[11px]"
-              onClick={() => {
-                if (!selectedCard) return
-                if (selectedCard.location === CardLocation.HAND) {
-                  beginPlacement('ACTIVATE', selectedCard.instanceId)
-                } else {
-                  executeActivateCard(selectedCard.instanceId)
-                }
-              }}
+              className="h-6 shrink-0 px-2 text-[11px] font-bold bg-amber-600 hover:bg-amber-500 text-white cursor-pointer"
+              onClick={handleActivate}
             >
-              <Zap className="h-3 w-3" />
+              <Zap className="h-3 w-3 mr-1" />
               发动
             </Button>
           )}
-          {showSendToGrave && (
+          {cardActions?.canRepos && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-6 shrink-0 px-1.5 text-[11px]"
-              onClick={() => selectedCard && executeSendToGrave(selectedCard.instanceId)}
+              className="h-6 shrink-0 px-2 text-[11px] font-bold cursor-pointer"
+              onClick={handleRepos}
             >
-              <ArrowDownToLine className="h-3 w-3" />
-              送墓
+              {reposLabel}
             </Button>
           )}
-          {showBanish && (
+          {cardActions?.canAttack && (
             <Button
-              variant="ghost"
+              variant="destructive"
               size="sm"
-              className="h-6 shrink-0 px-1.5 text-[11px]"
-              onClick={() => selectedCard && executeBanishCard(selectedCard.instanceId)}
+              className="h-6 shrink-0 px-2 text-[11px] font-bold cursor-pointer"
+              onClick={handleAttack}
             >
-              <Ban className="h-3 w-3" />
-              除外
+              攻击
             </Button>
+          )}
+          {!isEngine && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 shrink-0 px-1.5 text-[11px] cursor-pointer"
+                onClick={() => selectedCard && executeSendToGrave(selectedCard.instanceId)}
+              >
+                <ArrowDownToLine className="h-3 w-3 mr-1" />
+                送墓
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 shrink-0 px-1.5 text-[11px] cursor-pointer"
+                onClick={() => selectedCard && executeBanishCard(selectedCard.instanceId)}
+              >
+                <Ban className="h-3 w-3 mr-1" />
+                除外
+              </Button>
+            </>
           )}
         </>
       )}

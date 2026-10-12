@@ -12,6 +12,7 @@ import {
   CardLocation
 } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { confirmDialog } from '../../stores/useDialogStore'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
@@ -236,23 +237,36 @@ export const StepSequencerPanel: React.FC = () => {
   }
 
   const handlePrevStep = (): void => {
-    if (currentStepIndex === null) {
-      previewStepBoard(steps.length - 1)
-    } else if (currentStepIndex > 0) {
-      previewStepBoard(currentStepIndex - 1)
+    if (useDuelEngineStore.getState().isInitialized) {
+      void useDuelEngineStore.getState().undo()
+    } else {
+      if (currentStepIndex === null) {
+        previewStepBoard(steps.length - 1)
+      } else if (currentStepIndex > 0) {
+        previewStepBoard(currentStepIndex - 1)
+      }
     }
   }
 
   const handleNextStep = (): void => {
-    if (currentStepIndex === null) {
-      previewStepBoard(0)
-    } else if (currentStepIndex < steps.length - 1) {
-      previewStepBoard(currentStepIndex + 1)
+    if (useDuelEngineStore.getState().isInitialized) {
+      void useDuelEngineStore.getState().redo()
+    } else {
+      if (currentStepIndex === null) {
+        previewStepBoard(0)
+      } else if (currentStepIndex < steps.length - 1) {
+        previewStepBoard(currentStepIndex + 1)
+      }
     }
   }
 
   const handleResetPlayback = (): void => {
-    previewStepBoard(null)
+    if (useDuelEngineStore.getState().isInitialized) {
+      const first = useDuelEngineStore.getState().timeline[0]
+      if (first) void useDuelEngineStore.getState().jumpToStep(first.id)
+    } else {
+      previewStepBoard(null)
+    }
   }
 
   return (
@@ -537,7 +551,13 @@ export const StepSequencerPanel: React.FC = () => {
                   )}
 
                   <div
-                    onClick={() => previewStepBoard(index)}
+                    onClick={() => {
+                      if (useDuelEngineStore.getState().isInitialized && step.id) {
+                        void useDuelEngineStore.getState().jumpToStep(step.id)
+                      } else {
+                        previewStepBoard(index)
+                      }
+                    }}
                     onMouseEnter={() => {
                       if (step.instanceId) setHoveredInstanceId(step.instanceId)
                     }}

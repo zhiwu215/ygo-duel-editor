@@ -6,6 +6,7 @@ import { usePileListStore } from '../../stores/usePileListStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useTokenStore } from '../../stores/useTokenStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
@@ -220,6 +221,18 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     (s) => s.location === location && s.sequence === sequence && s.controller === controller
   )
 
+  const enginePendingAction = useDuelEngineStore((s) => s.pendingAction)
+  const matchingEnginePlaceOption =
+    enginePendingAction?.kind === 'SELECT_PLACE'
+      ? enginePendingAction.options.find(
+          (o) =>
+            (o.controller === undefined || o.controller === controller) &&
+            (o.location === undefined || o.location === location) &&
+            (o.sequence !== undefined ? o.sequence === sequence : o.zoneIndex === sequence)
+        )
+      : undefined
+  const isEnginePlaceTarget = Boolean(matchingEnginePlaceOption)
+
   /** 「发动 / 盖放」待选模式下，本格是否为合法的落点（顶掉型槽位允许格内已有卡） */
   const isPlacementTarget =
     pendingPlacement !== null &&
@@ -228,6 +241,10 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
 
   /** 点击格子放置待选模式的源卡 */
   const handlePlacementClick = (): boolean => {
+    if (matchingEnginePlaceOption) {
+      void useDuelEngineStore.getState().submitAction(matchingEnginePlaceOption.id)
+      return true
+    }
     if (!pendingPlacement || !isPlacementTarget) return false
     commitPlacement({ location, sequence, controller })
     return true
@@ -500,8 +517,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           ? 'ring-2 ring-emerald-400/80 bg-emerald-500/10 border-emerald-400/60 cursor-copy animate-pulse'
           : ''
       } ${
-        // 「发动 / 盖放」待选模式的合法落点
-        isPlacementTarget
+        isPlacementTarget || isEnginePlaceTarget
           ? 'ring-2 ring-amber-400 bg-amber-500/10 border-amber-400/60 cursor-pointer animate-pulse'
           : ''
       } ${className}`}

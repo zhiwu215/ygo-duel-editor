@@ -1,24 +1,32 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
+import {
+  FieldCard,
+  CardPosition,
+  CardLocation,
+  CardUtils,
+  isCardMatchingEngineOption
+} from '@shared/index'
 import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
-import { getLegalTargetIds } from '../../utils/duelActionTargets'
-import { engineCandidateIndex, enginePromptUsesModal } from '../../utils/ruleCheck'
+import {
+  enginePromptUsesModal,
+  getActionsFromEngine,
+  getFallbackActions
+} from '../../utils/ruleCheck'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useRuleCheck } from '../../stores/useRuleCheckStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { CardHudOverlay } from './components/CardHudOverlay'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { cn } from '../../lib/utils'
 
 export const HAND_REORDER_DRAG_TYPE = 'application/x-ygo-hand-reorder'
 
 interface CardItemProps {
   card: FieldCard
-  /** 宿主格子是否为正方形 (场上交互格)。正方形格中竖卡与横卡共用同一盒子尺寸 */
   squareCell?: boolean
 }
 
@@ -34,29 +42,12 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     setHoveredInstanceId
   } = useDuelStore()
   const tacticalView = useDuelStore((s) => s.tacticalView)
-  const toggleActionTarget = useDuelStore((s) => s.toggleActionTarget)
-  const pendingRole = useDuelStore((s): 'none' | 'source' | 'chosen' | 'legal' | 'dim' => {
-    const p = s.pendingAction
-    if (!p) return 'none'
-    if (p.sourceId === card.instanceId) return 'source'
-    if (p.targetIds.includes(card.instanceId)) return 'chosen'
-    if (getLegalTargetIds(s.state.cards, p).includes(card.instanceId)) return 'legal'
-    return 'dim'
-  })
-  const engineRole = useDuelStore((s): 'none' | 'legal' | 'chosen' | 'dim' => {
-    const sel = s.pendingEngineSelect
-    if (!sel) return 'none'
-    if (enginePromptUsesModal(sel.prompt)) return 'none'
-    const hit = engineCandidateIndex(sel.prompt.candidates, s.state.cards, card)
-    if (hit < 0) return 'dim'
-    return sel.chosen.includes(hit) ? 'chosen' : 'legal'
-  })
-  const role = engineRole !== 'none' ? engineRole : pendingRole
-  const commitEngineSelect = useDuelStore((s) => s.commitEngineSelect)
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const pendingAction = useDuelEngineStore((s) => s.pendingAction)
   const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
+
   const isPlacementSource =
     pendingPlacement !== null && pendingPlacement.sourceId === card.instanceId
-  /** 待选模式下本卡所在格是「顶掉型」落点：点它即落子，本卡被送去墓地 */
   const isPlacementDisplaceTarget =
     pendingPlacement !== null &&
     pendingPlacement.allowedSlots.some(
@@ -66,6 +57,46 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         s.sequence === card.sequence &&
         s.controller === card.controller
     )
+
+  const matchedEngineOption = React.useMemo(() => {
+    if (!pendingAction || !pendingAction.options) return undefined
+    return pendingAction.options.find((opt) => isCardMatchingEngineOption(card, opt))
+  }, [pendingAction, card])
+
+  const availableActions = React.useMemo(() => {
+    if (!isEngineActive) {
+      return getFallbackActions(card)
+    }
+    return getActionsFromEngine(card, pendingAction?.options || [])
+  }, [card, isEngineActive, pendingAction])
+
+  const role = React.useMemo((): 'none' | 'source' | 'chosen' | 'legal' | 'dim' => {
+    if (pendingPlacement) {
+      if (isPlacementSource) return 'source'
+      if (isPlacementDisplaceTarget) return 'legal'
+      return 'dim'
+    }
+    if (isEngineActive && pendingAction) {
+      if (pendingAction.kind === 'SELECT_CARD' || pendingAction.kind === 'SELECT_TRIBUTE') {
+        if (!enginePromptUsesModal(pendingAction)) {
+          if (matchedEngineOption) return 'legal'
+          return 'dim'
+        }
+      }
+      if (pendingAction.kind === 'SELECT_CHAIN') {
+        if (matchedEngineOption && matchedEngineOption.type === 'CHAIN') return 'legal'
+      }
+    }
+    return 'none'
+  }, [
+    pendingPlacement,
+    isPlacementSource,
+    isPlacementDisplaceTarget,
+    isEngineActive,
+    pendingAction,
+    matchedEngineOption
+  ])
+
   const { openMenu } = useContextMenuStore()
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openPile = usePileListStore((s) => s.openPile)
@@ -74,8 +105,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     openMenu: openCommandMenu,
     closeMenu: closeCommandMenu
   } = useCardCommandMenuStore()
-  const rule = useRuleCheck()
-  const availableActions = rule.getActions(card)
 
   const isSelected = selectedCardId === card.instanceId
   const isDefense =
@@ -164,8 +193,12 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
 
   return (
     <div
-      draggable
+      draggable={!isEngineActive}
       onDragStart={(e) => {
+        if (isEngineActive) {
+          e.preventDefault()
+          return
+        }
         if (card.location === CardLocation.HAND) {
           e.dataTransfer.setData(HAND_REORDER_DRAG_TYPE, card.instanceId)
           const rect = e.currentTarget.getBoundingClientRect()
@@ -179,15 +212,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       }}
       onClick={(e) => {
         e.stopPropagation()
-        if (engineRole === 'legal' || engineRole === 'chosen') {
-          commitEngineSelect(card.instanceId)
-          return
-        }
         if (role === 'dim') return
-        if (pendingRole === 'source') {
-          useDuelStore.getState().cancelPendingAction()
-          return
-        }
         if (isPlacementSource) {
           useDuelStore.getState().cancelPlacement()
           return
@@ -200,9 +225,18 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           })
           return
         }
-        if (pendingRole === 'legal' || pendingRole === 'chosen') {
-          toggleActionTarget(card.instanceId)
-          return
+        if (isEngineActive && pendingAction) {
+          if (
+            (pendingAction.kind === 'SELECT_CARD' || pendingAction.kind === 'SELECT_TRIBUTE') &&
+            matchedEngineOption
+          ) {
+            void useDuelEngineStore.getState().submitAction(matchedEngineOption.id)
+            return
+          }
+          if (pendingAction.kind === 'SELECT_CHAIN' && matchedEngineOption) {
+            void useDuelEngineStore.getState().submitAction(matchedEngineOption.id)
+            return
+          }
         }
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
@@ -314,39 +348,51 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         {/* 顶层主怪兽卡片 (仅主怪兽随守备表示旋转 90 度，底层素材保持正立) */}
         <motion.div
           initial={false}
-          animate={{ rotate: isDefense ? 90 : 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className={`relative w-full h-full rounded overflow-hidden shadow-md ${
+          animate={{
+            rotate: isDefense ? 90 : 0,
+            rotateY: isFacedown && isSetOnField ? 180 : 0,
+            z: isSelected ? 20 : role === 'legal' ? 10 : 0,
+            scale: isSelected ? 1.04 : 1
+          }}
+          transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+          className={`relative w-full h-full rounded shadow-md [transform-style:preserve-3d] ${
             role === 'source'
               ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background'
               : role === 'chosen'
                 ? 'ring-2 ring-rose-500 ring-offset-1 ring-offset-background'
                 : role === 'legal'
-                  ? 'ring-2 ring-emerald-400/80 ring-offset-1 ring-offset-background'
+                  ? 'ring-2 ring-emerald-400/80 ring-offset-1 ring-offset-background shadow-[0_0_12px_rgba(52,211,153,0.4)]'
                   : isSelected
-                    ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background'
+                    ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background shadow-[0_4px_16px_rgba(96,165,250,0.3)]'
                     : 'group-hover:ring-1 group-hover:ring-blue-400/50'
           }`}
           style={{ zIndex: (card.overlayMaterials?.length || 0) + 2 }}
         >
-          {/* 卡面图 (卡组/额外卡组里侧显示暗化卡面；场上盖放显示暗化卡面；手牌正常显示) */}
-          <img
-            src={getCardImageUrl(card.code, true)}
-            alt={card.card?.name || String(card.code)}
-            className="w-full h-full object-cover select-none pointer-events-none"
-            onError={(e) => {
-              const target = e.currentTarget
-              const cardBack = getCardBack(card.controller)
-              if (target.src !== cardBack) {
-                target.src = cardBack
-              }
-            }}
-          />
+          <div className="absolute inset-0 [backface-visibility:hidden] rounded overflow-hidden">
+            <img
+              src={getCardImageUrl(card.code, true)}
+              alt={card.card?.name || String(card.code)}
+              className="w-full h-full object-cover select-none pointer-events-none"
+              onError={(e) => {
+                const target = e.currentTarget
+                const cardBack = getCardBack(card.controller)
+                if (target.src !== cardBack) {
+                  target.src = cardBack
+                }
+              }}
+            />
+            {showFacedownVeil && !isSetOnField && (
+              <div className="absolute inset-0 bg-black/25 border border-amber-400/50 rounded pointer-events-none" />
+            )}
+          </div>
 
-          {/* 里侧指示边框与暗化蒙版 (彻底移除模糊，保留原生高清卡面，适度调暗并带琥珀内边框) */}
-          {showFacedownVeil && (
-            <div className="absolute inset-0 bg-black/25 border border-amber-400/50 rounded pointer-events-none" />
-          )}
+          <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded overflow-hidden bg-neutral-900 border border-amber-900/40">
+            <img
+              src={getCardBack(card.controller)}
+              alt="Card Back"
+              className="w-full h-full object-cover select-none pointer-events-none"
+            />
+          </div>
         </motion.div>
       </div>
 

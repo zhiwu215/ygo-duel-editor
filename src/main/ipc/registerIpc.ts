@@ -7,11 +7,6 @@ import {
   CardNote,
   CardNoteKind,
   CustomCardInput,
-  EngineProbeOptionsParams,
-  EngineProbeOptionsResult,
-  EngineProbeActionParams,
-  EngineProbeActionResult,
-  EngineProbeSelectParams,
   EngineExportReplayParams,
   EngineExportReplayResult
 } from '@shared/index'
@@ -20,8 +15,7 @@ import { fileService } from '../services/fileService'
 import { configService } from '../services/configService'
 import { imageService } from '../services/imageService'
 import { deckService } from '../services/deckService'
-import { ocgcoreService } from '../services/ocgcoreService'
-import { ruleCheckService } from '../services/ruleCheckService'
+import { duelDirector } from '../services/duel/duel-director'
 import { agentService } from '../services/agentService'
 import { settingsWindowService } from '../services/settingsWindowService'
 import { libraryService } from '../services/libraryService'
@@ -29,6 +23,7 @@ import { cardNoteService } from '../services/cardNoteService'
 import { customCardService } from '../services/customCardService'
 import { textLibraryService } from '../services/textLibraryService'
 import { dataDirService } from '../services/dataDirService'
+import { registerDuelEngineIpc } from './duelEngineIpc'
 
 const notifyCdbUpdated = (): void => {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -49,6 +44,8 @@ const reloadDataServices = (): void => {
 }
 
 export function registerAllIpcHandlers(): void {
+  registerDuelEngineIpc()
+
   ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
     return customCardService.mergeSearchResults(cdbService.search(params), params)
   })
@@ -264,45 +261,19 @@ export function registerAllIpcHandlers(): void {
 
   ipcMain.handle('ocgcore:test-run', async () => {
     try {
-      const core = await ocgcoreService.getCore()
-      const [maj, min] = core.getVersion()
+      await duelDirector.initEngine()
       return {
         success: true,
-        version: `${maj}.${min}`,
-        message: 'ocgcore-wasm 核心加载成功，随时可执行模拟与校验'
+        version: duelDirector.getVersion(),
+        message: 'WebAssembly OCGCore 核心加载成功，随时可执行对局'
       }
     } catch (err: unknown) {
       console.error('[registerIpc] ocgcore:test-run failed:', err)
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'ocgcore-wasm 加载失败'
+        error: err instanceof Error ? err.message : 'OCGCore 引擎加载失败'
       }
     }
-  })
-
-  ipcMain.handle(
-    'duel:probe-options',
-    async (_, params: EngineProbeOptionsParams): Promise<EngineProbeOptionsResult> => {
-      return ruleCheckService.probeOptions(params)
-    }
-  )
-
-  ipcMain.handle(
-    'duel:probe-action',
-    async (_, params: EngineProbeActionParams): Promise<EngineProbeActionResult> => {
-      return ruleCheckService.probeAction(params)
-    }
-  )
-
-  ipcMain.handle(
-    'duel:probe-select',
-    async (_, params: EngineProbeSelectParams): Promise<EngineProbeActionResult> => {
-      return ruleCheckService.probeSelect(params)
-    }
-  )
-
-  ipcMain.handle('duel:probe-cancel-select', async (_, sessionId: string): Promise<void> => {
-    return ruleCheckService.cancelSelect(sessionId)
   })
 
   ipcMain.handle(

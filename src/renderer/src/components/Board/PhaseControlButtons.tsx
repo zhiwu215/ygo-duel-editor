@@ -1,7 +1,7 @@
 import React from 'react'
 import { DuelPhase } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useRuleCheck } from '../../stores/useRuleCheckStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { cn } from '../../lib/utils'
 
 const PHASE_LABELS: Record<DuelPhase, string> = {
@@ -29,10 +29,13 @@ export const PhaseStatusButton: React.FC = () => {
 
 export const PhaseMiddleButton: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
+  const setCurrentPhase = useDuelStore((s) => s.setCurrentPhase)
   const activeTurnPlayer = useDuelStore((s) => s.activeTurnPlayer)
-  const executePhaseChange = useDuelStore((s) => s.executePhaseChange)
   const executeDrawCard = useDuelStore((s) => s.executeDrawCard)
-  const rule = useRuleCheck()
+  const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const enginePendingAction = useDuelEngineStore((s) => s.pendingAction)
+  const bpOpt = enginePendingAction?.options.find((o) => o.type === 'BP')
+  const m2Opt = enginePendingAction?.options.find((o) => o.type === 'M2')
 
   if (currentPhase === 'DP') {
     return (
@@ -50,12 +53,14 @@ export const PhaseMiddleButton: React.FC = () => {
   }
 
   if (currentPhase === 'M1') {
-    const canBp = !rule.active || rule.probe?.toBp === true
-    if (!canBp) return null
+    if (isEngine && !bpOpt) return null
     return (
       <button
         type="button"
-        onClick={() => void executePhaseChange('BP')}
+        onClick={() => {
+          if (bpOpt) void useDuelEngineStore.getState().submitAction(bpOpt.id)
+          else setCurrentPhase('BP')
+        }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
           'border-neutral-400 dark:border-neutral-500 bg-neutral-200/95 dark:bg-neutral-700/95 hover:bg-neutral-100 dark:hover:bg-neutral-600 active:bg-neutral-300 text-neutral-900 dark:text-neutral-100 shadow-xs'
@@ -67,12 +72,14 @@ export const PhaseMiddleButton: React.FC = () => {
   }
 
   if (currentPhase === 'BP') {
-    const canM2 = !rule.active || rule.probe?.toM2 === true
-    if (!canM2) return null
+    if (isEngine && !m2Opt) return null
     return (
       <button
         type="button"
-        onClick={() => void executePhaseChange('M2')}
+        onClick={() => {
+          if (m2Opt) void useDuelEngineStore.getState().submitAction(m2Opt.id)
+          else setCurrentPhase('M2')
+        }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
           'border-neutral-400 dark:border-neutral-500 bg-neutral-200/95 dark:bg-neutral-700/95 hover:bg-neutral-100 dark:hover:bg-neutral-600 active:bg-neutral-300 text-neutral-900 dark:text-neutral-100 shadow-xs'
@@ -89,9 +96,10 @@ export const PhaseMiddleButton: React.FC = () => {
 export const PhaseEpButton: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
   const setCurrentPhase = useDuelStore((s) => s.setCurrentPhase)
-  const executePhaseChange = useDuelStore((s) => s.executePhaseChange)
   const nextTurn = useDuelStore((s) => s.nextTurn)
-  const rule = useRuleCheck()
+  const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const enginePendingAction = useDuelEngineStore((s) => s.pendingAction)
+  const epOpt = enginePendingAction?.options.find((o) => o.type === 'EP')
 
   if (currentPhase === 'DP' || currentPhase === 'SP') {
     return (
@@ -109,12 +117,14 @@ export const PhaseEpButton: React.FC = () => {
   }
 
   if (currentPhase === 'M1' || currentPhase === 'BP' || currentPhase === 'M2') {
-    const canEp = !rule.active || rule.probe?.toEp === true
-    if (!canEp) return null
+    if (isEngine && !epOpt) return null
     return (
       <button
         type="button"
-        onClick={() => void executePhaseChange('EP')}
+        onClick={() => {
+          if (epOpt) void useDuelEngineStore.getState().submitAction(epOpt.id)
+          else setCurrentPhase('EP')
+        }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
           'border-neutral-400 dark:border-neutral-500 bg-neutral-200/95 dark:bg-neutral-700/95 hover:bg-neutral-100 dark:hover:bg-neutral-600 active:bg-neutral-300 text-neutral-900 dark:text-neutral-100 shadow-xs'

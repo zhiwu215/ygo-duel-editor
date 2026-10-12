@@ -14,9 +14,13 @@ import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardStatPopover } from './components/CardStatPopover'
 import { ActionIntentBar } from './ActionIntentBar'
 import { PhaseStatusButton, PhaseMiddleButton, PhaseEpButton } from './PhaseControlButtons'
+import { useBoardViewStore } from '../../stores/useBoardViewStore'
 
 export const DuelBoard: React.FC = () => {
   const { state, activeDuelistId } = useDuelStore()
+  const is3D = useBoardViewStore((s) => s.is3D)
+  const planeRotateX = useBoardViewStore((s) => s.planeRotateX)
+  const perspective = useBoardViewStore((s) => s.perspective)
   const ruleInfo = MASTER_RULES[state.masterRule]
 
   // 多人对局时「当前查看的决斗者」：棋盘上的主卡组 / 额外卡组等堆叠区跟着TA 切换，
@@ -208,17 +212,19 @@ export const DuelBoard: React.FC = () => {
       <div
         ref={viewportRef}
         className="w-full flex-1 overflow-auto p-2 sm:p-3 flex flex-col items-center relative z-10 min-h-0"
-        style={{ scrollbarGutter: 'stable' }}
+        style={{
+          scrollbarGutter: 'stable',
+          perspective: is3D ? `${perspective}px` : undefined
+        }}
       >
-        {/* 决斗盘整体（上下手牌托盘 + 对战台网格）作为同一缩放单元，宽度严格对齐。
-            m-auto 而非仅 my-auto：宽度不足时 auto 边距归零使内容贴起始边，横向滚动条才能
-            完整覆盖整个台面（否则 items-center 会造成左右对称溢出、左侧永远滚不到）。 */}
         <div
           ref={wrapperRef}
-          className="flex flex-col items-center gap-2.5 m-auto shrink-0"
+          className="flex flex-col items-center gap-2.5 m-auto shrink-0 transition-transform duration-500 ease-out"
           style={{
             width: naturalW > 0 ? naturalW : undefined,
-            zoom: String(scale)
+            zoom: String(scale),
+            transform: is3D ? `rotateX(${planeRotateX}deg)` : 'none',
+            transformStyle: 'preserve-3d'
           }}
         >
           {/* 顶部：对方手牌托盘 */}

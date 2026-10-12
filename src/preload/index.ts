@@ -11,11 +11,6 @@ import {
   CardNote,
   CardNoteKind,
   SettingsSectionId,
-  EngineProbeOptionsParams,
-  EngineProbeOptionsResult,
-  EngineProbeActionParams,
-  EngineProbeActionResult,
-  EngineProbeSelectParams,
   EngineExportReplayParams,
   EngineExportReplayResult
 } from '@shared/index'
@@ -85,20 +80,16 @@ const api: IpcApi = {
 
   testRunOcgcore: () => ipcRenderer.invoke('ocgcore:test-run'),
 
-  duelProbeOptions: (params: EngineProbeOptionsParams): Promise<EngineProbeOptionsResult> =>
-    ipcRenderer.invoke('duel:probe-options', params),
-
-  duelProbeAction: (params: EngineProbeActionParams): Promise<EngineProbeActionResult> =>
-    ipcRenderer.invoke('duel:probe-action', params),
-
-  duelProbeSelect: (params: EngineProbeSelectParams): Promise<EngineProbeActionResult> =>
-    ipcRenderer.invoke('duel:probe-select', params),
-
-  duelProbeCancelSelect: (sessionId: string): Promise<void> =>
-    ipcRenderer.invoke('duel:probe-cancel-select', sessionId),
-
   duelExportReplay: (params: EngineExportReplayParams): Promise<EngineExportReplayResult> =>
     ipcRenderer.invoke('duel:export-replay', params),
+
+  duelEngineInit: (params) => ipcRenderer.invoke('duel-engine:init', params),
+  duelEngineSubmitAction: (optionId, payload) =>
+    ipcRenderer.invoke('duel-engine:submit-action', optionId, payload),
+  duelEngineJumpToStep: (stepId) => ipcRenderer.invoke('duel-engine:jump-to-step', stepId),
+  duelEngineGetTimeline: () => ipcRenderer.invoke('duel-engine:get-timeline'),
+  duelEngineGetBoardState: () => ipcRenderer.invoke('duel-engine:get-board-state'),
+  duelEngineGetPendingAction: () => ipcRenderer.invoke('duel-engine:get-pending-action'),
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   saveProjectToPath: (filePath: string, state: DuelPuzzleState) =>

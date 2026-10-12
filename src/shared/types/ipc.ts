@@ -3,6 +3,13 @@ import { CustomCard, CustomCardInput } from './customCard'
 import { DuelPuzzleState, DuelSourceRef, DuelType } from './duel'
 import { DeckData, DeckLibrary } from './deck'
 import { DuelPhase, DuelActionType } from './story'
+import {
+  EngineDuelInitParams,
+  EngineBoardState,
+  EnginePendingAction,
+  EngineTimelineNode,
+  EngineDiffResult
+} from './duelEngine'
 
 export interface CardSearchParams {
   keyword?: string
@@ -446,157 +453,12 @@ export interface AppConfig {
   ruleCheckEnabled?: boolean
 }
 
-export interface EngineProbeActivateOption {
-  desc: number
-  descText: string
-  effectIndex: number
-}
-
-export interface EngineProbeEntry {
-  code: number
-  controller: 0 | 1
-  location: number
-  sequence?: number
-  options?: EngineProbeActivateOption[]
-}
-
-export interface EngineProbeAttackEntry {
-  code: number
-  controller: 0 | 1
-  location: number
-  sequence?: number
-  canDirect: boolean
-}
-
 export type EngineChainMode = 'auto' | 'always' | 'ignore'
-
-export interface EngineProbeOptionsParams {
-  state: DuelPuzzleState
-  currentPhase: DuelPhase
-  replay?: EngineProbeReplay
-  chainMode?: EngineChainMode
-}
-
-export interface EngineProbeOptionsResult {
-  ok: boolean
-  turnPlayer: 0 | 1
-  degraded: boolean
-  warnings: string[]
-  summon: EngineProbeEntry[]
-  spSummon: EngineProbeEntry[]
-  posChange: EngineProbeEntry[]
-  monsterSet: EngineProbeEntry[]
-  spellSet: EngineProbeEntry[]
-  activate: EngineProbeEntry[]
-  attack: EngineProbeAttackEntry[]
-  toBp?: boolean
-  toM2?: boolean
-  toEp?: boolean
-}
-
-export type EngineProbeActionKind =
-  | 'SUMMON'
-  | 'SP_SUMMON'
-  | 'SET_MONSTER'
-  | 'SET_SPELL'
-  | 'ACTIVATE'
-  | 'REPOS'
-  | 'ATTACK'
-  | 'TO_BP'
-  | 'TO_M2'
-  | 'TO_EP'
-
-export interface EngineProbeAction {
-  kind: EngineProbeActionKind
-  code: number
-  controller: 0 | 1
-  fromLocation: number
-  fromSequence?: number
-  effectIndex?: number
-  place?: { location: number; sequence: number }
-}
-
-export interface EngineProbeReplayAction {
-  action: EngineProbeAction
-  selections?: (number[] | null)[]
-}
-
-export interface EngineProbeReplay {
-  baseline: DuelPuzzleState
-  actions: EngineProbeReplayAction[]
-}
-
-export interface EngineProbeActionParams {
-  state: DuelPuzzleState
-  currentPhase: DuelPhase
-  action: EngineProbeAction
-  chainMode?: EngineChainMode
-}
-
-export interface EngineProbeCounterEntry {
-  code: number
-  controller: 0 | 1
-  location: number
-  sequence: number
-  counters: Record<number, number>
-}
-
-export interface EngineSelectCandidate {
-  code: number
-  controller: 0 | 1
-  location: number
-  sequence: number
-  toLocation?: number
-}
-
-export interface EnginePendingSelect {
-  kind: 'CARD' | 'TRIBUTE' | 'CHAIN' | 'POSITION' | 'OPTION' | 'YESNO'
-  min: number
-  max: number
-  canCancel: boolean
-  candidates: EngineSelectCandidate[]
-  positions?: number
-  options?: string[]
-  hint?: string
-}
-
-export interface EngineGainedCard {
-  code: number
-  controller: 0 | 1
-}
-
-export interface EngineProbeActionResult {
-  ok: boolean
-  degraded: boolean
-  warnings: string[]
-  counters: EngineProbeCounterEntry[]
-  pendingSelect?: EnginePendingSelect
-  sessionId?: string
-  missing?: EngineSelectCandidate[]
-  gained?: EngineGainedCard[]
-  placedCard?: EngineSelectCandidate
-}
-
-export interface EngineProbeSelectParams {
-  sessionId: string
-  indices: number[] | null
-}
-
-export type ReplayLogEntry =
-  | {
-      type: 'action'
-      id?: string
-      action: EngineProbeAction
-      selections: (number[] | null)[]
-      chainMode: EngineChainMode
-    }
-  | { type: 'phase'; to: 'BP' | 'M2' | 'EP' }
-  | { type: 'nextTurn' }
 
 export interface EngineExportReplayParams {
   state: DuelPuzzleState
-  initialPhase: DuelPhase
-  entries: ReplayLogEntry[]
+  initialPhase?: DuelPhase
+  entries?: unknown[]
   launch?: boolean
 }
 
@@ -882,11 +744,30 @@ export interface IpcApi {
   agentFetchModels: (params: AgentFetchModelsParams) => Promise<AgentFetchModelsResult>
 
   agentGetProviderPresets: () => Promise<AgentProviderPreset[]>
-  duelProbeOptions: (params: EngineProbeOptionsParams) => Promise<EngineProbeOptionsResult>
-  duelProbeAction: (params: EngineProbeActionParams) => Promise<EngineProbeActionResult>
-  duelProbeSelect: (params: EngineProbeSelectParams) => Promise<EngineProbeActionResult>
-  duelProbeCancelSelect: (sessionId: string) => Promise<void>
   duelExportReplay: (params: EngineExportReplayParams) => Promise<EngineExportReplayResult>
+
+  duelEngineInit: (params: EngineDuelInitParams) => Promise<{
+    boardState: EngineBoardState
+    pendingAction: EnginePendingAction | null
+    initialNode: EngineTimelineNode
+  }>
+  duelEngineSubmitAction: (
+    optionId: string,
+    payload?: unknown
+  ) => Promise<{
+    boardState: EngineBoardState
+    pendingAction: EnginePendingAction | null
+    node: EngineTimelineNode
+    diff: EngineDiffResult
+  }>
+  duelEngineJumpToStep: (stepId: string) => Promise<{
+    boardState: EngineBoardState
+    pendingAction: EnginePendingAction | null
+    currentStepId: string
+  }>
+  duelEngineGetTimeline: () => Promise<EngineTimelineNode[]>
+  duelEngineGetBoardState: () => Promise<EngineBoardState>
+  duelEngineGetPendingAction: () => Promise<EnginePendingAction | null>
   openSettingsWindow: (section?: SettingsSectionId) => Promise<void>
   onSettingsNavigate: (callback: (section: SettingsSectionId) => void) => () => void
   openExternal: (url: string) => Promise<boolean>

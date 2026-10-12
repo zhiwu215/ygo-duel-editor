@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FieldCard, CardType, CardPosition, CardLocation } from '@shared/index'
+import { FieldCard, CardPosition, CardLocation, isCardMatchingEngineOption } from '@shared/index'
 import { CardActionOptions } from '../../utils/ruleCheck'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { cn } from '../../lib/utils'
 
 interface CardCommandMenuProps {
@@ -49,57 +50,87 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
     }
   }, [onClose])
 
+  const pendingAction = useDuelEngineStore((s) => s.pendingAction)
+  const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const engineActions = React.useMemo(() => {
+    if (!card || !pendingAction || !pendingAction.options) return []
+    return pendingAction.options.filter((opt) => isCardMatchingEngineOption(card, opt))
+  }, [card, pendingAction])
+
   if (!card || !actions || !anchorRect || !actions.hasAnyAction) return null
 
-  const cdb = card.card
-  const isPendulum = cdb ? (cdb.type & CardType.PENDULUM) !== 0 : false
-  const setLabel = isPendulum && actions.canSpellSet && !actions.canMonsterSet ? '放置' : '盖放'
+  const summonOpt = engineActions.find((o) => o.type === 'SUMMON')
+  const spSummonOpt = engineActions.find((o) => o.type === 'SPSUMMON')
+  const setOpt = engineActions.find((o) => o.type === 'SSET' || o.type === 'MSET')
+  const activateOpts = engineActions.filter((o) => o.type === 'ACTIVATE')
+  const activateOpt = activateOpts[0]
+  const reposOpt = engineActions.find((o) => o.type === 'REPOS')
+  const attackOpt = engineActions.find((o) => o.type === 'ATTACK')
 
   const handleSummon = (): void => {
-    executeNormalSummon(card.instanceId)
+    if (summonOpt) {
+      void useDuelEngineStore.getState().submitAction(summonOpt.id)
+    } else if (!isEngine) {
+      executeNormalSummon(card.instanceId)
+    }
     onClose()
   }
 
   const handleSpSummon = (): void => {
-    executeSpecialSummon(card.instanceId)
+    if (spSummonOpt) {
+      void useDuelEngineStore.getState().submitAction(spSummonOpt.id)
+    } else if (!isEngine) {
+      executeSpecialSummon(card.instanceId)
+    }
     onClose()
   }
 
   const handleActivate = (): void => {
-    if (actions.activateOptions.length > 1) {
+    if (activateOpts.length > 1) {
       setShowOptions(true)
       return
     }
-    const effectIndex = actions.activateOptions[0]?.effectIndex
-    if (card.location === CardLocation.HAND) {
-      useDuelStore.getState().beginPlacement('ACTIVATE', card.instanceId, effectIndex)
-    } else {
-      executeActivateCard(card.instanceId, undefined, false, effectIndex)
+    if (activateOpt) {
+      void useDuelEngineStore.getState().submitAction(activateOpt.id)
+    } else if (!isEngine) {
+      if (card.location === CardLocation.HAND) {
+        useDuelStore.getState().beginPlacement('ACTIVATE', card.instanceId)
+      } else {
+        executeActivateCard(card.instanceId)
+      }
     }
     onClose()
   }
 
-  const handleSelectOption = (effectIndex: number): void => {
-    if (card.location === CardLocation.HAND) {
-      useDuelStore.getState().beginPlacement('ACTIVATE', card.instanceId, effectIndex)
-    } else {
-      executeActivateCard(card.instanceId, undefined, false, effectIndex)
-    }
+  const handleSelectOption = (optId: string): void => {
+    void useDuelEngineStore.getState().submitAction(optId)
     onClose()
   }
 
   const handleSet = (): void => {
-    executeSetCard(card.instanceId)
+    if (setOpt) {
+      void useDuelEngineStore.getState().submitAction(setOpt.id)
+    } else if (!isEngine) {
+      executeSetCard(card.instanceId)
+    }
     onClose()
   }
 
   const handleRepos = (): void => {
-    void executeReposCard(card.instanceId)
+    if (reposOpt) {
+      void useDuelEngineStore.getState().submitAction(reposOpt.id)
+    } else if (!isEngine) {
+      void executeReposCard(card.instanceId)
+    }
     onClose()
   }
 
   const handleAttack = (): void => {
-    executeAttackCard(card.instanceId)
+    if (attackOpt) {
+      void useDuelEngineStore.getState().submitAction(attackOpt.id)
+    } else if (!isEngine) {
+      executeAttackCard(card.instanceId)
+    }
     onClose()
   }
 
@@ -120,7 +151,7 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
 
   const menuWidth = showOptions ? 220 : 96
   const menuHeight = showOptions
-    ? Math.min(220, actions.activateOptions.length * 36 + 36)
+    ? Math.min(220, activateOpts.length * 36 + 36)
     : Math.max(26, buttonCount * 26)
 
   const x = Math.min(
@@ -137,89 +168,77 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
     'bg-gradient-to-b from-[#e8e8e8] via-[#d6d6d6] to-[#bebebe] text-neutral-900 border-neutral-400/80',
     'hover:from-[#f5f5f5] hover:via-[#e6e6e6] hover:to-[#cecece]',
     'active:from-[#b0b0b0] active:to-[#9a9a9a]',
-    'dark:from-[#3a3d45] dark:via-[#2e3138] dark:to-[#22242a] dark:text-neutral-100 dark:border-neutral-700',
-    'dark:hover:from-[#4b505c] dark:hover:via-[#3b3f49] dark:hover:to-[#2a2d34]',
-    'dark:active:from-[#22242a] dark:active:to-[#17181c]'
+    'dark:from-neutral-700 dark:via-neutral-800 dark:to-neutral-900 dark:text-neutral-100 dark:border-neutral-700/80',
+    'dark:hover:from-neutral-600 dark:hover:via-neutral-700 dark:hover:to-neutral-800'
   )
 
   return (
     <div
       ref={menuRef}
-      style={{
-        position: 'fixed',
-        left: `${x}px`,
-        top: `${y}px`,
-        zIndex: 60
-      }}
-      className={cn(
-        'rounded-[2px] border border-neutral-500/80 dark:border-neutral-600 shadow-2xl overflow-hidden select-none animate-in fade-in zoom-in-95 duration-75',
-        showOptions ? 'w-56' : 'w-24'
-      )}
+      style={{ left: `${x}px`, top: `${y}px` }}
+      className="fixed z-50 flex flex-col rounded-sm border border-neutral-500/80 shadow-2xl overflow-hidden bg-neutral-900/95"
       onClick={(e) => e.stopPropagation()}
     >
-      {!showOptions ? (
-        <div className="flex flex-col w-full">
+      {showOptions ? (
+        <div className="flex flex-col p-1 gap-1 max-h-[220px] overflow-y-auto w-[220px]">
+          <div className="px-2 py-1 text-[11px] font-semibold text-neutral-400 border-b border-neutral-700/60 truncate">
+            选择要发动的效果
+          </div>
+          {activateOpts.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => handleSelectOption(opt.id)}
+              className="w-full px-2 py-1.5 text-left text-xs font-medium rounded hover:bg-neutral-800 active:bg-neutral-700 text-neutral-200 truncate cursor-pointer transition-colors"
+            >
+              {opt.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setShowOptions(false)}
+            className="w-full px-2 py-1 text-center text-[11px] text-neutral-400 hover:text-neutral-200 mt-1 cursor-pointer"
+          >
+            返回
+          </button>
+        </div>
+      ) : (
+        <>
           {actions.canActivate && (
-            <button type="button" className={buttonClass} onClick={handleActivate}>
+            <button type="button" onClick={handleActivate} className={buttonClass}>
               发动
             </button>
           )}
           {actions.canSummon && (
-            <button type="button" className={buttonClass} onClick={handleSummon}>
+            <button type="button" onClick={handleSummon} className={buttonClass}>
               召唤
             </button>
           )}
           {actions.canSpSummon && (
-            <button type="button" className={buttonClass} onClick={handleSpSummon}>
+            <button type="button" onClick={handleSpSummon} className={buttonClass}>
               特殊召唤
             </button>
           )}
           {(actions.canMonsterSet || actions.canSpellSet) && (
-            <button type="button" className={buttonClass} onClick={handleSet}>
-              {setLabel}
+            <button type="button" onClick={handleSet} className={buttonClass}>
+              盖放
             </button>
           )}
           {actions.canRepos && (
-            <button type="button" className={buttonClass} onClick={handleRepos}>
+            <button type="button" onClick={handleRepos} className={buttonClass}>
               {reposLabel}
             </button>
           )}
           {actions.canAttack && (
             <button
               type="button"
-              className={cn(buttonClass, 'text-rose-700 dark:text-rose-400')}
               onClick={handleAttack}
+              className={cn(buttonClass, 'text-rose-700 dark:text-rose-400')}
             >
               攻击
             </button>
           )}
-        </div>
-      ) : (
-        <div className="flex flex-col w-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden">
-          <div className="px-3 py-1.5 text-[11px] font-bold text-neutral-700 dark:text-neutral-300 border-b border-neutral-300 dark:border-neutral-700 bg-neutral-200/80 dark:bg-neutral-800/80 flex items-center justify-between">
-            <span>选择发动效果</span>
-            <button
-              type="button"
-              className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
-              onClick={() => setShowOptions(false)}
-            >
-              返回
-            </button>
-          </div>
-          <div className="flex flex-col overflow-y-auto max-h-44 p-1 gap-1">
-            {actions.activateOptions.map((opt, i) => (
-              <button
-                key={i}
-                type="button"
-                className="w-full py-1.5 px-2 text-[11px] font-medium text-left rounded hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer whitespace-normal leading-tight"
-                onClick={() => handleSelectOption(opt.effectIndex)}
-              >
-                <span className="font-bold mr-1 text-primary">{i + 1}.</span>
-                <span>{opt.descText || `效果 ${i + 1}`}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        </>
       )}
     </div>
   )

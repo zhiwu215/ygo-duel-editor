@@ -24,12 +24,14 @@ import {
   Copy,
   Play,
   Clapperboard,
+  ShieldCheck,
   X
 } from 'lucide-react'
 import appIcon from '../../assets/app-icon.png'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { confirmDialog } from '../../stores/useDialogStore'
 import { cn } from '../../lib/utils'
 
@@ -110,6 +112,27 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   const canUndo = pastStates.length > 0
   const canRedo = futureStates.length > 0
 
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const currentStepId = useDuelEngineStore((s) => s.currentStepId)
+  const timelineLength = useDuelEngineStore((s) => s.timeline.length)
+
+  const engineCanUndo = React.useMemo(() => {
+    if (!currentStepId || timelineLength <= 1) return false
+    const tl = useDuelEngineStore.getState().timeline
+    const idx = tl.findIndex((n) => n.id === currentStepId)
+    return idx > 0
+  }, [currentStepId, timelineLength])
+
+  const engineCanRedo = React.useMemo(() => {
+    if (!currentStepId || timelineLength === 0) return false
+    const tl = useDuelEngineStore.getState().timeline
+    const idx = tl.findIndex((n) => n.id === currentStepId)
+    return idx >= 0 && idx < timelineLength - 1
+  }, [currentStepId, timelineLength])
+
+  const effectiveCanUndo = isEngineActive ? engineCanUndo : canUndo
+  const effectiveCanRedo = isEngineActive ? engineCanRedo : canRedo
+
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent): void => {
       if (menuBarRef.current && !menuBarRef.current.contains(e.target as Node)) {
@@ -170,6 +193,17 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           action: onTestInYgo
         },
         {
+          label: isEngineActive ? '退出规则校验' : '启动规则校验 (ocgcore)',
+          icon: ShieldCheck,
+          action: () => {
+            if (isEngineActive) {
+              useDuelEngineStore.getState().stopEngine()
+            } else {
+              void useDuelEngineStore.getState().startEngine()
+            }
+          }
+        },
+        {
           label: '导入 Lua 脚本',
           icon: Upload,
           shortcut: 'Ctrl+I',
@@ -201,20 +235,26 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           label: '撤销',
           icon: Undo2,
           shortcut: 'Ctrl+Z',
-          disabled: !canUndo,
+          disabled: !effectiveCanUndo,
           action: () => {
-            useDuelStore.getState().clearEngineContext()
-            undo()
+            if (isEngineActive) {
+              void useDuelEngineStore.getState().undo()
+            } else {
+              undo()
+            }
           }
         },
         {
           label: '重做',
           icon: Redo2,
           shortcut: 'Ctrl+Y',
-          disabled: !canRedo,
+          disabled: !effectiveCanRedo,
           action: () => {
-            useDuelStore.getState().clearEngineContext()
-            redo()
+            if (isEngineActive) {
+              void useDuelEngineStore.getState().redo()
+            } else {
+              redo()
+            }
           }
         },
         { label: '', separator: true },

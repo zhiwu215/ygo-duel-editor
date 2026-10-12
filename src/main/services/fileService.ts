@@ -23,7 +23,7 @@ import {
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 import { dataDirService } from './dataDirService'
-import { ruleCheckService } from './ruleCheckService'
+import { duelDirector } from './duel/duel-director'
 import { buildYrpSingleFile, DUEL_PSEUDO_SHUFFLE } from './yrpWriter'
 
 function sanitizeProjectFileName(name: string): string {
@@ -256,7 +256,8 @@ export class FileService {
     if (!exePath) {
       return { success: false, errorCode: 'ygopro-not-found', error: gameDir }
     }
-    if (params.entries.length === 0) {
+    const responses = duelDirector.getAllTimelineResponses()
+    if (responses.length === 0 && (!params.entries || params.entries.length === 0)) {
       return {
         success: false,
         errorCode: 'no-actions',
@@ -264,12 +265,8 @@ export class FileService {
       }
     }
     try {
-      const gen = await ruleCheckService.exportReplay(params)
-      if ('error' in gen) {
-        return { success: false, errorCode: 'replay-failed', error: gen.error }
-      }
-      this.completeCardDetails(gen.engineState)
-      const luaContent = generateLuaScript(gen.engineState, { forReplay: true })
+      this.completeCardDetails(params.state)
+      const luaContent = generateLuaScript(params.state, { forReplay: true })
       const name = sanitizeProjectFileName(params.state.title || '未命名对局')
 
       const singleDir = join(gameDir, 'single')
@@ -280,8 +277,8 @@ export class FileService {
       const yrpPath = join(replayDir, `${name}.yrp`)
       writeFileSync(luaPath, luaContent, 'utf-8')
 
-      const turnPlayer = (gen.engineState.turnPlayer ?? 0) as 0 | 1
-      const duelists = gen.engineState.duelists ?? []
+      const turnPlayer = (params.state.turnPlayer ?? 0) as 0 | 1
+      const duelists = params.state.duelists ?? []
       const names: [string, string] = [
         duelists.find((d) => d.team === turnPlayer)?.name || `Player ${turnPlayer + 1}`,
         duelists.find((d) => d.team === ((1 - turnPlayer) as 0 | 1))?.name ||
@@ -289,12 +286,12 @@ export class FileService {
       ]
       const yrpBytes = buildYrpSingleFile({
         names,
-        startLp: Number(gen.engineState.players[0]?.lp ?? 8000),
-        startHand: Number(gen.engineState.players[0]?.startHand ?? 0),
-        drawCount: Number(gen.engineState.players[0]?.maxHand ?? 0),
+        startLp: Number(params.state.players[0]?.lp ?? 8000),
+        startHand: Number(params.state.players[0]?.startHand ?? 0),
+        drawCount: Number(params.state.players[0]?.maxHand ?? 0),
         opt: DUEL_PSEUDO_SHUFFLE,
         scriptFile: `./single/${name}.lua`,
-        responses: gen.responses
+        responses
       })
       writeFileSync(yrpPath, Buffer.from(yrpBytes))
 
@@ -308,10 +305,8 @@ export class FileService {
         child.unref()
         launched = true
       }
-      console.log(`[FileService] Exported replay to ${yrpPath}`)
       return { success: true, luaPath, yrpPath, launched }
     } catch (err) {
-      console.error('[FileService] Export replay failed:', err)
       return {
         success: false,
         errorCode: 'replay-failed',

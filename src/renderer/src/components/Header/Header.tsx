@@ -3,6 +3,7 @@ import React, { useEffect } from 'react'
 import { useStore } from 'zustand'
 import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 import { MASTER_RULES, MasterRule, SELECTABLE_MASTER_RULES, isExportableMatch } from '@shared/index'
 import { Button } from '../ui/button'
@@ -10,12 +11,22 @@ import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { WindowControls } from '../ui/window-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { Box, ShieldCheck, Square, Play } from 'lucide-react'
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
 import { ExportStatusBadge } from './components/ExportStatusBadge'
 import { SaveProjectModal } from './components/SaveProjectModal'
+import { useBoardViewStore } from '../../stores/useBoardViewStore'
+import { cn } from '../../lib/utils'
 
 export const Header: React.FC = () => {
+  const engineMode = useDuelEngineStore((s) => s.engineMode)
+  const isEngineLoading = useDuelEngineStore((s) => s.loading)
+  const startEngine = useDuelEngineStore((s) => s.startEngine)
+  const stopEngine = useDuelEngineStore((s) => s.stopEngine)
+  const is3D = useBoardViewStore((s) => s.is3D)
+  const toggle3D = useBoardViewStore((s) => s.toggle3D)
+  const planeRotateX = useBoardViewStore((s) => s.planeRotateX)
   const {
     state,
     setMasterRule,
@@ -134,25 +145,25 @@ export const Header: React.FC = () => {
   }, [loadState])
 
   const handleExportYrp = React.useCallback(async (): Promise<void> => {
-    const { replayLog, replayInitial } = useDuelStore.getState()
-    if (!replayInitial || replayLog.length === 0) {
+    const isEngine = useDuelEngineStore.getState().isInitialized
+    const timeline = useDuelEngineStore.getState().timeline
+    if (!isEngine || timeline.length === 0) {
       void alertDialog(
-        '无法导出录像\n\n还没有经过游戏引擎的操作记录。请先在对局中通过引擎召唤、发动、盖放卡片（右键卡片选择操作），再导出 YRP 录像。'
+        '无法导出录像\n\n还没有经过游戏引擎的操作记录。请先在对局中通过引擎召唤、发动、盖放卡片，再导出 YRP 录像。'
       )
       return
     }
-    if (!isExportableMatch(replayInitial.state.matchConfig)) {
-      const t0 = replayInitial.state.matchConfig?.team0Count ?? 1
-      const t1 = replayInitial.state.matchConfig?.team1Count ?? 1
+    const currentPuzzleState = useDuelStore.getState().state
+    if (!isExportableMatch(currentPuzzleState.matchConfig)) {
+      const t0 = currentPuzzleState.matchConfig?.team0Count ?? 1
+      const t1 = currentPuzzleState.matchConfig?.team1Count ?? 1
       void alertDialog(
         `无法导出录像\n\n当前对阵 (${t0}v${t1}) 仅用于剧情编排，暂无法导出 YRP。\nocgcore 单机引擎物理上仅支持 1v1 与 2v2 双打导出。`
       )
       return
     }
     const res = await window.api.duelExportReplay({
-      state: replayInitial.state,
-      initialPhase: replayInitial.phase,
-      entries: replayLog,
+      state: currentPuzzleState,
       launch: true
     })
     if (res.success) {
@@ -207,15 +218,23 @@ export const Header: React.FC = () => {
       } else if (mod && e.key.toLowerCase() === 'z') {
         if (!isInput) {
           e.preventDefault()
-          useDuelStore.getState().clearEngineContext()
-          if (e.shiftKey) redo()
-          else undo()
+          if (useDuelEngineStore.getState().isInitialized) {
+            void (e.shiftKey
+              ? useDuelEngineStore.getState().redo()
+              : useDuelEngineStore.getState().undo())
+          } else {
+            if (e.shiftKey) redo()
+            else undo()
+          }
         }
       } else if (mod && e.key.toLowerCase() === 'y') {
         if (!isInput) {
           e.preventDefault()
-          useDuelStore.getState().clearEngineContext()
-          redo()
+          if (useDuelEngineStore.getState().isInitialized) {
+            void useDuelEngineStore.getState().redo()
+          } else {
+            redo()
+          }
         }
       } else if (mod && e.altKey && e.key.toLowerCase() === 's') {
         e.preventDefault()
@@ -386,6 +405,78 @@ export const Header: React.FC = () => {
               </Tooltip>
             )}
           </div>
+
+          <Separator orientation="vertical" className="h-4" />
+
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant={is3D ? 'secondary' : 'outline'}
+                  size="xs"
+                  onClick={toggle3D}
+                  className={cn(
+                    'h-7 px-2 text-[11px] font-bold gap-1 transition-colors',
+                    is3D
+                      ? 'bg-primary/20 text-primary border-primary/40 hover:bg-primary/30'
+                      : 'bg-background/60 text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Box className="w-3.5 h-3.5" />
+                  <span>{is3D ? `3D 视角 (${planeRotateX}°)` : '2D 视角'}</span>
+                </Button>
+              }
+            />
+            <TooltipContent>切换 2D 平面编辑 / 3D 沉浸决斗盘视角 (Neos 视角)</TooltipContent>
+          </Tooltip>
+
+          <Separator orientation="vertical" className="h-4" />
+
+          {engineMode === 'running' ? (
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-0.5" />
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>规则校验中</span>
+              </span>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => stopEngine(false)}
+                      className="h-7 px-2 text-[11px] font-bold gap-1 bg-background/60 text-muted-foreground hover:bg-destructive/10 hover:text-destructive border-border"
+                    >
+                      <Square className="w-3 h-3 fill-current" />
+                      <span>退出引擎</span>
+                    </Button>
+                  }
+                />
+                <TooltipContent>退出 ocgcore 规则校验模式，恢复自由编排</TooltipContent>
+              </Tooltip>
+            </div>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => void startEngine()}
+                    disabled={isEngineLoading}
+                    className="h-7 px-2 text-[11px] font-bold gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>{isEngineLoading ? '正在启动...' : '启动规则校验'}</span>
+                  </Button>
+                }
+              />
+              <TooltipContent>
+                使用 ocgcore 原生内核校验决斗规则，锁定场面进入实战推演
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </div>
 

@@ -234,7 +234,7 @@ import {
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 import { libraryService } from './libraryService'
-import { ocgcoreService } from './ocgcoreService'
+import { duelDirector } from './duel/duel-director'
 
 type SessionConfig = AgentModelConfig &
   Pick<
@@ -1257,22 +1257,22 @@ export class AgentService {
         })
 
         try {
-          const core = await ocgcoreService.getCore()
-          const [maj, min] = core.getVersion()
-          const resultMsg = `ocgcore 规则引擎 (v${maj}.${min}) 已就绪，但引擎当前未接入局面输入，**本次没有对任何战术做合法性校验**。请不要把这当作「战术合规」的证据，仍需基于已查证的卡片数据自行推演时点与连锁合法性。`
+          await duelDirector.initEngine()
+          const ver = duelDirector.getVersion()
+          const resultMsg = `ocgcore 规则引擎 (v${ver}) 已就绪，但引擎当前未接入局面输入，**本次没有对任何战术做合法性校验**。请不要把这当作「战术合规」的证据，仍需基于已查证的卡片数据自行推演时点与连锁合法性。`
 
           this.emitEvent({
             type: 'tool_call_end',
             id: _toolCallId,
             toolName: 'validate_with_ocgcore',
-            resultSummary: `引擎就绪 (v${maj}.${min})，未做战术校验`
+            resultSummary: `引擎就绪 (v${ver})，未做战术校验`
           })
 
           const details: Record<string, unknown> = {
             success: true,
             engineAvailable: true,
             validated: false,
-            version: `${maj}.${min}`
+            version: ver
           }
           return {
             content: [{ type: 'text', text: resultMsg }],

@@ -1,26 +1,13 @@
-import type {
-  DuelPhase,
-  DuelPuzzleState,
-  EnginePendingSelect,
-  EngineProbeOptionsResult,
-  EngineProbeReplay,
-  EngineSelectCandidate,
-  EngineProbeEntry,
-  EngineProbeActivateOption,
-  FieldCard
+import {
+  CardLocation,
+  CardPosition,
+  CardType,
+  CardUtils,
+  FieldCard,
+  EnginePendingAction,
+  EngineActionOption,
+  isCardMatchingEngineOption
 } from '@shared/index'
-import { CardLocation, CardPosition, CardType, isCustomCardId } from '@shared/index'
-
-export type RuleCheckKind =
-  | 'SUMMON'
-  | 'SP_SUMMON'
-  | 'SET_MONSTER'
-  | 'SET_SPELL'
-  | 'ACTIVATE'
-  | 'ATTACK'
-  | 'REPOSITION'
-  | 'TO_GRAVE'
-  | 'BANISH'
 
 export interface CardActionOptions {
   canSummon: boolean
@@ -28,92 +15,40 @@ export interface CardActionOptions {
   canMonsterSet: boolean
   canSpellSet: boolean
   canActivate: boolean
-  activateOptions: EngineProbeActivateOption[]
+  activateOptions: { desc?: number; descText?: string; effectIndex?: number; optionId?: string }[]
+  canChain: boolean
+  chainOptions: { desc?: number; descText?: string; optionId: string }[]
   canRepos: boolean
   canAttack: boolean
   hasAnyAction: boolean
 }
 
-export interface RuleCheckApi {
-  active: boolean
-  degraded: boolean
-  warnings: string[]
-  allows: (card: FieldCard, kind: RuleCheckKind) => boolean
-  getActions: (card: FieldCard) => CardActionOptions
-  probe: EngineProbeOptionsResult | null
-}
-
-export function duelStateProbeKey(
-  state: DuelPuzzleState,
-  currentPhase: DuelPhase,
-  replay?: EngineProbeReplay
-): string {
-  const cardsSig = state.cards
-    .map(
-      (c) =>
-        `${c.code}.${c.controller}.${c.location}.${c.sequence}.${c.position}.${(
-          c.overlayMaterials ?? []
-        ).join('+')}`
+export function enginePromptUsesModal(prompt: EnginePendingAction | null): boolean {
+  if (!prompt) return false
+  if (
+    prompt.kind === 'SELECT_YESNO' ||
+    prompt.kind === 'SELECT_EFFECTYN' ||
+    prompt.kind === 'SELECT_OPTION' ||
+    prompt.kind === 'SELECT_POSITION' ||
+    prompt.kind === 'ANNOUNCE'
+  ) {
+    return true
+  }
+  if (prompt.kind === 'SELECT_CARD' || prompt.kind === 'SELECT_TRIBUTE') {
+    return prompt.options.some(
+      (opt) =>
+        opt.location === CardLocation.DECK ||
+        opt.location === CardLocation.EXTRA ||
+        opt.location === CardLocation.GRAVE ||
+        opt.location === CardLocation.REMOVED
     )
-    .join('|')
-  const logSig = replay
-    ? `log${replay.actions.length}:${replay.actions
-        .map((a) => (a.selections ? a.selections.length : -1))
-        .join('.')}`
-    : 'nolog'
-  return [
-    cardsSig,
-    state.masterRule,
-    state.turnPlayer,
-    currentPhase,
-    state.players[0]?.lp ?? 0,
-    state.players[1]?.lp ?? 0,
-    state.firstTurnAttack ? 1 : 0,
-    logSig
-  ].join('#')
-}
-
-function listContains(
-  probe: EngineProbeOptionsResult,
-  kind: Exclude<RuleCheckKind, 'ATTACK' | 'TO_GRAVE' | 'BANISH'>,
-  card: FieldCard
-): boolean {
-  const list =
-    probe[
-      kind === 'SUMMON'
-        ? 'summon'
-        : kind === 'SP_SUMMON'
-          ? 'spSummon'
-          : kind === 'SET_MONSTER'
-            ? 'monsterSet'
-            : kind === 'SET_SPELL'
-              ? 'spellSet'
-              : kind === 'ACTIVATE'
-                ? 'activate'
-                : 'posChange'
-    ]
-  return list.some(
-    (entry) =>
-      entry.code === card.code &&
-      entry.controller === card.controller &&
-      entry.location === card.location &&
-      (entry.sequence === undefined || entry.sequence === card.sequence)
-  )
-}
-
-function attackContains(probe: EngineProbeOptionsResult, card: FieldCard): boolean {
-  return probe.attack.some(
-    (entry) =>
-      entry.code === card.code &&
-      entry.controller === card.controller &&
-      entry.location === CardLocation.MZONE &&
-      (entry.sequence === undefined || entry.sequence === card.sequence)
-  )
+  }
+  return false
 }
 
 export function getFallbackActions(card: FieldCard): CardActionOptions {
   const cdb = card.card
-  const isMonster = cdb ? (cdb.type & CardType.MONSTER) !== 0 : card.location === CardLocation.MZONE
+  const isMonster = cdb ? CardUtils.isMonster(cdb.type) : card.location === CardLocation.MZONE
   const isHand = card.location === CardLocation.HAND
   const isField =
     card.location === CardLocation.MZONE ||
@@ -137,7 +72,7 @@ export function getFallbackActions(card: FieldCard): CardActionOptions {
       canSummon = true
       canSpSummon = true
       canMonsterSet = true
-      canActivate = cdb ? (cdb.type & CardType.EFFECT) !== 0 : true
+      canActivate = cdb ? (cdb.type & CardType.EFFECT) !== 0 : false
     } else {
       canActivate = true
       canSpellSet = true
@@ -146,7 +81,7 @@ export function getFallbackActions(card: FieldCard): CardActionOptions {
     if (isMonster) {
       canRepos = true
       canAttack = card.position !== CardPosition.FACEDOWN_DEFENSE
-      canActivate = cdb ? (cdb.type & CardType.EFFECT) !== 0 : true
+      canActivate = cdb ? (cdb.type & CardType.EFFECT) !== 0 : false
     } else {
       canActivate = true
     }
@@ -165,152 +100,59 @@ export function getFallbackActions(card: FieldCard): CardActionOptions {
     canSpellSet,
     canActivate,
     activateOptions: [],
+    canChain: false,
+    chainOptions: [],
     canRepos,
     canAttack,
     hasAnyAction
   }
 }
 
-export function getCardAvailableActions(
-  probe: EngineProbeOptionsResult | null,
+export function getActionsFromEngine(
   card: FieldCard,
-  turnPlayer: 0 | 1,
-  active: boolean
+  engineOptions: EngineActionOption[]
 ): CardActionOptions {
-  const isCustom = Boolean(card.card?.isCustom || isCustomCardId(card.code))
+  const matching = engineOptions.filter((opt) => isCardMatchingEngineOption(card, opt))
 
-  if (active && probe && card.controller === turnPlayer) {
-    const match = (entry: EngineProbeEntry): boolean =>
-      entry.code === card.code &&
-      entry.controller === card.controller &&
-      entry.location === card.location &&
-      (card.location === CardLocation.HAND ||
-        entry.sequence === undefined ||
-        entry.sequence === card.sequence)
-
-    const canSummon = probe.summon.some(match)
-    const canSpSummon = probe.spSummon.some(match)
-    const canMonsterSet = probe.monsterSet.some(match)
-    const canSpellSet = probe.spellSet.some(match)
-    const canRepos = probe.posChange.some(match)
-    const canAttack = probe.attack.some(
-      (entry) =>
-        entry.code === card.code &&
-        entry.controller === card.controller &&
-        entry.location === CardLocation.MZONE &&
-        (entry.sequence === undefined || entry.sequence === card.sequence)
-    )
-
-    const activateEntry = probe.activate.find(match)
-    const canActivate = Boolean(activateEntry)
-    const activateOptions = activateEntry?.options ?? []
-
-    const hasAnyAction =
-      canSummon ||
-      canSpSummon ||
-      canMonsterSet ||
-      canSpellSet ||
-      canActivate ||
-      canRepos ||
-      canAttack
-
-    if (hasAnyAction || !isCustom) {
-      return {
-        canSummon,
-        canSpSummon,
-        canMonsterSet,
-        canSpellSet,
-        canActivate,
-        activateOptions,
-        canRepos,
-        canAttack,
-        hasAnyAction
-      }
-    }
-  }
-
-  if (isCustom || !active || !probe) {
-    return getFallbackActions(card)
-  }
+  const canSummon = matching.some((o) => o.type === 'SUMMON')
+  const canSpSummon = matching.some((o) => o.type === 'SPSUMMON')
+  const canMonsterSet = matching.some((o) => o.type === 'MSET')
+  const canSpellSet = matching.some((o) => o.type === 'SSET')
+  const activateOpts = matching.filter((o) => o.type === 'ACTIVATE')
+  const canActivate = activateOpts.length > 0
+  const chainOpts = matching.filter((o) => o.type === 'CHAIN')
+  const canChain = chainOpts.length > 0
+  const canRepos = matching.some((o) => o.type === 'REPOS')
+  const canAttack = matching.some((o) => o.type === 'ATTACK')
+  const hasAnyAction =
+    canSummon ||
+    canSpSummon ||
+    canMonsterSet ||
+    canSpellSet ||
+    canActivate ||
+    canChain ||
+    canRepos ||
+    canAttack
 
   return {
-    canSummon: false,
-    canSpSummon: false,
-    canMonsterSet: false,
-    canSpellSet: false,
-    canActivate: false,
-    activateOptions: [],
-    canRepos: false,
-    canAttack: false,
-    hasAnyAction: false
+    canSummon,
+    canSpSummon,
+    canMonsterSet,
+    canSpellSet,
+    canActivate,
+    activateOptions: activateOpts.map((o) => ({
+      desc: o.cardCode,
+      descText: o.label,
+      optionId: o.id
+    })),
+    canChain,
+    chainOptions: chainOpts.map((o) => ({
+      desc: o.cardCode,
+      descText: o.label,
+      optionId: o.id
+    })),
+    canRepos,
+    canAttack,
+    hasAnyAction
   }
-}
-
-export function enginePromptUsesModal(prompt: EnginePendingSelect): boolean {
-  if (prompt.kind === 'YESNO' || prompt.kind === 'OPTION' || prompt.kind === 'POSITION') {
-    return true
-  }
-  return prompt.candidates.some(
-    (c) =>
-      c.location === CardLocation.DECK ||
-      c.location === CardLocation.EXTRA ||
-      c.location === CardLocation.GRAVE ||
-      c.location === CardLocation.REMOVED
-  )
-}
-
-export function engineCandidateIndex(
-  candidates: EngineSelectCandidate[],
-  cards: FieldCard[],
-  card: FieldCard
-): number {
-  const exact = candidates.findIndex(
-    (c) =>
-      c.code === card.code &&
-      c.controller === card.controller &&
-      c.location === card.location &&
-      c.sequence === card.sequence
-  )
-  if (exact >= 0) return exact
-  const fieldMatch = candidates.findIndex(
-    (c) =>
-      c.controller === card.controller &&
-      c.location === card.location &&
-      c.sequence === card.sequence
-  )
-  if (fieldMatch >= 0) return fieldMatch
-  if (card.location !== CardLocation.HAND) return -1
-  const sameCodeCandidates = candidates
-    .map((candidate, index) => ({ candidate, index }))
-    .filter(
-      ({ candidate }) =>
-        candidate.code === card.code &&
-        candidate.controller === card.controller &&
-        candidate.location === CardLocation.HAND
-    )
-    .sort((a, b) => a.candidate.sequence - b.candidate.sequence)
-  if (sameCodeCandidates.length === 0) return -1
-  const handPeers = cards
-    .filter(
-      (o) =>
-        o.code === card.code && o.controller === card.controller && o.location === CardLocation.HAND
-    )
-    .sort((a, b) => a.sequence - b.sequence)
-  const peerIndex = handPeers.findIndex((o) => o.instanceId === card.instanceId)
-  if (peerIndex < 0) return -1
-  return sameCodeCandidates[Math.min(peerIndex, sameCodeCandidates.length - 1)].index
-}
-
-export function ruleCheckAllows(
-  active: boolean,
-  turnPlayer: 0 | 1,
-  probe: EngineProbeOptionsResult | null,
-  card: FieldCard,
-  kind: RuleCheckKind
-): boolean {
-  if (!active || !probe) return true
-  if (card.controller !== turnPlayer) return true
-  if (kind === 'TO_GRAVE' || kind === 'BANISH') return false
-  if (kind === 'ATTACK') return attackContains(probe, card)
-  return listContains(probe, kind, card)
 }

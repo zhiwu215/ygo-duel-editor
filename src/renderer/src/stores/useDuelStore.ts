@@ -28,27 +28,28 @@ import {
   DeckData,
   DuelType,
   allocateCustomCounterId,
-  EngineProbeAction,
-  EngineProbeActionKind,
-  EngineProbeActionResult,
-  EnginePendingSelect,
-  EngineChainMode,
-  ReplayLogEntry,
-  isCustomCardId
+  EngineChainMode
 } from '@shared/index'
-import { inferMoveAction, inferPositionChangeAction } from '../utils/duelActionInference'
 import { alertDialog } from './useDialogStore'
-import { useConfigStore } from './useConfigStore'
-import {
-  PendingAction,
-  PendingActionKind,
-  PendingPlacement,
-  PendingPlacementMode,
-  PendingPlacementSlot,
-  resolveBattle,
-  resolveDirectAttack
-} from '../utils/duelActionTargets'
-import { engineCandidateIndex } from '../utils/ruleCheck'
+
+export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON'
+
+export interface PendingPlacementSlot {
+  location: number
+  sequence: number
+  controller: 0 | 1
+  displaces?: boolean
+}
+
+export interface PendingPlacement {
+  sourceId: string
+  sourceName: string
+  sourceController: 0 | 1
+  mode: PendingPlacementMode
+  cardType: number
+  allowedSlots: PendingPlacementSlot[]
+  effectIndex?: number
+}
 
 interface BoardLayoutResult {
   players: [PlayerState, PlayerState]
@@ -69,23 +70,6 @@ export interface MoveCardParams {
   targetDuelistId?: string
   chainResponse?: boolean
 }
-
-export interface TurnLogEntry {
-  id: string
-  preState: DuelPuzzleState
-  action: EngineProbeAction
-  selections: (number[] | null)[]
-}
-
-export interface SummonPlacement {
-  instanceId: string
-  toLocation: number
-  toSequence: number
-  toController?: 0 | 1
-  position?: number
-}
-
-let suppressTurnLogClear = false
 
 function applyMoveCard(prev: DuelStoreState, params: MoveCardParams): Partial<DuelStoreState> {
   const { instanceId, toLocation, toSequence, toController, customPos, targetDuelistId } = params
@@ -185,65 +169,16 @@ function applyMoveCard(prev: DuelStoreState, params: MoveCardParams): Partial<Du
     return c
   })
 
-  let nextSteps = prev.state.steps || []
-  let nextChain = prev.currentChain
-
-  if (prev.isAutoRecording) {
-    const inferred = inferMoveAction({
-      fromLocation: targetCard.location,
-      fromSequence: targetCard.sequence,
-      toLocation,
-      toSequence: seq,
-      fromPosition: targetCard.position,
-      finalPosition: newPos,
-      actionPlayer: ctrl,
-      cardCode: targetCard.code,
-      cardName: targetCard.card?.name,
-      cardType: targetCard.card?.type,
-      currentPhase: prev.currentPhase,
-      currentChain: prev.currentChain,
-      chainResponse: params.chainResponse
-    })
-
-    if (inferred) {
-      if (inferred.chainIndex) {
-        nextChain = inferred.chainIndex
-      }
-      const newStep: DuelStep = {
-        id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        turn: prev.currentTurn,
-        turnPlayer: prev.activeTurnPlayer,
-        phase: prev.currentPhase,
-        actionPlayer: ctrl,
-        actionType: inferred.actionType,
-        instanceId,
-        cardCode: targetCard.code,
-        cardName: targetCard.card?.name,
-        fromLocation: targetCard.location,
-        fromSequence: targetCard.sequence,
-        toLocation,
-        toSequence: seq,
-        chainIndex: inferred.chainIndex,
-        description: inferred.description,
-        boardAfter: createLightweightSnapshot(finalCards)
-      }
-      nextSteps = [...nextSteps, newStep]
-    }
-  }
-
   return {
-    currentChain: nextChain,
+    currentChain: prev.currentChain,
     state: {
       ...prev.state,
       cards: finalCards,
-      steps: nextSteps,
-      initialBoardSnapshot:
-        prev.state.initialBoardSnapshot || createLightweightSnapshot(prev.state.cards)
+      initialBoardSnapshot: prev.state.initialBoardSnapshot || createLightweightSnapshot(finalCards)
     }
   }
 }
 
-/** 场地魔法在本项目 MR1~3 约定里的落点：SZONE seq 5 */
 const FIELD_ZONE_SEQ = 5
 
 /** 判断一张卡是否为场地魔法（需 CDB 数据齐全，同时带 SPELL 与 FIELD 位） */
@@ -411,41 +346,13 @@ interface DuelStoreState {
   toggleSharedLp: () => void
 
   selectedCardId: string | null
-  pendingAction: PendingAction | null
-  beginAction: (kind: PendingActionKind, sourceId: string) => void
-  toggleActionTarget: (instanceId: string) => void
-  setActionTargetPlayer: (player: 0 | 1) => void
-  commitPendingAction: () => void
-  cancelPendingAction: () => void
-
   pendingPlacement: PendingPlacement | null
   beginPlacement: (mode: PendingPlacementMode, sourceId: string, effectIndex?: number) => void
   cancelPlacement: () => void
   commitPlacement: (slot: PendingPlacementSlot) => void
 
-  pendingEngineSelect: {
-    sessionId: string
-    prompt: EnginePendingSelect
-    logId: string
-    chosen: number[]
-    summonPlacement?: SummonPlacement
-  } | null
-  commitEngineSelect: (instanceId: string) => void
-  commitEngineSelectIndex: (index: number) => void
-  confirmEngineSelect: () => void
-  cancelEngineSelect: () => void
-  chooseEnginePosition: (position: number) => void
-  chooseEngineYesNo: (yes: boolean) => void
-  chooseEngineOption: (index: number) => void
-  executePhaseChange: (toPhase: 'BP' | 'M2' | 'EP') => Promise<void>
-
   chainMode: EngineChainMode
   setChainMode: (mode: EngineChainMode) => void
-
-  turnLog: TurnLogEntry[]
-  replayLog: ReplayLogEntry[]
-  replayInitial: { state: DuelPuzzleState; phase: DuelPhase } | null
-  clearEngineContext: () => void
   activeStatPopoverCardId: string | null
   statPopoverPosition: { x: number; y: number } | null
   hoveredCard: CdbCard | null
@@ -501,8 +408,7 @@ interface DuelStoreState {
   executeActivateCard: (
     instanceId: string,
     placement?: { location: number; sequence: number; controller?: 0 | 1; position?: number },
-    chainResponse?: boolean,
-    effectIndex?: number
+    chainResponse?: boolean
   ) => void
   executeChainCard: (instanceId: string) => void
   executeAttackCard: (instanceId: string, targetInstanceId?: string) => void
@@ -662,12 +568,9 @@ export const useDuelStore = create<DuelStoreState>()(
       expandedDuelistId: null,
       activeDuelistId: null,
       selectedCardId: null,
-      pendingAction: null,
       pendingPlacement: null,
-      pendingEngineSelect: null,
-      turnLog: [],
-      replayLog: [],
-      replayInitial: null,
+      chainMode: 'auto',
+      setChainMode: (mode) => set({ chainMode: mode }),
       activeStatPopoverCardId: null,
       statPopoverPosition: null,
       hoveredCard: null,
@@ -728,14 +631,6 @@ export const useDuelStore = create<DuelStoreState>()(
 
           if (curIdx < phases.length - 1) {
             const targetPhase = phases[curIdx + 1]
-            const recordPhase =
-              prev.replayInitial !== null &&
-              ((targetPhase === 'BP' && prev.currentPhase === 'M1') ||
-                (targetPhase === 'M2' && prev.currentPhase === 'BP') ||
-                (targetPhase === 'EP' &&
-                  (prev.currentPhase === 'M1' ||
-                    prev.currentPhase === 'BP' ||
-                    prev.currentPhase === 'M2')))
             if (prev.isAutoRecording) {
               const phaseLabel =
                 targetPhase === 'DP'
@@ -766,14 +661,6 @@ export const useDuelStore = create<DuelStoreState>()(
             return {
               currentPhase: targetPhase,
               currentChain: 0,
-              ...(recordPhase
-                ? {
-                    replayLog: [
-                      ...prev.replayLog,
-                      { type: 'phase', to: targetPhase } as ReplayLogEntry
-                    ]
-                  }
-                : {}),
               state: { ...prev.state, steps: nextSteps }
             }
           } else {
@@ -800,8 +687,6 @@ export const useDuelStore = create<DuelStoreState>()(
               currentPhase: 'DP',
               currentChain: 0,
               activeTurnPlayer: nextActive,
-              turnLog: [],
-              pendingEngineSelect: null,
               state: {
                 ...prev.state,
                 turnPlayer: nextActive,
@@ -836,11 +721,6 @@ export const useDuelStore = create<DuelStoreState>()(
             currentPhase: 'DP',
             currentChain: 0,
             activeTurnPlayer: nextActive,
-            turnLog: [],
-            pendingEngineSelect: null,
-            ...(prev.replayInitial !== null && prev.currentPhase !== 'EP'
-              ? { replayLog: [...prev.replayLog, { type: 'nextTurn' } as ReplayLogEntry] }
-              : {}),
             state: {
               ...prev.state,
               turnPlayer: nextActive,
@@ -851,9 +731,6 @@ export const useDuelStore = create<DuelStoreState>()(
       setActiveTurnPlayer: (player) =>
         set((prev) => ({
           activeTurnPlayer: player,
-          turnLog: [],
-          replayLog: [],
-          replayInitial: null,
           state: {
             ...prev.state,
             turnPlayer: player
@@ -968,60 +845,7 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         }),
 
-      beginAction: (kind, sourceId) =>
-        set((prev) => {
-          const card = prev.state.cards.find((c) => c.instanceId === sourceId)
-          if (!card) return prev
-          return {
-            selectedCardId: sourceId,
-            pendingAction: {
-              kind,
-              sourceId,
-              sourceName: card.card?.name || String(card.code),
-              sourceController: card.controller,
-              targetIds: [],
-              targetPlayer: null
-            }
-          }
-        }),
-
-      toggleActionTarget: (instanceId) =>
-        set((prev) => {
-          if (!prev.pendingAction) return prev
-          const exists = prev.pendingAction.targetIds.includes(instanceId)
-          return {
-            pendingAction: {
-              ...prev.pendingAction,
-              targetIds: exists
-                ? prev.pendingAction.targetIds.filter((id) => id !== instanceId)
-                : [...prev.pendingAction.targetIds, instanceId],
-              targetPlayer: null
-            }
-          }
-        }),
-
-      setActionTargetPlayer: (player) =>
-        set((prev) => {
-          if (!prev.pendingAction) return prev
-          return {
-            pendingAction: { ...prev.pendingAction, targetIds: [], targetPlayer: player }
-          }
-        }),
-
-      cancelPendingAction: () => set({ pendingAction: null, pendingPlacement: null }),
-
-      commitPendingAction: () => {
-        const { pendingAction, executeAttackCard, executeActivateCard } = useDuelStore.getState()
-        if (!pendingAction) return
-        if (pendingAction.kind === 'ATTACK') {
-          executeAttackCard(pendingAction.sourceId, pendingAction.targetIds[0])
-        } else {
-          executeActivateCard(pendingAction.sourceId)
-        }
-        set({ pendingAction: null, pendingPlacement: null })
-      },
-
-      executeActivateCard: (instanceId, placement, chainResponse = false, effectIndex) => {
+      executeActivateCard: (instanceId, placement, chainResponse = false) => {
         const { state, moveCards, updateCardPosition } = useDuelStore.getState()
         const card = state.cards.find((c) => c.instanceId === instanceId)
         if (!card) return
@@ -1033,10 +857,8 @@ export const useDuelStore = create<DuelStoreState>()(
             targetLocation = placement.location
             targetSeq = placement.sequence
           } else if (isFieldSpellCard(card)) {
-            // 场地魔法：固定去 SZONE seq 5 (本项目 MR1~3 约定)
             targetSeq = FIELD_ZONE_SEQ
           } else {
-            // 普通魔法/陷阱：取第一个空闲的 SZONE seq 0~4
             const occupiedSeqs = state.cards
               .filter((c) => c.controller === card.controller && c.location === CardLocation.SZONE)
               .map((c) => c.sequence)
@@ -1070,36 +892,8 @@ export const useDuelStore = create<DuelStoreState>()(
           })
           moveCards(moves)
         } else if (card.location === CardLocation.SZONE) {
-          const preState = useDuelStore.getState().state
-          const prePhase = useDuelStore.getState().currentPhase
           updateCardPosition(instanceId, CardPosition.FACEUP, chainResponse)
-          if (card.code && useConfigStore.getState().config.ruleCheckEnabled !== false) {
-            const action: EngineProbeAction = {
-              kind: 'ACTIVATE',
-              code: card.code,
-              controller: card.controller,
-              fromLocation: card.location,
-              fromSequence: card.sequence,
-              effectIndex
-            }
-            const logId = appendTurnLogEntry(preState, action)
-            void replayEngineAction(preState, prePhase, action, logId)
-          }
         } else {
-          if (card.code && useConfigStore.getState().config.ruleCheckEnabled !== false) {
-            const preState = useDuelStore.getState().state
-            const prePhase = useDuelStore.getState().currentPhase
-            const action: EngineProbeAction = {
-              kind: 'ACTIVATE',
-              code: card.code,
-              controller: card.controller,
-              fromLocation: card.location,
-              fromSequence: card.sequence,
-              effectIndex
-            }
-            const logId = appendTurnLogEntry(preState, action)
-            void replayEngineAction(preState, prePhase, action, logId)
-          }
           const { currentTurn, currentPhase, currentChain, activeTurnPlayer } =
             useDuelStore.getState()
           const nextChain = chainResponse ? currentChain + 1 : 1
@@ -1195,7 +989,6 @@ export const useDuelStore = create<DuelStoreState>()(
         }
 
         set({
-          pendingAction: null,
           pendingPlacement: {
             sourceId,
             sourceName: card.card?.name || String(card.code),
@@ -1211,116 +1004,11 @@ export const useDuelStore = create<DuelStoreState>()(
 
       cancelPlacement: () => set({ pendingPlacement: null }),
 
-      commitEngineSelect: (instanceId) => {
-        const sel = useDuelStore.getState().pendingEngineSelect
-        if (!sel || sel.prompt.kind === 'POSITION') return
-        const card = useDuelStore.getState().state.cards.find((c) => c.instanceId === instanceId)
-        if (!card) return
-        const index = engineCandidateIndex(
-          sel.prompt.candidates,
-          useDuelStore.getState().state.cards,
-          card
-        )
-        if (index < 0) return
-        chooseEngineCandidate(sel, index)
-      },
-
-      commitEngineSelectIndex: (index) => {
-        const sel = useDuelStore.getState().pendingEngineSelect
-        if (!sel) return
-        if (index < 0 || index >= sel.prompt.candidates.length) return
-        chooseEngineCandidate(sel, index)
-      },
-
-      confirmEngineSelect: () => {
-        const sel = useDuelStore.getState().pendingEngineSelect
-        if (!sel || sel.chosen.length < sel.prompt.min) return
-        void submitEngineSelect(sel, sel.chosen)
-      },
-
-      cancelEngineSelect: () => {
-        const sel = useDuelStore.getState().pendingEngineSelect
-        if (!sel) return
-        set({ pendingEngineSelect: null })
-        void submitEngineSelect(sel, null)
-      },
-
-      clearEngineContext: () =>
-        set({ turnLog: [], replayLog: [], replayInitial: null, pendingEngineSelect: null }),
-
-      chainMode: 'auto',
-      setChainMode: (mode) => set({ chainMode: mode }),
-
-      chooseEnginePosition: (position) => {
-        const sel = useDuelStore.getState().pendingEngineSelect
-        if (!sel || sel.prompt.kind !== 'POSITION') return
-        void submitEngineSelect(sel, [position])
-      },
-
-      chooseEngineYesNo: (yes) => {
-        const sel = useDuelStore.getState().pendingEngineSelect
-        if (!sel || sel.prompt.kind !== 'YESNO') return
-        void submitEngineSelect(sel, yes ? [1] : [0])
-      },
-
-      chooseEngineOption: (index) => {
-        const sel = useDuelStore.getState().pendingEngineSelect
-        if (!sel || sel.prompt.kind !== 'OPTION') return
-        void submitEngineSelect(sel, [index])
-      },
-
-      executePhaseChange: async (toPhase) => {
-        const preState = useDuelStore.getState().state
-        const prePhase = useDuelStore.getState().currentPhase
-        const kind = toPhase === 'BP' ? 'TO_BP' : toPhase === 'M2' ? 'TO_M2' : 'TO_EP'
-        const action: EngineProbeAction = {
-          kind,
-          code: 0,
-          controller: (preState.turnPlayer ?? 0) as 0 | 1,
-          fromLocation: 0
-        }
-        useDuelStore.getState().setCurrentPhase(toPhase)
-        if (useConfigStore.getState().config.ruleCheckEnabled !== false) {
-          const logId = appendTurnLogEntry(preState, action)
-          await replayEngineAction(preState, prePhase, action, logId)
-        }
-      },
-
       commitPlacement: (slot) => {
         const { pendingPlacement } = useDuelStore.getState()
         if (!pendingPlacement) return
-        const preState = useDuelStore.getState().state
-        const prePhase = useDuelStore.getState().currentPhase
-        const sourceCard = preState.cards.find((c) => c.instanceId === pendingPlacement.sourceId)
-
-        const ruleCheckOn =
-          Boolean(sourceCard?.code) &&
-          useConfigStore.getState().config.ruleCheckEnabled !== false &&
-          sourceCard?.location === CardLocation.HAND &&
-          !sourceCard?.card?.isCustom &&
-          !isCustomCardId(sourceCard?.code ?? 0)
 
         if (pendingPlacement.mode === 'SUMMON') {
-          if (ruleCheckOn && sourceCard) {
-            set({ pendingPlacement: null })
-            const action: EngineProbeAction = {
-              kind: 'SUMMON',
-              code: sourceCard.code,
-              controller: sourceCard.controller,
-              fromLocation: sourceCard.location,
-              fromSequence: sourceCard.sequence,
-              place: { location: slot.location, sequence: slot.sequence }
-            }
-            const logId = appendTurnLogEntry(preState, action)
-            void replayEngineAction(preState, prePhase, action, logId, {
-              instanceId: pendingPlacement.sourceId,
-              toLocation: slot.location,
-              toSequence: slot.sequence,
-              toController: slot.controller,
-              position: CardPosition.FACEUP_ATTACK
-            })
-            return
-          }
           useDuelStore
             .getState()
             .moveCard(
@@ -1345,30 +1033,6 @@ export const useDuelStore = create<DuelStoreState>()(
           })
         }
         set({ pendingPlacement: null })
-
-        if (
-          sourceCard &&
-          sourceCard.code &&
-          useConfigStore.getState().config.ruleCheckEnabled !== false
-        ) {
-          const kind: EngineProbeActionKind =
-            pendingPlacement.mode === 'ACTIVATE'
-              ? 'ACTIVATE'
-              : (pendingPlacement.cardType & CardType.MONSTER) !== 0
-                ? 'SET_MONSTER'
-                : 'SET_SPELL'
-          const action: EngineProbeAction = {
-            kind,
-            code: sourceCard.code,
-            controller: sourceCard.controller,
-            fromLocation: sourceCard.location,
-            fromSequence: sourceCard.sequence,
-            effectIndex: pendingPlacement.effectIndex,
-            place: { location: slot.location, sequence: slot.sequence }
-          }
-          const logId = appendTurnLogEntry(preState, action)
-          void replayEngineAction(preState, prePhase, action, logId)
-        }
       },
 
       executeAttackCard: (instanceId, targetInstanceId) => {
@@ -1380,24 +1044,11 @@ export const useDuelStore = create<DuelStoreState>()(
           ? state.cards.find((c) => c.instanceId === targetInstanceId)
           : undefined
         const direct = !targetCard
-        const preview = targetCard ? resolveBattle(card, targetCard) : resolveDirectAttack(card)
         const pName = card.controller === 0 ? '我方' : '对方'
         const cName = card.card?.name || (card.code ? String(card.code) : '怪兽')
-        const dmgRecipient = preview.damageRecipient === 0 ? '我方' : '对方'
-        const damageText = preview.damage > 0 ? `，${dmgRecipient}受到 ${preview.damage} 伤害` : ''
-        const outcome = direct
-          ? '直接攻击'
-          : preview.destroyTarget
-            ? '战斗破坏对方怪兽'
-            : preview.destroyAttacker
-              ? '攻击怪兽被战斗破坏'
-              : '战斗未分胜负'
-        const versusText = direct
-          ? ''
-          : ` (${preview.attackerAtk} vs ${preview.targetIsDefense ? '守备 ' : ''}${preview.targetValue})`
         const description = direct
-          ? `${pName}【${cName}】${outcome}${damageText}`
-          : `${pName}【${cName}】攻击【${preview.targetName}】${versusText} → ${outcome}${damageText}`
+          ? `${pName}【${cName}】直接攻击`
+          : `${pName}【${cName}】攻击【${targetCard?.card?.name || targetCard?.code || '怪兽'}】`
 
         const newStep: DuelStep = {
           id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1418,27 +1069,8 @@ export const useDuelStore = create<DuelStoreState>()(
           boardAfter: createLightweightSnapshot(state.cards)
         }
 
-        if (
-          card.code &&
-          useConfigStore.getState().config.ruleCheckEnabled !== false &&
-          card.location === CardLocation.MZONE
-        ) {
-          const preState = useDuelStore.getState().state
-          const prePhase = useDuelStore.getState().currentPhase
-          const action: EngineProbeAction = {
-            kind: 'ATTACK',
-            code: card.code,
-            controller: card.controller,
-            fromLocation: card.location,
-            fromSequence: card.sequence
-          }
-          const logId = appendTurnLogEntry(preState, action)
-          void replayEngineAction(preState, prePhase, action, logId)
-        }
-
         set((prev) => ({
           currentChain: 0,
-          pendingAction: null,
           pendingPlacement: null,
           state: {
             ...prev.state,
@@ -1450,9 +1082,7 @@ export const useDuelStore = create<DuelStoreState>()(
       },
 
       executeReposCard: async (instanceId) => {
-        const preState = useDuelStore.getState().state
-        const prePhase = useDuelStore.getState().currentPhase
-        const card = preState.cards.find((c) => c.instanceId === instanceId)
+        const card = useDuelStore.getState().state.cards.find((c) => c.instanceId === instanceId)
         if (!card) return
         const nextPos =
           card.position === CardPosition.FACEDOWN_DEFENSE
@@ -1461,21 +1091,6 @@ export const useDuelStore = create<DuelStoreState>()(
               ? CardPosition.FACEUP_DEFENSE
               : CardPosition.FACEUP_ATTACK
         useDuelStore.getState().updateCardPosition(instanceId, nextPos)
-        if (
-          card.code &&
-          card.location === CardLocation.MZONE &&
-          useConfigStore.getState().config.ruleCheckEnabled !== false
-        ) {
-          const action: EngineProbeAction = {
-            kind: 'REPOS',
-            code: card.code,
-            controller: card.controller,
-            fromLocation: card.location,
-            fromSequence: card.sequence
-          }
-          const logId = appendTurnLogEntry(preState, action)
-          await replayEngineAction(preState, prePhase, action, logId)
-        }
       },
 
       executeNormalSummon: (instanceId) => {
@@ -1492,35 +1107,7 @@ export const useDuelStore = create<DuelStoreState>()(
           )
           .map((c) => c.sequence)
         const freeSeq = [2, 1, 3, 0, 4].find((s) => !occupiedSeqs.includes(s)) ?? 2
-        const preState = useDuelStore.getState().state
-        const prePhase = useDuelStore.getState().currentPhase
-        const ruleCheckOn =
-          Boolean(card.code) &&
-          useConfigStore.getState().config.ruleCheckEnabled !== false &&
-          card.location === CardLocation.HAND &&
-          !card.card?.isCustom &&
-          !isCustomCardId(card.code)
-
-        if (ruleCheckOn) {
-          const action: EngineProbeAction = {
-            kind: 'SUMMON',
-            code: card.code,
-            controller: card.controller,
-            fromLocation: card.location,
-            fromSequence: card.sequence,
-            place: { location: CardLocation.MZONE, sequence: freeSeq }
-          }
-          const logId = appendTurnLogEntry(preState, action)
-          void replayEngineAction(preState, prePhase, action, logId, {
-            instanceId,
-            toLocation: CardLocation.MZONE,
-            toSequence: freeSeq,
-            toController: card.controller,
-            position: CardPosition.FACEUP_ATTACK
-          })
-        } else {
-          moveCard(instanceId, CardLocation.MZONE, freeSeq, undefined, CardPosition.FACEUP_ATTACK)
-        }
+        moveCard(instanceId, CardLocation.MZONE, freeSeq, undefined, CardPosition.FACEUP_ATTACK)
       },
 
       executeSpecialSummon: (instanceId) => {
@@ -1537,35 +1124,7 @@ export const useDuelStore = create<DuelStoreState>()(
           )
           .map((c) => c.sequence)
         const freeSeq = [2, 1, 3, 0, 4].find((s) => !occupiedSeqs.includes(s)) ?? 2
-        const preState = useDuelStore.getState().state
-        const prePhase = useDuelStore.getState().currentPhase
-        const ruleCheckOn =
-          Boolean(card.code) &&
-          useConfigStore.getState().config.ruleCheckEnabled !== false &&
-          card.location === CardLocation.HAND &&
-          !card.card?.isCustom &&
-          !isCustomCardId(card.code)
-
-        if (ruleCheckOn) {
-          const action: EngineProbeAction = {
-            kind: 'SP_SUMMON',
-            code: card.code,
-            controller: card.controller,
-            fromLocation: card.location,
-            fromSequence: card.sequence,
-            place: { location: CardLocation.MZONE, sequence: freeSeq }
-          }
-          const logId = appendTurnLogEntry(preState, action)
-          void replayEngineAction(preState, prePhase, action, logId, {
-            instanceId,
-            toLocation: CardLocation.MZONE,
-            toSequence: freeSeq,
-            toController: card.controller,
-            position: CardPosition.FACEUP_ATTACK
-          })
-        } else {
-          moveCard(instanceId, CardLocation.MZONE, freeSeq, undefined, CardPosition.FACEUP_ATTACK)
-        }
+        moveCard(instanceId, CardLocation.MZONE, freeSeq, undefined, CardPosition.FACEUP_ATTACK)
       },
 
       executeSetCard: (instanceId, placement) => {
@@ -1586,7 +1145,6 @@ export const useDuelStore = create<DuelStoreState>()(
           targetPosition = placement.position ?? CardPosition.FACEDOWN
           defaultSeq = placement.sequence
         } else if (isFieldSpellCard(card)) {
-          // 场地魔法：固定盖放到 SZONE seq 5 (本项目 MR1~3 约定)
           targetLocation = CardLocation.SZONE
           targetPosition = CardPosition.FACEDOWN
           defaultSeq = FIELD_ZONE_SEQ
@@ -1616,35 +1174,6 @@ export const useDuelStore = create<DuelStoreState>()(
           defaultSeq = [2, 1, 3, 0, 4].find((s) => !occupiedSeqs.includes(s)) ?? 0
         }
 
-        const preState = useDuelStore.getState().state
-        const prePhase = useDuelStore.getState().currentPhase
-        const ruleCheckOn =
-          Boolean(card.code) &&
-          useConfigStore.getState().config.ruleCheckEnabled !== false &&
-          card.location === CardLocation.HAND &&
-          !card.card?.isCustom &&
-          !isCustomCardId(card.code)
-
-        if (ruleCheckOn && isMonster) {
-          const action: EngineProbeAction = {
-            kind: 'SET_MONSTER',
-            code: card.code,
-            controller: card.controller,
-            fromLocation: card.location,
-            fromSequence: card.sequence,
-            place: { location: targetLocation, sequence: defaultSeq }
-          }
-          const logId = appendTurnLogEntry(preState, action)
-          void replayEngineAction(preState, prePhase, action, logId, {
-            instanceId,
-            toLocation: targetLocation,
-            toSequence: defaultSeq,
-            toController: placement?.controller,
-            position: targetPosition
-          })
-          return
-        }
-
         const targetController = placement?.controller ?? card.controller
         const displaced = findZoneOccupant(
           state.cards,
@@ -1669,22 +1198,6 @@ export const useDuelStore = create<DuelStoreState>()(
           customPos: targetPosition
         })
         moveCards(moves)
-        if (
-          card.code &&
-          useConfigStore.getState().config.ruleCheckEnabled !== false &&
-          card.location === CardLocation.HAND
-        ) {
-          const action: EngineProbeAction = {
-            kind: isMonster ? 'SET_MONSTER' : 'SET_SPELL',
-            code: card.code,
-            controller: card.controller,
-            fromLocation: card.location,
-            fromSequence: card.sequence,
-            place: { location: targetLocation, sequence: defaultSeq }
-          }
-          const logId = appendTurnLogEntry(preState, action)
-          void replayEngineAction(preState, prePhase, action, logId)
-        }
       },
 
       executeSendToGrave: (instanceId) => {
@@ -2333,11 +1846,7 @@ export const useDuelStore = create<DuelStoreState>()(
             currentTurn: 1,
             currentPhase: 'DP',
             currentChain: 0,
-            activeTurnPlayer: turnPlayer,
-            turnLog: [],
-            replayLog: [],
-            replayInitial: null,
-            pendingEngineSelect: null
+            activeTurnPlayer: turnPlayer
           }
         }),
 
@@ -2350,8 +1859,7 @@ export const useDuelStore = create<DuelStoreState>()(
             toController,
             customPos,
             targetDuelistId
-          }),
-          ...(suppressTurnLogClear ? {} : { turnLog: [], replayLog: [], replayInitial: null })
+          })
         })),
 
       moveCards: (moves) =>
@@ -2360,8 +1868,6 @@ export const useDuelStore = create<DuelStoreState>()(
           for (const m of moves) {
             acc = { ...acc, ...applyMoveCard(acc, m) }
           }
-          if (!suppressTurnLogClear)
-            acc = { ...acc, turnLog: [], replayLog: [], replayInitial: null }
           return acc
         }),
 
@@ -2373,12 +1879,8 @@ export const useDuelStore = create<DuelStoreState>()(
           },
           selectedCardId: prev.selectedCardId === instanceId ? null : prev.selectedCardId,
           hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredInstanceId,
-          pendingAction: prev.pendingAction?.sourceId === instanceId ? null : prev.pendingAction,
           pendingPlacement:
-            prev.pendingPlacement?.sourceId === instanceId ? null : prev.pendingPlacement,
-          turnLog: suppressTurnLogClear ? prev.turnLog : [],
-          replayLog: suppressTurnLogClear ? prev.replayLog : [],
-          replayInitial: suppressTurnLogClear ? prev.replayInitial : null
+            prev.pendingPlacement?.sourceId === instanceId ? null : prev.pendingPlacement
         })),
 
       updateCardPosition: (instanceId, position, chainResponse = false) =>
@@ -2454,49 +1956,29 @@ export const useDuelStore = create<DuelStoreState>()(
                 }
               }
             } else {
-              const inferred = inferPositionChangeAction({
-                location: targetCard.location,
-                oldPosition: oldPos,
-                newPosition: position,
+              const newStep: DuelStep = {
+                id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                turn: prev.currentTurn,
+                turnPlayer: prev.activeTurnPlayer,
+                phase: prev.currentPhase,
                 actionPlayer: targetCard.controller,
+                actionType: 'CHANGE_POS',
+                instanceId,
                 cardCode: targetCard.code,
                 cardName: targetCard.card?.name,
-                currentChain: prev.currentChain,
-                chainResponse
-              })
-
-              if (inferred) {
-                if (inferred.chainIndex) {
-                  nextChain = inferred.chainIndex
-                }
-                const newStep: DuelStep = {
-                  id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                  turn: prev.currentTurn,
-                  turnPlayer: prev.activeTurnPlayer,
-                  phase: prev.currentPhase,
-                  actionPlayer: targetCard.controller,
-                  actionType: inferred.actionType,
-                  instanceId,
-                  cardCode: targetCard.code,
-                  cardName: targetCard.card?.name,
-                  fromLocation: targetCard.location,
-                  fromSequence: targetCard.sequence,
-                  toLocation: targetCard.location,
-                  toSequence: targetCard.sequence,
-                  chainIndex: inferred.chainIndex,
-                  description: inferred.description,
-                  boardAfter: createLightweightSnapshot(updatedCards)
-                }
-                nextSteps.push(newStep)
+                fromLocation: targetCard.location,
+                fromSequence: targetCard.sequence,
+                toLocation: targetCard.location,
+                toSequence: targetCard.sequence,
+                description: `${pName}变更【${cName}】表示形式`,
+                boardAfter: createLightweightSnapshot(updatedCards)
               }
+              nextSteps.push(newStep)
             }
           }
 
           return {
             currentChain: nextChain,
-            ...(suppressTurnLogClear
-              ? {}
-              : { turnLog: [] as TurnLogEntry[], replayLog: [], replayInitial: null }),
             state: {
               ...prev.state,
               cards: updatedCards,
@@ -2826,7 +2308,6 @@ export const useDuelStore = create<DuelStoreState>()(
           state: normalizeDuelState(newState),
           currentProjectPath: null,
           selectedCardId: null,
-          pendingAction: null,
           pendingPlacement: null,
           expandedDuelistId: null
         })),
@@ -2848,7 +2329,6 @@ export const useDuelStore = create<DuelStoreState>()(
             state: baseState,
             currentProjectPath: null,
             selectedCardId: null,
-            pendingAction: null,
             pendingPlacement: null,
             activeStatPopoverCardId: null,
             statPopoverPosition: null,
@@ -3080,285 +2560,4 @@ if (typeof window !== 'undefined' && window.api?.onApplyDeckToDuel) {
   window.api.onApplyDeckToDuel(({ player, deck, drawCount }) => {
     useDuelStore.getState().applyDeckToPlayer(player, deck, drawCount)
   })
-}
-
-async function replayEngineAction(
-  preState: DuelPuzzleState,
-  currentPhase: DuelPhase,
-  action: EngineProbeAction,
-  logId: string,
-  summonPlacement?: SummonPlacement
-): Promise<void> {
-  let res: EngineProbeActionResult
-  try {
-    res = await window.api.duelProbeAction({
-      state: preState,
-      currentPhase,
-      action,
-      chainMode: useDuelStore.getState().chainMode
-    })
-  } catch (err) {
-    console.warn('[useDuelStore] duelProbeAction failed:', err)
-    removeTurnLogEntry(logId)
-    return
-  }
-  if (!res.ok || res.degraded) {
-    removeTurnLogEntry(logId)
-    return
-  }
-  if (res.pendingSelect && res.sessionId) {
-    if (res.pendingSelect.kind === 'TRIBUTE') {
-      useDuelStore.setState({
-        pendingEngineSelect: {
-          sessionId: res.sessionId,
-          prompt: res.pendingSelect,
-          logId,
-          chosen: [],
-          summonPlacement
-        }
-      })
-      return
-    }
-    if (summonPlacement) {
-      const targetSeq = res.placedCard?.sequence ?? summonPlacement.toSequence
-      const targetLoc = res.placedCard?.location ?? summonPlacement.toLocation
-      useDuelStore
-        .getState()
-        .moveCard(
-          summonPlacement.instanceId,
-          targetLoc,
-          targetSeq,
-          summonPlacement.toController,
-          summonPlacement.position
-        )
-    }
-    useDuelStore.setState({
-      pendingEngineSelect: {
-        sessionId: res.sessionId,
-        prompt: res.pendingSelect,
-        logId,
-        chosen: []
-      }
-    })
-    return
-  }
-  applyEngineReplayResult(res)
-  if (summonPlacement) {
-    const targetSeq = res.placedCard?.sequence ?? summonPlacement.toSequence
-    const targetLoc = res.placedCard?.location ?? summonPlacement.toLocation
-    useDuelStore
-      .getState()
-      .moveCard(
-        summonPlacement.instanceId,
-        targetLoc,
-        targetSeq,
-        summonPlacement.toController,
-        summonPlacement.position
-      )
-  }
-}
-
-function applyEngineReplayResult(res: EngineProbeActionResult): void {
-  suppressTurnLogClear = true
-  try {
-    const claimed = new Set<string>()
-    for (const entry of res.counters) {
-      const cards = useDuelStore.getState().state.cards
-      const target = cards.find(
-        (c) =>
-          !claimed.has(c.instanceId) &&
-          c.code === entry.code &&
-          c.controller === entry.controller &&
-          c.location === entry.location
-      )
-      if (!target) continue
-      claimed.add(target.instanceId)
-      for (const [typeStr, count] of Object.entries(entry.counters)) {
-        useDuelStore.getState().setCardCounter(target.instanceId, Number(typeStr), count)
-      }
-    }
-    if (res.missing && res.missing.length > 0) {
-      const matched = new Set<string>()
-      for (const miss of res.missing) {
-        const cards = useDuelStore.getState().state.cards
-        const target = cards.find(
-          (c) =>
-            !matched.has(c.instanceId) &&
-            c.code === miss.code &&
-            c.controller === miss.controller &&
-            c.location === miss.location &&
-            c.sequence === miss.sequence
-        )
-        if (!target) continue
-        matched.add(target.instanceId)
-        const dest = miss.toLocation ?? CardLocation.GRAVE
-        if (
-          target.location === dest ||
-          (dest !== CardLocation.GRAVE &&
-            dest !== CardLocation.REMOVED &&
-            dest !== CardLocation.HAND &&
-            dest !== CardLocation.DECK)
-        ) {
-          useDuelStore.getState().moveCard(target.instanceId, CardLocation.GRAVE, 999)
-          continue
-        }
-        useDuelStore.getState().moveCard(target.instanceId, dest, 999)
-      }
-    }
-    if (res.gained && res.gained.length > 0) {
-      const claimed = new Set<string>()
-      for (const gain of res.gained) {
-        const cards = useDuelStore.getState().state.cards
-        const deckCard = cards
-          .filter(
-            (c) =>
-              !claimed.has(c.instanceId) &&
-              c.code === gain.code &&
-              c.controller === gain.controller &&
-              c.location === CardLocation.DECK
-          )
-          .sort((a, b) => a.sequence - b.sequence)[0]
-        if (!deckCard) continue
-        claimed.add(deckCard.instanceId)
-        useDuelStore.getState().moveCard(deckCard.instanceId, CardLocation.HAND, 999)
-      }
-    }
-  } finally {
-    suppressTurnLogClear = false
-  }
-}
-
-function chooseEngineCandidate(
-  sel: {
-    sessionId: string
-    logId: string
-    chosen: number[]
-    prompt: EnginePendingSelect
-    summonPlacement?: SummonPlacement
-  },
-  index: number
-): void {
-  if (sel.chosen.includes(index)) {
-    if (sel.prompt.max <= 1) return
-    useDuelStore.setState({
-      pendingEngineSelect: { ...sel, chosen: sel.chosen.filter((i) => i !== index) }
-    })
-    return
-  }
-  const chosen = [...sel.chosen, index]
-  const ready =
-    chosen.length >= sel.prompt.max ||
-    (sel.prompt.max === sel.prompt.min && chosen.length >= sel.prompt.min)
-  if (!ready) {
-    useDuelStore.setState({ pendingEngineSelect: { ...sel, chosen } })
-    return
-  }
-  void submitEngineSelect(sel, chosen)
-}
-
-async function submitEngineSelect(
-  sel: {
-    sessionId: string
-    logId: string
-    summonPlacement?: SummonPlacement
-  },
-  indices: number[] | null
-): Promise<void> {
-  try {
-    const res = await window.api.duelProbeSelect({ sessionId: sel.sessionId, indices })
-    appendTurnLogSelection(sel.logId, indices)
-    if (indices === null) {
-      removeTurnLogEntry(sel.logId)
-      useDuelStore.setState({ pendingEngineSelect: null })
-      return
-    }
-    if (res.pendingSelect && res.sessionId) {
-      if (res.pendingSelect.kind === 'TRIBUTE') {
-        useDuelStore.setState({
-          pendingEngineSelect: {
-            sessionId: res.sessionId,
-            prompt: res.pendingSelect,
-            logId: sel.logId,
-            chosen: [],
-            summonPlacement: sel.summonPlacement
-          }
-        })
-        return
-      }
-      if (sel.summonPlacement) {
-        applyEngineReplayResult(res)
-        const targetSeq = res.placedCard?.sequence ?? sel.summonPlacement.toSequence
-        const targetLoc = res.placedCard?.location ?? sel.summonPlacement.toLocation
-        useDuelStore
-          .getState()
-          .moveCard(
-            sel.summonPlacement.instanceId,
-            targetLoc,
-            targetSeq,
-            sel.summonPlacement.toController,
-            sel.summonPlacement.position
-          )
-      }
-      useDuelStore.setState({
-        pendingEngineSelect: {
-          sessionId: res.sessionId,
-          prompt: res.pendingSelect,
-          logId: sel.logId,
-          chosen: []
-        }
-      })
-      return
-    }
-    useDuelStore.setState({ pendingEngineSelect: null })
-    if (res.ok) {
-      applyEngineReplayResult(res)
-      if (sel.summonPlacement) {
-        const targetSeq = res.placedCard?.sequence ?? sel.summonPlacement.toSequence
-        const targetLoc = res.placedCard?.location ?? sel.summonPlacement.toLocation
-        useDuelStore
-          .getState()
-          .moveCard(
-            sel.summonPlacement.instanceId,
-            targetLoc,
-            targetSeq,
-            sel.summonPlacement.toController,
-            sel.summonPlacement.position
-          )
-      }
-    }
-  } catch (err) {
-    console.warn('[useDuelStore] duelProbeSelect failed:', err)
-    useDuelStore.setState({ pendingEngineSelect: null })
-  }
-}
-
-function appendTurnLogEntry(preState: DuelPuzzleState, action: EngineProbeAction): string {
-  const id = `log_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  useDuelStore.setState((prev) => ({
-    turnLog: [...prev.turnLog, { id, preState, action, selections: [] }],
-    replayLog: [
-      ...prev.replayLog,
-      { id, type: 'action', action, selections: [], chainMode: prev.chainMode }
-    ],
-    replayInitial: prev.replayInitial ?? { state: preState, phase: prev.currentPhase }
-  }))
-  return id
-}
-
-function appendTurnLogSelection(logId: string, selection: number[] | null): void {
-  useDuelStore.setState((prev) => ({
-    turnLog: prev.turnLog.map((e) =>
-      e.id === logId ? { ...e, selections: [...e.selections, selection] } : e
-    ),
-    replayLog: prev.replayLog.map((e) =>
-      e.type === 'action' && e.id === logId ? { ...e, selections: [...e.selections, selection] } : e
-    )
-  }))
-}
-
-function removeTurnLogEntry(logId: string): void {
-  useDuelStore.setState((prev) => ({
-    turnLog: prev.turnLog.filter((e) => e.id !== logId),
-    replayLog: prev.replayLog.filter((e) => e.type !== 'action' || e.id !== logId)
-  }))
 }

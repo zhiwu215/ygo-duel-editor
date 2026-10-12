@@ -1,3 +1,4 @@
+import zlib from 'zlib'
 import { EngineTimelineNode, EngineBoardState, EnginePendingAction } from '@shared/index'
 
 export interface EngineStepRecord {
@@ -5,6 +6,21 @@ export interface EngineStepRecord {
   responseToNext?: Uint8Array
   snapshot: Uint8Array
   pendingMsgRaw?: Uint8Array
+}
+
+export function compressDuelSnapshot(snapshot: Uint8Array): Uint8Array {
+  return zlib.gzipSync(snapshot, { level: 6 })
+}
+
+export function decompressDuelSnapshot(data: Uint8Array): Uint8Array {
+  if (data.length > 8) {
+    const head = Buffer.from(data.buffer, data.byteOffset, Math.min(2, data.length))
+    if (head[0] === 0x4b && head[1] === 0x4f) return data
+    if (head[0] === 0x1f && head[1] === 0x8b) {
+      return zlib.gunzipSync(data)
+    }
+  }
+  return data
 }
 
 export class EngineTimelineManager {
@@ -52,7 +68,7 @@ export class EngineTimelineManager {
 
     this.steps.set(id, {
       node,
-      snapshot,
+      snapshot: compressDuelSnapshot(snapshot),
       pendingMsgRaw
     })
 

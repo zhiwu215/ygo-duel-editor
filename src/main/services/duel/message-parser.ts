@@ -18,10 +18,18 @@ import {
   YGOProMsgAnnounceCard
 } from 'ygopro-msg-encode'
 import { _OcgcoreConstants } from 'koishipro-core.js'
-import { EnginePendingAction, EngineActionOption, CardLocation } from '@shared/index'
+import { EnginePendingAction, EngineActionOption, CardLocation, CdbCard } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
+import { getEffectDescText, getSystemDescText } from './strings-service'
 
 const { OcgcoreScriptConstants } = _OcgcoreConstants
+
+export type EngineCardResolver = (
+  controller: number,
+  location: number,
+  sequence: number,
+  code?: number
+) => { instanceId: string; card?: CdbCard } | undefined
 
 export function isInteractiveQuery(msg: unknown): boolean {
   return (
@@ -43,7 +51,43 @@ export function isInteractiveQuery(msg: unknown): boolean {
   )
 }
 
-export function parsePendingAction(msg: unknown): EnginePendingAction {
+function optionId(
+  prefix: string,
+  card: { code: number; sequence: number },
+  suffix?: unknown
+): string {
+  return [prefix, card.code, card.sequence, suffix ?? ''].filter((v) => v !== '').join('-')
+}
+
+function buildCardOption(
+  prefix: string,
+  label: string,
+  type: EngineActionOption['type'],
+  card: { code: number; controller?: number; location: number; sequence: number },
+  fallbackPlayer: 0 | 1,
+  rawPayload: unknown,
+  resolver?: EngineCardResolver,
+  suffix?: unknown
+): EngineActionOption {
+  const location = card.location || CardLocation.HAND
+  const resolved = resolver?.(card.controller ?? fallbackPlayer, location, card.sequence, card.code)
+  return {
+    id: optionId(prefix, card, suffix),
+    label,
+    type,
+    instanceId: resolved?.instanceId,
+    cardCode: card.code,
+    controller: (card.controller ?? fallbackPlayer) as 0 | 1,
+    location,
+    sequence: card.sequence,
+    rawPayload
+  }
+}
+
+export function parsePendingAction(
+  msg: unknown,
+  resolver?: EngineCardResolver
+): EnginePendingAction {
   const options: EngineActionOption[] = []
   const player: 0 | 1 =
     typeof (msg as { player?: number })?.player === 'number' &&
@@ -51,89 +95,96 @@ export function parsePendingAction(msg: unknown): EnginePendingAction {
       ? 1
       : 0
 
+  const cardName = (code: number): string => cdbService.getCardById(code)?.name || String(code)
+  const activateLabel = (code: number, desc: number): string => {
+    const text = getEffectDescText(desc, cardName(code))
+    return text ? `发动 [${cardName(code)}]: ${text}` : `发动 [${cardName(code)}]`
+  }
+
   if (msg instanceof YGOProMsgSelectIdleCmd) {
     for (const card of msg.summonableCards) {
-      const info = cdbService.getCardById(card.code)
-      options.push({
-        id: `summon-${card.code}-${card.sequence}`,
-        label: `召唤 [${info?.name || card.code}]`,
-        type: 'SUMMON',
-        cardCode: card.code,
-        controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
-        location: card.location || CardLocation.HAND,
-        rawPayload: { type: IdleCmdType.SUMMON, card }
-      })
+      options.push(
+        buildCardOption(
+          'summon',
+          `召唤 [${cardName(card.code)}]`,
+          'SUMMON',
+          card,
+          player,
+          { type: IdleCmdType.SUMMON, card },
+          resolver
+        )
+      )
     }
 
     for (const card of msg.spSummonableCards) {
-      const info = cdbService.getCardById(card.code)
-      options.push({
-        id: `spsummon-${card.code}-${card.sequence}`,
-        label: `特殊召唤 [${info?.name || card.code}]`,
-        type: 'SPSUMMON',
-        cardCode: card.code,
-        controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
-        location: card.location || CardLocation.HAND,
-        rawPayload: { type: IdleCmdType.SPSUMMON, card }
-      })
+      options.push(
+        buildCardOption(
+          'spsummon',
+          `特殊召唤 [${cardName(card.code)}]`,
+          'SPSUMMON',
+          card,
+          player,
+          { type: IdleCmdType.SPSUMMON, card },
+          resolver
+        )
+      )
     }
 
     for (const card of msg.ssetableCards) {
-      const info = cdbService.getCardById(card.code)
-      options.push({
-        id: `sset-${card.code}-${card.sequence}`,
-        label: `盖放 [${info?.name || card.code}]`,
-        type: 'SSET',
-        cardCode: card.code,
-        controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
-        location: card.location || CardLocation.HAND,
-        rawPayload: { type: IdleCmdType.SSET, card }
-      })
+      options.push(
+        buildCardOption(
+          'sset',
+          `盖放 [${cardName(card.code)}]`,
+          'SSET',
+          card,
+          player,
+          { type: IdleCmdType.SSET, card },
+          resolver
+        )
+      )
     }
 
     for (const card of msg.msetableCards) {
-      const info = cdbService.getCardById(card.code)
-      options.push({
-        id: `mset-${card.code}-${card.sequence}`,
-        label: `盖放怪兽 [${info?.name || card.code}]`,
-        type: 'MSET',
-        cardCode: card.code,
-        controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
-        location: card.location || CardLocation.HAND,
-        rawPayload: { type: IdleCmdType.MSET, card }
-      })
+      options.push(
+        buildCardOption(
+          'mset',
+          `盖放怪兽 [${cardName(card.code)}]`,
+          'MSET',
+          card,
+          player,
+          { type: IdleCmdType.MSET, card },
+          resolver
+        )
+      )
     }
 
     for (const card of msg.reposableCards) {
-      const info = cdbService.getCardById(card.code)
-      options.push({
-        id: `repos-${card.code}-${card.sequence}`,
-        label: `改变形式 [${info?.name || card.code}]`,
-        type: 'REPOS',
-        cardCode: card.code,
-        controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
-        location: card.location || CardLocation.MZONE,
-        rawPayload: { type: IdleCmdType.REPOS, card }
-      })
+      options.push(
+        buildCardOption(
+          'repos',
+          `改变形式 [${cardName(card.code)}]`,
+          'REPOS',
+          card,
+          player,
+          { type: IdleCmdType.REPOS, card },
+          resolver
+        )
+      )
     }
 
     for (const card of msg.activatableCards) {
-      const info = cdbService.getCardById(card.code)
-      options.push({
-        id: `activate-${card.code}-${card.sequence}-${card.desc}`,
-        label: `发动 [${info?.name || card.code}]`,
-        type: 'ACTIVATE',
-        cardCode: card.code,
-        controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
-        location: card.location,
-        rawPayload: { type: IdleCmdType.ACTIVATE, card }
-      })
+      options.push(
+        buildCardOption(
+          'activate',
+          activateLabel(card.code, card.desc),
+          'ACTIVATE',
+          card,
+          player,
+          { type: IdleCmdType.ACTIVATE, card },
+          resolver,
+          card.desc
+        )
+      )
     }
 
     if (msg.canBp) {
@@ -165,31 +216,32 @@ export function parsePendingAction(msg: unknown): EnginePendingAction {
 
   if (msg instanceof YGOProMsgSelectBattleCmd) {
     for (const card of msg.attackableCards) {
-      const info = cdbService.getCardById(card.code)
-      options.push({
-        id: `attack-${card.code}-${card.sequence}`,
-        label: `攻击 [${info?.name || card.code}]`,
-        type: 'ATTACK',
-        cardCode: card.code,
-        controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
-        location: card.location || CardLocation.MZONE,
-        rawPayload: { type: BattleCmdType.ATTACK, card }
-      })
+      options.push(
+        buildCardOption(
+          'attack',
+          `攻击 [${cardName(card.code)}]`,
+          'ATTACK',
+          card,
+          player,
+          { type: BattleCmdType.ATTACK, card },
+          resolver
+        )
+      )
     }
 
     for (const card of msg.activatableCards) {
-      const info = cdbService.getCardById(card.code)
-      options.push({
-        id: `activate-bp-${card.code}-${card.sequence}-${card.desc}`,
-        label: `发动 [${info?.name || card.code}]`,
-        type: 'ACTIVATE',
-        cardCode: card.code,
-        controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
-        location: card.location,
-        rawPayload: { type: BattleCmdType.ACTIVATE, card }
-      })
+      options.push(
+        buildCardOption(
+          'activate-bp',
+          activateLabel(card.code, card.desc),
+          'ACTIVATE',
+          card,
+          player,
+          { type: BattleCmdType.ACTIVATE, card },
+          resolver,
+          card.desc
+        )
+      )
     }
 
     if (msg.canM2) {
@@ -247,11 +299,17 @@ export function parsePendingAction(msg: unknown): EnginePendingAction {
   if (msg instanceof YGOProMsgSelectChain) {
     for (let idx = 0; idx < msg.chains.length; idx++) {
       const card = msg.chains[idx]
-      const info = cdbService.getCardById(card.code)
+      const resolved = resolver?.(
+        card.controller ?? player,
+        card.location,
+        card.sequence,
+        card.code
+      )
       options.push({
         id: `chain-${card.code}-${card.sequence}-${idx}`,
-        label: `发动连锁: [${info?.name || card.code}]`,
+        label: `发动连锁: [${cardName(card.code)}]`,
         type: 'CHAIN',
+        instanceId: resolved?.instanceId,
         cardCode: card.code,
         controller: (card.controller ?? player) as 0 | 1,
         sequence: card.sequence,
@@ -277,15 +335,21 @@ export function parsePendingAction(msg: unknown): EnginePendingAction {
   if (msg instanceof YGOProMsgSelectCard) {
     for (let idx = 0; idx < msg.cards.length; idx++) {
       const card = msg.cards[idx]
-      const info = cdbService.getCardById(card.code)
+      const resolved = resolver?.(
+        card.controller ?? player,
+        card.location,
+        card.sequence,
+        card.code
+      )
       options.push({
-        id: `select-card-${card.code}-${idx}`,
-        label: `选择 [${info?.name || card.code}]`,
+        id: `select-card-${card.code}-${card.location}-${card.sequence}-${idx}`,
+        label: `选择 [${cardName(card.code)}]`,
         type: 'SELECT_CARD',
+        instanceId: resolved?.instanceId,
         cardCode: card.code,
         controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
         location: card.location,
+        sequence: card.sequence,
         rawPayload: { index: idx, card }
       })
     }
@@ -312,16 +376,30 @@ export function parsePendingAction(msg: unknown): EnginePendingAction {
   if (msg instanceof YGOProMsgSelectTribute) {
     for (let idx = 0; idx < msg.cards.length; idx++) {
       const card = msg.cards[idx]
-      const info = cdbService.getCardById(card.code)
+      const resolved = resolver?.(
+        card.controller ?? player,
+        card.location,
+        card.sequence,
+        card.code
+      )
       options.push({
-        id: `tribute-${card.code}-${idx}`,
-        label: `解放 [${info?.name || card.code}]`,
+        id: `tribute-${card.code}-${card.location}-${card.sequence}-${idx}`,
+        label: `解放 [${cardName(card.code)}]`,
         type: 'TRIBUTE',
+        instanceId: resolved?.instanceId,
         cardCode: card.code,
         controller: (card.controller ?? player) as 0 | 1,
-        sequence: card.sequence,
         location: card.location,
+        sequence: card.sequence,
         rawPayload: { index: idx, card }
+      })
+    }
+    if (msg.cancelable) {
+      options.push({
+        id: 'tribute-cancel',
+        label: '取消',
+        type: 'PASS',
+        rawPayload: { cancel: true }
       })
     }
     return {
@@ -363,28 +441,33 @@ export function parsePendingAction(msg: unknown): EnginePendingAction {
 
   if (msg instanceof YGOProMsgSelectEffectYn) {
     const info = msg.code ? cdbService.getCardById(msg.code) : null
-    const cardName = info ? info.name : '卡片'
+    const cardNameText = info ? info.name : ''
+    const resolved = resolver?.(msg.controller ?? player, msg.location, msg.sequence, msg.code)
+    const descText = getEffectDescText(msg.desc, cardNameText)
     options.push({
       id: 'effectyn-yes',
       label: '发动',
       type: 'YES',
+      instanceId: resolved?.instanceId,
       rawPayload: { value: 1 }
     })
     options.push({
       id: 'effectyn-no',
       label: '放弃',
       type: 'NO',
+      instanceId: resolved?.instanceId,
       rawPayload: { value: 0 }
     })
     return {
       kind: 'SELECT_EFFECTYN',
       player,
-      title: `是否发动【${cardName}】的效果？`,
+      title: descText ?? `是否发动【${cardNameText}】的效果？`,
       options
     }
   }
 
   if (msg instanceof YGOProMsgSelectYesNo) {
+    const yesDesc = getEffectDescText(msg.desc, '') ?? getSystemDescText(msg.desc, '')
     options.push({
       id: 'yesno-yes',
       label: '是 (Yes)',
@@ -400,7 +483,7 @@ export function parsePendingAction(msg: unknown): EnginePendingAction {
     return {
       kind: 'SELECT_YESNO',
       player,
-      title: `Player ${player} 提示确认`,
+      title: yesDesc ?? `Player ${player} 提示确认`,
       options
     }
   }
@@ -408,9 +491,10 @@ export function parsePendingAction(msg: unknown): EnginePendingAction {
   if (msg instanceof YGOProMsgSelectOption) {
     for (let i = 0; i < msg.options.length; i++) {
       const optCode = msg.options[i]
+      const optText = getEffectDescText(optCode, '') ?? getSystemDescText(optCode, '')
       options.push({
         id: `opt-${i}`,
-        label: `选项 ${i + 1}`,
+        label: optText ?? `选项 ${i + 1}`,
         type: 'OPTION',
         rawPayload: { index: i, optCode }
       })
@@ -424,27 +508,113 @@ export function parsePendingAction(msg: unknown): EnginePendingAction {
   }
 
   if (msg instanceof YGOProMsgAnnounceAttrib) {
+    const SC = OcgcoreScriptConstants
     const attribs: [number, string][] = [
-      [0x1, '地'],
-      [0x2, '水'],
-      [0x4, '炎'],
-      [0x8, '风'],
-      [0x10, '光'],
-      [0x20, '暗'],
-      [0x40, '神']
+      [SC.ATTRIBUTE_EARTH, '地'],
+      [SC.ATTRIBUTE_WATER, '水'],
+      [SC.ATTRIBUTE_FIRE, '炎'],
+      [SC.ATTRIBUTE_WIND, '风'],
+      [SC.ATTRIBUTE_LIGHT, '光'],
+      [SC.ATTRIBUTE_DARK, '暗'],
+      [SC.ATTRIBUTE_DIVINE, '神']
     ]
     for (const [bit, label] of attribs) {
-      options.push({
-        id: `attrib-${bit}`,
-        label,
-        type: 'ANNOUNCE',
-        rawPayload: { value: bit }
-      })
+      if ((msg.availableAttributes & bit) !== 0) {
+        options.push({
+          id: `attrib-${bit}`,
+          label,
+          type: 'ANNOUNCE',
+          rawPayload: { value: bit }
+        })
+      }
     }
     return {
       kind: 'ANNOUNCE',
       player,
       title: `Player ${player} 宣言属性`,
+      subtitle: msg.count > 1 ? `请选择 ${msg.count} 种属性` : undefined,
+      options
+    }
+  }
+
+  if (msg instanceof YGOProMsgAnnounceRace) {
+    const SC = OcgcoreScriptConstants
+    const races: [number, string][] = [
+      [SC.RACE_DRAGON, '龙'],
+      [SC.RACE_SPELLCASTER, '魔法师'],
+      [SC.RACE_WARRIOR, '战士'],
+      [SC.RACE_BEASTWARRIOR, '兽战士'],
+      [SC.RACE_BEAST, '兽'],
+      [SC.RACE_FAIRY, '天使'],
+      [SC.RACE_FIEND, '恶魔'],
+      [SC.RACE_ZOMBIE, '不死'],
+      [SC.RACE_MACHINE, '机械'],
+      [SC.RACE_AQUA, '水'],
+      [SC.RACE_PYRO, '炎'],
+      [SC.RACE_ROCK, '岩石'],
+      [SC.RACE_WINDBEAST, '鸟兽'],
+      [SC.RACE_PLANT, '植物'],
+      [SC.RACE_INSECT, '昆虫'],
+      [SC.RACE_THUNDER, '雷'],
+      [SC.RACE_DINOSAUR, '恐龙'],
+      [SC.RACE_FISH, '鱼'],
+      [SC.RACE_SEASERPENT, '海龙'],
+      [SC.RACE_REPTILE, '爬虫'],
+      [SC.RACE_PSYCHO, '念动力'],
+      [SC.RACE_DIVINE, '幻神兽'],
+      [SC.RACE_CREATORGOD, '创世神'],
+      [SC.RACE_WYRM, '幻龙'],
+      [SC.RACE_CYBERSE, '电子界'],
+      [SC.RACE_ILLUSION, '幻影']
+    ]
+    for (const [bit, label] of races) {
+      if ((msg.availableRaces & bit) !== 0) {
+        options.push({
+          id: `race-${bit}`,
+          label,
+          type: 'ANNOUNCE',
+          rawPayload: { value: bit }
+        })
+      }
+    }
+    return {
+      kind: 'ANNOUNCE',
+      player,
+      title: `Player ${player} 宣言种族`,
+      subtitle: msg.count > 1 ? `请选择 ${msg.count} 种种族` : undefined,
+      options
+    }
+  }
+
+  if (msg instanceof YGOProMsgAnnounceNumber) {
+    for (const num of msg.numbers) {
+      options.push({
+        id: `annnum-${num}`,
+        label: String(num),
+        type: 'ANNOUNCE',
+        rawPayload: { value: num }
+      })
+    }
+    return {
+      kind: 'ANNOUNCE',
+      player,
+      title: `Player ${player} 宣言数字`,
+      options
+    }
+  }
+
+  if (msg instanceof YGOProMsgAnnounceCard) {
+    options.push({
+      id: 'anncard-free',
+      label: '指定卡名宣布',
+      type: 'ANNOUNCE',
+      rawPayload: { freeSearch: true }
+    })
+    return {
+      kind: 'ANNOUNCE',
+      player,
+      title: `Player ${player} 宣言卡片`,
+      subtitle: `请在搜索面板中选择要宣言的卡名（共 ${msg.count} 次）`,
       options
     }
   }

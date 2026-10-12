@@ -28,6 +28,8 @@ export interface EnginePlayerState {
   extra?: EngineCard[]
   mzone: (EngineCard | null)[]
   szone: (EngineCard | null)[]
+  fzone: EngineCard | null
+  pzone: (EngineCard | null)[]
   graveyard: EngineCard[]
   banished: EngineCard[]
 }
@@ -67,6 +69,7 @@ export interface EngineActionOption {
   id: string
   label: string
   type: EngineActionType
+  instanceId?: string
   cardCode?: number
   controller?: 0 | 1
   location?: number
@@ -127,11 +130,46 @@ export interface EngineDuelInitParams {
   puzzleState?: DuelPuzzleState
 }
 
+export interface EngineOptionMatchCard {
+  instanceId?: string
+  controller?: number
+  location: number
+  sequence?: number
+  code?: number
+}
+
+function isSameEngineZone(
+  optLocation: number | undefined,
+  cardLocation: number,
+  optSequence: number | undefined,
+  cardSequence: number | undefined
+): boolean {
+  if (optLocation === undefined) return true
+  if (optLocation === cardLocation) {
+    if (optSequence !== undefined && cardSequence !== undefined && optSequence !== cardSequence) {
+      return false
+    }
+    return true
+  }
+  const optIsField =
+    optLocation === CardLocation.FZONE || (optLocation === CardLocation.SZONE && optSequence === 5)
+  const cardIsField =
+    cardLocation === CardLocation.FZONE ||
+    (cardLocation === CardLocation.SZONE && cardSequence === 5)
+  return optIsField && cardIsField
+}
+
 export function isCardMatchingEngineOption(
-  card: { controller?: number; location: number; sequence?: number; code?: number },
+  card: EngineOptionMatchCard,
   opt: EngineActionOption
 ): boolean {
-  if (opt.cardCode === undefined && opt.location === undefined) {
+  if (card.instanceId && opt.instanceId) {
+    return card.instanceId === opt.instanceId
+  }
+  if (opt.cardCode === undefined) {
+    return false
+  }
+  if (card.code !== undefined && opt.cardCode !== card.code) {
     return false
   }
   if (
@@ -141,72 +179,11 @@ export function isCardMatchingEngineOption(
   ) {
     return false
   }
-  const isCardFieldSpell =
-    card.location === CardLocation.FZONE ||
-    (card.location === CardLocation.SZONE && card.sequence === 5)
-  const isOptFieldSpell =
-    opt.location === CardLocation.FZONE ||
-    (opt.location === CardLocation.SZONE && opt.sequence === 5)
-
-  if (!isCardFieldSpell || !isOptFieldSpell) {
-    if (opt.location !== undefined && opt.location !== card.location) {
-      return false
-    }
-  }
-  if (opt.cardCode !== undefined && card.code !== undefined && opt.cardCode !== card.code) {
-    return false
-  }
-  const isFieldZone =
-    card.location === CardLocation.MZONE ||
-    card.location === CardLocation.SZONE ||
-    card.location === CardLocation.FZONE ||
-    card.location === CardLocation.PZONE
-
-  if (isFieldZone && !isCardFieldSpell) {
-    if (
-      opt.sequence !== undefined &&
-      card.sequence !== undefined &&
-      opt.sequence !== card.sequence
-    ) {
-      return false
-    }
-  }
-  return true
-}
-
-export function areCardsEquivalent(
-  cardsA: {
-    code: number
-    location: number
-    sequence: number
-    controller: number
-    position: number
-  }[],
-  cardsB: {
-    code: number
-    location: number
-    sequence: number
-    controller: number
-    position: number
-  }[]
-): boolean {
-  if (cardsA.length !== cardsB.length) return false
-  const mapA = new Map<string, number>()
-  for (const c of cardsA) {
-    const key = `${c.code}_${c.controller}_${c.location}_${c.sequence}_${c.position}`
-    mapA.set(key, (mapA.get(key) || 0) + 1)
-  }
-  for (const c of cardsB) {
-    const key = `${c.code}_${c.controller}_${c.location}_${c.sequence}_${c.position}`
-    const count = mapA.get(key)
-    if (!count) return false
-    if (count === 1) mapA.delete(key)
-    else mapA.set(key, count - 1)
-  }
-  return mapA.size === 0
+  return isSameEngineZone(opt.location, card.location, opt.sequence, card.sequence)
 }
 
 export interface EngineDiffMovedCard {
+  instanceId: string | null
   code: number
   fromController: 0 | 1
   fromLocation: number
@@ -218,14 +195,17 @@ export interface EngineDiffMovedCard {
 }
 
 export interface EngineDiffAddedCard {
+  instanceId: string
   code: number
   controller: 0 | 1
   location: number
   sequence: number
   position: number
+  card?: CdbCard
 }
 
 export interface EngineDiffRemovedCard {
+  instanceId: string | null
   code: number
   controller: 0 | 1
   location: number
@@ -233,6 +213,7 @@ export interface EngineDiffRemovedCard {
 }
 
 export interface EngineDiffPositionChange {
+  instanceId: string | null
   controller: 0 | 1
   location: number
   sequence: number
@@ -246,12 +227,22 @@ export interface EngineDiffLpChange {
 }
 
 export interface EngineDiffCounterChange {
+  instanceId: string | null
   controller: 0 | 1
   location: number
   sequence: number
   code: number
   counterType: number
   newCount: number
+}
+
+export interface EngineDiffOverlayChange {
+  hostInstanceId: string
+  hostController: 0 | 1
+  hostSequence: number
+  materialCode: number
+  matIndex: number
+  attached: boolean
 }
 
 export interface EngineDiffResult {
@@ -261,6 +252,7 @@ export interface EngineDiffResult {
   positionChanges: EngineDiffPositionChange[]
   lpChanges: EngineDiffLpChange[]
   counterChanges: EngineDiffCounterChange[]
+  overlayChanges: EngineDiffOverlayChange[]
   phaseChange?: {
     phase: number
     phaseName: string

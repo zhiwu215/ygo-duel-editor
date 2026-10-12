@@ -169,11 +169,19 @@ export function buildResponseForOption(
   }
 
   if (msg instanceof YGOProMsgAnnounceCard) {
+    const cardCode = Number(
+      (payload as { cardCode?: number } | undefined)?.cardCode ?? option.rawPayload.value ?? 0
+    )
+    if (!cardCode) {
+      throw new Error('宣言卡片需要先指定卡名 (cardCode)。')
+    }
+    const cardName = cdbService.getCardById(cardCode)?.name || String(cardCode)
     return {
-      response: msg.prepareResponse(option.rawPayload.value),
-      logText: `宣言卡片: ${option.label}`
+      response: msg.prepareResponse(cardCode),
+      logText: `宣言卡片: ${cardName}`
     }
   }
 
-  return { response: new Uint8Array(4), logText: option.label }
+  const msgName = (msg as { constructor?: { name?: string } }).constructor?.name ?? 'unknown'
+  throw new Error(`不支持的引擎询问类型: ${msgName}`)
 }

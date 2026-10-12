@@ -35,11 +35,44 @@ const PHASE_NAMES: Record<number, string> = {
   512: '结束阶段 (EP)'
 }
 
+const MZONE_SIZE = 7
+const SZONE_SIZE = 6
+const PZONE_SIZE = 2
+
+interface MoveCardLocation {
+  controller: number
+  location: number
+  sequence: number
+  position: number
+}
+
+export interface TrackedCounts {
+  lp: number
+  deckCount: number
+  extraCount: number
+  graveCount: number
+  removedCount: number
+  handCount: number
+  mzoneCount: number
+  szoneCount: number
+}
+
 export class BoardTracker {
   private state: EngineBoardState
+  private idCounter = 0
+  private turnStarted = false
 
   constructor(p0Lp = 8000, p1Lp = 8000) {
     this.state = this.createInitialState(p0Lp, p1Lp)
+  }
+
+  private allocateInstanceId(prefix: string): string {
+    this.idCounter += 1
+    return `${prefix}-${this.idCounter}`
+  }
+
+  private normalizePlayer(player: number): 0 | 1 {
+    return player === 1 ? 1 : 0
   }
 
   private createInitialState(p0Lp: number, p1Lp: number): EngineBoardState {
@@ -52,8 +85,10 @@ export class BoardTracker {
       graveCount: 0,
       removedCount: 0,
       hand: [],
-      mzone: [null, null, null, null, null, null, null],
-      szone: [null, null, null, null, null, null],
+      mzone: Array.from({ length: MZONE_SIZE }, () => null),
+      szone: Array.from({ length: SZONE_SIZE }, () => null),
+      fzone: null,
+      pzone: Array.from({ length: PZONE_SIZE }, () => null),
       graveyard: [],
       banished: []
     })
@@ -70,6 +105,8 @@ export class BoardTracker {
 
   reset(p0Lp = 8000, p1Lp = 8000): void {
     this.state = this.createInitialState(p0Lp, p1Lp)
+    this.idCounter = 0
+    this.turnStarted = false
   }
 
   getState(): EngineBoardState {
@@ -79,6 +116,7 @@ export class BoardTracker {
 
   setState(state: EngineBoardState): void {
     this.state = JSON.parse(JSON.stringify(state))
+    this.turnStarted = true
   }
 
   initializeDecks(
@@ -89,7 +127,7 @@ export class BoardTracker {
   ): void {
     const makeCards = (codes: number[], player: 0 | 1, location: number): EngineCard[] => {
       return codes.map((code, idx) => ({
-        instanceId: `card-${code}-${player}-${location}-${idx}`,
+        instanceId: this.allocateInstanceId('engine'),
         code,
         controller: player,
         owner: player,
@@ -136,6 +174,10 @@ export class BoardTracker {
         if (card.sequence < p.mzone.length) p.mzone[card.sequence] = ec
       } else if (card.location === CardLocation.SZONE) {
         if (card.sequence < p.szone.length) p.szone[card.sequence] = ec
+      } else if (card.location === CardLocation.FZONE) {
+        p.fzone = ec
+      } else if (card.location === CardLocation.PZONE) {
+        if (card.sequence < p.pzone.length) p.pzone[card.sequence] = ec
       } else if (card.location === CardLocation.GRAVE) {
         p.graveyard.push(ec)
       } else if (card.location === CardLocation.REMOVED) {
@@ -150,7 +192,25 @@ export class BoardTracker {
     }
 
     for (const p of this.state.players) {
-      p.hand.forEach((c, idx) => {
+      this.renumberHand(p)
+      if (p.deck) {
+        p.deck.sort((a, b) => a.sequence - b.sequence)
+        p.deck.forEach((c, idx) => {
+          c.sequence = idx
+        })
+      }
+      if (p.extra) {
+        p.extra.sort((a, b) => a.sequence - b.sequence)
+        p.extra.forEach((c, idx) => {
+          c.sequence = idx
+        })
+      }
+      p.graveyard.sort((a, b) => a.sequence - b.sequence)
+      p.graveyard.forEach((c, idx) => {
+        c.sequence = idx
+      })
+      p.banished.sort((a, b) => a.sequence - b.sequence)
+      p.banished.forEach((c, idx) => {
         c.sequence = idx
       })
       p.deckCount = p.deck ? p.deck.length : 0
@@ -167,6 +227,69 @@ export class BoardTracker {
     this.state.players[1].extraCount = p1Extra
   }
 
+  findCard(
+    controller: number,
+    location: number,
+    sequence: number,
+    code?: number
+  ): EngineCard | undefined {
+    const p = this.state.players[this.normalizePlayer(controller)]
+    if (!p) return undefined
+    const matchesCode = (c: EngineCard): boolean =>
+      code === undefined || code === 0 || c.code === code
+
+    if (location === CardLocation.HAND) {
+      const bySeq = p.hand.find((c) => c.sequence === sequence && matchesCode(c))
+      return bySeq ?? p.hand[sequence]
+    }
+    if (location === CardLocation.MZONE) {
+      const slot = p.mzone[sequence]
+      return slot && matchesCode(slot) ? slot : undefined
+    }
+    if (location === CardLocation.SZONE) {
+      if (sequence < p.szone.length) {
+        const slot = p.szone[sequence]
+        if (slot && matchesCode(slot)) return slot
+      }
+      return p.fzone && matchesCode(p.fzone) ? p.fzone : undefined
+    }
+    if (location === CardLocation.FZONE) {
+      return p.fzone && matchesCode(p.fzone) ? p.fzone : undefined
+    }
+    if (location === CardLocation.PZONE) {
+      const slot = p.pzone[sequence]
+      return slot && matchesCode(slot) ? slot : undefined
+    }
+    if (location === CardLocation.GRAVE) {
+      return p.graveyard.find((c) => c.sequence === sequence && matchesCode(c))
+    }
+    if (location === CardLocation.REMOVED) {
+      return p.banished.find((c) => c.sequence === sequence && matchesCode(c))
+    }
+    if (location === CardLocation.DECK) {
+      const pile = p.deck || []
+      return pile.find((c) => c.sequence === sequence && matchesCode(c)) ?? pile[sequence]
+    }
+    if (location === CardLocation.EXTRA) {
+      const pile = p.extra || []
+      return pile.find((c) => c.sequence === sequence && matchesCode(c)) ?? pile[sequence]
+    }
+    return undefined
+  }
+
+  snapshotCounts(): TrackedCounts[] {
+    return this.state.players.map((p) => ({
+      lp: p.lp,
+      deckCount: p.deckCount,
+      extraCount: p.extraCount,
+      graveCount: p.graveyard.length,
+      removedCount: p.banished.length,
+      handCount: p.hand.length,
+      mzoneCount: p.mzone.filter(Boolean).length,
+      szoneCount: p.szone.filter(Boolean).length + (p.fzone ? 1 : 0)
+    }))
+  }
+
   private syncAllCards(): void {
     const list: EngineCard[] = []
     for (const p of this.state.players) {
@@ -179,6 +302,10 @@ export class BoardTracker {
       for (const s of p.szone) {
         if (s) list.push(s)
       }
+      if (p.fzone) list.push(p.fzone)
+      for (const z of p.pzone) {
+        if (z) list.push(z)
+      }
       list.push(...p.graveyard)
       list.push(...p.banished)
     }
@@ -188,8 +315,11 @@ export class BoardTracker {
   applyMessages(messages: unknown[]): void {
     for (const msg of messages) {
       if (msg instanceof YGOProMsgNewTurn) {
+        if (this.turnStarted) {
+          this.state.turn++
+        }
+        this.turnStarted = true
         this.state.turnPlayer = (msg.player === 1 ? 1 : 0) as 0 | 1
-        this.state.turn++
       } else if (msg instanceof YGOProMsgNewPhase) {
         this.state.phase = msg.phase
         this.state.phaseName = PHASE_NAMES[msg.phase] || `阶段 (${msg.phase})`
@@ -203,10 +333,10 @@ export class BoardTracker {
           for (const code of msg.cards) {
             const cardInfo = cdbService.getCardById(code) || undefined
             p.hand.push({
-              instanceId: `card-${code}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              instanceId: this.allocateInstanceId('engine'),
               code,
-              controller: (msg.player === 1 ? 1 : 0) as 0 | 1,
-              owner: (msg.player === 1 ? 1 : 0) as 0 | 1,
+              controller: this.normalizePlayer(msg.player),
+              owner: this.normalizePlayer(msg.player),
               location: CardLocation.HAND,
               sequence: p.hand.length,
               position: 0x1,
@@ -214,6 +344,7 @@ export class BoardTracker {
               card: cardInfo
             })
           }
+          this.renumberHand(p)
         }
       } else if (msg instanceof YGOProMsgDamage) {
         const p = this.state.players[msg.player]
@@ -280,112 +411,222 @@ export class BoardTracker {
             }
           }
           reordered.push(...remaining)
-          reordered.forEach((c, idx) => {
-            c.sequence = idx
-          })
           p.hand = reordered
+          this.renumberHand(p)
         }
       }
     }
     this.syncAllCards()
   }
 
-  private handleMove(msg: YGOProMsgMove): void {
-    const fromP = this.state.players[msg.previous.controller]
-    const toP = this.state.players[msg.current.controller]
-    if (!fromP || !toP) return
+  private renumberHand(p: EnginePlayerState): void {
+    p.hand.forEach((c, idx) => {
+      c.sequence = idx
+    })
+  }
 
-    let movedCard: EngineCard | null = null
+  private extractCard(
+    player: EnginePlayerState,
+    from: MoveCardLocation,
+    code: number
+  ): EngineCard | null {
+    const loc = from.location
 
-    // 1. 从原位置移除
-    if (msg.previous.location === CardLocation.HAND) {
-      const idx = fromP.hand.findIndex(
-        (c) => c.code === msg.code || c.sequence === msg.previous.sequence
-      )
-      if (idx !== -1) {
-        movedCard = fromP.hand.splice(idx, 1)[0]
+    if (loc === CardLocation.HAND) {
+      let idx = player.hand.findIndex((c) => c.sequence === from.sequence && c.code === code)
+      if (idx === -1) {
+        idx = player.hand.findIndex((c) => c.sequence === from.sequence)
       }
-    } else if (msg.previous.location === CardLocation.MZONE) {
-      if (fromP.mzone[msg.previous.sequence]) {
-        movedCard = fromP.mzone[msg.previous.sequence]
-        fromP.mzone[msg.previous.sequence] = null
+      if (idx === -1) return null
+      const [card] = player.hand.splice(idx, 1)
+      this.renumberHand(player)
+      return card
+    }
+
+    if (loc === CardLocation.MZONE) {
+      const slot = player.mzone[from.sequence]
+      if (!slot) return null
+      player.mzone[from.sequence] = null
+      return slot
+    }
+
+    if (loc === CardLocation.SZONE) {
+      if (from.sequence < player.szone.length) {
+        const slot = player.szone[from.sequence]
+        if (slot) {
+          player.szone[from.sequence] = null
+          return slot
+        }
       }
-    } else if (msg.previous.location === CardLocation.SZONE) {
-      if (fromP.szone[msg.previous.sequence]) {
-        movedCard = fromP.szone[msg.previous.sequence]
-        fromP.szone[msg.previous.sequence] = null
-      }
-    } else if (msg.previous.location === CardLocation.GRAVE) {
-      const idx = fromP.graveyard.findIndex((c) => c.code === msg.code)
-      if (idx !== -1) movedCard = fromP.graveyard.splice(idx, 1)[0]
-      fromP.graveCount = fromP.graveyard.length
-    } else if (msg.previous.location === CardLocation.REMOVED) {
-      const idx = fromP.banished.findIndex((c) => c.code === msg.code)
-      if (idx !== -1) movedCard = fromP.banished.splice(idx, 1)[0]
-      fromP.removedCount = fromP.banished.length
-    } else if (msg.previous.location === CardLocation.DECK) {
-      fromP.deckCount = Math.max(0, fromP.deckCount - 1)
-      if (fromP.deck && fromP.deck.length > 0) {
-        const idx = fromP.deck.findIndex((c) => c.code === msg.code)
-        if (idx !== -1) movedCard = fromP.deck.splice(idx, 1)[0]
-        else movedCard = fromP.deck.shift() || null
-      }
-    } else if (msg.previous.location === CardLocation.EXTRA) {
-      fromP.extraCount = Math.max(0, fromP.extraCount - 1)
-      if (fromP.extra && fromP.extra.length > 0) {
-        const idx = fromP.extra.findIndex((c) => c.code === msg.code)
-        if (idx !== -1) movedCard = fromP.extra.splice(idx, 1)[0]
-        else movedCard = fromP.extra.shift() || null
+      return null
+    }
+
+    if (loc === CardLocation.FZONE) {
+      const slot = player.fzone
+      if (!slot) return null
+      player.fzone = null
+      return slot
+    }
+
+    if (loc === CardLocation.PZONE) {
+      const slot = player.pzone[from.sequence]
+      if (!slot) return null
+      player.pzone[from.sequence] = null
+      return slot
+    }
+
+    if (loc === CardLocation.OVERLAY) {
+      const host = player.mzone[from.sequence]
+      if (!host) return null
+      const matIdx = host.overlayMaterials.indexOf(code)
+      if (matIdx === -1) return null
+      host.overlayMaterials.splice(matIdx, 1)
+      return {
+        instanceId: this.allocateInstanceId('engine'),
+        code,
+        controller: host.controller,
+        owner: host.owner,
+        location: loc,
+        sequence: from.sequence,
+        position: 0x1,
+        overlayMaterials: [],
+        card: cdbService.getCardById(code) || undefined
       }
     }
 
-    // 构造或更新移动卡片信息
-    if (!movedCard) {
-      movedCard = {
-        instanceId: `card-${msg.code}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        code: msg.code,
-        controller: (msg.current.controller === 1 ? 1 : 0) as 0 | 1,
-        owner: (msg.current.controller === 1 ? 1 : 0) as 0 | 1,
-        location: msg.current.location,
-        sequence: msg.current.sequence,
-        position: msg.current.position,
-        overlayMaterials: [],
-        card: cdbService.getCardById(msg.code) || undefined
+    const pile =
+      loc === CardLocation.GRAVE
+        ? player.graveyard
+        : loc === CardLocation.REMOVED
+          ? player.banished
+          : loc === CardLocation.DECK
+            ? player.deck
+            : loc === CardLocation.EXTRA
+              ? player.extra
+              : null
+    if (!pile) return null
+
+    let idx = pile.findIndex((c) => c.sequence === from.sequence && c.code === code)
+    if (idx === -1) {
+      idx = pile.findIndex((c) => c.sequence === from.sequence)
+    }
+    if (idx === -1) {
+      const codeMatches = pile.reduce<number[]>((acc, c, i) => {
+        if (c.code === code) acc.push(i)
+        return acc
+      }, [])
+      if (codeMatches.length === 1) idx = codeMatches[0]
+    }
+    if (idx === -1) return null
+    const [card] = pile.splice(idx, 1)
+    if (loc === CardLocation.GRAVE) player.graveCount = player.graveyard.length
+    else if (loc === CardLocation.REMOVED) player.removedCount = player.banished.length
+    else if (loc === CardLocation.DECK) player.deckCount = Math.max(0, player.deckCount - 1)
+    else if (loc === CardLocation.EXTRA) player.extraCount = Math.max(0, player.extraCount - 1)
+    return card
+  }
+
+  private placeCard(player: EnginePlayerState, to: MoveCardLocation, card: EngineCard): void {
+    const loc = to.location
+
+    if (loc === CardLocation.HAND) {
+      player.hand.push(card)
+      this.renumberHand(player)
+      return
+    }
+
+    if (loc === CardLocation.MZONE) {
+      if (to.sequence < player.mzone.length) {
+        player.mzone[to.sequence] = card
       }
-    } else {
+      return
+    }
+
+    if (loc === CardLocation.FZONE) {
+      player.fzone = card
+      return
+    }
+
+    if (loc === CardLocation.SZONE) {
+      if (card.location === CardLocation.FZONE) {
+        player.fzone = card
+      } else if (to.sequence < player.szone.length) {
+        player.szone[to.sequence] = card
+      }
+      return
+    }
+
+    if (loc === CardLocation.PZONE) {
+      if (to.sequence < player.pzone.length) {
+        player.pzone[to.sequence] = card
+      }
+      return
+    }
+
+    if (loc === CardLocation.OVERLAY) {
+      const host = player.mzone[to.sequence]
+      if (host) {
+        host.overlayMaterials.push(card.code)
+      }
+      return
+    }
+
+    if (loc === CardLocation.GRAVE) {
+      player.graveyard.push(card)
+      player.graveCount = player.graveyard.length
+      return
+    }
+
+    if (loc === CardLocation.REMOVED) {
+      player.banished.push(card)
+      player.removedCount = player.banished.length
+      return
+    }
+
+    if (loc === CardLocation.DECK) {
+      player.deck = player.deck || []
+      player.deck.push(card)
+      player.deckCount++
+      return
+    }
+
+    if (loc === CardLocation.EXTRA) {
+      player.extra = player.extra || []
+      player.extra.push(card)
+      player.extraCount++
+    }
+  }
+
+  private handleMove(msg: YGOProMsgMove): void {
+    const fromP = this.state.players[this.normalizePlayer(msg.previous.controller)]
+    const toP = this.state.players[this.normalizePlayer(msg.current.controller)]
+    if (!fromP || !toP) return
+
+    let movedCard = this.extractCard(fromP, msg.previous, msg.code)
+
+    if (movedCard) {
       movedCard.code = msg.code || movedCard.code
-      movedCard.controller = (msg.current.controller === 1 ? 1 : 0) as 0 | 1
+      movedCard.controller = this.normalizePlayer(msg.current.controller)
       movedCard.location = msg.current.location
       movedCard.sequence = msg.current.sequence
       movedCard.position = msg.current.position
       if (!movedCard.card && movedCard.code) {
         movedCard.card = cdbService.getCardById(movedCard.code) || undefined
       }
+    } else {
+      movedCard = {
+        instanceId: this.allocateInstanceId(msg.code ? 'engine' : 'token'),
+        code: msg.code,
+        controller: this.normalizePlayer(msg.current.controller),
+        owner: this.normalizePlayer(msg.current.controller),
+        location: msg.current.location,
+        sequence: msg.current.sequence,
+        position: msg.current.position,
+        overlayMaterials: [],
+        card: msg.code ? cdbService.getCardById(msg.code) || undefined : undefined
+      }
     }
 
-    // 2. 放置到新位置
-    if (msg.current.location === CardLocation.HAND) {
-      toP.hand.push(movedCard)
-    } else if (msg.current.location === CardLocation.MZONE) {
-      if (msg.current.sequence < toP.mzone.length) {
-        toP.mzone[msg.current.sequence] = movedCard
-      }
-    } else if (msg.current.location === CardLocation.SZONE) {
-      if (msg.current.sequence < toP.szone.length) {
-        toP.szone[msg.current.sequence] = movedCard
-      }
-    } else if (msg.current.location === CardLocation.GRAVE) {
-      toP.graveyard.push(movedCard)
-      toP.graveCount = toP.graveyard.length
-    } else if (msg.current.location === CardLocation.REMOVED) {
-      toP.banished.push(movedCard)
-      toP.removedCount = toP.banished.length
-    } else if (msg.current.location === CardLocation.DECK) {
-      toP.deckCount++
-      if (toP.deck) toP.deck.push(movedCard)
-    } else if (msg.current.location === CardLocation.EXTRA) {
-      toP.extraCount++
-      if (toP.extra) toP.extra.push(movedCard)
-    }
+    this.placeCard(toP, msg.current, movedCard)
   }
 }

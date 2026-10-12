@@ -456,7 +456,8 @@ interface DuelStoreState {
     location: number,
     sequence: number,
     position?: number,
-    duelistId?: string
+    duelistId?: string,
+    engineInstanceId?: string
   ) => void
 
   applyBoardSetup: (params: {
@@ -1685,7 +1686,15 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         }),
 
-      addCardToZone: (card, controller, location, sequence, customPos, duelistId) =>
+      addCardToZone: (
+        card,
+        controller,
+        location,
+        sequence,
+        customPos,
+        duelistId,
+        engineInstanceId
+      ) =>
         set((prev) => {
           const isPileZone =
             location === CardLocation.HAND ||
@@ -1775,7 +1784,9 @@ export const useDuelStore = create<DuelStoreState>()(
               )
 
           const newCard: FieldCard = {
-            instanceId: `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            instanceId:
+              engineInstanceId ??
+              `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
             code: card.id,
             card,
             controller,

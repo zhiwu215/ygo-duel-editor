@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo } from 'react'
-import { CardLocation, CardPosition, isCardMatchingEngineOption } from '@shared/index'
+import {
+  CardLocation,
+  CardPosition,
+  EnginePendingAction,
+  isCardMatchingEngineOption
+} from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import {
@@ -20,6 +25,55 @@ import {
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
+
+const BoardSelectionControls: React.FC<{ pendingAction: EnginePendingAction }> = ({
+  pendingAction
+}) => {
+  const pickedOptionIds = useDuelEngineStore((s) => s.pickedOptionIds)
+  const confirmPendingSelection = useDuelEngineStore((s) => s.confirmPendingSelection)
+  const clearPendingSelection = useDuelEngineStore((s) => s.clearPendingSelection)
+
+  const min = pendingAction.min ?? 1
+  const max = pendingAction.max ?? 1
+  const ready = pickedOptionIds.length >= Math.max(min, 1)
+  const cancelOpt = pendingAction.options.find((o) => o.type === 'PASS')
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className={cn(
+          'text-[11px] font-bold tabular-nums',
+          ready ? 'text-emerald-500' : 'text-muted-foreground'
+        )}
+      >
+        已选 {pickedOptionIds.length}/{min === max ? min : `${min}~${max}`}
+      </span>
+      <Button
+        size="sm"
+        disabled={!ready}
+        className="h-6 px-2.5 text-[11px]"
+        onClick={() => void confirmPendingSelection()}
+      >
+        <Check className="h-3 w-3 mr-0.5" />
+        确认
+      </Button>
+      {cancelOpt && (
+        <Button
+          size="sm"
+          variant="secondary"
+          className="h-6 px-2 text-[11px]"
+          onClick={() => {
+            clearPendingSelection()
+            void useDuelEngineStore.getState().submitAction(cancelOpt.id)
+          }}
+        >
+          <X className="h-3 w-3 mr-0.5" />
+          取消
+        </Button>
+      )}
+    </div>
+  )
+}
 
 export const ActionIntentBar: React.FC = () => {
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
@@ -182,23 +236,34 @@ export const ActionIntentBar: React.FC = () => {
             enginePendingAction.kind === 'SELECT_EFFECTYN') && (
             <Check className="h-3.5 w-3.5 text-emerald-400" />
           )}
+          {(enginePendingAction.kind === 'SELECT_CARD' ||
+            enginePendingAction.kind === 'SELECT_TRIBUTE') && (
+            <Crosshair className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
+          )}
           <span className="font-medium text-xs text-foreground">
             {enginePendingAction.title}
             {enginePendingAction.subtitle ? ` (${enginePendingAction.subtitle})` : ''}
           </span>
-          <div className="flex items-center gap-1">
-            {enginePendingAction.options.map((opt) => (
-              <Button
-                key={opt.id}
-                size="sm"
-                variant={opt.type === 'PASS' || opt.type === 'NO' ? 'secondary' : 'default'}
-                className="h-6 px-2 text-[11px]"
-                onClick={() => void useDuelEngineStore.getState().submitAction(opt.id)}
-              >
-                {opt.label}
-              </Button>
-            ))}
-          </div>
+
+          {(enginePendingAction.kind === 'SELECT_CARD' ||
+            enginePendingAction.kind === 'SELECT_TRIBUTE') &&
+          !isModalActive ? (
+            <BoardSelectionControls pendingAction={enginePendingAction} />
+          ) : (
+            <div className="flex items-center gap-1">
+              {enginePendingAction.options.map((opt) => (
+                <Button
+                  key={opt.id}
+                  size="sm"
+                  variant={opt.type === 'PASS' || opt.type === 'NO' ? 'secondary' : 'default'}
+                  className="h-6 px-2 text-[11px]"
+                  onClick={() => void useDuelEngineStore.getState().submitAction(opt.id)}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       ) : pendingPlacement ? (
         <>

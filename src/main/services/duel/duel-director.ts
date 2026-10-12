@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import {
   EngineDuelInitParams,
   EnginePendingAction,
@@ -22,7 +24,15 @@ export class DuelDirector {
   }
 
   getVersion(): string {
-    return '1.5.5'
+    try {
+      const entry = require.resolve('koishipro-core.js') as string
+      const pkg = JSON.parse(
+        fs.readFileSync(path.join(path.dirname(entry), '../package.json'), 'utf-8')
+      ) as { version?: string }
+      return pkg.version || 'unknown'
+    } catch {
+      return 'unknown'
+    }
   }
 
   async initEngine(): Promise<void> {

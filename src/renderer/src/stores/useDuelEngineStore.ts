@@ -6,10 +6,10 @@ import {
   EngineDuelInitParams,
   EngineActionOption,
   EngineDiffResult,
+  CardLocation,
   CdbCard,
   DuelPhase,
   DuelPuzzleState,
-  DuelActionType,
   isCardMatchingEngineOption
 } from '@shared/index'
 import { useDuelStore } from './useDuelStore'
@@ -26,6 +26,11 @@ interface DuelEngineState {
   pendingAction: EnginePendingAction | null
   timeline: EngineTimelineNode[]
   currentStepId: string | null
+
+  pickedOptionIds: string[]
+  togglePendingSelection: (optionId: string) => void
+  confirmPendingSelection: () => Promise<void>
+  clearPendingSelection: () => void
 
   selectedCardId: string | null
   hoveredCard: CdbCard | null
@@ -46,9 +51,10 @@ interface DuelEngineState {
   setHoveredCard: (card: CdbCard | null, instanceId?: string | null) => void
 
   getActionsForCard: (card: {
+    instanceId?: string
     controller?: number
     location: number
-    sequence: number
+    sequence?: number
     code?: number
   }) => EngineActionOption[]
   canUndo: () => boolean
@@ -65,26 +71,55 @@ function mapPhaseToDuelPhase(phase: number): DuelPhase {
   return 'M1'
 }
 
-function applyDiffToDuelStore(diff: EngineDiffResult, node: EngineTimelineNode): void {
+function applyEngineWrite(apply: () => void): void {
+  const duelStore = useDuelStore.getState()
+  const prevState = duelStore.state
+  duelStore.pauseUndoTracking()
+  try {
+    apply()
+  } finally {
+    duelStore.resumeAndPushUndo(structuredClone(prevState))
+  }
+}
+
+function applyDiffBody(diff: EngineDiffResult): void {
   const duelStore = useDuelStore.getState()
   const currentCards = [...duelStore.state.cards]
 
+  const findById = (
+    instanceId: string | null | undefined
+  ): (typeof currentCards)[number] | undefined =>
+    instanceId ? currentCards.find((c) => c.instanceId === instanceId) : undefined
+
+  const findByFrom = (
+    fromController: number,
+    fromLocation: number,
+    fromSequence: number,
+    code: number
+  ): (typeof currentCards)[number] | undefined =>
+    currentCards.find(
+      (c) =>
+        c.controller === fromController &&
+        c.location === fromLocation &&
+        c.sequence === fromSequence &&
+        c.code === code
+    ) ??
+    currentCards.find(
+      (c) => c.controller === fromController && c.location === fromLocation && c.code === code
+    )
+
+  for (const oc of diff.overlayChanges) {
+    if (oc.attached) {
+      duelStore.addOverlayMaterial(oc.hostInstanceId, oc.materialCode)
+    } else {
+      duelStore.removeOverlayMaterial(oc.hostInstanceId, oc.matIndex)
+    }
+  }
+
   for (const moved of diff.movedCards) {
     const card =
-      currentCards.find(
-        (c) =>
-          c.controller === moved.fromController &&
-          c.location === moved.fromLocation &&
-          c.sequence === moved.fromSequence &&
-          c.code === moved.code
-      ) ??
-      currentCards.find(
-        (c) =>
-          c.controller === moved.fromController &&
-          c.location === moved.fromLocation &&
-          c.code === moved.code
-      )
-
+      findById(moved.instanceId) ??
+      findByFrom(moved.fromController, moved.fromLocation, moved.fromSequence, moved.code)
     if (card) {
       duelStore.moveCard(
         card.instanceId,
@@ -102,17 +137,7 @@ function applyDiffToDuelStore(diff: EngineDiffResult, node: EngineTimelineNode):
 
   for (const pos of diff.positionChanges) {
     const card =
-      currentCards.find(
-        (c) =>
-          c.controller === pos.controller &&
-          c.location === pos.location &&
-          c.sequence === pos.sequence &&
-          c.code === pos.code
-      ) ??
-      currentCards.find(
-        (c) => c.controller === pos.controller && c.location === pos.location && c.code === pos.code
-      )
-
+      findById(pos.instanceId) ?? findByFrom(pos.controller, pos.location, pos.sequence, pos.code)
     if (card) {
       duelStore.updateCardPosition(card.instanceId, pos.newPosition)
       card.position = pos.newPosition
@@ -121,17 +146,7 @@ function applyDiffToDuelStore(diff: EngineDiffResult, node: EngineTimelineNode):
 
   for (const rem of diff.removedCards) {
     const card =
-      currentCards.find(
-        (c) =>
-          c.controller === rem.controller &&
-          c.location === rem.location &&
-          c.sequence === rem.sequence &&
-          c.code === rem.code
-      ) ??
-      currentCards.find(
-        (c) => c.controller === rem.controller && c.location === rem.location && c.code === rem.code
-      )
-
+      findById(rem.instanceId) ?? findByFrom(rem.controller, rem.location, rem.sequence, rem.code)
     if (card) {
       duelStore.removeCard(card.instanceId)
       const idx = currentCards.indexOf(card)
@@ -140,23 +155,48 @@ function applyDiffToDuelStore(diff: EngineDiffResult, node: EngineTimelineNode):
   }
 
   for (const added of diff.addedCards) {
-    void window.api
-      .searchCards({ code: added.code })
-      .then((cards) => {
-        const cdbCard = cards[0]
-        if (cdbCard) {
-          useDuelStore
-            .getState()
-            .addCardToZone(
-              cdbCard,
-              added.controller,
-              added.location,
-              added.sequence,
-              added.position
-            )
-        }
+    if (currentCards.some((c) => c.instanceId === added.instanceId)) continue
+    if (added.card) {
+      const cdbCard = added.card
+      duelStore.addCardToZone(
+        cdbCard,
+        added.controller,
+        added.location,
+        added.sequence,
+        added.position,
+        undefined,
+        added.instanceId
+      )
+      currentCards.push({
+        instanceId: added.instanceId,
+        code: cdbCard.id,
+        card: cdbCard,
+        controller: added.controller,
+        owner: added.controller,
+        location: added.location,
+        sequence: added.sequence,
+        position: added.position,
+        overlayMaterials: []
       })
-      .catch(() => {})
+    } else {
+      void window.api
+        .searchCards({ code: added.code })
+        .then((cards) => {
+          const cdbCard = cards[0]
+          if (cdbCard) {
+            useDuelStore
+              .getState()
+              .addCardToZone(
+                cdbCard,
+                added.controller,
+                added.location,
+                added.sequence,
+                added.position
+              )
+          }
+        })
+        .catch(() => {})
+    }
   }
 
   for (const lp of diff.lpChanges) {
@@ -164,13 +204,9 @@ function applyDiffToDuelStore(diff: EngineDiffResult, node: EngineTimelineNode):
   }
 
   for (const counter of diff.counterChanges) {
-    const card = currentCards.find(
-      (c) =>
-        c.controller === counter.controller &&
-        c.location === counter.location &&
-        c.sequence === counter.sequence &&
-        c.code === counter.code
-    )
+    const card =
+      findById(counter.instanceId) ??
+      findByFrom(counter.controller, counter.location, counter.sequence, counter.code)
     if (card) {
       duelStore.setCardCounter(card.instanceId, counter.counterType, counter.newCount)
     }
@@ -183,57 +219,84 @@ function applyDiffToDuelStore(diff: EngineDiffResult, node: EngineTimelineNode):
   if (diff.turnChange) {
     duelStore.setTurnPlayer(diff.turnChange.turnPlayer)
   }
+}
 
-  let actionType: DuelActionType = 'NORMAL_SUMMON'
-  if (node.title.includes('通常召唤')) actionType = 'NORMAL_SUMMON'
-  else if (node.title.includes('特殊召唤')) actionType = 'SPECIAL_SUMMON'
-  else if (node.title.includes('盖放怪兽')) actionType = 'SET_MONSTER'
-  else if (node.title.includes('盖放')) actionType = 'SET_SPELL_TRAP'
-  else if (node.title.includes('发动')) actionType = 'ACTIVATE'
-  else if (node.title.includes('变更表示形式')) actionType = 'CHANGE_POS'
-  else if (node.title.includes('攻击')) actionType = 'ATTACK'
-  else if (
-    node.title.includes('战斗阶段') ||
-    node.title.includes('主要阶段2') ||
-    node.title.includes('结束')
-  )
-    actionType = 'PHASE_CHANGE'
+function applyDiffToDuelStore(diff: EngineDiffResult): void {
+  applyEngineWrite(() => applyDiffBody(diff))
+}
 
-  duelStore.addStep({
-    turn: node.boardState.turn,
-    turnPlayer: node.boardState.turnPlayer,
-    phase: mapPhaseToDuelPhase(node.boardState.phase),
-    actionPlayer: node.player,
-    actionType,
-    description: node.title
-  })
+function syncJumpToStepWrapped(boardState: EngineBoardState): void {
+  applyEngineWrite(() => syncJumpToStepToDuelStore(boardState))
 }
 
 function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
   const duelStore = useDuelStore.getState()
-  const currentCards = duelStore.state.cards
-  const unmatchedEngineCards = [...boardState.allCards]
+  const currentCards = [...duelStore.state.cards]
+  const engineById = new Map(boardState.allCards.map((c) => [c.instanceId, c]))
+  const usedEngineIds = new Set<string>()
 
   for (const card of currentCards) {
-    const idx = unmatchedEngineCards.findIndex(
-      (ec) =>
-        ec.code === card.code &&
-        ec.controller === card.controller &&
-        ec.location === card.location &&
-        ec.sequence === card.sequence
-    )
-    if (idx !== -1) {
-      const ec = unmatchedEngineCards.splice(idx, 1)[0]
-      if (card.position !== ec.position) {
-        duelStore.updateCardPosition(card.instanceId, ec.position)
-      }
-    } else {
-      const fallbackIdx = unmatchedEngineCards.findIndex((ec) => ec.code === card.code)
-      if (fallbackIdx !== -1) {
-        const ec = unmatchedEngineCards.splice(fallbackIdx, 1)[0]
-        duelStore.moveCard(card.instanceId, ec.location, ec.sequence, ec.controller, ec.position)
+    const ec = engineById.get(card.instanceId)
+    if (!ec) {
+      duelStore.removeCard(card.instanceId)
+      continue
+    }
+    usedEngineIds.add(ec.instanceId)
+
+    if (
+      card.location !== ec.location ||
+      card.sequence !== ec.sequence ||
+      card.controller !== ec.controller
+    ) {
+      duelStore.moveCard(card.instanceId, ec.location, ec.sequence, ec.controller, ec.position)
+      card.location = ec.location
+      card.sequence = ec.sequence
+      card.controller = ec.controller
+      card.position = ec.position
+    } else if (card.position !== ec.position) {
+      duelStore.updateCardPosition(card.instanceId, ec.position)
+      card.position = ec.position
+    }
+
+    if (ec.location === CardLocation.MZONE && ec.location === card.location) {
+      const engineMats = ec.overlayMaterials
+      const editorMats = card.overlayMaterials
+      if (engineMats.join(',') !== editorMats.join(',')) {
+        for (let i = editorMats.length - 1; i >= 0; i--) {
+          duelStore.removeOverlayMaterial(card.instanceId, i)
+        }
+        for (const mat of engineMats) {
+          duelStore.addOverlayMaterial(card.instanceId, mat)
+        }
+        card.overlayMaterials = [...engineMats]
       }
     }
+  }
+
+  for (const ec of boardState.allCards) {
+    if (usedEngineIds.has(ec.instanceId)) continue
+    if (currentCards.some((c) => c.instanceId === ec.instanceId)) continue
+    if (!ec.card) continue
+    duelStore.addCardToZone(
+      ec.card,
+      ec.controller,
+      ec.location,
+      ec.sequence,
+      ec.position,
+      undefined,
+      ec.instanceId
+    )
+    currentCards.push({
+      instanceId: ec.instanceId,
+      code: ec.card.id,
+      card: ec.card,
+      controller: ec.controller,
+      owner: ec.owner,
+      location: ec.location,
+      sequence: ec.sequence,
+      position: ec.position,
+      overlayMaterials: [...ec.overlayMaterials]
+    })
   }
 
   duelStore.setPlayerLp(0, boardState.players[0].lp)
@@ -252,6 +315,36 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
   pendingAction: null,
   timeline: [],
   currentStepId: null,
+
+  pickedOptionIds: [],
+
+  togglePendingSelection: (optionId) => {
+    const { pendingAction, pickedOptionIds } = get()
+    if (!pendingAction) return
+    const max = pendingAction.max ?? 1
+    if (pickedOptionIds.includes(optionId)) {
+      set({ pickedOptionIds: pickedOptionIds.filter((id) => id !== optionId) })
+      return
+    }
+    if (pickedOptionIds.length >= max) return
+    if (!pendingAction.options.some((o) => o.id === optionId)) return
+    set({ pickedOptionIds: [...pickedOptionIds, optionId] })
+  },
+
+  confirmPendingSelection: async () => {
+    const { pendingAction, pickedOptionIds, submitAction } = get()
+    if (!pendingAction) return
+    const min = pendingAction.min ?? 1
+    if (pickedOptionIds.length < Math.max(min, 1)) return
+    const indices = pickedOptionIds
+      .map((id) => pendingAction.options.find((o) => o.id === id))
+      .filter((o): o is EngineActionOption => Boolean(o))
+      .map((o) => (o.rawPayload as { index?: number }).index)
+      .filter((idx): idx is number => typeof idx === 'number')
+    await submitAction(pickedOptionIds[0], { indices })
+  },
+
+  clearPendingSelection: () => set({ pickedOptionIds: [] }),
 
   selectedCardId: null,
   hoveredCard: null,
@@ -278,7 +371,8 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         boardState: res.boardState,
         pendingAction: res.pendingAction,
         timeline,
-        currentStepId: res.initialNode.id
+        currentStepId: res.initialNode.id,
+        pickedOptionIds: []
       })
     } catch (err) {
       console.error('[useDuelEngineStore] startEngine failed:', err)
@@ -305,7 +399,8 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       error: null,
       pendingAction: null,
       backupDuelState: null,
-      selectedCardId: null
+      selectedCardId: null,
+      pickedOptionIds: []
     })
   },
 
@@ -329,7 +424,8 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         boardState: res.boardState,
         pendingAction: res.pendingAction,
         timeline,
-        currentStepId: res.initialNode.id
+        currentStepId: res.initialNode.id,
+        pickedOptionIds: []
       })
     } catch (err) {
       console.error('[useDuelEngineStore] initDuel failed:', err)
@@ -353,9 +449,10 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         pendingAction: res.pendingAction,
         timeline: newTimeline,
         currentStepId: res.node.id,
-        selectedCardId: null
+        selectedCardId: null,
+        pickedOptionIds: []
       })
-      applyDiffToDuelStore(res.diff, res.node)
+      applyDiffToDuelStore(res.diff)
     } catch (err) {
       console.error('[useDuelEngineStore] submitAction failed:', err)
       set({
@@ -374,9 +471,10 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         boardState: res.boardState,
         pendingAction: res.pendingAction,
         currentStepId: res.currentStepId,
-        selectedCardId: null
+        selectedCardId: null,
+        pickedOptionIds: []
       })
-      syncJumpToStepToDuelStore(res.boardState)
+      syncJumpToStepWrapped(res.boardState)
     } catch (err) {
       console.error('[useDuelEngineStore] jumpToStep failed:', err)
       set({

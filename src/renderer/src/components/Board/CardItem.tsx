@@ -44,6 +44,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const tacticalView = useDuelStore((s) => s.tacticalView)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const pendingAction = useDuelEngineStore((s) => s.pendingAction)
+  const pickedOptionIds = useDuelEngineStore((s) => s.pickedOptionIds)
   const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
 
   const isPlacementSource =
@@ -63,6 +64,17 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     return pendingAction.options.find((opt) => isCardMatchingEngineOption(card, opt))
   }, [pendingAction, card])
 
+  const isBoardPickMode = React.useMemo(() => {
+    if (!isEngineActive || !pendingAction) return false
+    if (pendingAction.kind !== 'SELECT_CARD' && pendingAction.kind !== 'SELECT_TRIBUTE')
+      return false
+    return !enginePromptUsesModal(pendingAction)
+  }, [isEngineActive, pendingAction])
+
+  const isPicked =
+    isBoardPickMode &&
+    Boolean(matchedEngineOption && pickedOptionIds.includes(matchedEngineOption.id))
+
   const availableActions = React.useMemo(() => {
     if (!isEngineActive) {
       return getFallbackActions(card)
@@ -77,11 +89,9 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       return 'dim'
     }
     if (isEngineActive && pendingAction) {
-      if (pendingAction.kind === 'SELECT_CARD' || pendingAction.kind === 'SELECT_TRIBUTE') {
-        if (!enginePromptUsesModal(pendingAction)) {
-          if (matchedEngineOption) return 'legal'
-          return 'dim'
-        }
+      if (isBoardPickMode) {
+        if (matchedEngineOption) return isPicked ? 'chosen' : 'legal'
+        return 'dim'
       }
       if (pendingAction.kind === 'SELECT_CHAIN') {
         if (matchedEngineOption && matchedEngineOption.type === 'CHAIN') return 'legal'
@@ -94,7 +104,9 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     isPlacementDisplaceTarget,
     isEngineActive,
     pendingAction,
-    matchedEngineOption
+    matchedEngineOption,
+    isBoardPickMode,
+    isPicked
   ])
 
   const { openMenu } = useContextMenuStore()
@@ -226,11 +238,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           return
         }
         if (isEngineActive && pendingAction) {
-          if (
-            (pendingAction.kind === 'SELECT_CARD' || pendingAction.kind === 'SELECT_TRIBUTE') &&
-            matchedEngineOption
-          ) {
-            void useDuelEngineStore.getState().submitAction(matchedEngineOption.id)
+          if (isBoardPickMode && matchedEngineOption) {
+            useDuelEngineStore.getState().togglePendingSelection(matchedEngineOption.id)
             return
           }
           if (pendingAction.kind === 'SELECT_CHAIN' && matchedEngineOption) {

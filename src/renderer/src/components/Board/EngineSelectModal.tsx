@@ -4,8 +4,126 @@ import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { enginePromptUsesModal } from '../../utils/ruleCheck'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { Button } from '../ui/button'
-import { Check, X, Sparkles, Crosshair } from 'lucide-react'
+import { Check, X, Sparkles, Crosshair, Search } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { Input } from '../ui/input'
+
+const AnnounceCardPicker: React.FC<{
+  title: string
+  subtitle?: string
+  onConfirm: (cardCode: number) => void
+}> = ({ title, subtitle, onConfirm }) => {
+  const [keyword, setKeyword] = useState('')
+  const [cards, setCards] = useState<CdbCard[]>([])
+  const [searching, setSearching] = useState(false)
+  const [pickedCard, setPickedCard] = useState<CdbCard | null>(null)
+
+  const doSearch = async (): Promise<void> => {
+    if (!keyword.trim()) return
+    setSearching(true)
+    try {
+      const res = await window.api.searchCards({
+        keyword: keyword.trim(),
+        searchDesc: true
+      })
+      setCards(res.cards.slice(0, 24))
+    } catch {
+      setCards([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  return (
+    <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-4 select-none animate-in fade-in">
+      <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-100">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
+          <Sparkles className="w-4 h-4 shrink-0 text-emerald-500" />
+          <h2 className="font-bold text-sm tracking-tight truncate">{title}</h2>
+          {subtitle && <span className="text-xs text-muted-foreground shrink-0">{subtitle}</span>}
+        </div>
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
+          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+          <Input
+            autoFocus
+            value={keyword}
+            placeholder="输入卡名或效果关键词搜索…"
+            className="h-8 text-xs"
+            onChange={(e) => setKeyword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void doSearch()
+            }}
+          />
+          <Button
+            size="sm"
+            className="h-8 text-xs shrink-0"
+            disabled={searching}
+            onClick={() => void doSearch()}
+          >
+            <Search className="w-3.5 h-3.5" />
+            搜索
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-3 p-4 max-h-[46vh] overflow-y-auto bg-muted/10 min-h-24">
+          {cards.length === 0 && (
+            <div className="w-full text-center text-xs text-muted-foreground py-8">
+              {searching ? '搜索中…' : '输入关键词搜索卡片后选择'}
+            </div>
+          )}
+          {cards.map((card) => {
+            const picked = pickedCard?.id === card.id
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => setPickedCard(card)}
+                className={cn(
+                  'group flex flex-col items-center w-24 shrink-0 rounded-md border p-1.5 bg-card transition-all cursor-pointer',
+                  picked
+                    ? 'border-emerald-500 ring-2 ring-emerald-500/60 shadow-md'
+                    : 'border-border/80 hover:border-emerald-500/70 hover:shadow-md'
+                )}
+              >
+                <div className="relative w-[86px] h-[127px] rounded overflow-hidden shadow border border-border/60 bg-black/30">
+                  <img
+                    src={getCardImageUrl(card.id, true)}
+                    alt={card.name}
+                    className="w-full h-full object-cover pointer-events-none"
+                    onError={(e) => {
+                      const targetEl = e.currentTarget
+                      if (targetEl.src !== UNKNOWN_CARD_IMAGE) {
+                        targetEl.src = UNKNOWN_CARD_IMAGE
+                      }
+                    }}
+                  />
+                  {picked && (
+                    <div className="absolute inset-0 bg-emerald-500/25 flex items-center justify-center">
+                      <Check className="w-6 h-6 text-emerald-300 drop-shadow" />
+                    </div>
+                  )}
+                </div>
+                <span className="w-full mt-1 text-[10px] leading-tight text-center truncate text-muted-foreground">
+                  {card.name}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex items-center justify-end gap-2 px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
+          <Button
+            size="sm"
+            disabled={!pickedCard}
+            onClick={() => pickedCard && onConfirm(pickedCard.id)}
+            className="px-5 h-7 text-xs"
+          >
+            <Check className="w-3.5 h-3.5" />
+            宣言 {pickedCard ? pickedCard.name : ''}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export const EngineSelectModal: React.FC = () => {
   const pendingAction = useDuelEngineStore((s) => s.pendingAction)
@@ -137,6 +255,16 @@ export const EngineSelectModal: React.FC = () => {
   }
 
   if (pendingAction.kind === 'ANNOUNCE') {
+    const freeOpt = pendingAction.options.find((o) => o.rawPayload?.freeSearch)
+    if (freeOpt) {
+      return (
+        <AnnounceCardPicker
+          title={pendingAction.title}
+          subtitle={pendingAction.subtitle}
+          onConfirm={(cardCode) => void submitAction(freeOpt.id, { cardCode })}
+        />
+      )
+    }
     return (
       <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-4 select-none animate-in fade-in">
         <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-md flex flex-col overflow-hidden animate-in zoom-in-95 duration-100">

@@ -181,6 +181,7 @@ function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
   duelStore.setPlayerLp(1, boardState.players[1].lp)
   duelStore.setCurrentPhase(mapPhaseToDuelPhase(boardState.phase))
   duelStore.setTurnPlayer(boardState.turnPlayer)
+  duelStore.setCurrentTurn(boardState.turn)
 }
 
 /** 引擎步骤的动作语义键（Answer → DuelActionType 的中间映射） */

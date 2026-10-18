@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ShieldCheck, Square, Play } from 'lucide-react'
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
+import { TurnPhaseIndicator } from './components/TurnPhaseIndicator'
 import { ExportStatusBadge } from './components/ExportStatusBadge'
 import { SaveProjectModal } from './components/SaveProjectModal'
 
@@ -30,11 +31,6 @@ export const Header: React.FC = () => {
     resetDuel,
     toggleTacticalView,
     openScreenplayWithStep,
-    currentTurn,
-    currentPhase,
-    currentChain,
-    nextPhase,
-    resetChain,
     currentProjectPath,
     setCurrentProjectPath
   } = useDuelStore()
@@ -367,39 +363,7 @@ export const Header: React.FC = () => {
 
           <Separator orientation="vertical" className="h-4" />
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-bold text-foreground">第{currentTurn}回合</span>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={nextPhase}
-                    className="h-7 px-1.5 text-[11px] font-extrabold bg-muted border-border text-foreground hover:bg-muted/80"
-                  >
-                    {currentPhase}
-                  </Button>
-                }
-              />
-              <TooltipContent>点击推进至下一阶段 (DP → SP → M1 → BP → M2 → EP)</TooltipContent>
-            </Tooltip>
-            {currentChain > 0 && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <span
-                      onClick={resetChain}
-                      className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 cursor-pointer animate-pulse"
-                    >
-                      C{currentChain} 结算
-                    </span>
-                  }
-                />
-                <TooltipContent>当前处于连锁中，点击结算重置</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
+          <TurnPhaseIndicator />
 
           <Separator orientation="vertical" className="h-4" />
 

@@ -107,6 +107,35 @@ function StepSelect({
   )
 }
 
+type StepListItem =
+  | { kind: 'separator'; key: string; label: string; turnPlayer: 0 | 1 }
+  | { kind: 'step'; index: number; step: DuelStep }
+
+function buildStepList(steps: DuelStep[]): StepListItem[] {
+  const items: StepListItem[] = []
+  let lastGroupKey: string | null = null
+
+  steps.forEach((step, index) => {
+    const groupKey = `${step.turn}|${step.turnPlayer}|${step.phase}`
+    if (groupKey !== lastGroupKey) {
+      lastGroupKey = groupKey
+      const playerName = step.turnPlayer === 0 ? '我方' : '对方'
+      const phaseName = PHASE_SHORT_NAMES[step.phase] || step.phase
+      items.push({
+        kind: 'separator',
+        key: `separator_${index}_${groupKey}`,
+        label: `第 ${step.turn} 回合 ${playerName} · ${phaseName}`,
+        turnPlayer: step.turnPlayer
+      })
+    }
+    if (step.actionType !== 'PHASE_CHANGE' && step.actionType !== 'TURN_CHANGE') {
+      items.push({ kind: 'step', index, step })
+    }
+  })
+
+  return items
+}
+
 export const StepSequencerPanel: React.FC = () => {
   const {
     state,
@@ -134,6 +163,7 @@ export const StepSequencerPanel: React.FC = () => {
   } = useDuelStore()
 
   const steps = state.steps || []
+  const stepList = React.useMemo(() => buildStepList(steps), [steps])
 
   const [showAddModal, setShowAddModal] = useState<boolean>(false)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
@@ -513,13 +543,26 @@ export const StepSequencerPanel: React.FC = () => {
               </div>
             </div>
           ) : (
-            steps.map((step, index) => {
-              const isFirstInTurn = index === 0 || steps[index - 1].turn !== step.turn
-              const isFirstInPhase =
-                isFirstInTurn ||
-                steps[index - 1].phase !== step.phase ||
-                steps[index - 1].turn !== step.turn
+            stepList.map((item) => {
+              if (item.kind === 'separator') {
+                return (
+                  <div
+                    key={item.key}
+                    className="flex w-full items-center gap-1.5 px-1 pt-1 select-none text-[11px] font-semibold text-muted-foreground/80"
+                  >
+                    <span
+                      className={cn(
+                        'w-1.5 h-1.5 rounded-full shrink-0',
+                        item.turnPlayer === 0 ? 'bg-blue-500/70' : 'bg-rose-500/70'
+                      )}
+                    />
+                    <span className="shrink-0">{item.label}</span>
+                    <div className="flex-1 h-px bg-border/50 ml-1" />
+                  </div>
+                )
+              }
 
+              const { step, index } = item
               const colorTheme =
                 ACTION_TYPE_COLORS[step.actionType] || ACTION_TYPE_COLORS.NORMAL_SUMMON
               const actionLabel = ACTION_TYPE_NAMES[step.actionType] || step.actionType
@@ -530,26 +573,6 @@ export const StepSequencerPanel: React.FC = () => {
 
               return (
                 <div key={step.id} className="flex flex-col gap-1.5">
-                  {isFirstInTurn && (
-                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-muted/50 border border-border/70 shadow-sm mt-1 select-none">
-                      <span className="font-bold text-xs text-foreground">第 {step.turn} 回合</span>
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0 font-medium border-border bg-background/60 text-muted-foreground"
-                      >
-                        {step.turnPlayer === 0 ? '我方回合' : '对方回合'}
-                      </Badge>
-                    </div>
-                  )}
-
-                  {isFirstInPhase && (
-                    <div className="flex items-center gap-1.5 px-1 pt-1 select-none text-[11px] font-semibold text-muted-foreground/80">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary/70" />
-                      <span>{PHASE_SHORT_NAMES[step.phase] || step.phase}</span>
-                      <div className="flex-1 h-px bg-border/50 ml-1" />
-                    </div>
-                  )}
-
                   <div
                     onClick={() => {
                       if (useDuelEngineStore.getState().isInitialized && step.id) {

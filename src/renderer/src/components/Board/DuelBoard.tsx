@@ -11,6 +11,7 @@ import { DuelRequestModals } from './DuelRequestModals'
 import { DuelSelectionBar } from './DuelSelectionBar'
 import { ChainModeToggle } from './ChainModeToggle'
 import { EngineFeedbackToast } from './EngineFeedbackToast'
+import { PhaseBanner } from './PhaseBanner'
 import { OverlayListModal } from './OverlayListModal'
 import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardStatPopover } from './components/CardStatPopover'
@@ -586,6 +587,8 @@ export const DuelBoard: React.FC = () => {
           <HandTray controller={0} />
         </div>
       </div>
+
+      <PhaseBanner />
 
       {/* 堆叠型区域 (额外/卡组/墓地/除外) 卡片列表查看与编排弹窗 */}
       <PileListModal />

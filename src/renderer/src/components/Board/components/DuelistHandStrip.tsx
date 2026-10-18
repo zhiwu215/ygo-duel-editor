@@ -8,6 +8,7 @@ import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { ZoneSlot } from '../ZoneSlot'
 import { TurnOrderBadge } from './TurnOrderBadge'
 import { LpInput } from './LpInput'
+import { HandShuffleOverlay } from './HandShuffleOverlay'
 import { getDropPosOverride } from '../../../utils/zoneDrop'
 import { cn } from '../../../lib/utils'
 import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
@@ -29,6 +30,9 @@ interface DuelistHandStripProps {
   isOnlyOne: boolean
   /** 排布行已横向溢出（人数过多）：关闭本栏内部滚动，滚轮一律用于左右滑动查看各人 */
   crowded: boolean
+  /** 引擎手牌切洗：tick 变化重播洗牌动画，active 为提示展示期 */
+  shuffleTick: number
+  shuffleActive: boolean
   /** 供父级定位该栏（人数过多时点击名字芯片滚动到对应手牌带） */
   ref?: React.Ref<HTMLDivElement>
   onExpand: () => void
@@ -54,6 +58,8 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   isCollapsed,
   isOnlyOne,
   crowded,
+  shuffleTick,
+  shuffleActive,
   ref,
   onExpand,
   onCollapse
@@ -525,6 +531,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
           'flex-1 w-full px-1 py-1 rounded border border-dashed flex items-center gap-1 overflow-x-auto overflow-y-hidden transition-colors cursor-pointer',
           // 拥挤模式下隐藏本栏滚动条：横向滚动只保留「排布行」那一层，避免两条并存
           crowded && !isExpanded && 'scrollbar-none',
+          shuffleActive && 'ring-2 ring-amber-400/70 border-amber-400/60',
           isDragOver
             ? isOpponent
               ? 'border-red-500 ring-2 ring-red-500/20 bg-red-500/10'
@@ -558,14 +565,25 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
                 className={cn(draggedHandCardId === c.instanceId ? 'hidden' : 'shrink-0')}
                 data-hand-instance-id={c.instanceId}
               >
-                <MemoizedHandZoneSlot
-                  label={`${duelist.name} ${idx + 1}`}
-                  controller={controller}
-                  location={CardLocation.HAND}
-                  sequence={c.sequence}
-                  card={c}
-                  duelistId={duelist.id}
-                />
+                <motion.div
+                  key={shuffleTick}
+                  initial={{ y: 0, rotate: 0 }}
+                  animate={
+                    shuffleTick > 0
+                      ? { y: [0, -8, 0], rotate: [0, idx % 2 === 0 ? -2.5 : 2.5, 0] }
+                      : { y: 0, rotate: 0 }
+                  }
+                  transition={{ duration: 0.5, delay: idx * 0.045, ease: 'easeInOut' }}
+                >
+                  <MemoizedHandZoneSlot
+                    label={`${duelist.name} ${idx + 1}`}
+                    controller={controller}
+                    location={CardLocation.HAND}
+                    sequence={c.sequence}
+                    card={c}
+                    duelistId={duelist.id}
+                  />
+                </motion.div>
               </motion.div>
               {isGapAfter && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
             </React.Fragment>
@@ -582,6 +600,8 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
           </div>
         )}
       </div>
+
+      <HandShuffleOverlay active={shuffleActive} />
     </div>
   )
 }

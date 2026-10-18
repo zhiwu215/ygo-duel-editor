@@ -104,6 +104,18 @@ export class FieldReader {
     return this.lastState
   }
 
+  restoreIdentity(state: EngineBoardState): void {
+    this.identity.clear()
+    for (const card of state.allCards) {
+      this.identity.set(`${card.controller}:${card.location}:${card.sequence}`, {
+        code: card.code,
+        instanceId: card.instanceId
+      })
+      const seq = Number(card.instanceId.replace('card-', ''))
+      if (Number.isFinite(seq) && seq > this.idCounter) this.idCounter = seq
+    }
+  }
+
   /** 全量查询引擎，生成新的场地快照 */
   readBoard(duel: OcgcoreDuel): EngineBoardState {
     let fieldInfo: ReturnType<OcgcoreDuel['queryFieldInfo']> | null = null

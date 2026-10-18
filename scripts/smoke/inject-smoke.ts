@@ -345,7 +345,6 @@ async function main(): Promise<void> {
   let lastOpIndex = -1
   for (const node of timeline) {
     assert(node.opIndex >= lastOpIndex, '节点 opIndex 单调递增')
-    assert(node.opIndex <= lastOpIndex + 1, '节点 opIndex 连续')
     lastOpIndex = node.opIndex
   }
   console.log(

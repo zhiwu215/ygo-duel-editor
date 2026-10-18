@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { duelDirector } from '../services/duel/duel-director'
-import { EngineDuelInitParams, Answer, InjectCommand } from '@shared/index'
+import { EngineDuelInitParams, Answer, InjectCommand, TimingPolicy } from '@shared/index'
 
 export function registerDuelEngineIpc(): void {
   ipcMain.handle('duel-engine:init', async (_, params: EngineDuelInitParams) => {
@@ -8,6 +8,15 @@ export function registerDuelEngineIpc(): void {
       return await duelDirector.startDuel(params)
     } catch (err: unknown) {
       console.error('[duelEngineIpc] Error in duel-engine:init:', err)
+      throw new Error(err instanceof Error ? err.message : String(err))
+    }
+  })
+
+  ipcMain.handle('duel-engine:set-policy', (_, policy: TimingPolicy) => {
+    try {
+      return duelDirector.setTimingPolicy(policy)
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:set-policy:', err)
       throw new Error(err instanceof Error ? err.message : String(err))
     }
   })

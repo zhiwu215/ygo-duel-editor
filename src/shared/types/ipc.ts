@@ -4,7 +4,13 @@ import { DuelPuzzleState, DuelSourceRef, DuelType } from './duel'
 import { DeckData, DeckLibrary } from './deck'
 import { DuelPhase, DuelActionType } from './story'
 import { EngineDuelInitParams, EngineBoardState, EngineTimelineNode } from './duelEngine'
-import { Answer, EngineInjectResult, EngineRequest, InjectCommand } from '../engine/protocol'
+import {
+  Answer,
+  EngineInjectResult,
+  EngineRequest,
+  InjectCommand,
+  TimingPolicy
+} from '../engine/protocol'
 import type { EngineSubmitAnswerResult } from '../engine/protocol'
 
 export interface CardSearchParams {
@@ -447,9 +453,9 @@ export interface AppConfig {
   projectSeries?: string[]
 
   ruleCheckEnabled?: boolean
-}
 
-export type EngineChainMode = 'auto' | 'always' | 'ignore'
+  timingPolicy?: TimingPolicy
+}
 
 export interface EngineExportReplayParams {
   state: DuelPuzzleState
@@ -747,6 +753,7 @@ export interface IpcApi {
     pendingRequest: EngineRequest | null
     initialNode: EngineTimelineNode
   }>
+  duelEngineSetPolicy: (policy: TimingPolicy) => Promise<TimingPolicy>
   duelEngineSubmitAnswer: (answer: Answer) => Promise<EngineSubmitAnswerResult>
   duelEngineInject: (command: InjectCommand) => Promise<EngineInjectResult>
   duelEngineGetPendingRequest: () => Promise<EngineRequest | null>

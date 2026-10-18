@@ -6,17 +6,20 @@ import {
   _OcgcoreConstants
 } from 'koishipro-core.js'
 import {
+  IndexResponse,
   YGOProMsgDraw,
   YGOProMsgNewTurn,
   YGOProMsgDamage,
   YGOProMsgRecover,
   YGOProMsgRetry,
+  YGOProMsgSelectEffectYn,
   YGOProMsgSelectUnselectCard
 } from 'ygopro-msg-encode'
 import {
   EngineDuelInitParams,
   EngineTimelineNode,
   EngineBoardState,
+  EngineStepEvent,
   CardLocation,
   DuelPuzzleState
 } from '@shared/index'
@@ -24,18 +27,21 @@ import { cdbService } from '../../db/cdbService'
 import { FieldReader } from './field-reader'
 import { EngineTimelineManager } from './timeline-manager'
 import { getOcgcoreEngine } from './ocgcore-engine'
-import { isInteractiveQuery, isEmptyChainQuery } from './message-parser'
+import { isInteractiveQuery } from './message-parser'
 import { computeDiff } from './diff-resolver'
 import { routeRequest } from './request-router'
 import { encodeAnswer, describeAnswer } from './answer-encoder'
 import {
   Answer,
+  DEFAULT_TIMING_POLICY,
   EngineInjectResult,
   EngineRequest,
   EngineSubmitAnswerResult,
-  InjectCommand
+  InjectCommand,
+  TimingPolicy,
+  normalizeTimingPolicy
 } from '@shared/engine/protocol'
-import { YGOProMsgHint, YGOProMsgSelectChain } from 'ygopro-msg-encode'
+import { YGOProMsgHint, YGOProMsgSelectChain, YGOProMsgShuffleHand } from 'ygopro-msg-encode'
 import { describeInject, executeInject, injectCardName, verifyInject } from './injector'
 
 const HINT_TYPE_SELECTMSG = 3
@@ -44,6 +50,7 @@ export interface SubmitAnswerResult extends EngineSubmitAnswerResult {}
 
 export type DuelOperation =
   | { type: 'answer'; nodeId: string; responses: Uint8Array[] }
+  | { type: 'auto'; responses: Uint8Array[] }
   | { type: 'inject'; command: InjectCommand }
 
 const { OcgcoreScriptConstants } = _OcgcoreConstants
@@ -70,10 +77,18 @@ export class DuelSession {
   private requestSeq = 1
   private lastHintDesc: number | undefined = undefined
   private accumulatedLogs: string[] = []
+  private accumulatedEvents: EngineStepEvent[] = []
   private lastAdvanceRetried = false
   private seed: number[] = []
   private initParams: EngineDuelInitParams | null = null
   private ops: DuelOperation[] = []
+  private timingPolicy: TimingPolicy = { ...DEFAULT_TIMING_POLICY }
+  private replaying = false
+
+  setTimingPolicy(policy: TimingPolicy): TimingPolicy {
+    this.timingPolicy = normalizeTimingPolicy(policy)
+    return { ...this.timingPolicy }
+  }
 
   async init(): Promise<void> {
     if (!this.ocgcore) {
@@ -100,7 +115,7 @@ export class DuelSession {
     return this.fieldReader.readBoard(this.duel)
   }
 
-  private createDuelFromInit(): void {
+  private createDuelFromInit(): Uint8Array[] {
     if (!this.initParams) {
       throw new Error('引擎会话尚未初始化。')
     }
@@ -110,7 +125,7 @@ export class DuelSession {
     } else {
       this.setupFromDeckParams(this.initParams)
     }
-    this.advanceEngine()
+    return this.advanceEngine()
   }
 
   private replayTo(stepId: string): void {
@@ -121,17 +136,24 @@ export class DuelSession {
 
     this.disposeDuel()
     this.accumulatedLogs = []
+    this.accumulatedEvents = []
     this.currentPendingMsg = null
     this.currentPendingRequest = null
     this.lastHintDesc = undefined
-    this.createDuelFromInit()
+    this.replaying = true
 
-    for (let index = 0; index <= target.node.opIndex; index++) {
-      const op = this.ops[index]
-      if (!op) {
-        throw new Error(`操作流缺少第 ${index} 条记录，无法重放。`)
-      }
-      if (op.type === 'answer') {
+    try {
+      this.createDuelFromInit()
+
+      for (let index = 0; index <= target.node.opIndex; index++) {
+        const op = this.ops[index]
+        if (!op) {
+          throw new Error(`操作流缺少第 ${index} 条记录，无法重放。`)
+        }
+        if (op.type === 'inject') {
+          executeInject(this.duel!, op.command, this.readBoard())
+          continue
+        }
         for (const response of op.responses) {
           this.duel!.setResponse(response)
           this.advanceEngine()
@@ -139,12 +161,14 @@ export class DuelSession {
             throw new Error(`重放第 ${index + 1} 条操作时引擎拒绝了历史响应。`)
           }
         }
-      } else {
-        executeInject(this.duel!, op.command, this.readBoard())
       }
+    } finally {
+      this.replaying = false
     }
 
     this.accumulatedLogs = []
+    this.accumulatedEvents = []
+    this.fieldReader.restoreIdentity(target.node.boardState)
     this.timeline.setCurrentStepId(stepId)
   }
 
@@ -171,10 +195,12 @@ export class DuelSession {
     this.timeline.clear()
     this.ops = []
     this.accumulatedLogs = []
+    this.accumulatedEvents = []
     this.currentPendingMsg = null
     this.currentPendingRequest = null
     this.requestSeq = 1
     this.lastHintDesc = undefined
+    this.replaying = false
 
     this.seed = params.seed || [
       Math.floor(Math.random() * 100000),
@@ -184,7 +210,10 @@ export class DuelSession {
     ]
     this.initParams = params
 
-    this.createDuelFromInit()
+    const initialAutoResponses = this.createDuelFromInit()
+    if (initialAutoResponses.length > 0) {
+      this.ops.push({ type: 'auto', responses: initialAutoResponses })
+    }
 
     const initialBoard = this.readBoard()
     const initialNode = this.timeline.addStep(
@@ -193,9 +222,11 @@ export class DuelSession {
       initialBoard,
       this.currentPendingRequest,
       [...this.accumulatedLogs],
-      -1
+      [...this.accumulatedEvents],
+      this.ops.length - 1
     )
     this.accumulatedLogs = []
+    this.accumulatedEvents = []
 
     return {
       boardState: initialNode.boardState,
@@ -436,20 +467,19 @@ export class DuelSession {
 
     const beforeBoard = this.readBoard()
     this.duel.setResponse(response)
-    this.advanceEngine()
+    const autoResponses = this.advanceEngine()
 
     if (this.lastAdvanceRetried) {
       this.accumulatedLogs = []
+      this.accumulatedEvents = []
       return { retry: true, pendingRequest: this.currentPendingRequest }
     }
 
-    const autoResponses: Uint8Array[] = []
     for (let loops = 0; loops < MAX_AUTO_FINISH_LOOPS; loops++) {
       if (!this.isAutoFinishableUnselect(requestMsg)) break
       const autoResponse = encodeAnswer(this.currentPendingMsg, { kind: 'unselect', card: null })
       this.duel.setResponse(autoResponse)
-      this.advanceEngine()
-      autoResponses.push(autoResponse)
+      autoResponses.push(autoResponse, ...this.advanceEngine())
       if (this.lastAdvanceRetried) break
     }
 
@@ -458,23 +488,27 @@ export class DuelSession {
     this.truncateToCurrentStep()
     const boardState = this.readBoard()
     const diff = computeDiff(beforeBoard, boardState)
-    const opIndex = this.ops.length
+    const answerOpIndex = this.ops.length
+    this.ops.push({ type: 'answer', nodeId: '', responses: [response] })
+    if (autoResponses.length > 0) {
+      this.ops.push({ type: 'auto', responses: autoResponses })
+    }
 
+    const shuffledHands = this.accumulatedEvents.some((event) => event.kind === 'shuffle-hand')
     const node = this.timeline.addStep(
-      logText,
+      shuffledHands ? `${logText}（手牌切洗）` : logText,
       actingPlayer,
       boardState,
       this.currentPendingRequest,
       [...this.accumulatedLogs],
-      opIndex
+      [...this.accumulatedEvents],
+      this.ops.length - 1
     )
-    this.ops.push({
-      type: 'answer',
-      nodeId: node.id,
-      responses: [response, ...autoResponses]
-    })
+    const answerOp = this.ops[answerOpIndex]
+    if (answerOp?.type === 'answer') answerOp.nodeId = node.id
     this.requestSeq += 1
     this.accumulatedLogs = []
+    this.accumulatedEvents = []
 
     return {
       retry: false,
@@ -507,8 +541,10 @@ export class DuelSession {
       boardState,
       this.currentPendingRequest,
       logs,
+      [...this.accumulatedEvents],
       opIndex
     )
+    this.accumulatedEvents = []
     this.ops.push({ type: 'inject', command })
 
     return { boardState, node, warning }
@@ -543,11 +579,36 @@ export class DuelSession {
     }
   }
 
-  private advanceEngine(): void {
-    if (!this.duel) return
+  private resolveAutoResponse(msg: unknown): Uint8Array | null {
+    if (this.replaying) return null
+
+    if (msg instanceof YGOProMsgSelectChain) {
+      if (this.timingPolicy.chain === 'all') return null
+      const forced = msg.chains.some((chain) => chain.forced === 1)
+      if (forced) {
+        if (this.timingPolicy.chain === 'ignore' && msg.chains.length === 1) {
+          return msg.prepareResponse(IndexResponse(0))
+        }
+        return null
+      }
+      if (msg.chains.length === 0) return msg.defaultResponse()
+      return this.timingPolicy.chain === 'ignore' ? msg.defaultResponse() : null
+    }
+
+    if (msg instanceof YGOProMsgSelectEffectYn && this.timingPolicy.effectYn === 'never') {
+      return msg.prepareResponse(false)
+    }
+
+    return null
+  }
+
+  private advanceEngine(): Uint8Array[] {
+    if (!this.duel) return []
 
     this.lastAdvanceRetried = false
+    const autoResponses: Uint8Array[] = []
     let loops = 0
+
     while (true) {
       loops++
       if (loops > MAX_PROCESS_LOOPS) {
@@ -556,13 +617,8 @@ export class DuelSession {
 
       const res = this.duel.process()
       const msgs = res.messages ?? []
-      let autoResponse: Uint8Array | null = null
-      // 批内已含玩家交互点时，不允许自动应答吞掉交互。
-      // 空连锁（无可连锁卡）会在下面被静默放弃，因此不算交互点 —— 否则空连锁自己
-      // 就会触发这个守卫，让 autoResponse 永远不生效，全部变成 UI 弹窗。
-      const hasInteractiveInBatch = msgs.some(
-        (m) => isInteractiveQuery(m) && !isEmptyChainQuery(m)
-      )
+      let autoCandidate: Uint8Array | null = null
+      const manualQueries: unknown[] = []
 
       if (msgs.length > 0) {
         for (const msg of msgs) {
@@ -570,16 +626,23 @@ export class DuelSession {
           if (msg instanceof YGOProMsgHint && msg.type === HINT_TYPE_SELECTMSG) {
             this.lastHintDesc = msg.desc
           }
-          // 空连锁询问自动放弃（无可连锁卡时引擎仍会询问，不自动处理会卡死）
-          if (msg instanceof YGOProMsgSelectChain && msg.chains.length === 0) {
-            autoResponse = msg.defaultResponse()
+          if (msg instanceof YGOProMsgShuffleHand) {
+            this.accumulatedEvents.push({ kind: 'shuffle-hand', player: msg.player === 1 ? 1 : 0 })
           }
         }
         this.collectLogs(msgs)
 
         for (const msg of msgs) {
-          // 空连锁已被自动放弃（见上方 autoResponse），不注册为待答请求，避免 UI 空弹窗
-          if (!isInteractiveQuery(msg) || isEmptyChainQuery(msg)) continue
+          if (!isInteractiveQuery(msg)) continue
+          const auto = this.resolveAutoResponse(msg)
+          if (auto) {
+            autoCandidate = auto
+          } else {
+            manualQueries.push(msg)
+          }
+        }
+
+        for (const msg of manualQueries) {
           this.currentPendingMsg = msg
           this.currentPendingRequest = routeRequest(msg, {
             id: `req-${this.requestSeq}`,
@@ -596,9 +659,12 @@ export class DuelSession {
         }
       }
 
-      // 自动应答排队：喂回引擎并继续推进（仅当批内没有交互点时）
-      if (autoResponse && !hasInteractiveInBatch) {
+      const autoResponse = manualQueries.length === 0 ? autoCandidate : null
+      if (autoResponse) {
+        this.currentPendingMsg = null
+        this.currentPendingRequest = null
         this.duel.setResponse(autoResponse)
+        autoResponses.push(autoResponse)
         continue
       }
 
@@ -611,6 +677,8 @@ export class DuelSession {
         break
       }
     }
+
+    return autoResponses
   }
 
   private collectLogs(msgs: unknown[]): void {
@@ -649,7 +717,7 @@ export class DuelSession {
     const lastOpIndex = this.timeline.getCurrentStep()?.node.opIndex ?? -1
     return this.ops
       .slice(0, lastOpIndex + 1)
-      .flatMap((op) => (op.type === 'answer' ? op.responses : []))
+      .flatMap((op) => (op.type === 'inject' ? [] : op.responses))
   }
 }
 

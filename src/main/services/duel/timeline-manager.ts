@@ -1,4 +1,9 @@
-import { EngineTimelineNode, EngineBoardState, EngineRequest } from '@shared/index'
+import {
+  EngineTimelineNode,
+  EngineBoardState,
+  EngineRequest,
+  EngineStepEvent
+} from '@shared/index'
 
 export interface EngineStepRecord {
   node: EngineTimelineNode
@@ -21,6 +26,7 @@ export class EngineTimelineManager {
     boardState: EngineBoardState,
     pendingRequest: EngineRequest | null,
     logs: string[],
+    events: EngineStepEvent[],
     opIndex: number
   ): EngineTimelineNode {
     const parentId = this.currentStepId
@@ -36,6 +42,7 @@ export class EngineTimelineManager {
       title,
       player,
       logs,
+      events,
       boardState,
       pendingRequest,
       opIndex,

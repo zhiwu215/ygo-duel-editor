@@ -7,7 +7,8 @@ import {
   EngineRequest,
   Answer,
   EngineInjectResult,
-  InjectCommand
+  InjectCommand,
+  TimingPolicy
 } from '@shared/index'
 import { getOcgcoreEngine, isEngineReady } from './ocgcore-engine'
 import { duelSession, SubmitAnswerResult } from './duel-session'
@@ -52,6 +53,10 @@ export class DuelDirector {
 
   submitAnswer(answer: Answer): SubmitAnswerResult {
     return duelSession.submitAnswer(answer)
+  }
+
+  setTimingPolicy(policy: TimingPolicy): TimingPolicy {
+    return duelSession.setTimingPolicy(policy)
   }
 
   inject(command: InjectCommand): EngineInjectResult {

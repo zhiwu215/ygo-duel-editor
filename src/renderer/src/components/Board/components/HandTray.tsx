@@ -9,9 +9,11 @@ import {
   useDuelEngineStore
 } from '../../../stores/useDuelEngineStore'
 import { DuelistHandStrip } from './DuelistHandStrip'
+import { HandShuffleOverlay } from './HandShuffleOverlay'
 import { ZoneSlot } from '../ZoneSlot'
 import { TurnOrderBadge } from './TurnOrderBadge'
 import { LpInput } from './LpInput'
+import { useHandShufflePulse } from '../../../hooks/useHandShufflePulse'
 import { cn } from '../../../lib/utils'
 import { getDropPosOverride } from '../../../utils/zoneDrop'
 import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
@@ -42,6 +44,7 @@ const SingleHandTray: React.FC<{
   const reorderHandCards = useDuelStore((s) => s.reorderHandCards)
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
   const isOpponent = controller === 1
+  const shuffle = useHandShufflePulse(controller)
 
   // 名字行内编辑
   const [editingName, setEditingName] = useState<string | null>(null)
@@ -359,71 +362,86 @@ const SingleHandTray: React.FC<{
       </div>
 
       {/* 手牌横向排布流 (固定紧凑高度，保证无纵向溢出) */}
-      <div
-        ref={scrollContainerRef}
-        onDragStartCapture={handleDragStartCapture}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={cn(
-          'h-[100px] w-full px-2 py-0.5 rounded border border-dashed flex items-center gap-1.5 overflow-x-auto overflow-y-hidden transition-colors',
-          isDragOver
-            ? isOpponent
-              ? 'border-red-500 ring-2 ring-red-500/20 bg-red-500/10'
-              : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
-            : isOpponent
-              ? 'border-red-500/25 hover:border-red-500/50 bg-muted/20 dark:bg-black/20'
-              : 'border-blue-500/25 hover:border-blue-500/50 bg-muted/20 dark:bg-black/20'
-        )}
-      >
-        {cards.map((c, idx) => {
-          const isGapBefore =
-            handInsertionPosition?.targetInstanceId === c.instanceId &&
-            handInsertionPosition.side === 'before'
-          const isGapAfter =
-            handInsertionPosition?.targetInstanceId === c.instanceId &&
-            handInsertionPosition.side === 'after'
+      <div className="relative">
+        <div
+          ref={scrollContainerRef}
+          onDragStartCapture={handleDragStartCapture}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={cn(
+            'h-[100px] w-full px-2 py-0.5 rounded border border-dashed flex items-center gap-1.5 overflow-x-auto overflow-y-hidden transition-colors',
+            shuffle.active && 'ring-2 ring-amber-400/70 border-amber-400/60',
+            isDragOver
+              ? isOpponent
+                ? 'border-red-500 ring-2 ring-red-500/20 bg-red-500/10'
+                : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
+              : isOpponent
+                ? 'border-red-500/25 hover:border-red-500/50 bg-muted/20 dark:bg-black/20'
+                : 'border-blue-500/25 hover:border-blue-500/50 bg-muted/20 dark:bg-black/20'
+          )}
+        >
+          {cards.map((c, idx) => {
+            const isGapBefore =
+              handInsertionPosition?.targetInstanceId === c.instanceId &&
+              handInsertionPosition.side === 'before'
+            const isGapAfter =
+              handInsertionPosition?.targetInstanceId === c.instanceId &&
+              handInsertionPosition.side === 'after'
 
-          return (
-            <React.Fragment key={c.instanceId}>
-              {isGapBefore && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
-              <motion.div
-                layout="position"
-                transition={{
-                  layout: {
-                    type: 'spring',
-                    stiffness: 170,
-                    damping: 25,
-                    mass: 1
-                  }
-                }}
-                className={cn(draggedHandCardId === c.instanceId ? 'hidden' : 'shrink-0')}
-                data-hand-instance-id={c.instanceId}
-              >
-                <MemoizedHandZoneSlot
-                  label={`${duelist.name} ${idx + 1}`}
-                  controller={controller}
-                  location={CardLocation.HAND}
-                  sequence={c.sequence}
-                  card={c}
-                  duelistId={duelist.id}
-                />
-              </motion.div>
-              {isGapAfter && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
-            </React.Fragment>
-          )
-        })}
-        {cards.length === 0 && (
-          <div
-            className={cn(
-              'w-full h-full flex items-center justify-center pointer-events-none select-none',
-              isOpponent ? 'text-red-500/40' : 'text-blue-500/40'
-            )}
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </div>
-        )}
+            return (
+              <React.Fragment key={c.instanceId}>
+                {isGapBefore && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
+                <motion.div
+                  layout="position"
+                  transition={{
+                    layout: {
+                      type: 'spring',
+                      stiffness: 170,
+                      damping: 25,
+                      mass: 1
+                    }
+                  }}
+                  className={cn(draggedHandCardId === c.instanceId ? 'hidden' : 'shrink-0')}
+                  data-hand-instance-id={c.instanceId}
+                >
+                  <motion.div
+                    key={shuffle.tick}
+                    initial={{ y: 0, rotate: 0 }}
+                    animate={
+                      shuffle.tick > 0
+                        ? { y: [0, -8, 0], rotate: [0, idx % 2 === 0 ? -2.5 : 2.5, 0] }
+                        : { y: 0, rotate: 0 }
+                    }
+                    transition={{ duration: 0.5, delay: idx * 0.045, ease: 'easeInOut' }}
+                  >
+                    <MemoizedHandZoneSlot
+                      label={`${duelist.name} ${idx + 1}`}
+                      controller={controller}
+                      location={CardLocation.HAND}
+                      sequence={c.sequence}
+                      card={c}
+                      duelistId={duelist.id}
+                    />
+                  </motion.div>
+                </motion.div>
+                {isGapAfter && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
+              </React.Fragment>
+            )
+          })}
+          {cards.length === 0 && (
+            <div
+              className={cn(
+                'w-full h-full flex items-center justify-center pointer-events-none select-none',
+                isOpponent ? 'text-red-500/40' : 'text-blue-500/40'
+              )}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </div>
+          )}
+        </div>
+        <HandShuffleOverlay active={shuffle.active} />
       </div>
     </div>
   )
@@ -449,6 +467,7 @@ const MultiHandTray: React.FC<{
   const setActiveDuelistId = useDuelStore((s) => s.setActiveDuelistId)
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
   const rowScrollRef = useRef<HTMLDivElement>(null)
+  const shuffle = useHandShufflePulse(controller)
 
   // 顶栏名字芯片右键重命名
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -643,6 +662,8 @@ const MultiHandTray: React.FC<{
               isCollapsed={isCollapsed}
               isOnlyOne={false}
               crowded={isCrowded}
+              shuffleTick={shuffle.tick}
+              shuffleActive={shuffle.active}
               ref={(el) => {
                 if (el) stripRefs.current.set(duelist.id, el)
                 else stripRefs.current.delete(duelist.id)

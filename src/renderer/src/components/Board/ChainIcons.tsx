@@ -65,8 +65,8 @@ export const ChainAutoIcon = makeChainIcon(
 export function ChainModeIcon({
   mode,
   ...props
-}: ChainIconProps & { mode: 'auto' | 'always' | 'ignore' }): React.ReactElement {
-  if (mode === 'always') return <ChainAllIcon {...props} />
+}: ChainIconProps & { mode: 'ignore' | 'available' | 'all' }): React.ReactElement {
+  if (mode === 'all') return <ChainAllIcon {...props} />
   if (mode === 'ignore') return <ChainBrokenIcon {...props} />
   return <ChainAutoIcon {...props} />
 }

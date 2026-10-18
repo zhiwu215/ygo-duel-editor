@@ -51,15 +51,3 @@ export function isInteractiveQuery(msg: unknown): boolean {
     msg instanceof YGOProMsgRockPaperScissors
   )
 }
-
-/**
- * 空连锁询问：引擎在「无可连锁卡」时依然会问一次是否连锁，玩家实际无牌可连。
- *
- * 这类询问由 main 侧用 defaultResponse() 静默放弃（等价于点「不连锁」），
- * 因此必须把它从「批内交互点」和「待答请求」中排除 —— 否则空连锁自己就会
- * 触发防自动应答守卫，导致高频的空连锁弹窗骚扰 UI。
- * 有卡可连（chains.length > 0）的询问不受影响，照常弹给玩家。
- */
-export function isEmptyChainQuery(msg: unknown): boolean {
-  return msg instanceof YGOProMsgSelectChain && msg.chains.length === 0
-}

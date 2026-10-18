@@ -589,6 +589,10 @@ export const DuelBoard: React.FC = () => {
         </div>
       </div>
 
+      <div className="relative z-20 flex shrink-0 items-center justify-end gap-2 border-t border-border/60 bg-card/50 px-3 py-1">
+        <ChainModeToggle />
+      </div>
+
       <PhaseBanner />
 
       {/* 生命值变动浮层（攻击/效果造成的伤害与回复数字） */}
@@ -619,8 +623,6 @@ export const DuelBoard: React.FC = () => {
 
       {/* 引擎问答分发（yesno/option/表示形式/宣言/指示物/合计/排序/猜拳/连锁/选卡） */}
       <DuelRequestModals />
-
-      <ChainModeToggle />
 
       {/* 选中卡动作条 / 未完成动作的目标选择条 (浮层，不参与布局以免压缩棋盘尺寸) */}
       <ActionIntentBar />

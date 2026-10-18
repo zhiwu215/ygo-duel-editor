@@ -27,8 +27,7 @@ import {
   replayStepsBoard,
   DeckData,
   DuelType,
-  allocateCustomCounterId,
-  EngineChainMode
+  allocateCustomCounterId
 } from '@shared/index'
 import { alertDialog } from './useDialogStore'
 import { fetchCardDataByCodes } from '../utils/cardData'
@@ -360,8 +359,6 @@ interface DuelStoreState {
   cancelPlacement: () => void
   commitPlacement: (slot: PendingPlacementSlot) => void
 
-  chainMode: EngineChainMode
-  setChainMode: (mode: EngineChainMode) => void
   activeStatPopoverCardId: string | null
   statPopoverPosition: { x: number; y: number } | null
   hoveredCard: CdbCard | null
@@ -581,8 +578,6 @@ export const useDuelStore = create<DuelStoreState>()(
       activeDuelistId: null,
       selectedCardId: null,
       pendingPlacement: null,
-      chainMode: 'auto',
-      setChainMode: (mode) => set({ chainMode: mode }),
       activeStatPopoverCardId: null,
       statPopoverPosition: null,
       hoveredCard: null,

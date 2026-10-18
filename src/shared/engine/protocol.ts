@@ -119,6 +119,25 @@ export type RequestData =
       numbers?: number[]
     }
 
+export type TimingPolicy = {
+  chain: 'ignore' | 'available' | 'all'
+  effectYn: 'never' | 'ask'
+}
+
+export const DEFAULT_TIMING_POLICY: TimingPolicy = {
+  chain: 'ignore',
+  effectYn: 'ask'
+}
+
+export function normalizeTimingPolicy(value?: Partial<TimingPolicy> | null): TimingPolicy {
+  const chain =
+    value?.chain === 'ignore' || value?.chain === 'available' || value?.chain === 'all'
+      ? value.chain
+      : DEFAULT_TIMING_POLICY.chain
+  const effectYn = value?.effectYn === 'never' ? 'never' : DEFAULT_TIMING_POLICY.effectYn
+  return { chain, effectYn }
+}
+
 export interface EngineRequest {
   /** 唯一 id（answer 记录用它做时间线节点 id） */
   id: string

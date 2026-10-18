@@ -17,7 +17,10 @@ import {
   RequestCard,
   EngineSubmitAnswerResult,
   InjectCommand,
-  resolveEngineCardStats
+  resolveEngineCardStats,
+  DEFAULT_TIMING_POLICY,
+  TimingPolicy,
+  normalizeTimingPolicy
 } from '@shared/index'
 import { useDuelStore } from './useDuelStore'
 
@@ -28,12 +31,20 @@ export interface EngineInjectNotice {
   message: string
 }
 
+/** 手牌切洗信号：id 变化即代表引擎刚刚切洗了 players 的手牌（UI 据此播放洗牌动画与提示） */
+export interface HandShuffleSignal {
+  id: number
+  players: (0 | 1)[]
+}
+
 interface DuelEngineState {
   engineMode: EngineMode
   isInitialized: boolean
   loading: boolean
   error: string | null
   injectNotice: EngineInjectNotice | null
+  handShuffle: HandShuffleSignal | null
+  timingPolicy: TimingPolicy
 
   boardState: EngineBoardState | null
   pendingRequest: EngineRequest | null
@@ -52,6 +63,8 @@ interface DuelEngineState {
   stopEngine: (revertToSnapshot?: boolean) => void
 
   initDuel: (params?: EngineDuelInitParams) => Promise<void>
+  setTimingPolicy: (policy: TimingPolicy) => void
+  loadTimingPolicy: () => Promise<TimingPolicy>
   submitAnswer: (answer: Answer) => Promise<void>
   inject: (command: InjectCommand) => Promise<boolean>
   clearInjectNotice: () => void
@@ -442,6 +455,8 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
   loading: false,
   error: null,
   injectNotice: null,
+  handShuffle: null,
+  timingPolicy: { ...DEFAULT_TIMING_POLICY },
 
   boardState: null,
   pendingRequest: null,
@@ -455,11 +470,35 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
 
   backupDuelState: null,
 
+  setTimingPolicy: (policy) => {
+    const normalized = normalizeTimingPolicy(policy)
+    set({ timingPolicy: normalized })
+    void window.api.duelEngineSetPolicy(normalized).catch((err) => {
+      console.error('[useDuelEngineStore] setTimingPolicy failed:', err)
+    })
+    void window.api.saveConfig({ timingPolicy: normalized }).catch((err) => {
+      console.error('[useDuelEngineStore] save timingPolicy failed:', err)
+    })
+  },
+
+  loadTimingPolicy: async () => {
+    try {
+      const config = await window.api.getConfig()
+      const policy = normalizeTimingPolicy(config.timingPolicy)
+      set({ timingPolicy: policy })
+      return policy
+    } catch (err) {
+      console.error('[useDuelEngineStore] loadTimingPolicy failed:', err)
+      return get().timingPolicy
+    }
+  },
+
   startEngine: async () => {
     set({ loading: true, error: null })
     try {
       const currentDuelState = structuredClone(useDuelStore.getState().state)
       set({ backupDuelState: currentDuelState })
+      await window.api.duelEngineSetPolicy(get().timingPolicy)
 
       const initParams: EngineDuelInitParams = {
         puzzleState: currentDuelState
@@ -508,6 +547,7 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       loading: false,
       error: null,
       injectNotice: null,
+      handShuffle: null,
       pendingRequest: null,
       lastAttacker: null,
       backupDuelState: null,
@@ -525,6 +565,7 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         initParams.puzzleState = structuredClone(useDuelStore.getState().state)
         set({ backupDuelState: initParams.puzzleState })
       }
+      await window.api.duelEngineSetPolicy(get().timingPolicy)
 
       const res = await window.api.duelEngineInit(initParams)
       engineSteps.clear()
@@ -573,6 +614,13 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       const baseTimeline =
         currentIndex >= 0 ? prevTimeline.slice(0, currentIndex + 1) : prevTimeline
       const newTimeline = res.node ? [...baseTimeline, res.node] : prevTimeline
+      const shuffledPlayers = [
+        ...new Set(
+          (res.node?.events ?? [])
+            .filter((event) => event.kind === 'shuffle-hand')
+            .map((event) => event.player)
+        )
+      ]
       set({
         loading: false,
         error: null,
@@ -584,6 +632,10 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
             : get().lastAttacker,
         timeline: newTimeline,
         currentStepId: res.node?.id ?? get().currentStepId,
+        handShuffle:
+          shuffledPlayers.length > 0
+            ? { id: Date.now(), players: shuffledPlayers }
+            : get().handShuffle,
         selectedCardId: null
       })
       if (res.boardState) {

@@ -71,3 +71,15 @@ await esbuild.build({
   entryPoints: [path.join(root, 'scripts/smoke/inject-smoke.ts')],
   outfile: 'scripts/smoke/inject-smoke.bundle.cjs'
 })
+
+await esbuild.build({
+  ...commonOptions,
+  entryPoints: [path.join(root, 'scripts/smoke/hand-shuffle-smoke.ts')],
+  outfile: 'scripts/smoke/hand-shuffle-smoke.bundle.cjs'
+})
+
+await esbuild.build({
+  ...commonOptions,
+  entryPoints: [path.join(root, 'scripts/smoke/policy-smoke.ts')],
+  outfile: 'scripts/smoke/policy-smoke.bundle.cjs'
+})

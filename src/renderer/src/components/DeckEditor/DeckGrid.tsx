@@ -4,6 +4,7 @@ import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import { canPlaceInSection, CdbCard, DeckData, DeckSection, DeckStats } from '@shared/index'
 import { DeckCardItem } from './DeckCardItem'
+import { resolveCardName } from '../../utils/cardNames'
 import { DeckDragSourceData, DeckDropTargetData } from './deckDnd'
 import { cn } from '../../lib/utils'
 import { Ban, Plus, Check, ImageIcon, Trash2 } from 'lucide-react'
@@ -399,7 +400,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44">
-                {card?.name ?? `卡密 ${menu.code}`}
+                {card?.name || resolveCardName(menu.code)}
               </div>
 
               <Button

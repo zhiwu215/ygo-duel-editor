@@ -15,6 +15,7 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { confirmDialog } from '../../stores/useDialogStore'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { stepCardName } from '../../utils/cardNames'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
@@ -484,11 +485,7 @@ export const StepSequencerPanel: React.FC = () => {
     })
   }
 
-  const resolveStepCardName = (step: DuelStep): string =>
-    step.cardName ||
-    (step.cardCode
-      ? state.cards.find((c) => c.code === step.cardCode)?.card?.name || String(step.cardCode)
-      : '剧情事件')
+  const resolveStepCardName = (step: DuelStep): string => stepCardName(step) || '剧情事件'
 
   const isCurrentStepOf = (step: DuelStep, index: number): boolean => {
     if (engineCursor < 0) return currentStepIndex === index

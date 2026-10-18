@@ -32,6 +32,7 @@ import {
 import { alertDialog } from './useDialogStore'
 import { useDuelEngineStore } from './useDuelEngineStore'
 import { fetchCardDataByCodes } from '../utils/cardData'
+import { resolveCardName } from '../utils/cardNames'
 
 let lpFlashSeq = 0
 
@@ -953,7 +954,7 @@ export const useDuelStore = create<DuelStoreState>()(
             useDuelStore.getState()
           const nextChain = chainResponse ? currentChain + 1 : 1
           const pName = card.controller === 0 ? '我方' : '对方'
-          const cName = card.card?.name || (card.code ? String(card.code) : '卡片')
+          const cName = resolveCardName(card.code)
           const newStep: DuelStep = {
             id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
             turn: currentTurn,
@@ -1046,7 +1047,7 @@ export const useDuelStore = create<DuelStoreState>()(
         set({
           pendingPlacement: {
             sourceId,
-            sourceName: card.card?.name || String(card.code),
+            sourceName: resolveCardName(card.code),
             sourceController: controller,
             mode,
             cardType,
@@ -1100,10 +1101,10 @@ export const useDuelStore = create<DuelStoreState>()(
           : undefined
         const direct = !targetCard
         const pName = card.controller === 0 ? '我方' : '对方'
-        const cName = card.card?.name || (card.code ? String(card.code) : '怪兽')
+        const cName = resolveCardName(card.code)
         const description = direct
           ? `${pName}【${cName}】直接攻击`
-          : `${pName}【${cName}】攻击【${targetCard?.card?.name || targetCard?.code || '怪兽'}】`
+          : `${pName}【${cName}】攻击【${targetCard ? resolveCardName(targetCard.code) : '怪兽'}】`
 
         const newStep: DuelStep = {
           id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -1983,8 +1984,7 @@ export const useDuelStore = create<DuelStoreState>()(
                 lastStep.actionType === 'SPECIAL_SUMMON')
 
             const pName = targetCard.controller === 0 ? '我方' : '对方'
-            const cName =
-              targetCard.card?.name || (targetCard.code ? String(targetCard.code) : '卡片')
+            const cName = resolveCardName(targetCard.code)
 
             if (isJustDropped) {
               if (
@@ -2232,7 +2232,7 @@ export const useDuelStore = create<DuelStoreState>()(
           let nextSteps = prev.state.steps || []
           if (prev.isAutoRecording) {
             const pName = host.controller === 0 ? '我方' : '对方'
-            const hostName = host.card?.name || (host.code ? String(host.code) : '超量怪兽')
+            const hostName = resolveCardName(host.code)
             nextSteps = [
               ...nextSteps,
               {

@@ -2,6 +2,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React from 'react'
 import { CdbCard } from '@shared/index'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { resolveCardName } from '../../utils/cardNames'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Dices, X } from 'lucide-react'
@@ -61,7 +62,7 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
                 <div className="aspect-[59/86] w-full rounded-lg overflow-hidden border border-border shadow-md bg-background group-hover:scale-105 transition-transform duration-150">
                   <img
                     src={getCardImageUrl(code)}
-                    alt={card?.name || String(code)}
+                    alt={card?.name || resolveCardName(code)}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       ;(e.currentTarget as HTMLImageElement).src = UNKNOWN_CARD_IMAGE
@@ -72,11 +73,11 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
                   <TooltipTrigger
                     render={
                       <span className="text-[11px] font-medium text-foreground text-center truncate w-full">
-                        {card?.name || code}
+                        {card?.name || resolveCardName(code)}
                       </span>
                     }
                   />
-                  <TooltipContent>{card?.name || String(code)}</TooltipContent>
+                  <TooltipContent>{card?.name || resolveCardName(code)}</TooltipContent>
                 </Tooltip>
               </div>
             )

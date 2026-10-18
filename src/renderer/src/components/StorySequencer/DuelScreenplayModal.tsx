@@ -11,6 +11,7 @@ import {
 import { useDuelStore } from '../../stores/useDuelStore'
 import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { stepCardName } from '../../utils/cardNames'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
@@ -156,7 +157,8 @@ export const DuelScreenplayModal: React.FC = () => {
       }
 
       const actName = ACTION_TYPE_NAMES[s.actionType] || s.actionType
-      const cardDesc = s.cardName ? `【${s.cardName}】` : s.cardCode ? `【卡密:${s.cardCode}】` : ''
+      const name = stepCardName(s)
+      const cardDesc = name ? `【${name}】` : ''
       const pName = s.actionPlayer === 0 ? '我方' : '对方'
       const chainStr = s.chainIndex ? ` (Chain ${s.chainIndex})` : ''
 
@@ -548,7 +550,7 @@ export const DuelScreenplayModal: React.FC = () => {
                             {s.cardCode ? (
                               <img
                                 src={getCardImageUrl(s.cardCode, true)}
-                                alt={s.cardName || ''}
+                                alt={stepCardName(s)}
                                 className="w-7 h-10 object-cover rounded border border-border/80 shrink-0"
                                 onError={(e) => {
                                   e.currentTarget.src = UNKNOWN_CARD_IMAGE
@@ -588,11 +590,11 @@ export const DuelScreenplayModal: React.FC = () => {
                                 <TooltipTrigger
                                   render={
                                     <span className="font-bold text-xs text-foreground truncate">
-                                      {s.cardName || '动作事件'}
+                                      {stepCardName(s) || '动作事件'}
                                     </span>
                                   }
                                 />
-                                <TooltipContent>{s.cardName || '未指定卡片'}</TooltipContent>
+                                <TooltipContent>{stepCardName(s) || '未指定卡片'}</TooltipContent>
                               </Tooltip>
 
                               <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
@@ -627,7 +629,7 @@ export const DuelScreenplayModal: React.FC = () => {
                           <div className="w-12 h-[70px] rounded-md overflow-hidden border border-border/80 bg-black/60 shadow-sm shrink-0">
                             <img
                               src={getCardImageUrl(activeStep.cardCode, true)}
-                              alt={activeStep.cardName || ''}
+                              alt={stepCardName(activeStep)}
                               className="w-full h-full object-cover"
                               onError={(e) => {
                                 e.currentTarget.src = UNKNOWN_CARD_IMAGE
@@ -643,7 +645,7 @@ export const DuelScreenplayModal: React.FC = () => {
                         <div className="flex flex-col gap-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-sm text-foreground truncate">
-                              {activeStep.cardName || '未指定卡片动作'}
+                              {stepCardName(activeStep) || '未指定卡片动作'}
                             </span>
                             <span
                               className={cn(
@@ -879,7 +881,7 @@ export const DuelScreenplayModal: React.FC = () => {
       {chantPickerCode >= 0 && activeStep && (
         <CardNotePicker
           cardCode={chantPickerCode > 0 ? chantPickerCode : null}
-          cardName={activeStep.cardName}
+          cardName={stepCardName(activeStep)}
           currentDialogue={activeStep.dialogue}
           onPick={(text) => updateStep(activeStep.id, { dialogue: text })}
           onClose={() => setChantPickerCode(-1)}

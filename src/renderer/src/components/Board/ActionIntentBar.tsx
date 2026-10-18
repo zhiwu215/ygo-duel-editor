@@ -3,16 +3,8 @@ import { CardLocation, CardPosition } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { getFallbackActions } from '../../utils/ruleCheck'
-import {
-  Sparkles,
-  MapPin,
-  X,
-  Crosshair,
-  ArrowDownToLine,
-  Ban,
-  EyeOff,
-  Zap
-} from 'lucide-react'
+import { resolveCardName } from '../../utils/cardNames'
+import { Sparkles, MapPin, X, Crosshair, ArrowDownToLine, Ban, EyeOff, Zap } from 'lucide-react'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
@@ -142,7 +134,7 @@ export const ActionIntentBar: React.FC = () => {
       ) : (
         <>
           <span className="shrink-0 max-w-32 truncate font-medium text-foreground">
-            {selectedCard?.card?.name || `卡片 ${selectedCard?.code}`}
+            {selectedCard ? resolveCardName(selectedCard.code) : ''}
           </span>
           {cardActions?.canSummon && (
             <Button

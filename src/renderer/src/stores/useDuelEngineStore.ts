@@ -26,6 +26,7 @@ import {
   normalizeTimingPolicy
 } from '@shared/index'
 import { useDuelStore } from './useDuelStore'
+import { resolveCardName } from '../utils/cardNames'
 
 export type EngineMode = 'idle' | 'running' | 'paused'
 
@@ -359,13 +360,6 @@ function answerToEngineStepAction(answer: Answer): EngineStepAction | undefined 
   return undefined
 }
 
-/** 在编辑器卡表里按卡密找一个名称（步骤展示用；同名无碍，只取名字），卡表缺数据时退回引擎侧 CDB 数据 */
-function cardNameOfCode(code: number): string | undefined {
-  const editorName = useDuelStore.getState().state.cards.find((c) => c.code === code)?.card?.name
-  if (editorName) return editorName
-  return useDuelEngineStore.getState().boardState?.allCards.find((c) => c.code === code)?.card?.name
-}
-
 function hasBoardChange(diff: EngineDiffResult): boolean {
   return (
     diff.movedCards.length > 0 ||
@@ -459,9 +453,7 @@ function patchTargetStep(
       c.location === first.location &&
       c.sequence === first.sequence
   )?.instanceId
-  const names = selected
-    .map((c) => cardNameOfCode(c.code))
-    .filter((name): name is string => Boolean(name))
+  const names = selected.map((c) => resolveCardName(c.code))
 
   storeEngineStep(host.id, null, {
     ...stored,
@@ -469,7 +461,7 @@ function patchTargetStep(
       (engineId ? engineToEditorId.get(engineId) : undefined) ??
       engineId ??
       stored.targetInstanceId,
-    targetCardName: names.length > 0 ? names.join('、') : stored.targetCardName,
+    targetCardName: names.join('、'),
     targetPlayer: first.controller
   })
 }
@@ -521,7 +513,7 @@ function appendEngineStepFromAnswer(
     actionType,
     actId: node.id,
     cardCode: card?.code,
-    cardName: card ? cardNameOfCode(card.code) : undefined,
+    cardName: card ? resolveCardName(card.code) : undefined,
     fromLocation: card?.location,
     fromSequence: card?.sequence,
     toLocation: moved?.toLocation ?? card?.location,

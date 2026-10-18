@@ -9,6 +9,7 @@ import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { fetchCardDataByCodes } from '../../utils/cardData'
+import { resolveCardName } from '../../utils/cardNames'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { Layers, Ghost, Ban, X, Trash2, Search, MoreHorizontal } from 'lucide-react'
 import { Button } from '../ui/button'
@@ -179,7 +180,7 @@ const PileListContent: React.FC = () => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) return pileCards
     return pileCards.filter((c) => {
-      const name = (c.card?.name || cardDataMap[c.code]?.name || '').toLowerCase()
+      const name = (cardDataMap[c.code]?.name || resolveCardName(c.code)).toLowerCase()
       const code = String(c.code)
       return name.includes(query) || code.includes(query)
     })
@@ -697,8 +698,7 @@ const PileListContent: React.FC = () => {
                 const card = item.card
                 const originalIndex = pileCards.findIndex((c) => c.instanceId === card.instanceId)
                 const isSelected = selectedCardId === card.instanceId
-                const cardName =
-                  card.card?.name || cardDataMap[card.code]?.name || String(card.code)
+                const cardName = cardDataMap[card.code]?.name || resolveCardName(card.code)
                 const cardDetail = card.card || cardDataMap[card.code]
                 const isBeingDragged = draggedCardId === card.instanceId
 
@@ -901,9 +901,7 @@ const PileListContent: React.FC = () => {
               />
             </div>
             <span className="mt-1 min-h-[26px] px-0.5 text-[10.5px] leading-[13px] text-center text-foreground/85 line-clamp-2 break-all block">
-              {pointerDrag.card.card?.name ||
-                cardDataMap[pointerDrag.card.code]?.name ||
-                String(pointerDrag.card.code)}
+              {cardDataMap[pointerDrag.card.code]?.name || resolveCardName(pointerDrag.card.code)}
             </span>
           </div>,
           document.body

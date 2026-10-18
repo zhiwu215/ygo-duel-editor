@@ -5,6 +5,7 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { deriveCardEngineActions } from '../../utils/engineActions'
+import { resolveCardName } from '../../utils/cardNames'
 import { cn } from '../../lib/utils'
 
 interface CardCommandMenuProps {
@@ -166,12 +167,8 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
     useRequestActions && requestActions?.attack?.directAttackable ? '攻击（可直攻）' : '攻击'
 
   /** 请求模式下多效果列表的标签（效果全文由确认弹窗展示；R7 换 strings 表） */
-  const getActivateLabel = (code: number, idx: number): string => {
-    const name = code === card.code ? card.card?.name : cardNameOf(code)
-    return `发动 [${name ?? code}]（效果 ${idx + 1}）`
-  }
-  const cardNameOf = (code: number): string | undefined =>
-    useDuelStore.getState().state.cards.find((c) => c.code === code)?.card?.name
+  const getActivateLabel = (code: number, idx: number): string =>
+    `发动 [${resolveCardName(code)}]（效果 ${idx + 1}）`
 
   const buttonCount = useRequestActions
     ? (requestActions?.summon ? 1 : 0) +

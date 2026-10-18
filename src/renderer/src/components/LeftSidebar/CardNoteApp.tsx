@@ -30,6 +30,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import { CardNoteEntry, CardNoteKind, CardNote } from '@shared/index'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { resolveCardName } from '../../utils/cardNames'
 import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover'
@@ -379,7 +380,9 @@ export const CardNoteApp: React.FC = () => {
         const map = await window.api.getCardsByIds(codes)
         if (!cancelled) {
           setMenuVariants(
-            codes.filter((c) => map[c]).map((c) => ({ code: c, name: map[c]?.name ?? String(c) }))
+            codes
+              .filter((c) => map[c])
+              .map((c) => ({ code: c, name: map[c]?.name || resolveCardName(c) }))
           )
         }
       } catch (err) {

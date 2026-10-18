@@ -20,6 +20,7 @@ import {
   type DerivedSelection
 } from '../../utils/duelSelection'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { findCardName, resolveCardName } from '../../utils/cardNames'
 import { Button } from '../ui/button'
 import { Check, X } from 'lucide-react'
 
@@ -30,8 +31,7 @@ function requestCardName(cards: FieldCard[], requestCard: RequestCard): string {
       card.location === requestCard.location &&
       card.sequence === requestCard.sequence
   )
-  const named = exact?.card ?? cards.find((card) => card.code === requestCard.code)?.card
-  return named?.name ?? (requestCard.code > 0 ? `#${requestCard.code}` : '未知卡片')
+  return exact?.card?.name || resolveCardName(requestCard.code)
 }
 
 // ------------------------------------------------------------------ unselect 弹窗（含牌堆候选）
@@ -153,11 +153,8 @@ export const DuelSelectionBar: React.FC = () => {
   // S4：攻击目标选择（descHint 549）——点一只对方怪兽即确定目标，取消 = 撤销攻击宣言
   const isAttackTarget = derived.attackTarget === true
   const isSingleAttackTarget = isAttackTarget && derived.min === 1 && derived.max === 1
-  const attackerName = lastAttacker ? requestCardName(cards, lastAttacker) : null
-  const attackTargetHint =
-    attackerName && !attackerName.startsWith('#')
-      ? `选择【${attackerName}】的攻击对象`
-      : '选择攻击对象'
+  const attackerName = lastAttacker ? findCardName(lastAttacker.code) : null
+  const attackTargetHint = attackerName ? `选择【${attackerName}】的攻击对象` : '选择攻击对象'
   const selected = isUnselect
     ? derived.selected
     : derived.candidates.filter((card) => selectedKeys.includes(requestCardKey(card)))

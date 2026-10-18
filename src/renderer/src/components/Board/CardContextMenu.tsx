@@ -8,6 +8,7 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
 import { CardPosition, CardLocation, CardType, EngineCardRef, Answer } from '@shared/index'
 import { deriveCardEngineActions } from '../../utils/engineActions'
+import { resolveCardName } from '../../utils/cardNames'
 import {
   Swords,
   Shield,
@@ -170,11 +171,6 @@ export const CardContextMenu: React.FC = () => {
   const moveTo = (loc: number, ctrl?: 0 | 1): (() => void) =>
     act(() => moveCard(card.instanceId, loc, 0, ctrl))
 
-  const codeName = (code: number): string =>
-    code === card.code
-      ? card.card?.name || `卡片 ${code}`
-      : state.cards.find((c) => c.code === code)?.card?.name || `卡片 ${code}`
-
   const engineActions = isEngine ? requestActions : null
 
   const duelActionItems: MenuItemConfig[] = []
@@ -216,7 +212,7 @@ export const CardContextMenu: React.FC = () => {
       const suffix = engineActions.activate.length > 1 ? `（效果 ${index + 1}）` : ''
       addItem(
         zapIcon,
-        `发动 [${codeName(cardReq.code)}]${suffix}`,
+        `发动 [${resolveCardName(cardReq.code)}]${suffix}`,
         engineActions.requestKind === 'battle'
           ? { kind: 'battle', cmd: 'ACTIVATE', card: cardReq }
           : { kind: 'idle', cmd: 'ACTIVATE', card: cardReq }
@@ -249,7 +245,7 @@ export const CardContextMenu: React.FC = () => {
         }
         const target = {
           ref,
-          name: card.card?.name || `卡片 ${card.code}`,
+          name: resolveCardName(card.code),
           code: card.code
         }
         return [
@@ -437,7 +433,7 @@ export const CardContextMenu: React.FC = () => {
       onClick={(e) => e.stopPropagation()}
     >
       <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-52">
-        {card.card?.name || `卡片: ${card.code}`}
+        {resolveCardName(card.code)}
       </div>
 
       {duelActionItems.length > 0 && (

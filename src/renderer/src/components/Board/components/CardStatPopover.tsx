@@ -39,6 +39,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { useTokenStore, matchTokensByDesc } from '../../../stores/useTokenStore'
+import { resolveCardName } from '../../../utils/cardNames'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../../utils/cardImage'
 import { cn } from '../../../lib/utils'
 
@@ -462,7 +463,7 @@ export const CardStatPopover: React.FC = () => {
   const cdb = card.card
   const isMonster = cdb ? CardUtils.isMonster(cdb.type) : card.location === CardLocation.MZONE
   const isLink = cdb ? CardUtils.isLink(cdb.type) : false
-  const cardName = cdb?.name || (card.code ? String(card.code) : '未知卡片')
+  const cardName = resolveCardName(card.code)
 
   // 依本体卡效果文本推断可召唤的衍生物
   const suggestedTokens = tokenCatalog && cdb ? matchTokensByDesc(tokenCatalog, cdb) : []

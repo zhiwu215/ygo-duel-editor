@@ -3,6 +3,7 @@ import React, { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
 import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
+import { resolveCardName } from '../../utils/cardNames'
 import { getFallbackActions, type CardActionOptions } from '../../utils/ruleCheck'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
@@ -400,7 +401,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           <div className="absolute inset-0 rounded overflow-hidden">
             <img
               src={getCardImageUrl(card.code, true)}
-              alt={card.card?.name || String(card.code)}
+              alt={resolveCardName(card.code)}
               className="w-full h-full object-cover select-none pointer-events-none"
               onError={(e) => {
                 const target = e.currentTarget

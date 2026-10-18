@@ -6,6 +6,7 @@ import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { fetchCardDataByCodes } from '../../utils/cardData'
+import { resolveCardName } from '../../utils/cardNames'
 import { Layers, Ghost, Ban, X, Trash2, Search, ArrowUpCircle, ArrowDownToLine } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -79,11 +80,10 @@ export const OverlayListModal: React.FC = () => {
   if (!hostInstanceId || !hostCard) return null
 
   const materials = hostCard.overlayMaterials || []
-  const hostName =
-    hostCard.card?.name || cardDataMap[hostCard.code]?.name || `卡片 [${hostCard.code}]`
+  const hostName = cardDataMap[hostCard.code]?.name || resolveCardName(hostCard.code)
 
   const filteredMaterials = materials
-    .map((code, index) => ({ code, index, name: cardDataMap[code]?.name || `[${code}]` }))
+    .map((code, index) => ({ code, index, name: cardDataMap[code]?.name || resolveCardName(code) }))
     .filter((item) => {
       const q = searchQuery.trim().toLowerCase()
       if (!q) return true

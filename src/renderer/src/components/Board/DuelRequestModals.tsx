@@ -18,6 +18,7 @@ import {
   submitSelection
 } from '../../utils/duelSelection'
 import { fetchCardDataByCodes } from '../../utils/cardData'
+import { resolveCardName } from '../../utils/cardNames'
 import { getCardBack, getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -98,7 +99,7 @@ function useCardMeta(cards: RequestCard[]): Record<number, CdbCard> {
 }
 
 function cardNameOf(meta: Record<number, CdbCard>, code: number): string {
-  return meta[code]?.name ?? (code > 0 ? `#${code}` : '未知卡片')
+  return meta[code]?.name || resolveCardName(code)
 }
 
 // ------------------------------------------------------------------ 通用外壳

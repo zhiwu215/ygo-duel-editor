@@ -4,6 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { CdbCard, DeckSection } from '@shared/index'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { resolveCardName } from '../../utils/cardNames'
 import { cn } from '../../lib/utils'
 import { DeckDragSourceData } from './deckDnd'
 
@@ -87,7 +88,7 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
           >
             <img
               src={imageUrl}
-              alt={card?.name || String(code)}
+              alt={card?.name || resolveCardName(code)}
               loading="lazy"
               draggable={false}
               className="w-full h-full object-cover pointer-events-none"

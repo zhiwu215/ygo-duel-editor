@@ -10,6 +10,7 @@ import {
   isInfiniteVal
 } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
+import { resolveCardName } from '../../../utils/cardNames'
 import { cn } from '../../../lib/utils'
 
 interface CardHudOverlayProps {
@@ -67,7 +68,7 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
   const customCounters = useDuelStore((s) => s.state.customCounters)
   const cdb = card.card
   const isMonster = cdb ? CardUtils.isMonster(cdb.type) : card.location === CardLocation.MZONE
-  const cardName = cdb?.name || (card.code ? String(card.code) : '未知卡片')
+  const cardName = resolveCardName(card.code)
 
   const origAtk = cdb?.atk ?? 0
   const origDef = cdb?.def ?? 0

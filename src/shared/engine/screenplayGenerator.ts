@@ -104,6 +104,10 @@ export function generateScreenplayMarkdown(
       if (step.description) {
         lines.push(`  - *战术说明*：${step.description}`)
       }
+
+      if (step.targetCardName) {
+        lines.push(`  - *选择对象*：${step.targetCardName}`)
+      }
     }
 
     // 转写来源原文摘句（AI 从小说转写时保留，供读者核对）

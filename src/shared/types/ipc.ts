@@ -6,7 +6,10 @@ import { DuelPhase, DuelActionType } from './story'
 import { EngineDuelInitParams, EngineBoardState, EngineTimelineNode } from './duelEngine'
 import {
   Answer,
+  EngineCardEditResult,
+  EngineCardRef,
   EngineInjectResult,
+  EngineProvenance,
   EngineRequest,
   InjectCommand,
   TimingPolicy
@@ -82,6 +85,25 @@ export interface CdbStatusResult {
   ready: boolean
   path: string | null
   loadedPaths: string[]
+  /** 自建卡托管 cdb 的当前路径（设置里标记为托管库，不作为普通附加库卸载） */
+  customCdbPath: string
+}
+
+/** 自建卡脚本（c<卡密>.lua）在自建脚本目录中的状态 */
+export interface CustomCardScriptInfo {
+  code: number
+  fileName: string
+  path: string
+  exists: boolean
+  size?: number
+  updatedAt?: number
+}
+
+export interface CustomCardScriptResult {
+  success: boolean
+  canceled?: boolean
+  error?: string
+  info?: CustomCardScriptInfo
 }
 
 export interface CdbSelectResult {
@@ -574,6 +596,10 @@ export interface IpcApi {
   deleteCustomCard: (id: number) => Promise<CustomCardDeleteResult>
   pickCustomCardImage: () => Promise<CustomCardPickImageResult>
   applyCustomCardImage: (id: number) => Promise<CustomCardPickImageResult>
+  getCustomCardScript: (code: number) => Promise<CustomCardScriptInfo>
+  pickCustomCardScript: (code: number) => Promise<CustomCardScriptResult>
+  deleteCustomCardScript: (code: number) => Promise<CustomCardScriptResult>
+  openCustomCardScriptDir: () => Promise<void>
   onCustomCardsUpdated: (callback: () => void) => () => void
 
   exportLuaFile: (
@@ -763,6 +789,9 @@ export interface IpcApi {
   }>
   duelEngineGetTimeline: () => Promise<EngineTimelineNode[]>
   duelEngineGetBoardState: () => Promise<EngineBoardState>
+  duelEngineGetProvenance: (ref: EngineCardRef) => Promise<EngineProvenance>
+  duelEngineReplaceCard: (ref: EngineCardRef, newCode: number) => Promise<EngineCardEditResult>
+  duelEngineRemoveCard: (ref: EngineCardRef) => Promise<EngineCardEditResult>
   openSettingsWindow: (section?: SettingsSectionId) => Promise<void>
   onSettingsNavigate: (callback: (section: SettingsSectionId) => void) => () => void
   openExternal: (url: string) => Promise<boolean>

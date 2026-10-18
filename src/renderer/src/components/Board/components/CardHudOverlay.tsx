@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React from 'react'
 import {
   FieldCard,
@@ -37,13 +36,13 @@ const StatLine: React.FC<StatLineProps> = ({
   emphasized,
   dashed
 }) => (
-  <div className="flex items-baseline justify-between gap-1.5 leading-none">
-    <span className="font-sans text-[8.5px] font-bold tracking-wider text-white/50">{label}</span>
-    <span className="flex items-baseline gap-1 font-mono tabular-nums">
+  <div className="flex items-baseline justify-between gap-1 leading-none">
+    <span className="font-sans text-[8px] font-bold tracking-wider text-white/50">{label}</span>
+    <span className="flex flex-wrap items-baseline justify-end gap-x-1 gap-y-0.5 font-mono tabular-nums">
       <span
         className={cn(
           'font-bold',
-          emphasized ? 'text-[13px]' : 'text-[11px]',
+          emphasized ? 'text-[12px]' : 'text-[10px]',
           dashed || infinite || diff === 0
             ? 'text-white/95'
             : diff > 0
@@ -56,7 +55,7 @@ const StatLine: React.FC<StatLineProps> = ({
       {!dashed && diff !== 0 && (
         <span
           className={cn(
-            'rounded px-1 text-[8.5px] font-bold',
+            'rounded px-1 text-[8px] font-bold',
             diff > 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-rose-400/20 text-rose-300'
           )}
         >
@@ -68,8 +67,8 @@ const StatLine: React.FC<StatLineProps> = ({
 )
 
 /**
- * YGOPro 风格的半透明战场全息 HUD 浮层
- * 展示卡名、表示形式、攻守数值（含变动徽标）、星阶/种族/属性以及全称指示物列表
+ * YGOPro 风格的半透明战场全息 HUD 浮层。
+ * 尺寸恒定（宽度与卡格等宽，不遮挡相邻卡格的面板），卡名固定折行显示。
  */
 export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
   const customCounters = useDuelStore((s) => s.state.customCounters)
@@ -113,9 +112,9 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
     }))
 
   return (
-    <div className="absolute z-40 pointer-events-none select-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-max min-w-[112px] max-w-[136px] bg-black/85 backdrop-blur-xs border border-white/20 rounded-md shadow-2xl px-2 py-1.5 flex flex-col gap-1 text-[10px] leading-tight text-white font-sans animate-in fade-in zoom-in-95 duration-100">
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-max min-w-[92px] max-w-[104px] bg-black/85 backdrop-blur-xs border border-white/20 rounded-md shadow-2xl px-1 py-1.5 flex flex-col gap-1 text-[10px] leading-tight text-white font-sans pointer-events-none select-none animate-in fade-in zoom-in-95 duration-100">
       {/* 表示形式角标 + 卡名 */}
-      <div className="flex items-center gap-1 min-w-0">
+      <div className="flex items-start gap-1 min-w-0">
         {isMonster && (
           <span
             className={cn(
@@ -130,21 +129,14 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
             {isFacedown ? '盖' : isDefense ? '守' : '攻'}
           </span>
         )}
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <div className="font-bold text-left truncate text-[11px] text-white/95 min-w-0">
-                {cardName}
-              </div>
-            }
-          />
-          <TooltipContent>{cardName}</TooltipContent>
-        </Tooltip>
+        <div className="font-bold text-left text-[10.5px] text-white/95 min-w-0 line-clamp-2 break-words">
+          {cardName}
+        </div>
       </div>
 
       {/* 攻守数值 (仅怪兽；支持无限、? 与变动徽标) */}
       {isMonster && (
-        <div className="flex flex-col gap-1 rounded bg-white/5 px-1.5 py-1">
+        <div className="flex flex-col gap-1 rounded bg-white/5 px-1 py-1">
           <StatLine
             label="ATK"
             value={effectiveAtk}
@@ -180,16 +172,9 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
 
       {/* 指示物全称列表行 */}
       {counterEntries.map((c) => (
-        <Tooltip key={c.id}>
-          <TooltipTrigger
-            render={
-              <div className="text-[9.5px] font-semibold text-center text-amber-300 truncate">
-                [{c.name}]: {c.count}
-              </div>
-            }
-          />
-          <TooltipContent>{`[${c.name}]: ${c.count}`}</TooltipContent>
-        </Tooltip>
+        <div key={c.id} className="text-[9.5px] font-semibold text-center text-amber-300 truncate">
+          [{c.name}]: {c.count}
+        </div>
       ))}
     </div>
   )

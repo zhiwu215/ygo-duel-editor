@@ -11,6 +11,7 @@ import { DuelRequestModals } from './DuelRequestModals'
 import { DuelSelectionBar } from './DuelSelectionBar'
 import { ChainModeToggle } from './ChainModeToggle'
 import { EngineFeedbackToast } from './EngineFeedbackToast'
+import { EngineCardEditDialogs } from './EngineCardEditDialogs'
 import { PhaseBanner } from './PhaseBanner'
 import { OverlayListModal } from './OverlayListModal'
 import { DeckSwitcherModal } from './DeckSwitcherModal'
@@ -606,6 +607,9 @@ export const DuelBoard: React.FC = () => {
 
       {/* 引擎问答反馈（拒绝/错误提示） */}
       <EngineFeedbackToast />
+
+      {/* 剧情溯源 / 替换卡片弹窗（右键菜单唤起） */}
+      <EngineCardEditDialogs />
 
       {/* 选卡询问（card/tribute/sum/unselect）：场上点选底部条 / unselect 弹窗 */}
       <DuelSelectionBar />

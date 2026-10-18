@@ -1,5 +1,12 @@
-import React, { useState } from 'react'
-import { ATTRIBUTE_NAMES, CardType, LINK_MARKERS, RACE_NAMES, CustomCardInput } from '@shared/index'
+import React, { useEffect, useState } from 'react'
+import {
+  ATTRIBUTE_NAMES,
+  CardType,
+  LINK_MARKERS,
+  RACE_NAMES,
+  CustomCardInput,
+  CustomCardScriptInfo
+} from '@shared/index'
 import {
   Dialog,
   DialogContent,
@@ -21,7 +28,7 @@ import {
   useCustomCardStore,
   type CustomCardEditorForm
 } from '../../stores/useCustomCardStore'
-import { ImageUp, Save } from 'lucide-react'
+import { FileCode2, FolderOpen, ImageUp, Save, Trash2 } from 'lucide-react'
 
 const KINDS: Array<{ id: number; label: string }> = [
   { id: CardType.MONSTER, label: '怪兽' },
@@ -77,6 +84,12 @@ function parseCount(value: string, fallback = 0): number {
   return Math.min(255, Math.trunc(num))
 }
 
+function formatScriptSize(size: number | undefined): string {
+  if (!size || size <= 0) return '0 B'
+  if (size < 1024) return `${size} B`
+  return `${(size / 1024).toFixed(1)} KB`
+}
+
 export const CustomCardEditorDialog: React.FC = () => {
   const editorOpen = useCustomCardStore((s) => s.editorOpen)
   if (!editorOpen) return null
@@ -94,6 +107,23 @@ const CustomCardEditorBody: React.FC = () => {
   const [error, setError] = useState<string>('')
   const [saving, setSaving] = useState<boolean>(false)
   const [picking, setPicking] = useState<boolean>(false)
+  const [scriptInfo, setScriptInfo] = useState<CustomCardScriptInfo | null>(null)
+  const [scriptBusy, setScriptBusy] = useState<boolean>(false)
+  const [scriptError, setScriptError] = useState<string>('')
+
+  useEffect(() => {
+    if (editingId === null) return
+    let cancelled = false
+    void window.api
+      .getCustomCardScript(editingId)
+      .then((info) => {
+        if (!cancelled) setScriptInfo(info)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [editingId])
 
   const kind = form.type & (CardType.MONSTER | CardType.SPELL | CardType.TRAP)
   const isMonster = kind === CardType.MONSTER
@@ -228,6 +258,39 @@ const CustomCardEditorBody: React.FC = () => {
       ? getCardImageUrl(editingId)
       : UNKNOWN_CARD_IMAGE
 
+  const handlePickScript = async (): Promise<void> => {
+    if (editingId === null) return
+    setScriptBusy(true)
+    try {
+      const res = await window.api.pickCustomCardScript(editingId)
+      if (res.canceled) return
+      if (!res.success) {
+        setScriptError(res.error ?? '脚本导入失败')
+        return
+      }
+      setScriptInfo(res.info ?? null)
+      setScriptError('')
+    } finally {
+      setScriptBusy(false)
+    }
+  }
+
+  const handleRemoveScript = async (): Promise<void> => {
+    if (editingId === null) return
+    setScriptBusy(true)
+    try {
+      const res = await window.api.deleteCustomCardScript(editingId)
+      if (!res.success) {
+        setScriptError(res.error ?? '脚本删除失败')
+        return
+      }
+      setScriptInfo(res.info ?? null)
+      setScriptError('')
+    } finally {
+      setScriptBusy(false)
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(open) => (!open ? closeEditor() : undefined)}>
       <DialogContent className="sm:max-w-3xl max-h-[88vh] overflow-y-auto">
@@ -283,6 +346,13 @@ const CustomCardEditorBody: React.FC = () => {
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="h-8 text-xs"
               />
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span>卡密</span>
+              <span className="font-mono text-foreground/80">
+                {editingId ?? '保存后自动生成'}
+              </span>
             </div>
 
             <div className="flex flex-col gap-1">
@@ -523,9 +593,68 @@ const CustomCardEditorBody: React.FC = () => {
               className="min-h-20 text-xs resize-none"
             />
           </div>
+
+          <div className="flex flex-col gap-2 rounded-lg border border-border/70 bg-muted/20 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <FileCode2 className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                <span className="text-[11px] text-muted-foreground shrink-0">引擎脚本</span>
+                <span className="truncate font-mono text-[11px] text-foreground/80">
+                  {editingId === null
+                    ? '保存后可用'
+                    : scriptInfo?.exists
+                      ? `${scriptInfo.fileName}（${formatScriptSize(scriptInfo.size)}）`
+                      : '未配置'}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  className="gap-1"
+                  disabled={editingId === null || scriptBusy}
+                  onClick={() => void handlePickScript()}
+                >
+                  <FileCode2 className="w-3 h-3" />
+                  <span>{scriptInfo?.exists ? '替换 Lua' : '导入 Lua'}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="gap-1"
+                  disabled={!scriptInfo?.exists || scriptBusy}
+                  onClick={() => void handleRemoveScript()}
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>移除</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="gap-1"
+                  onClick={() => void window.api.openCustomCardScriptDir()}
+                >
+                  <FolderOpen className="w-3 h-3" />
+                  <span>目录</span>
+                </Button>
+              </div>
+            </div>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {editingId === null
+                ? '保存这张卡后，可在自建卡脚本目录放置 c<卡密>.lua 让引擎执行它的效果。'
+                : scriptInfo?.exists
+                  ? '引擎会加载该脚本，这张卡按脚本效果参与对局。'
+                  : '没有脚本时，这张卡在引擎里按白板卡参与对局：召唤、盖放、战斗、墓地/除外规则都正常，只是效果不发生。'}
+              {' 脚本放在自建卡脚本目录（游戏目录下的脚本同样会被读取）。'}
+            </p>
+          </div>
         </div>
 
         {error && <p className="text-xs text-red-500">{error}</p>}
+        {scriptError && <p className="text-xs text-red-500">{scriptError}</p>}
 
         <DialogFooter>
           <DialogClose render={<Button type="button" variant="outline" size="sm" />}>

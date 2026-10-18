@@ -9,6 +9,7 @@ import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { CardHudOverlay } from './components/CardHudOverlay'
+import { CardFieldStats } from './components/CardFieldStats'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useSelectionStore } from '../../stores/useSelectionStore'
@@ -158,6 +159,11 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   // 1. 场上所有怪兽卡默认全部展示实战数据 (卡名、攻守、星阶/种族/属性、指示物)
   // 2. 魔法陷阱卡平时不展示，仅当真正挂载了指示物时才亮起展示指示物数据
   const showHud = tacticalView && isFieldZone && (isMonster || hasCounters)
+  // 卡面攻守数字 (neos 风格)：场上表侧怪兽常显当前攻守
+  const showFieldStats =
+    isMonster &&
+    card.location === CardLocation.MZONE &&
+    (card.position === CardPosition.FACEUP_ATTACK || card.position === CardPosition.FACEUP_DEFENSE)
 
   // 若卡片缺少 CDB 详情数据，自动补全缓存以准确识别超量类型
   useEffect(() => {
@@ -481,6 +487,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           <TooltipContent>{`点击查看超量素材列表 (当前 ${materialCount} 张)`}</TooltipContent>
         </Tooltip>
       )}
+
+      {showFieldStats && <CardFieldStats card={card} />}
 
       {showHud && <CardHudOverlay card={card} />}
     </div>

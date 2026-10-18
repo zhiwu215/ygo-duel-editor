@@ -21,6 +21,7 @@ import { settingsWindowService } from '../services/settingsWindowService'
 import { libraryService } from '../services/libraryService'
 import { cardNoteService } from '../services/cardNoteService'
 import { customCardService } from '../services/customCardService'
+import { customCdbPath, openCustomScriptDir } from '../services/customCardLibrary'
 import { textLibraryService } from '../services/textLibraryService'
 import { dataDirService } from '../services/dataDirService'
 import { registerDuelEngineIpc } from './duelEngineIpc'
@@ -88,11 +89,28 @@ export function registerAllIpcHandlers(): void {
     return customCardService.pickAndApplyImage(id)
   })
 
+  ipcMain.handle('customcard:script-info', (_, code: number) => {
+    return customCardService.scriptInfo(code)
+  })
+
+  ipcMain.handle('customcard:pick-script', async (_, code: number) => {
+    return customCardService.pickScript(code)
+  })
+
+  ipcMain.handle('customcard:delete-script', (_, code: number) => {
+    return customCardService.deleteScript(code)
+  })
+
+  ipcMain.handle('customcard:open-script-dir', async () => {
+    await openCustomScriptDir()
+  })
+
   ipcMain.handle('cdb:status', () => {
     return {
       ready: cdbService.isReady(),
       path: cdbService.getCurrentPath(),
-      loadedPaths: cdbService.getLoadedPaths()
+      loadedPaths: cdbService.getLoadedPaths(),
+      customCdbPath: customCdbPath()
     }
   })
 

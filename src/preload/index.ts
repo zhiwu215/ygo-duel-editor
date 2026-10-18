@@ -36,6 +36,10 @@ const api: IpcApi = {
   deleteCustomCard: (id) => ipcRenderer.invoke('customcard:delete', id),
   pickCustomCardImage: () => ipcRenderer.invoke('customcard:pick-image'),
   applyCustomCardImage: (id) => ipcRenderer.invoke('customcard:apply-image', id),
+  getCustomCardScript: (code) => ipcRenderer.invoke('customcard:script-info', code),
+  pickCustomCardScript: (code) => ipcRenderer.invoke('customcard:pick-script', code),
+  deleteCustomCardScript: (code) => ipcRenderer.invoke('customcard:delete-script', code),
+  openCustomCardScriptDir: () => ipcRenderer.invoke('customcard:open-script-dir'),
   onCustomCardsUpdated: (callback) => {
     const handler = (): void => callback()
     ipcRenderer.on('custom-cards:updated', handler)
@@ -87,13 +91,19 @@ const api: IpcApi = {
     ipcRenderer.invoke('duel:export-replay', params),
 
   duelEngineInit: (params) => ipcRenderer.invoke('duel-engine:init', params),
-  duelEngineSetPolicy: (policy: TimingPolicy) => ipcRenderer.invoke('duel-engine:set-policy', policy),
-  duelEngineSubmitAnswer: (answer: Answer) => ipcRenderer.invoke('duel-engine:submit-answer', answer),
+  duelEngineSetPolicy: (policy: TimingPolicy) =>
+    ipcRenderer.invoke('duel-engine:set-policy', policy),
+  duelEngineSubmitAnswer: (answer: Answer) =>
+    ipcRenderer.invoke('duel-engine:submit-answer', answer),
   duelEngineInject: (command: InjectCommand) => ipcRenderer.invoke('duel-engine:inject', command),
   duelEngineGetPendingRequest: () => ipcRenderer.invoke('duel-engine:get-pending-request'),
   duelEngineJumpToStep: (stepId) => ipcRenderer.invoke('duel-engine:jump-to-step', stepId),
   duelEngineGetTimeline: () => ipcRenderer.invoke('duel-engine:get-timeline'),
   duelEngineGetBoardState: () => ipcRenderer.invoke('duel-engine:get-board-state'),
+  duelEngineGetProvenance: (ref) => ipcRenderer.invoke('duel-engine:provenance', ref),
+  duelEngineReplaceCard: (ref, newCode) =>
+    ipcRenderer.invoke('duel-engine:replace-card', ref, newCode),
+  duelEngineRemoveCard: (ref) => ipcRenderer.invoke('duel-engine:remove-card', ref),
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   saveProjectToPath: (filePath: string, state: DuelPuzzleState) =>

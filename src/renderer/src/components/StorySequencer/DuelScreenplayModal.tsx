@@ -32,6 +32,7 @@ import {
   Download,
   Layers,
   BrainCircuit,
+  Crosshair,
   Lightbulb
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -412,6 +413,18 @@ export const DuelScreenplayModal: React.FC = () => {
                                 </span>
                               )}
                             </div>
+
+                            {s.targetCardName && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Crosshair className="w-3.5 h-3.5 shrink-0 text-cyan-400/80" />
+                                <span>
+                                  目标：
+                                  <span className="font-semibold text-foreground">
+                                    {s.targetCardName}
+                                  </span>
+                                </span>
+                              </div>
+                            )}
 
                             {(s.speaker || s.dialogue) && (
                               <div className="mt-1 p-2 rounded-lg bg-muted/40 border border-border/60 text-xs">

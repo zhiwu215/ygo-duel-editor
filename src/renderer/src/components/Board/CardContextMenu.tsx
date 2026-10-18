@@ -5,7 +5,8 @@ import { usePileListStore } from '../../stores/usePileListStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { CardPosition, CardLocation, CardType, Answer } from '@shared/index'
+import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
+import { CardPosition, CardLocation, CardType, EngineCardRef, Answer } from '@shared/index'
 import { deriveCardEngineActions } from '../../utils/engineActions'
 import {
   Swords,
@@ -22,7 +23,8 @@ import {
   ListOrdered,
   Sliders,
   Zap,
-  Sparkles
+  Sparkles,
+  History
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
@@ -51,6 +53,8 @@ export const CardContextMenu: React.FC = () => {
   const currentPileTarget = usePileListStore((s) => s.target)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openDeckSwitcher = useDeckSwitcherStore((s) => s.openDeckSwitcher)
+  const openProvenance = useEngineCardEditStore((s) => s.openProvenance)
+  const openReplace = useEngineCardEditStore((s) => s.openReplace)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
 
@@ -234,6 +238,44 @@ export const CardContextMenu: React.FC = () => {
     }
   }
 
+  const engineEditItems: MenuItemConfig[] = isEngine
+    ? (() => {
+        const ref: EngineCardRef = {
+          controller: card.controller,
+          location: card.location,
+          sequence: card.sequence,
+          instanceId: card.instanceId
+        }
+        const target = {
+          ref,
+          name: card.card?.name || `卡片 ${card.code}`,
+          code: card.code
+        }
+        return [
+          {
+            icon: <History className="w-3.5 h-3.5 text-sky-400" />,
+            label: '查看来源',
+            action: act(() => {
+              void openProvenance(target)
+            })
+          },
+          {
+            icon: <ArrowLeftRight className="w-3.5 h-3.5 text-blue-400" />,
+            label: '替换为…',
+            action: act(() => openReplace(target))
+          },
+          {
+            icon: <Trash2 className="w-3.5 h-3.5" />,
+            label: '从对局中移除（剧情）',
+            variant: 'destructive',
+            action: act(() => {
+              void useDuelEngineStore.getState().removeCard(ref)
+            })
+          }
+        ]
+      })()
+    : []
+
   const handItems: MenuItemConfig[] =
     !isEngine && isHand
       ? [
@@ -404,6 +446,17 @@ export const CardContextMenu: React.FC = () => {
             <span>实战决斗指令 (自动记谱)</span>
           </div>
           {renderGroup(duelActionItems)}
+          <Separator className="my-1" />
+        </>
+      )}
+
+      {engineEditItems.length > 0 && (
+        <>
+          <div className="px-2 py-0.5 text-[9px] font-bold text-sky-400/90 tracking-wide uppercase flex items-center gap-1 select-none">
+            <History className="w-2.5 h-2.5 text-sky-400" />
+            <span>剧情溯源（重演生效）</span>
+          </div>
+          {renderGroup(engineEditItems)}
           <Separator className="my-1" />
         </>
       )}

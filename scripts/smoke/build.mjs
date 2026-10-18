@@ -4,7 +4,10 @@ import { createRequire } from 'module'
 
 // 项目未直接依赖 esbuild；vite 依赖它，用 vite 的 require 上下文解析
 const viteRequire = createRequire(
-  path.join(path.dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'package.json')
+  path.join(
+    path.dirname(createRequire(import.meta.url).resolve('vite/package.json')),
+    'package.json'
+  )
 )
 const esbuild = await import(pathToFileUrl(viteRequire.resolve('esbuild')))
 
@@ -82,4 +85,10 @@ await esbuild.build({
   ...commonOptions,
   entryPoints: [path.join(root, 'scripts/smoke/policy-smoke.ts')],
   outfile: 'scripts/smoke/policy-smoke.bundle.cjs'
+})
+
+await esbuild.build({
+  ...commonOptions,
+  entryPoints: [path.join(root, 'scripts/smoke/provenance-smoke.ts')],
+  outfile: 'scripts/smoke/provenance-smoke.bundle.cjs'
 })

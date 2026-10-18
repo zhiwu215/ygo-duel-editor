@@ -16,6 +16,9 @@ import {
   Answer,
   RequestCard,
   EngineSubmitAnswerResult,
+  EngineCardEditResult,
+  EngineCardRef,
+  EngineProvenance,
   InjectCommand,
   resolveEngineCardStats,
   DEFAULT_TIMING_POLICY,
@@ -68,6 +71,9 @@ interface DuelEngineState {
   submitAnswer: (answer: Answer) => Promise<void>
   inject: (command: InjectCommand) => Promise<boolean>
   clearInjectNotice: () => void
+  getProvenance: (ref: EngineCardRef) => Promise<EngineProvenance>
+  replaceCard: (ref: EngineCardRef, newCode: number) => Promise<boolean>
+  removeCard: (ref: EngineCardRef) => Promise<boolean>
   jumpToStep: (stepId: string) => Promise<boolean>
   undo: () => Promise<void>
   redo: () => Promise<void>
@@ -135,6 +141,22 @@ function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
     // 若是位置匹配（id 不同源），登记 id 映射：引擎卡换位/回退后仍能找回编辑器身份
     if (ec.instanceId !== card.instanceId) {
       engineToEditorId.set(ec.instanceId, card.instanceId)
+    }
+
+    if (card.code !== ec.code) {
+      useDuelStore.setState((prev) => ({
+        ...prev,
+        state: {
+          ...prev.state,
+          cards: prev.state.cards.map((item) =>
+            item.instanceId === card.instanceId
+              ? { ...item, code: ec.code, card: ec.card ?? item.card }
+              : item
+          )
+        }
+      }))
+      card.code = ec.code
+      if (ec.card) card.card = ec.card
     }
 
     if (
@@ -370,14 +392,73 @@ function patchPlacementStep(
   }))
 }
 
+/**
+ * CARD 选择结果的步骤补丁：装备对象 / 攻击对象等「选择目标」本身没有独立步骤，
+ * 回填到最近的祖先动作步骤上，步骤列表才能显示选中的对象。
+ */
+function patchTargetStep(
+  selected: RequestCard[],
+  node: EngineTimelineNode,
+  timeline: EngineTimelineNode[],
+  boardState: EngineBoardState | null
+): void {
+  if (selected.length === 0) return
+  const byId = new Map(timeline.map((n) => [n.id, n]))
+  let cursor = node.parentId ? byId.get(node.parentId) : undefined
+  while (cursor && !engineSteps.has(cursor.id)) {
+    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined
+  }
+  if (!cursor) return
+  const stored = engineSteps.get(cursor.id)
+  if (!stored) return
+
+  const first = selected[0]
+  const engineId = boardState?.allCards.find(
+    (c) =>
+      c.code === first.code &&
+      c.controller === first.controller &&
+      c.location === first.location &&
+      c.sequence === first.sequence
+  )?.instanceId
+  const names = selected
+    .map((c) => cardNameOfCode(c.code))
+    .filter((name): name is string => Boolean(name))
+
+  const patched: DuelStep = {
+    ...stored,
+    targetInstanceId:
+      (engineId ? engineToEditorId.get(engineId) : undefined) ??
+      engineId ??
+      stored.targetInstanceId,
+    targetCardName: names.length > 0 ? names.join('、') : stored.targetCardName,
+    targetPlayer: first.controller
+  }
+  const hostId = cursor.id
+  engineSteps.set(hostId, patched)
+  useDuelStore.setState((prev) => ({
+    ...prev,
+    state: {
+      ...prev.state,
+      steps: (prev.state.steps || []).map((s) => (s.actId === hostId ? patched : s))
+    }
+  }))
+}
+
 /** 从语义 Answer 直接记录引擎步骤（DuelStep 即 answer 的权威语义） */
 function appendEngineStepFromAnswer(
   answer: Answer,
   node: EngineTimelineNode,
-  diff: EngineDiffResult
+  diff: EngineDiffResult,
+  timeline: EngineTimelineNode[],
+  boardState: EngineBoardState | null
 ): void {
   if (answer.kind === 'place') {
     patchPlacementStep(answer, node)
+    return
+  }
+
+  if (answer.kind === 'card') {
+    patchTargetStep(answer.cards ?? [], node, timeline, boardState)
     return
   }
 
@@ -447,6 +528,54 @@ function syncEngineSteps(timeline: EngineTimelineNode[], stepId: string): void {
       state: { ...prev.state, steps: [...kept, ...restored] }
     }
   })
+}
+
+async function applyCardEditResult(
+  get: () => DuelEngineState,
+  set: (partial: Partial<DuelEngineState>) => void,
+  res: EngineCardEditResult,
+  successMessage: string
+): Promise<boolean> {
+  if (res.error) {
+    set({ loading: false, error: res.error })
+    return false
+  }
+
+  const prevTimeline = get().timeline
+  const currentId = get().currentStepId
+  const currentIndex = prevTimeline.findIndex((node) => node.id === currentId)
+  const baseTimeline = currentIndex >= 0 ? prevTimeline.slice(0, currentIndex + 1) : prevTimeline
+  const node = res.node
+  const timeline = node
+    ? baseTimeline.some((item) => item.id === node.id)
+      ? baseTimeline.map((item) => (item.id === node.id ? node : item))
+      : [...baseTimeline, node]
+    : baseTimeline
+  const currentStepId = res.currentStepId ?? node?.id ?? currentId
+
+  set({
+    loading: false,
+    error: null,
+    boardState: res.boardState ?? get().boardState,
+    pendingRequest: res.pendingRequest ?? null,
+    timeline,
+    currentStepId,
+    selectedCardId: null,
+    injectNotice: {
+      kind: res.warning ? 'warning' : 'success',
+      message: res.warning ?? successMessage
+    }
+  })
+  if (res.boardState) syncJumpToStepWrapped(res.boardState)
+  if (currentStepId) syncEngineSteps(timeline, currentStepId)
+
+  const latestTimeline = await window.api.duelEngineGetTimeline().catch(() => null)
+  if (latestTimeline) {
+    set({ timeline: latestTimeline })
+    const stepId = get().currentStepId
+    if (stepId) syncEngineSteps(latestTimeline, stepId)
+  }
+  return true
 }
 
 export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
@@ -650,7 +779,7 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       }
       if (res.node && res.diff) {
         // res.diff 仅用于步骤记录（推导 to 位置），不再用于棋盘同步
-        appendEngineStepFromAnswer(answer, res.node, res.diff)
+        appendEngineStepFromAnswer(answer, res.node, res.diff, newTimeline, res.boardState ?? null)
       }
     } catch (err) {
       console.error('[useDuelEngineStore] submitAnswer failed:', err)
@@ -700,6 +829,54 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
   },
 
   clearInjectNotice: () => set({ injectNotice: null }),
+
+  getProvenance: async (ref) => {
+    if (!get().isInitialized) return { kind: 'unknown' }
+    try {
+      return await window.api.duelEngineGetProvenance(ref)
+    } catch (err) {
+      console.error('[useDuelEngineStore] getProvenance failed:', err)
+      return { kind: 'unknown' }
+    }
+  },
+
+  replaceCard: async (ref, newCode) => {
+    if (!get().isInitialized) {
+      set({ error: '引擎尚未启动，无法编辑卡片。' })
+      return false
+    }
+    set({ loading: true, error: null })
+    try {
+      const res = await window.api.duelEngineReplaceCard(ref, newCode)
+      return await applyCardEditResult(get, set, res, '已替换卡片并重演到当前步骤。')
+    } catch (err) {
+      console.error('[useDuelEngineStore] replaceCard failed:', err)
+      set({
+        loading: false,
+        error: err instanceof Error ? err.message : '替换卡片失败'
+      })
+      return false
+    }
+  },
+
+  removeCard: async (ref) => {
+    if (!get().isInitialized) {
+      set({ error: '引擎尚未启动，无法编辑卡片。' })
+      return false
+    }
+    set({ loading: true, error: null })
+    try {
+      const res = await window.api.duelEngineRemoveCard(ref)
+      return await applyCardEditResult(get, set, res, '已从对局中移除该卡并重演到当前步骤。')
+    } catch (err) {
+      console.error('[useDuelEngineStore] removeCard failed:', err)
+      set({
+        loading: false,
+        error: err instanceof Error ? err.message : '移除卡片失败'
+      })
+      return false
+    }
+  },
 
   jumpToStep: async (stepId: string): Promise<boolean> => {
     if (!get().timeline.some((node) => node.id === stepId)) {

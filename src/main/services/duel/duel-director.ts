@@ -4,6 +4,9 @@ import {
   EngineDuelInitParams,
   EngineTimelineNode,
   EngineBoardState,
+  EngineCardEditResult,
+  EngineCardRef,
+  EngineProvenance,
   EngineRequest,
   Answer,
   EngineInjectResult,
@@ -80,6 +83,18 @@ export class DuelDirector {
 
   getPendingRequest(): EngineRequest | null {
     return duelSession.getPendingRequest()
+  }
+
+  getProvenance(ref: EngineCardRef): EngineProvenance {
+    return duelSession.getProvenance(ref)
+  }
+
+  replaceCard(ref: EngineCardRef, newCode: number): EngineCardEditResult {
+    return duelSession.replaceCard(ref, newCode)
+  }
+
+  removeCard(ref: EngineCardRef): EngineCardEditResult {
+    return duelSession.removeCard(ref)
   }
 
   getAllTimelineResponses(): Uint8Array[] {

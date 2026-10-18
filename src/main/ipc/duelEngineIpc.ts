@@ -1,6 +1,12 @@
 import { ipcMain } from 'electron'
 import { duelDirector } from '../services/duel/duel-director'
-import { EngineDuelInitParams, Answer, InjectCommand, TimingPolicy } from '@shared/index'
+import {
+  EngineDuelInitParams,
+  EngineCardRef,
+  Answer,
+  InjectCommand,
+  TimingPolicy
+} from '@shared/index'
 
 export function registerDuelEngineIpc(): void {
   ipcMain.handle('duel-engine:init', async (_, params: EngineDuelInitParams) => {
@@ -58,5 +64,32 @@ export function registerDuelEngineIpc(): void {
 
   ipcMain.handle('duel-engine:get-pending-request', () => {
     return duelDirector.getPendingRequest()
+  })
+
+  ipcMain.handle('duel-engine:provenance', (_, ref: EngineCardRef) => {
+    try {
+      return duelDirector.getProvenance(ref)
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:provenance:', err)
+      throw new Error(err instanceof Error ? err.message : String(err))
+    }
+  })
+
+  ipcMain.handle('duel-engine:replace-card', (_, ref: EngineCardRef, newCode: number) => {
+    try {
+      return duelDirector.replaceCard(ref, newCode)
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:replace-card:', err)
+      throw new Error(err instanceof Error ? err.message : String(err))
+    }
+  })
+
+  ipcMain.handle('duel-engine:remove-card', (_, ref: EngineCardRef) => {
+    try {
+      return duelDirector.removeCard(ref)
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:remove-card:', err)
+      throw new Error(err instanceof Error ? err.message : String(err))
+    }
   })
 }

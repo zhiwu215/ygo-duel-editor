@@ -9,6 +9,7 @@ import {
 } from 'koishipro-core.js'
 import { configService } from '../configService'
 import { readEngineCardData } from './card-reader'
+import { readCustomScript } from '../customCardLibrary'
 
 let ocgcoreInstance: OcgcoreWrapper | null = null
 let cachedScriptReaders: ScriptReader[] | null = null
@@ -84,9 +85,11 @@ export async function bindEngineCapabilities(wrapper: OcgcoreWrapper): Promise<v
 
   wrapper.setCardReader(readEngineCardData)
 
+  wrapper.setScriptReader(readCustomScript)
+
   const readers = await loadScriptReaders()
   for (const reader of readers) {
-    wrapper.setScriptReader(reader, true)
+    wrapper.setScriptReader(reader)
   }
 }
 

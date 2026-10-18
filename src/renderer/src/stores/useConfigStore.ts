@@ -6,6 +6,7 @@ interface ConfigStoreState {
   config: AppConfig
   isLoaded: boolean
   dbReady: boolean | null
+  customCdbPath: string
   loadConfig: () => Promise<void>
   refreshCdbStatus: () => Promise<void>
   selectYgoDir: () => Promise<string | null>
@@ -34,12 +35,13 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   },
   isLoaded: false,
   dbReady: null,
+  customCdbPath: '',
 
   refreshCdbStatus: async () => {
     try {
       if (!window.api?.getCdbStatus) return
       const status = await window.api.getCdbStatus()
-      set({ dbReady: status.ready })
+      set({ dbReady: status.ready, customCdbPath: status.customCdbPath })
     } catch (err) {
       console.error('[useConfigStore] refreshCdbStatus error:', err)
       set({ dbReady: null })

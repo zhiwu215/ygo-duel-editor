@@ -16,6 +16,8 @@ import {
   CustomCard,
   CustomCardInput,
   CustomCardPickImageResult,
+  CustomCardScriptInfo,
+  CustomCardScriptResult,
   CdbCard,
   customCardToCdbCard,
   CUSTOM_CARD_ID_MIN,
@@ -23,6 +25,13 @@ import {
 } from '@shared/index'
 import { cdbService, compareCards, parseSearchTokens } from '../db/cdbService'
 import { dataDirService } from './dataDirService'
+import {
+  getCustomScriptInfo,
+  importCustomScript,
+  isCustomCdbLoaded,
+  removeCustomScript,
+  syncCustomCardLibrary
+} from './customCardLibrary'
 
 const LIBRARY_FILE = 'custom_cards.json'
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
@@ -53,6 +62,8 @@ export class CustomCardService {
       if (Array.isArray(parsed)) this.cards = parsed.filter((c) => c && Number.isFinite(c.id))
     } catch (err) {
       console.error('[CustomCardService] Failed to load custom cards:', err)
+    } finally {
+      syncCustomCardLibrary(this.cards)
     }
   }
 
@@ -137,6 +148,7 @@ export class CustomCardService {
       this.cards.push(card)
     }
     this.persist()
+    syncCustomCardLibrary(this.cards)
     this.applyImage(card.id, input.imageSourcePath)
     this.broadcast()
     return card
@@ -183,6 +195,7 @@ export class CustomCardService {
       console.error('[CustomCardService] Failed to remove card image:', err)
     }
     this.persist()
+    syncCustomCardLibrary(this.cards)
     this.broadcast()
   }
 
@@ -228,6 +241,22 @@ export class CustomCardService {
       console.error('[CustomCardService] apply image error:', err)
       return { success: false, error: '图片更新失败' }
     }
+  }
+
+  public scriptInfo(code: number): CustomCardScriptInfo {
+    return getCustomScriptInfo(code)
+  }
+
+  public async pickScript(code: number): Promise<CustomCardScriptResult> {
+    this.ensureLoaded()
+    if (!this.getById(code)) return { success: false, error: '自建卡不存在' }
+    return importCustomScript(code)
+  }
+
+  public deleteScript(code: number): CustomCardScriptResult {
+    this.ensureLoaded()
+    if (!this.getById(code)) return { success: false, error: '自建卡不存在' }
+    return removeCustomScript(code)
   }
 
   private matchNumeric(
@@ -341,6 +370,8 @@ export class CustomCardService {
     cdbResult: CardSearchResult,
     params: CardSearchParams
   ): CardSearchResult {
+    if (isCustomCdbLoaded()) return cdbResult
+
     const limit = params.limit || 50
     const offset = params.offset || 0
     const custom = this.search(params, offset + limit)
@@ -365,6 +396,7 @@ export class CustomCardService {
   }
 
   public mergeCardsByIds(map: Record<number, CdbCard>, ids: number[]): Record<number, CdbCard> {
+    if (isCustomCdbLoaded()) return map
     this.ensureLoaded()
     for (const id of ids) {
       if (map[id]) continue

@@ -30,6 +30,7 @@ import {
   BookOpen,
   Film,
   ArrowRight,
+  Crosshair,
   Layers,
   X,
   RotateCcw
@@ -592,7 +593,7 @@ export const StepSequencerPanel: React.FC = () => {
                   <div
                     onClick={() => handleStepClick(index, step)}
                     onMouseEnter={() => {
-                      if (step.instanceId) setHoveredInstanceId(step.instanceId)
+                      setHoveredInstanceId(step.targetInstanceId ?? step.instanceId ?? null)
                     }}
                     onMouseLeave={() => setHoveredInstanceId(null)}
                     className={cn(
@@ -673,6 +674,18 @@ export const StepSequencerPanel: React.FC = () => {
                             </span>
                           )}
                         </div>
+
+                        {step.targetCardName && (
+                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
+                            <Crosshair className="w-2.5 h-2.5 shrink-0 text-cyan-400/80" />
+                            <span className="truncate">
+                              目标：
+                              <span className="text-foreground/90 font-semibold">
+                                {step.targetCardName}
+                              </span>
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 

@@ -159,15 +159,7 @@ export interface EngineRequest {
 // ------------------------------------------------------------------ Answer
 
 export type IdleCmd =
-  | 'SUMMON'
-  | 'SPSUMMON'
-  | 'MSET'
-  | 'SSET'
-  | 'REPOS'
-  | 'ACTIVATE'
-  | 'TO_BP'
-  | 'TO_EP'
-  | 'SHUFFLE'
+  'SUMMON' | 'SPSUMMON' | 'MSET' | 'SSET' | 'REPOS' | 'ACTIVATE' | 'TO_BP' | 'TO_EP' | 'SHUFFLE'
 
 export type BattleCmd = 'ATTACK' | 'ACTIVATE' | 'TO_M2' | 'TO_EP'
 
@@ -230,4 +222,38 @@ export interface EngineInjectResult {
   boardState: EngineBoardState
   node: EngineTimelineNode
   warning?: string
+}
+
+export interface EngineCardRef {
+  controller: 0 | 1
+  location: number
+  sequence: number
+  instanceId?: string
+}
+
+export type EngineProvenance =
+  | { kind: 'inject'; opIndex: number; nodeId: string | null; command: InjectCommand }
+  | {
+      kind: 'drawn'
+      opIndex: number
+      nodeId: string | null
+      player: 0 | 1
+      drawIndex: number
+    }
+  | {
+      kind: 'initial'
+      controller: 0 | 1
+      location: number
+      sequence: number
+      code: number
+    }
+  | { kind: 'unknown' }
+
+export interface EngineCardEditResult {
+  boardState?: EngineBoardState
+  pendingRequest?: EngineRequest | null
+  node?: EngineTimelineNode
+  currentStepId?: string
+  warning?: string
+  error?: string
 }

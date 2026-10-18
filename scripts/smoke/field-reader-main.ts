@@ -15,6 +15,7 @@ import { createRequire } from 'module'
 declare const __filename: string
 const coreRequire = createRequire(__filename)
 import { cdbService } from './cdb-shim'
+import { readEngineCardData } from '../../src/main/services/duel/card-reader'
 import { FieldReader } from '../../src/main/services/duel/field-reader'
 import { CardLocation } from '@shared/constants/locations'
 import type { EngineRequest, Answer } from '@shared/engine/protocol'
@@ -61,22 +62,7 @@ async function main(): Promise<void> {
   wrapper.setMessageHandler((_, message, type) => {
     if (type === 2) console.log(`[core-error] ${message}`)
   })
-  wrapper.setCardReader((code) => {
-    const c = cdbService.getCardById(code)
-    if (!c) return null
-    return {
-      code: c.id,
-      alias: c.alias ?? 0,
-      setcode: Number(c.setcode ?? 0),
-      type: Number(c.type ?? 0),
-      atk: c.atk ?? 0,
-      def: c.def ?? 0,
-      level: c.level ?? 0,
-      race: Number(c.race ?? 0),
-      attribute: Number(c.attribute ?? 0),
-      category: 0
-    }
-  })
+  wrapper.setCardReader((code) => readEngineCardData(code))
   wrapper.setScriptReader(DirScriptReader(GAME_DIR + '/script'), true)
 
   const duel = wrapper.createDuelV2([12345, 67890, 11111, 22222])

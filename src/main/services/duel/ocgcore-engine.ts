@@ -7,9 +7,8 @@ import {
   OcgcoreWrapper,
   ScriptReader
 } from 'koishipro-core.js'
-import { CardType } from '@shared/index'
-import { cdbService } from '../../db/cdbService'
 import { configService } from '../configService'
+import { readEngineCardData } from './card-reader'
 
 let ocgcoreInstance: OcgcoreWrapper | null = null
 let cachedScriptReaders: ScriptReader[] | null = null
@@ -83,24 +82,7 @@ export async function bindEngineCapabilities(wrapper: OcgcoreWrapper): Promise<v
     console.log(`[Core Log (${type})]: ${message}`)
   })
 
-  wrapper.setCardReader((code) => {
-    const card = cdbService.getCardById(code)
-    if (!card) return null
-    const isLink = (Number(card.type ?? 0) & CardType.LINK) !== 0
-    return {
-      code: card.id,
-      alias: card.alias ?? 0,
-      setcode: Number(card.setcode ?? 0),
-      type: card.type,
-      level: card.level ?? 0,
-      race: card.race ?? 0,
-      attribute: card.attribute ?? 0,
-      attack: card.atk ?? 0,
-      defense: isLink ? 0 : (card.def ?? 0),
-      linkMarker: isLink ? (card.markers ?? card.def ?? 0) : 0,
-      category: Number(card.category ?? 0)
-    }
-  })
+  wrapper.setCardReader(readEngineCardData)
 
   const readers = await loadScriptReaders()
   for (const reader of readers) {

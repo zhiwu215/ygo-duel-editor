@@ -170,6 +170,10 @@ export class FieldReader {
               location,
               sequence,
               position,
+              atk: q.attack,
+              def: q.defense,
+              baseAtk: q.baseAttack,
+              baseDef: q.baseDefense,
               overlayMaterials: [...(q.overlayCards ?? [])],
               counters: this.toCounters(q)
             },

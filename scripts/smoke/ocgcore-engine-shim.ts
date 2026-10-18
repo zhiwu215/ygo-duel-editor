@@ -7,6 +7,7 @@ import fs from 'fs'
 import path from 'path'
 import { createRequire } from 'module'
 import { cdbService } from './cdb-shim'
+import { readEngineCardData } from '../../src/main/services/duel/card-reader'
 
 declare const __filename: string
 const coreRequire = createRequire(__filename)
@@ -43,25 +44,7 @@ export async function bindEngineCapabilities(wrapper: any): Promise<void> {
   wrapper.setMessageHandler((_: unknown, message: string, type: number) => {
     if (type === 2) console.log(`[core-error] ${message}`)
   })
-  wrapper.setCardReader((code: number) => {
-    const c = cdbService.getCardById(code)
-    if (!c) return null
-    const type = Number(c.type ?? 0)
-    const isLink = (type & 0x4000000) !== 0
-    return {
-      code: c.id,
-      alias: c.alias ?? 0,
-      setcode: Number(c.setcode ?? 0),
-      type,
-      level: c.level ?? 0,
-      race: Number(c.race ?? 0),
-      attribute: Number(c.attribute ?? 0),
-      attack: c.atk ?? 0,
-      defense: isLink ? 0 : (c.def ?? 0),
-      linkMarker: isLink ? (c.def ?? 0) : 0,
-      category: 0
-    }
-  })
+  wrapper.setCardReader((code: number) => readEngineCardData(code))
 
   if (!cachedReaders) {
     const scriptRoot = path.join(GAME_DIR, 'script')

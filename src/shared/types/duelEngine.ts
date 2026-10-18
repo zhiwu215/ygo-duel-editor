@@ -11,6 +11,10 @@ export interface EngineCard {
   location: number
   sequence: number
   position: number
+  atk?: number
+  def?: number
+  baseAtk?: number
+  baseDef?: number
   overlayMaterials: number[]
   counters?: Record<number, number>
 }

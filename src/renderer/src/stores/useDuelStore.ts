@@ -34,7 +34,6 @@ import { alertDialog } from './useDialogStore'
 import { fetchCardDataByCodes } from '../utils/cardData'
 
 export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON'
-
 export interface PendingPlacementSlot {
   location: number
   sequence: number

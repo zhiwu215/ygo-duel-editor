@@ -27,14 +27,16 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
   // 攻守与变动
   const origAtk = cdb?.atk ?? 0
   const origDef = cdb?.def ?? 0
-  const isAtkInf = isInfiniteVal(card.customAtk)
-  const isDefInf = isInfiniteVal(card.customDef)
-  const effectiveAtk = card.customAtk !== undefined ? card.customAtk : origAtk
-  const effectiveDef = card.customDef !== undefined ? card.customDef : origDef
-  const atkDiff =
-    card.customAtk !== undefined ? (isAtkInf ? Infinity : card.customAtk - origAtk) : 0
-  const defDiff =
-    card.customDef !== undefined ? (isDefInf ? Infinity : card.customDef - origDef) : 0
+  const customAtk = card.customAtk
+  const customDef = card.customDef
+  const hasCustomAtk = customAtk !== undefined
+  const hasCustomDef = customDef !== undefined
+  const isAtkInf = isInfiniteVal(customAtk)
+  const isDefInf = isInfiniteVal(customDef)
+  const effectiveAtk = customAtk ?? origAtk
+  const effectiveDef = customDef ?? origDef
+  const atkDiff = hasCustomAtk && origAtk >= 0 ? (isAtkInf ? Infinity : customAtk - origAtk) : 0
+  const defDiff = hasCustomDef && origDef >= 0 ? (isDefInf ? Infinity : customDef - origDef) : 0
 
   // 星级/种族/属性
   const star = cdb ? CardUtils.getStarLevel(cdb.level, cdb.type) : 0
@@ -80,8 +82,8 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
                     : 'text-white'
             }
           >
-            {isAtkInf ? '无限' : origAtk === -2 ? '?' : effectiveAtk}
-            {card.customAtk !== undefined && atkDiff !== 0 && (
+            {isAtkInf ? '无限' : origAtk === -2 && !hasCustomAtk ? '?' : effectiveAtk}
+            {hasCustomAtk && atkDiff !== 0 && (
               <span className="text-[8px] ml-0.5 opacity-90">
                 ({isAtkInf ? '+无限' : atkDiff > 0 ? `+${atkDiff}` : atkDiff})
               </span>
@@ -101,8 +103,8 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
                       : 'text-white'
             }
           >
-            {isLink ? '-' : isDefInf ? '无限' : origDef === -2 ? '?' : effectiveDef}
-            {!isLink && card.customDef !== undefined && defDiff !== 0 && (
+            {isLink ? '-' : isDefInf ? '无限' : origDef === -2 && !hasCustomDef ? '?' : effectiveDef}
+            {!isLink && hasCustomDef && defDiff !== 0 && (
               <span className="text-[8px] ml-0.5 opacity-90">
                 ({isDefInf ? '+无限' : defDiff > 0 ? `+${defDiff}` : defDiff})
               </span>

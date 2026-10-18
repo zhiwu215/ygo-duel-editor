@@ -15,7 +15,8 @@ import {
   EngineRequest,
   Answer,
   RequestCard,
-  EngineSubmitAnswerResult
+  EngineSubmitAnswerResult,
+  resolveEngineCardStats
 } from '@shared/index'
 import { useDuelStore } from './useDuelStore'
 
@@ -182,6 +183,17 @@ function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
   duelStore.setCurrentPhase(mapPhaseToDuelPhase(boardState.phase))
   duelStore.setTurnPlayer(boardState.turnPlayer)
   duelStore.setCurrentTurn(boardState.turn)
+
+  const editorCards = new Map(useDuelStore.getState().state.cards.map((c) => [c.instanceId, c]))
+  for (const ec of boardState.allCards) {
+    const stats = resolveEngineCardStats(ec)
+    if (!stats) continue
+    const editorId = engineToEditorId.get(ec.instanceId) ?? ec.instanceId
+    const card = editorCards.get(editorId)
+    if (!card) continue
+    if (card.customAtk === stats.customAtk && card.customDef === stats.customDef) continue
+    duelStore.setCardCustomStats(editorId, stats.customAtk, stats.customDef)
+  }
 }
 
 /** 引擎步骤的动作语义键（Answer → DuelActionType 的中间映射） */

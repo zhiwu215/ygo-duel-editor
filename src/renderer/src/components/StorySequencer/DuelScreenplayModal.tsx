@@ -14,7 +14,6 @@ import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
-import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
 import { CardNotePicker } from './CardNotePicker'
 import {
   BookOpen,
@@ -88,7 +87,11 @@ export const DuelScreenplayModal: React.FC = () => {
   useEffect(() => {
     if (!isScreenplayOpen) return
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.ctrlKey && e.key === 'ArrowUp') {
+      if (e.key === 'Escape') {
+        if (chantPickerCode >= 0) return
+        e.preventDefault()
+        setIsScreenplayOpen(false)
+      } else if (e.ctrlKey && e.key === 'ArrowUp') {
         e.preventDefault()
         if (activeStepIndex > 0) {
           setSelectedStepId(steps[activeStepIndex - 1].id)
@@ -102,7 +105,14 @@ export const DuelScreenplayModal: React.FC = () => {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isScreenplayOpen, activeStepIndex, steps, setSelectedStepId])
+  }, [
+    isScreenplayOpen,
+    activeStepIndex,
+    steps,
+    setSelectedStepId,
+    chantPickerCode,
+    setIsScreenplayOpen
+  ])
 
   const handleInsertAfterCurrent = (): void => {
     const baseTurn = activeStep ? activeStep.turn : 1
@@ -202,23 +212,20 @@ export const DuelScreenplayModal: React.FC = () => {
     }
   }
 
+  if (!isScreenplayOpen) return null
+
   return (
-    <Dialog open={isScreenplayOpen} onOpenChange={(next) => !next && setIsScreenplayOpen(false)}>
-      <DialogContent
-        showCloseButton={false}
-        className="!flex !flex-col !p-0 !bg-card !text-card-foreground !w-[1100px] !max-w-[96vw] border border-border/80 shadow-2xl rounded-2xl h-[88vh] overflow-hidden select-none"
-      >
-        <div className="px-5 py-2.5 border-b border-border/70 bg-card flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
+    <>
+      <div className="fixed inset-y-0 right-0 z-50 w-[min(880px,72vw)] max-w-full flex flex-col bg-card text-card-foreground border-l border-border/80 shadow-2xl overflow-hidden select-none animate-in fade-in duration-100">
+        <div className="px-5 py-2.5 border-b border-border/70 bg-card flex flex-wrap items-center justify-between gap-x-3 gap-y-2 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
               <BookOpen className="w-4 h-4" />
             </div>
-            <DialogTitle className="font-bold text-sm text-foreground tracking-wide">
-              决斗台本
-            </DialogTitle>
+            <h2 className="font-bold text-sm text-foreground tracking-wide">决斗台本</h2>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
             <div className="flex items-center p-0.5 rounded-lg border border-border bg-background/80">
               <button
                 type="button"
@@ -867,7 +874,7 @@ export const DuelScreenplayModal: React.FC = () => {
             </ScrollArea>
           </div>
         )}
-      </DialogContent>
+      </div>
 
       {chantPickerCode >= 0 && activeStep && (
         <CardNotePicker
@@ -878,6 +885,6 @@ export const DuelScreenplayModal: React.FC = () => {
           onClose={() => setChantPickerCode(-1)}
         />
       )}
-    </Dialog>
+    </>
   )
 }

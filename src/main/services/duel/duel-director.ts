@@ -11,7 +11,9 @@ import {
   Answer,
   EngineInjectResult,
   InjectCommand,
-  TimingPolicy
+  TimingPolicy,
+  EngineSessionDoc,
+  EngineSessionImportPayload
 } from '@shared/index'
 import { getOcgcoreEngine, isEngineReady } from './ocgcore-engine'
 import { duelSession, SubmitAnswerResult } from './duel-session'
@@ -99,6 +101,14 @@ export class DuelDirector {
 
   getAllTimelineResponses(): Uint8Array[] {
     return duelSession.getAllTimelineResponses()
+  }
+
+  exportSessionDoc(): EngineSessionDoc {
+    return duelSession.exportSessionDoc()
+  }
+
+  importSessionDoc(doc: EngineSessionDoc): Promise<EngineSessionImportPayload> {
+    return duelSession.importSessionDoc(doc)
   }
 }
 

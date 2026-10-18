@@ -1,11 +1,14 @@
 import { ipcMain } from 'electron'
 import { duelDirector } from '../services/duel/duel-director'
+import { fileService } from '../services/fileService'
 import {
   EngineDuelInitParams,
   EngineCardRef,
   Answer,
   InjectCommand,
-  TimingPolicy
+  TimingPolicy,
+  EngineSessionFileResult,
+  EngineSessionImportResult
 } from '@shared/index'
 
 export function registerDuelEngineIpc(): void {
@@ -92,4 +95,47 @@ export function registerDuelEngineIpc(): void {
       throw new Error(err instanceof Error ? err.message : String(err))
     }
   })
+
+  ipcMain.handle(
+    'duel-engine:export-session',
+    async (): Promise<EngineSessionFileResult> => {
+      try {
+        return await fileService.exportSessionDocFile(duelDirector.exportSessionDoc())
+      } catch (err: unknown) {
+        console.error('[duelEngineIpc] Error in duel-engine:export-session:', err)
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : '导出对局剧本失败'
+        }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'duel-engine:import-session',
+    async (): Promise<EngineSessionImportResult> => {
+      const loaded = await fileService.loadSessionDocFile()
+      if (!loaded.success || !loaded.doc) {
+        return { success: false, canceled: loaded.canceled, error: loaded.error }
+      }
+      try {
+        const imported = await duelDirector.importSessionDoc(loaded.doc)
+        return {
+          success: true,
+          filePath: loaded.filePath,
+          boardState: imported.boardState,
+          pendingRequest: imported.pendingRequest,
+          timeline: imported.timeline,
+          currentStepId: imported.currentStepId,
+          timingPolicy: loaded.doc.timingPolicy
+        }
+      } catch (err: unknown) {
+        console.error('[duelEngineIpc] Error in duel-engine:import-session:', err)
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : '导入对局剧本失败'
+        }
+      }
+    }
+  )
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { CardLocation, MASTER_RULES, FieldCard } from '@shared/index'
 import { ZoneSlot } from './ZoneSlot'
@@ -22,6 +23,7 @@ import { PhaseStatusButton, PhaseMiddleButton, PhaseEpButton } from './PhaseCont
 
 export const DuelBoard: React.FC = () => {
   const { state, activeDuelistId } = useDuelStore()
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const ruleInfo = MASTER_RULES[state.masterRule]
 
   // 多人对局时「当前查看的决斗者」：棋盘上的主卡组 / 额外卡组等堆叠区跟着TA 切换，
@@ -165,11 +167,16 @@ export const DuelBoard: React.FC = () => {
           c.location === location &&
           (ownerScope ? c.duelistId === ownerScope : true)
       )
-      // 主卡组：sequence 最小 = 卡组顶 = 下一抽，与卡组面板列表最左一张保持一致；
+      // 主卡组：空闲编排时 sequence 最小 = 卡组顶 = 下一抽，与卡组面板列表最左一张保持一致；
+      // 引擎接管后卡组序号由 ocgcore 给出（数值越大越靠近牌堆顶），改取最大。
       // 墓地/额外/除外：后加入的压在更上层，数组末位即最新一张。
       if (location === CardLocation.DECK) {
         return pile.reduce<FieldCard | undefined>(
-          (top, c) => (top === undefined || c.sequence < top.sequence ? c : top),
+          (top, c) =>
+            top === undefined ||
+            (isEngineActive ? c.sequence > top.sequence : c.sequence < top.sequence)
+              ? c
+              : top,
           undefined
         )
       }

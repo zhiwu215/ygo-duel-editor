@@ -104,6 +104,8 @@ const api: IpcApi = {
   duelEngineReplaceCard: (ref, newCode) =>
     ipcRenderer.invoke('duel-engine:replace-card', ref, newCode),
   duelEngineRemoveCard: (ref) => ipcRenderer.invoke('duel-engine:remove-card', ref),
+  duelEngineExportSession: () => ipcRenderer.invoke('duel-engine:export-session'),
+  duelEngineImportSession: () => ipcRenderer.invoke('duel-engine:import-session'),
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   saveProjectToPath: (filePath: string, state: DuelPuzzleState) =>
@@ -178,17 +180,6 @@ const api: IpcApi = {
   duplicateDeckInLibrary: (id) => ipcRenderer.invoke('deck:duplicate-in-library', id),
   saveDeckFile: (deck) => ipcRenderer.invoke('deck:save-file', deck),
   loadDeckFile: () => ipcRenderer.invoke('deck:load-file'),
-  applyDeckToDuel: (params) => ipcRenderer.invoke('deck:apply-to-duel', params),
-  onApplyDeckToDuel: (callback) => {
-    const handler = (
-      _: unknown,
-      params: { player: 0 | 1; deck: DeckData; drawCount?: number }
-    ): void => callback(params)
-    ipcRenderer.on('deck:applied-to-duel', handler)
-    return () => {
-      ipcRenderer.removeListener('deck:applied-to-duel', handler)
-    }
-  },
 
   getFavorites: () => ipcRenderer.invoke('favorites:get'),
   toggleFavorite: (code) => ipcRenderer.invoke('favorites:toggle', code),

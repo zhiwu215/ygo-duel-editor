@@ -15,6 +15,7 @@ import {
   TimingPolicy
 } from '../engine/protocol'
 import type { EngineSubmitAnswerResult } from '../engine/protocol'
+import type { EngineSessionFileResult, EngineSessionImportResult } from '../engine/session-doc'
 
 export interface CardSearchParams {
   keyword?: string
@@ -751,14 +752,6 @@ export interface IpcApi {
     filePath?: string
     error?: string
   }>
-  applyDeckToDuel: (params: {
-    player: 0 | 1
-    deck: DeckData
-    drawCount?: number
-  }) => Promise<boolean>
-  onApplyDeckToDuel: (
-    callback: (params: { player: 0 | 1; deck: DeckData; drawCount?: number }) => void
-  ) => () => void
 
   getFavorites: () => Promise<number[]>
   toggleFavorite: (code: number) => Promise<{ isFavorite: boolean; favorites: number[] }>
@@ -792,6 +785,8 @@ export interface IpcApi {
   duelEngineGetProvenance: (ref: EngineCardRef) => Promise<EngineProvenance>
   duelEngineReplaceCard: (ref: EngineCardRef, newCode: number) => Promise<EngineCardEditResult>
   duelEngineRemoveCard: (ref: EngineCardRef) => Promise<EngineCardEditResult>
+  duelEngineExportSession: () => Promise<EngineSessionFileResult>
+  duelEngineImportSession: () => Promise<EngineSessionImportResult>
   openSettingsWindow: (section?: SettingsSectionId) => Promise<void>
   onSettingsNavigate: (callback: (section: SettingsSectionId) => void) => () => void
   openExternal: (url: string) => Promise<boolean>

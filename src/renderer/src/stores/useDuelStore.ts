@@ -30,9 +30,18 @@ import {
   allocateCustomCounterId
 } from '@shared/index'
 import { alertDialog } from './useDialogStore'
+import { isEngineActive } from './engineStatus'
 import { fetchCardDataByCodes } from '../utils/cardData'
 
 let lpFlashSeq = 0
+
+export interface PreviewReturn {
+  state: DuelPuzzleState
+  currentTurn: number
+  currentPhase: DuelPhase
+  currentChain: number
+  activeTurnPlayer: 0 | 1
+}
 
 export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON'
 
@@ -344,6 +353,8 @@ interface DuelStoreState {
   expandedDuelistId: string | null
   setExpandedDuelistId: (id: string | null) => void
 
+  previewReturn: PreviewReturn | null
+
   activeDuelistId: string | null
   setActiveDuelistId: (id: string | null) => void
 
@@ -399,6 +410,8 @@ interface DuelStoreState {
   setActiveTurnPlayer: (player: 0 | 1) => void
   setIsAutoRecording: (recording: boolean) => void
   previewStepBoard: (stepIndex: number | null) => void
+  exitPreview: () => void
+  commitPreview: () => void
 
   recordAction: (params: {
     actionType: DuelActionType
@@ -588,6 +601,7 @@ export const useDuelStore = create<DuelStoreState>()(
       leftWidth: 340,
       activeRightTab: 'search',
       currentStepIndex: null,
+      previewReturn: null,
       isScreenplayOpen: false,
       selectedStepId: null,
       currentProjectPath: null,
@@ -745,13 +759,24 @@ export const useDuelStore = create<DuelStoreState>()(
         })),
       setIsAutoRecording: (recording) => set({ isAutoRecording: recording }),
 
-      previewStepBoard: (stepIndex) =>
-        set((prev) => {
-          if (stepIndex === null) {
-            const snap = prev.state.initialBoardSnapshot
-            if (!snap) return { currentStepIndex: null }
+      previewStepBoard: (stepIndex) => {
+        const engineRunning = isEngineActive()
+        if (engineRunning) useDuelStore.temporal.getState().pause()
+        try {
+          set((prev) => {
+            const steps = prev.state.steps || []
+            const targetStep = stepIndex === null ? undefined : steps[stepIndex]
+            const snapshot =
+              stepIndex === null ? prev.state.initialBoardSnapshot : targetStep?.boardAfter
+            if (!snapshot || snapshot.length === 0) {
+              return {
+                currentStepIndex: stepIndex === null ? null : stepIndex,
+                previewReturn: prev.previewReturn
+              }
+            }
+
             const cardMap = new Map(prev.state.cards.map((c) => [c.instanceId, c]))
-            const restoredCards: FieldCard[] = snap.map((s) => {
+            const restoredCards: FieldCard[] = snapshot.map((s) => {
               const existing = cardMap.get(s.instanceId)
               return {
                 instanceId: s.instanceId,
@@ -768,58 +793,82 @@ export const useDuelStore = create<DuelStoreState>()(
                 customDef: s.customDef
               }
             })
-            return {
-              currentStepIndex: null,
-              state: { ...prev.state, cards: restoredCards }
+
+            const previewReturn =
+              engineRunning && prev.previewReturn === null
+                ? {
+                    state: structuredClone(prev.state),
+                    currentTurn: prev.currentTurn,
+                    currentPhase: prev.currentPhase,
+                    currentChain: prev.currentChain,
+                    activeTurnPlayer: prev.activeTurnPlayer
+                  }
+                : prev.previewReturn
+
+            if (!targetStep) {
+              return {
+                currentStepIndex: null,
+                previewReturn,
+                state: { ...prev.state, cards: restoredCards }
+              }
             }
-          }
 
-          const steps = prev.state.steps || []
-          const targetStep = steps[stepIndex]
-          if (!targetStep || !targetStep.boardAfter) {
-            return { currentStepIndex: stepIndex }
-          }
+            const lpChange = targetStep.lpChange
+            let nextPlayers = prev.state.players
+            if (lpChange) {
+              const players: [PlayerState, PlayerState] = [...prev.state.players]
+              const target = players[lpChange.player]
+              if (target) {
+                players[lpChange.player] = { ...target, lp: lpChange.newLp }
+              }
+              nextPlayers = players
+            }
 
-          const cardMap = new Map(prev.state.cards.map((c) => [c.instanceId, c]))
-          const restoredCards: FieldCard[] = targetStep.boardAfter.map((s) => {
-            const existing = cardMap.get(s.instanceId)
             return {
-              instanceId: s.instanceId,
-              code: s.code,
-              card: existing?.card,
-              controller: s.controller,
-              owner: s.owner ?? s.controller,
-              location: s.location,
-              sequence: s.sequence,
-              position: s.position,
-              overlayMaterials: [...(s.overlayMaterials || [])],
-              duelistId: s.duelistId,
-              customAtk: s.customAtk,
-              customDef: s.customDef
+              currentStepIndex: stepIndex,
+              previewReturn,
+              pendingPlacement: null,
+              currentTurn: targetStep.turn,
+              currentPhase: targetStep.phase,
+              currentChain: targetStep.chainIndex ?? 0,
+              activeTurnPlayer: targetStep.turnPlayer,
+              state: { ...prev.state, cards: restoredCards, players: nextPlayers }
             }
           })
+        } finally {
+          if (engineRunning) useDuelStore.temporal.getState().resume()
+        }
+      },
 
-          const lpChange = targetStep.lpChange
-          let nextPlayers = prev.state.players
-          if (lpChange) {
-            const players: [PlayerState, PlayerState] = [...prev.state.players]
-            const target = players[lpChange.player]
-            if (target) {
-              players[lpChange.player] = { ...target, lp: lpChange.newLp }
-            }
-            nextPlayers = players
-          }
-
-          return {
-            currentStepIndex: stepIndex,
+      exitPreview: () => {
+        const previewReturn = useDuelStore.getState().previewReturn
+        if (!previewReturn) {
+          set((prev) => (prev.currentStepIndex === null ? prev : { currentStepIndex: null }))
+          return
+        }
+        useDuelStore.temporal.getState().pause()
+        try {
+          set(() => ({
+            previewReturn: null,
+            currentStepIndex: null,
             pendingPlacement: null,
-            currentTurn: targetStep.turn,
-            currentPhase: targetStep.phase,
-            currentChain: targetStep.chainIndex ?? 0,
-            activeTurnPlayer: targetStep.turnPlayer,
-            state: { ...prev.state, cards: restoredCards, players: nextPlayers }
-          }
-        }),
+            state: previewReturn.state,
+            currentTurn: previewReturn.currentTurn,
+            currentPhase: previewReturn.currentPhase,
+            currentChain: previewReturn.currentChain,
+            activeTurnPlayer: previewReturn.activeTurnPlayer
+          }))
+        } finally {
+          useDuelStore.temporal.getState().resume()
+        }
+      },
+
+      commitPreview: () =>
+        set((prev) =>
+          prev.previewReturn === null && prev.currentStepIndex === null
+            ? prev
+            : { previewReturn: null, currentStepIndex: null }
+        ),
 
       recordAction: (params) =>
         set((prev) => {
@@ -2582,12 +2631,6 @@ export const useDuelStore = create<DuelStoreState>()(
     }
   )
 )
-
-if (typeof window !== 'undefined' && window.api?.onApplyDeckToDuel) {
-  window.api.onApplyDeckToDuel(({ player, deck, drawCount }) => {
-    useDuelStore.getState().applyDeckToPlayer(player, deck, drawCount)
-  })
-}
 
 const pendingCardCodes = new Set<number>()
 

@@ -47,6 +47,8 @@ interface MenuBarProps {
   onExportLua: () => void
   onExportYrp: () => void
   onExportScreenplay?: () => void
+  onExportSession: () => void
+  onImportSession: () => void
 }
 
 interface MenuItemDef {
@@ -75,7 +77,9 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   onImportLua,
   onExportLua,
   onExportYrp,
-  onExportScreenplay
+  onExportScreenplay,
+  onExportSession,
+  onImportSession
 }) => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
@@ -224,6 +228,18 @@ export const MenuBar: React.FC<MenuBarProps> = ({
           label: '导出同人剧本台本',
           icon: FileText,
           action: onExportScreenplay
+        },
+        { label: '', separator: true },
+        {
+          label: '导出对局剧本...',
+          icon: Download,
+          disabled: !isEngineActive,
+          action: onExportSession
+        },
+        {
+          label: '载入对局剧本...',
+          icon: Upload,
+          action: onImportSession
         }
       ]
     },
@@ -261,11 +277,13 @@ export const MenuBar: React.FC<MenuBarProps> = ({
         {
           label: '翻转双方场地',
           icon: ArrowLeftRight,
+          disabled: isEngineActive,
           action: () => swapSides()
         },
         {
           label: '清空重置局面',
           icon: RotateCcw,
+          disabled: isEngineActive,
           action: () => {
             void confirmDialog({
               title: '清空重置局面',

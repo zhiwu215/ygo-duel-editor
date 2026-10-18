@@ -190,6 +190,14 @@ export const Header: React.FC = () => {
     }
   }, [state])
 
+  const handleExportSession = React.useCallback((): void => {
+    void useDuelEngineStore.getState().exportSession()
+  }, [])
+
+  const handleImportSession = React.useCallback((): void => {
+    void useDuelEngineStore.getState().importSession()
+  }, [])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       const isInput =
@@ -291,6 +299,8 @@ export const Header: React.FC = () => {
               onExportLua={handleExportLua}
               onExportYrp={handleExportYrp}
               onExportScreenplay={handleExportScreenplay}
+              onExportSession={handleExportSession}
+              onImportSession={handleImportSession}
             />
           </div>
         </div>

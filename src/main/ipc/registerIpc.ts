@@ -490,10 +490,6 @@ export function registerAllIpcHandlers(): void {
     return deckService.loadDeckFile()
   })
 
-  ipcMain.handle('deck:apply-to-duel', async (_, params) => {
-    return deckService.applyDeckToDuel(params)
-  })
-
   ipcMain.handle('favorites:get', async () => {
     return deckService.getFavorites()
   })

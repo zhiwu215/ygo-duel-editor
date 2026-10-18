@@ -294,24 +294,6 @@ export class DeckService {
   }
 
   /**
-   * 将编辑好的卡组推送应用到决斗主窗口
-   */
-  public applyDeckToDuel(params: { player: 0 | 1; deck: DeckData; drawCount?: number }): boolean {
-    const windows = BrowserWindow.getAllWindows()
-    let sent = false
-
-    for (const win of windows) {
-      // 发送给非卡组编辑器的窗口 (即主决斗盘窗口)
-      if (win !== this.deckWindow && !win.isDestroyed()) {
-        win.webContents.send('deck:applied-to-duel', params)
-        sent = true
-      }
-    }
-
-    return sent
-  }
-
-  /**
    * 保存卡组为标准 .ydk 格式
    */
   public async saveDeckFile(

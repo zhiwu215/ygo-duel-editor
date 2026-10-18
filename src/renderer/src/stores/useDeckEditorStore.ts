@@ -81,7 +81,6 @@ interface DeckEditorState {
   drawTestHand: () => number[]
   closeTestHand: () => void
   saveDeckFile: () => Promise<{ success: boolean; filePath?: string; error?: string }>
-  applyToDuel: (player: 0 | 1, drawCount?: number, targetDeck?: DeckData) => Promise<boolean>
   getStats: () => DeckStats
 }
 
@@ -552,15 +551,6 @@ export const useDeckEditorStore = create<DeckEditorState>((set, get) => ({
   saveDeckFile: async (): Promise<{ success: boolean; filePath?: string; error?: string }> => {
     const { deck } = get()
     return window.api.saveDeckFile(deck)
-  },
-
-  applyToDuel: async (player, drawCount, targetDeck): Promise<boolean> => {
-    const deckToApply = targetDeck || get().deck
-    return window.api.applyDeckToDuel({
-      player,
-      deck: deckToApply,
-      drawCount
-    })
   },
 
   getStats: (): DeckStats => {

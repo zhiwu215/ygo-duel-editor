@@ -497,6 +497,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         // stopPropagation，挂在冒泡阶段会「点卡面没反应、只有点格子边缘才生效」。
         // 计数徽标自带「打开列表」行为，放行不抢。
         if (location !== CardLocation.DECK) return
+        if (isEngineActive) return
         if (isFromZoneBadge(e)) return
         scheduleDeckDraw()
       }}
@@ -555,7 +556,9 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           : isPlacementTarget
             ? `点击把【${pendingPlacement?.sourceName}】放到此格 (${pendingPlacement?.mode === 'ACTIVATE' ? '发动' : '盖放'})`
             : location === CardLocation.DECK
-              ? '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
+              ? isEngineActive
+                ? '双击展开卡组列表'
+                : '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
               : card &&
                   ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
                     (card.overlayMaterials && card.overlayMaterials.length > 0))

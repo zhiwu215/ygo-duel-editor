@@ -136,6 +136,7 @@ export const CardContextMenu: React.FC = () => {
           <Button
             variant="ghost"
             size="sm"
+            disabled={isEngine}
             onClick={act(() => openDeckSwitcher(controller))}
             className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
           >
@@ -468,6 +469,7 @@ export const CardContextMenu: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
+              disabled={isEngine}
               onClick={act(() => openDeckSwitcher(card.controller))}
               className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
             >

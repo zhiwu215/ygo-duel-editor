@@ -3,6 +3,7 @@ import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useMemo, useState } from 'react'
 import { DeckData } from '@shared/index'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
@@ -107,6 +108,11 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
   }, [decks, query])
 
   const handleApply = (deck: DeckData): void => {
+    if (useDuelEngineStore.getState().isInitialized) {
+      useDuelEngineStore.setState({ error: '引擎校验中无法切换卡组，请先退出引擎后再试。' })
+      closeDeckSwitcher()
+      return
+    }
     applyDeckToPlayer(controller, deck, drawCount, targetDuelist?.id)
     closeDeckSwitcher()
   }

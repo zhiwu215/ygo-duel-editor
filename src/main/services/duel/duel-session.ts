@@ -27,7 +27,14 @@ import {
   EngineStepEvent,
   CardLocation,
   DuelPuzzleState,
-  FieldCard
+  FieldCard,
+  EngineSessionDoc,
+  EngineSessionImportPayload,
+  SerializedOp,
+  ENGINE_SESSION_DOC_VERSION,
+  base64ToBytes,
+  bytesToBase64,
+  parseEngineSessionDoc
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
 import { FieldReader } from './field-reader'
@@ -71,6 +78,16 @@ interface ProvenanceRecord {
 interface DrawEvent {
   player: 0 | 1
   codes: number[]
+}
+
+interface SessionSnapshot {
+  seed: number[]
+  initParams: EngineDuelInitParams | null
+  ops: DuelOperation[]
+  timingPolicy: TimingPolicy
+  timeline: EngineTimelineNode[]
+  currentStepId: string | null
+  requestSeq: number
 }
 
 const { OcgcoreScriptConstants } = _OcgcoreConstants
@@ -230,6 +247,138 @@ export class DuelSession {
     this.timeline.retainHistory(current.node.id)
   }
 
+  private resetSessionState(): void {
+    this.accumulatedLogs = []
+    this.accumulatedEvents = []
+    this.currentPendingMsg = null
+    this.currentPendingRequest = null
+    this.requestSeq = 1
+    this.lastHintDesc = undefined
+    this.replaying = false
+    this.provenance.clear()
+    this.sequenceProvenance.clear()
+    this.drawCounts = [0, 0]
+    this.deckDirty = [false, false]
+    this.lastDrawEvents = []
+    this.lastDeckShuffles = []
+  }
+
+  private captureSessionState(): SessionSnapshot {
+    return {
+      seed: [...this.seed],
+      initParams: this.initParams ? structuredClone(this.initParams) : null,
+      ops: structuredClone(this.ops),
+      timingPolicy: { ...this.timingPolicy },
+      timeline: this.timeline.getAllNodes().map((node) => structuredClone(node)),
+      currentStepId: this.timeline.getCurrentStep()?.node.id ?? null,
+      requestSeq: this.requestSeq
+    }
+  }
+
+  private restoreSessionState(snapshot: SessionSnapshot): void {
+    this.disposeDuel()
+    this.timeline.clear()
+    this.resetSessionState()
+    this.seed = [...snapshot.seed]
+    this.initParams = snapshot.initParams
+    this.ops = snapshot.ops
+    this.timingPolicy = { ...snapshot.timingPolicy }
+    this.requestSeq = snapshot.requestSeq
+    if (!snapshot.initParams || !snapshot.currentStepId) return
+    this.timeline.restore(snapshot.timeline, snapshot.currentStepId)
+    try {
+      this.replayTo(snapshot.currentStepId)
+    } catch (err) {
+      console.error('[duel-session] 恢复导入前的对局失败:', err)
+    }
+  }
+
+  private encodeSessionOp(op: DuelOperation): SerializedOp {
+    if (op.type === 'inject') {
+      return op.removed
+        ? { type: 'inject', command: structuredClone(op.command), removed: true }
+        : { type: 'inject', command: structuredClone(op.command) }
+    }
+    if (op.type === 'answer') {
+      return { type: 'answer', nodeId: op.nodeId, responses: op.responses.map(bytesToBase64) }
+    }
+    return { type: 'auto', responses: op.responses.map(bytesToBase64) }
+  }
+
+  private decodeSessionOp(op: SerializedOp): DuelOperation {
+    if (op.type === 'inject') {
+      const command = structuredClone(op.command)
+      return op.removed
+        ? { type: 'inject', command, removed: true }
+        : { type: 'inject', command }
+    }
+    if (op.type === 'answer') {
+      return { type: 'answer', nodeId: op.nodeId, responses: op.responses.map(base64ToBytes) }
+    }
+    return { type: 'auto', responses: op.responses.map(base64ToBytes) }
+  }
+
+  exportSessionDoc(): EngineSessionDoc {
+    const current = this.timeline.getCurrentStep()
+    if (!this.initParams || !current) {
+      throw new Error('引擎尚未启动，无法导出对局剧本。')
+    }
+    return {
+      version: ENGINE_SESSION_DOC_VERSION,
+      seed: [...this.seed],
+      initParams: structuredClone(this.initParams),
+      ops: this.ops.map((op) => this.encodeSessionOp(op)),
+      timeline: this.timeline.getAllNodes().map((node) => structuredClone(node)),
+      currentStepId: current.node.id,
+      timingPolicy: { ...this.timingPolicy }
+    }
+  }
+
+  async importSessionDoc(doc: EngineSessionDoc): Promise<EngineSessionImportPayload> {
+    let parsed: EngineSessionDoc
+    let ops: DuelOperation[]
+    try {
+      parsed = parseEngineSessionDoc(doc)
+      ops = parsed.ops.map((op) => this.decodeSessionOp(op))
+    } catch (err) {
+      throw new Error(
+        `导入对局剧本失败：${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+
+    await this.init()
+    const previous = this.captureSessionState()
+
+    try {
+      this.resetSessionState()
+      this.seed = [...parsed.seed]
+      this.initParams = structuredClone(parsed.initParams)
+      this.ops = ops
+      this.timingPolicy = { ...parsed.timingPolicy }
+      this.timeline.restore(parsed.timeline, parsed.currentStepId)
+      this.replayTo(parsed.currentStepId)
+
+      const boardState = this.readBoard()
+      this.alignProvenance(boardState)
+      const node = this.timeline.getStep(parsed.currentStepId)?.node
+      if (!node) throw new Error('找不到剧本指定的当前步骤。')
+      node.boardState = boardState
+      node.pendingRequest = this.currentPendingRequest
+
+      return {
+        boardState,
+        pendingRequest: this.currentPendingRequest,
+        timeline: this.timeline.getAllNodes(),
+        currentStepId: parsed.currentStepId
+      }
+    } catch (err) {
+      this.restoreSessionState(previous)
+      throw new Error(
+        `导入对局剧本失败：${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+  }
+
   async startDuel(params: EngineDuelInitParams): Promise<{
     boardState: EngineBoardState
     pendingRequest: EngineRequest | null
@@ -241,18 +390,7 @@ export class DuelSession {
 
     this.timeline.clear()
     this.ops = []
-    this.accumulatedLogs = []
-    this.accumulatedEvents = []
-    this.currentPendingMsg = null
-    this.currentPendingRequest = null
-    this.requestSeq = 1
-    this.lastHintDesc = undefined
-    this.replaying = false
-    this.provenance.clear()
-    this.drawCounts = [0, 0]
-    this.deckDirty = [false, false]
-    this.lastDrawEvents = []
-    this.lastDeckShuffles = []
+    this.resetSessionState()
 
     this.seed = params.seed || [
       Math.floor(Math.random() * 100000),

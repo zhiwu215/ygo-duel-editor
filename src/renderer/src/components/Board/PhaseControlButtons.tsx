@@ -40,6 +40,7 @@ export const PhaseMiddleButton: React.FC = () => {
     pendingRequest !== null && pendingRequest.data.kind === 'battle' && pendingRequest.data.canM2
 
   if (currentPhase === 'DP') {
+    if (isEngine) return null
     return (
       <button
         type="button"
@@ -109,6 +110,7 @@ export const PhaseEpButton: React.FC = () => {
       (pendingRequest.data.kind === 'battle' && pendingRequest.data.canEp))
 
   if (currentPhase === 'DP' || currentPhase === 'SP') {
+    if (isEngine) return null
     return (
       <button
         type="button"
@@ -150,6 +152,7 @@ export const PhaseEpButton: React.FC = () => {
   }
 
   if (currentPhase === 'EP') {
+    if (isEngine) return null
     return (
       <button
         type="button"

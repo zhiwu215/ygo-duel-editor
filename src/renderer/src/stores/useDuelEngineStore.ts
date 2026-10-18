@@ -26,6 +26,7 @@ import {
   normalizeTimingPolicy
 } from '@shared/index'
 import { useDuelStore } from './useDuelStore'
+import { setEngineActive } from './engineStatus'
 
 export type EngineMode = 'idle' | 'running' | 'paused'
 
@@ -74,6 +75,8 @@ interface DuelEngineState {
   getProvenance: (ref: EngineCardRef) => Promise<EngineProvenance>
   replaceCard: (ref: EngineCardRef, newCode: number) => Promise<boolean>
   removeCard: (ref: EngineCardRef) => Promise<boolean>
+  exportSession: () => Promise<boolean>
+  importSession: () => Promise<boolean>
   jumpToStep: (stepId: string) => Promise<boolean>
   undo: () => Promise<void>
   redo: () => Promise<void>
@@ -364,32 +367,89 @@ function cardNameOfCode(code: number): string | undefined {
   return useDuelEngineStore.getState().boardState?.allCards.find((c) => c.code === code)?.card?.name
 }
 
-/**
- * PLACE 答案没有独立步骤：放置格位补丁到父步骤（召唤/盖放/发动那一步）上。
- */
-function patchPlacementStep(
-  answer: Extract<Answer, { kind: 'place' }>,
-  node: EngineTimelineNode
-): void {
-  const place = answer.places[0]
-  if (!place || !node.parentId) return
-  const stored = engineSteps.get(node.parentId)
-  if (!stored) return
-  const duelStore = useDuelStore.getState()
-  const patched: DuelStep = {
-    ...stored,
-    toLocation: place.location,
-    toSequence: place.sequence,
-    boardAfter: createLightweightSnapshot(duelStore.state.cards)
+function hasBoardChange(diff: EngineDiffResult): boolean {
+  return (
+    diff.movedCards.length > 0 ||
+    diff.addedCards.length > 0 ||
+    diff.removedCards.length > 0 ||
+    diff.positionChanges.length > 0 ||
+    diff.lpChanges.length > 0 ||
+    diff.counterChanges.length > 0 ||
+    diff.overlayChanges.length > 0
+  )
+}
+
+/** 从本节点向上找最近一条已记录的步骤（引擎的询问节点本身通常没有步骤） */
+function findHostStep(
+  node: EngineTimelineNode,
+  timeline: EngineTimelineNode[]
+): { id: string; step: DuelStep } | null {
+  const byId = new Map(timeline.map((n) => [n.id, n]))
+  let cursor = node.parentId ? byId.get(node.parentId) : undefined
+  while (cursor) {
+    const stored = engineSteps.get(cursor.id)
+    if (stored) return { id: cursor.id, step: stored }
+    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined
   }
-  engineSteps.set(node.parentId, patched)
+  return null
+}
+
+/**
+ * 步骤换挂到"完成节点"。引擎的询问节点（选格位/选祭品/选表示形式/选对象）本身不产生步骤，
+ * 但它才是父步骤真正改盘的地方 —— 换挂过去，回退到该步骤时看到的才是"这一步做完"的场面。
+ */
+function storeEngineStep(hostId: string, nextId: string | null, step: DuelStep): void {
+  engineSteps.delete(hostId)
+  const stored: DuelStep = nextId ? { ...step, actId: nextId } : step
+  engineSteps.set(stored.actId ?? hostId, stored)
   useDuelStore.setState((prev) => ({
     ...prev,
     state: {
       ...prev.state,
-      steps: (prev.state.steps || []).map((s) => (s.actId === node.parentId ? patched : s))
+      steps: (prev.state.steps || []).map((s) => (s.actId === hostId ? stored : s))
     }
   }))
+}
+
+/**
+ * PLACE 答案没有独立步骤：放置格位补丁到父步骤（召唤/盖放/发动那一步）上，
+ * 并把该步骤换挂到放置完成的节点。
+ */
+function patchPlacementStep(
+  answer: Extract<Answer, { kind: 'place' }>,
+  node: EngineTimelineNode,
+  timeline: EngineTimelineNode[]
+): void {
+  const place = answer.places[0]
+  if (!place) return
+  const host = findHostStep(node, timeline)
+  if (!host) return
+  storeEngineStep(host.id, node.id, {
+    ...host.step,
+    toLocation: place.location,
+    toSequence: place.sequence,
+    boardAfter: createLightweightSnapshot(useDuelStore.getState().state.cards)
+  })
+}
+
+/** 询问类答案（祭品/表示形式/选卡）真正改盘时，把改动归属到父步骤并换挂到本节点 */
+function patchCompletedStep(
+  node: EngineTimelineNode,
+  diff: EngineDiffResult,
+  timeline: EngineTimelineNode[]
+): void {
+  if (!hasBoardChange(diff)) return
+  const host = findHostStep(node, timeline)
+  if (!host) return
+  const moved = host.step.cardCode
+    ? diff.movedCards.find((m) => m.code === host.step.cardCode)
+    : undefined
+  storeEngineStep(host.id, node.id, {
+    ...host.step,
+    toLocation: moved?.toLocation ?? host.step.toLocation,
+    toSequence: moved?.toSequence ?? host.step.toSequence,
+    boardAfter: createLightweightSnapshot(useDuelStore.getState().state.cards)
+  })
 }
 
 function patchTargetStep(
@@ -399,15 +459,9 @@ function patchTargetStep(
   boardState: EngineBoardState | null
 ): void {
   if (selected.length === 0) return
-  const byId = new Map(timeline.map((n) => [n.id, n]))
-  let cursor = node.parentId ? byId.get(node.parentId) : undefined
-  while (cursor && !engineSteps.has(cursor.id)) {
-    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined
-  }
-  if (!cursor) return
-  const stored = engineSteps.get(cursor.id)
-  if (!stored) return
-
+  const host = findHostStep(node, timeline)
+  if (!host) return
+  const stored = host.step
   const first = selected[0]
   const engineId = boardState?.allCards.find(
     (c) =>
@@ -420,7 +474,7 @@ function patchTargetStep(
     .map((c) => cardNameOfCode(c.code))
     .filter((name): name is string => Boolean(name))
 
-  const patched: DuelStep = {
+  storeEngineStep(host.id, null, {
     ...stored,
     targetInstanceId:
       (engineId ? engineToEditorId.get(engineId) : undefined) ??
@@ -428,16 +482,7 @@ function patchTargetStep(
       stored.targetInstanceId,
     targetCardName: names.length > 0 ? names.join('、') : stored.targetCardName,
     targetPlayer: first.controller
-  }
-  const hostId = cursor.id
-  engineSteps.set(hostId, patched)
-  useDuelStore.setState((prev) => ({
-    ...prev,
-    state: {
-      ...prev.state,
-      steps: (prev.state.steps || []).map((s) => (s.actId === hostId ? patched : s))
-    }
-  }))
+  })
 }
 
 /** 从语义 Answer 直接记录引擎步骤（DuelStep 即 answer 的权威语义） */
@@ -449,19 +494,23 @@ function appendEngineStepFromAnswer(
   boardState: EngineBoardState | null
 ): void {
   if (answer.kind === 'place') {
-    patchPlacementStep(answer, node)
+    patchPlacementStep(answer, node, timeline)
     return
   }
 
   if (answer.kind === 'card') {
     patchTargetStep(answer.cards ?? [], node, timeline, boardState)
+    patchCompletedStep(node, diff, timeline)
     return
   }
 
   const actionKey = answerToEngineStepAction(answer)
-  if (!actionKey) return
-  const actionType = ENGINE_STEP_TYPES[actionKey]
-  if (!actionType || engineSteps.has(node.id)) return
+  const actionType = actionKey ? ENGINE_STEP_TYPES[actionKey] : undefined
+  if (!actionType) {
+    patchCompletedStep(node, diff, timeline)
+    return
+  }
+  if (engineSteps.has(node.id)) return
 
   const card = answerCardOf(answer)
   const moved = card
@@ -497,33 +546,53 @@ function appendEngineStepFromAnswer(
   if (added) engineSteps.set(node.id, added)
 }
 
-function timelinePath(timeline: EngineTimelineNode[], stepId: string): EngineTimelineNode[] {
-  const byId = new Map(timeline.map((n) => [n.id, n]))
-  const path: EngineTimelineNode[] = []
-  let current = byId.get(stepId)
-  while (current) {
-    path.unshift(current)
-    current = current.parentId ? byId.get(current.parentId) : undefined
-  }
-  return path
+function restoreEngineSteps(timeline: EngineTimelineNode[]): void {
+  const present = new Set(
+    (useDuelStore.getState().state.steps || [])
+      .map((step) => step.actId)
+      .filter((id): id is string => Boolean(id))
+  )
+  const restored = timeline
+    .filter((node) => engineSteps.has(node.id) && !present.has(node.id))
+    .map((node) => engineSteps.get(node.id)!)
+  if (restored.length === 0) return
+  useDuelStore.setState((prev) => ({
+    ...prev,
+    state: { ...prev.state, steps: [...(prev.state.steps || []), ...restored] }
+  }))
 }
 
-function syncEngineSteps(timeline: EngineTimelineNode[], stepId: string): void {
-  const path = timelinePath(timeline, stepId)
-  const valid = new Set(path.map((n) => n.id))
-  useDuelStore.setState((prev) => {
-    const steps = prev.state.steps || []
-    const kept = steps.filter((s) => !s.actId || valid.has(s.actId))
-    const present = new Set(kept.map((s) => s.actId).filter((id): id is string => Boolean(id)))
-    const restored = path
-      .filter((n) => engineSteps.has(n.id) && !present.has(n.id))
-      .map((n) => engineSteps.get(n.id)!)
-    if (kept.length === steps.length && restored.length === 0) return prev
-    return {
-      ...prev,
-      state: { ...prev.state, steps: [...kept, ...restored] }
-    }
-  })
+function splitTimeline(
+  timeline: EngineTimelineNode[],
+  currentId: string | null
+): { kept: EngineTimelineNode[]; dropped: EngineTimelineNode[] } {
+  const index = timeline.findIndex((node) => node.id === currentId)
+  if (index < 0) return { kept: timeline, dropped: [] }
+  return { kept: timeline.slice(0, index + 1), dropped: timeline.slice(index + 1) }
+}
+
+/** 从回退点重新编排时，才真正丢弃被覆盖的后续步骤（引擎操作流同步裁剪） */
+function discardFutureSteps(
+  keptTimeline: EngineTimelineNode[],
+  droppedTimeline: EngineTimelineNode[]
+): number {
+  if (droppedTimeline.length === 0) return 0
+  const keptIds = new Set(keptTimeline.map((node) => node.id))
+  const droppedIds = new Set(
+    droppedTimeline.map((node) => node.id).filter((id) => !keptIds.has(id))
+  )
+  if (droppedIds.size === 0) return 0
+  for (const id of droppedIds) engineSteps.delete(id)
+  const steps = useDuelStore.getState().state.steps || []
+  const next = steps.filter((step) => !step.actId || !droppedIds.has(step.actId))
+  if (next.length !== steps.length) {
+    useDuelStore.setState((prev) => ({ ...prev, state: { ...prev.state, steps: next } }))
+  }
+  return steps.length - next.length
+}
+
+function appendDiscardNotice(message: string, discarded: number): string {
+  return discarded > 0 ? `${message}（已丢弃之后的 ${discarded} 步）` : message
 }
 
 async function applyCardEditResult(
@@ -539,15 +608,17 @@ async function applyCardEditResult(
 
   const prevTimeline = get().timeline
   const currentId = get().currentStepId
-  const currentIndex = prevTimeline.findIndex((node) => node.id === currentId)
-  const baseTimeline = currentIndex >= 0 ? prevTimeline.slice(0, currentIndex + 1) : prevTimeline
+  const previewExited = useDuelStore.getState().previewReturn !== null
+  useDuelStore.getState().exitPreview()
+  const { kept, dropped } = splitTimeline(prevTimeline, currentId)
   const node = res.node
   const timeline = node
-    ? baseTimeline.some((item) => item.id === node.id)
-      ? baseTimeline.map((item) => (item.id === node.id ? node : item))
-      : [...baseTimeline, node]
-    : baseTimeline
+    ? kept.some((item) => item.id === node.id)
+      ? kept.map((item) => (item.id === node.id ? node : item))
+      : [...kept, node]
+    : kept
   const currentStepId = res.currentStepId ?? node?.id ?? currentId
+  const discarded = discardFutureSteps(kept, dropped)
 
   set({
     loading: false,
@@ -559,17 +630,16 @@ async function applyCardEditResult(
     selectedCardId: null,
     injectNotice: {
       kind: res.warning ? 'warning' : 'success',
-      message: res.warning ?? successMessage
+      message: `${appendDiscardNotice(res.warning ?? successMessage, discarded)}${previewExited ? '（已退出步骤预览）' : ''}`
     }
   })
   if (res.boardState) syncJumpToStepWrapped(res.boardState)
-  if (currentStepId) syncEngineSteps(timeline, currentStepId)
+  restoreEngineSteps(timeline)
 
   const latestTimeline = await window.api.duelEngineGetTimeline().catch(() => null)
   if (latestTimeline) {
     set({ timeline: latestTimeline })
-    const stepId = get().currentStepId
-    if (stepId) syncEngineSteps(latestTimeline, stepId)
+    restoreEngineSteps(latestTimeline)
   }
   return true
 }
@@ -621,7 +691,9 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
   startEngine: async () => {
     set({ loading: true, error: null })
     try {
-      const currentDuelState = structuredClone(useDuelStore.getState().state)
+      const duelStore = useDuelStore.getState()
+      const currentDuelState = structuredClone(duelStore.state)
+      duelStore.commitPreview()
       set({ backupDuelState: currentDuelState })
       await window.api.duelEngineSetPolicy(get().timingPolicy)
 
@@ -645,7 +717,8 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       })
       // 引擎是唯一真相：把引擎开局的真实场面全量同步进棋盘显示
       syncJumpToStepWrapped(res.boardState)
-      syncEngineSteps(timeline, res.initialNode.id)
+      restoreEngineSteps(timeline)
+      setEngineActive(true)
     } catch (err) {
       console.error('[useDuelEngineStore] startEngine failed:', err)
       set({
@@ -659,6 +732,8 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
   stopEngine: (revertToSnapshot = false) => {
     engineSteps.clear()
     engineToEditorId.clear()
+    setEngineActive(false)
+    useDuelStore.getState().exitPreview()
     const backup = get().backupDuelState
     if (revertToSnapshot && backup) {
       useDuelStore.setState((prev) => ({
@@ -687,7 +762,9 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         ...params
       }
       if (!initParams.puzzleState && !initParams.p0Deck) {
-        initParams.puzzleState = structuredClone(useDuelStore.getState().state)
+        const duelStore = useDuelStore.getState()
+        initParams.puzzleState = structuredClone(duelStore.state)
+        duelStore.commitPreview()
         set({ backupDuelState: initParams.puzzleState })
       }
       await window.api.duelEngineSetPolicy(get().timingPolicy)
@@ -708,7 +785,8 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       })
       // 引擎是唯一真相：把引擎开局的真实场面全量同步进棋盘显示
       syncJumpToStepWrapped(res.boardState)
-      syncEngineSteps(timeline, res.initialNode.id)
+      restoreEngineSteps(timeline)
+      setEngineActive(true)
     } catch (err) {
       console.error('[useDuelEngineStore] initDuel failed:', err)
       set({
@@ -734,11 +812,11 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         return
       }
       const prevTimeline = get().timeline
-      const currentId = get().currentStepId
-      const currentIndex = prevTimeline.findIndex((node) => node.id === currentId)
-      const baseTimeline =
-        currentIndex >= 0 ? prevTimeline.slice(0, currentIndex + 1) : prevTimeline
-      const newTimeline = res.node ? [...baseTimeline, res.node] : prevTimeline
+      const previewExited = useDuelStore.getState().previewReturn !== null
+      useDuelStore.getState().exitPreview()
+      const { kept, dropped } = splitTimeline(prevTimeline, get().currentStepId)
+      const newTimeline = res.node ? [...kept, res.node] : prevTimeline
+      const discarded = res.node ? discardFutureSteps(kept, dropped) : 0
       const shuffledPlayers = [
         ...new Set(
           (res.node?.events ?? [])
@@ -761,7 +839,13 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
           shuffledPlayers.length > 0
             ? { id: Date.now(), players: shuffledPlayers }
             : get().handShuffle,
-        selectedCardId: null
+        selectedCardId: null,
+        injectNotice:
+          discarded > 0
+            ? { kind: 'warning', message: `已从该步骤重新编排，丢弃之后的 ${discarded} 步。` }
+            : previewExited
+              ? { kind: 'warning', message: '已退出步骤预览，回到引擎当前场面。' }
+              : get().injectNotice
       })
       if (res.boardState) {
         // 引擎是唯一真相：与跳转/回退共用同一套全量对账（身份映射 + 精确位置 reconcile，
@@ -771,7 +855,7 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         syncJumpToStepWrapped(res.boardState)
       }
       if (res.node) {
-        syncEngineSteps(newTimeline, res.node.id)
+        restoreEngineSteps(newTimeline)
       }
       if (res.node && res.diff) {
         // res.diff 仅用于步骤记录（推导 to 位置），不再用于棋盘同步
@@ -795,24 +879,27 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
     try {
       const res = await window.api.duelEngineInject(command)
       const prevTimeline = get().timeline
-      const currentId = get().currentStepId
-      const currentIndex = prevTimeline.findIndex((node) => node.id === currentId)
-      const baseTimeline =
-        currentIndex >= 0 ? prevTimeline.slice(0, currentIndex + 1) : prevTimeline
+      const previewExited = useDuelStore.getState().previewReturn !== null
+      useDuelStore.getState().exitPreview()
+      const { kept, dropped } = splitTimeline(prevTimeline, get().currentStepId)
+      const discarded = discardFutureSteps(kept, dropped)
       set({
         loading: false,
         error: null,
         boardState: res.boardState,
-        timeline: [...baseTimeline, res.node],
+        timeline: [...kept, res.node],
         currentStepId: res.node.id,
         selectedCardId: null,
         injectNotice: {
           kind: res.warning ? 'warning' : 'success',
-          message: res.warning ? `${res.node.title}：${res.warning}` : res.node.title
+          message: `${appendDiscardNotice(
+            res.warning ? `${res.node.title}：${res.warning}` : res.node.title,
+            discarded
+          )}${previewExited ? '（已退出步骤预览）' : ''}`
         }
       })
       syncJumpToStepWrapped(res.boardState)
-      syncEngineSteps(get().timeline, res.node.id)
+      restoreEngineSteps(get().timeline)
       return true
     } catch (err) {
       console.error('[useDuelEngineStore] inject failed:', err)
@@ -874,6 +961,90 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
     }
   },
 
+  exportSession: async () => {
+    if (!get().isInitialized) {
+      set({ error: '引擎尚未启动，无法导出对局剧本。' })
+      return false
+    }
+    set({ loading: true, error: null })
+    try {
+      const res = await window.api.duelEngineExportSession()
+      if (!res.success) {
+        set({
+          loading: false,
+          error: res.canceled ? null : (res.error ?? '导出对局剧本失败')
+        })
+        return false
+      }
+      set({
+        loading: false,
+        error: null,
+        injectNotice: {
+          kind: 'success',
+          message: `对局剧本已导出：${res.filePath ?? ''}`
+        }
+      })
+      return true
+    } catch (err) {
+      console.error('[useDuelEngineStore] exportSession failed:', err)
+      set({
+        loading: false,
+        error: err instanceof Error ? err.message : '导出对局剧本失败'
+      })
+      return false
+    }
+  },
+
+  importSession: async () => {
+    set({ loading: true, error: null })
+    try {
+      const res = await window.api.duelEngineImportSession()
+      if (!res.success || !res.boardState || !res.timeline || !res.currentStepId) {
+        set({
+          loading: false,
+          error: res.canceled ? null : (res.error ?? '导入对局剧本失败')
+        })
+        return false
+      }
+      const boardState = res.boardState
+      const timeline = res.timeline
+      const currentStepId = res.currentStepId
+      engineSteps.clear()
+      engineToEditorId.clear()
+      useDuelStore.getState().exitPreview()
+      const editorState = structuredClone(useDuelStore.getState().state)
+      set({
+        engineMode: 'running',
+        isInitialized: true,
+        loading: false,
+        error: null,
+        boardState,
+        pendingRequest: res.pendingRequest ?? null,
+        lastAttacker: null,
+        timeline,
+        currentStepId,
+        selectedCardId: null,
+        timingPolicy: normalizeTimingPolicy(res.timingPolicy ?? get().timingPolicy),
+        backupDuelState: get().backupDuelState ?? editorState,
+        injectNotice: {
+          kind: 'success',
+          message: `已载入对局剧本：${res.filePath ?? ''}`
+        }
+      })
+      syncJumpToStepWrapped(boardState)
+      restoreEngineSteps(timeline)
+      setEngineActive(true)
+      return true
+    } catch (err) {
+      console.error('[useDuelEngineStore] importSession failed:', err)
+      set({
+        loading: false,
+        error: err instanceof Error ? err.message : '导入对局剧本失败'
+      })
+      return false
+    }
+  },
+
   jumpToStep: async (stepId: string): Promise<boolean> => {
     if (!get().timeline.some((node) => node.id === stepId)) {
       console.warn(`[useDuelEngineStore] 步骤 ${stepId} 不在当前引擎时间线，已跳过跳转`)
@@ -887,15 +1058,20 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       const pendingRequest = await window.api
         .duelEngineGetPendingRequest()
         .catch(() => get().pendingRequest)
+      const previewExited = useDuelStore.getState().previewReturn !== null
+      useDuelStore.getState().exitPreview()
       set({
         loading: false,
         boardState: res.boardState,
         pendingRequest,
         currentStepId: res.currentStepId,
-        selectedCardId: null
+        selectedCardId: null,
+        injectNotice: previewExited
+          ? { kind: 'warning', message: '已退出步骤预览，回到引擎当前场面。' }
+          : get().injectNotice
       })
       syncJumpToStepWrapped(res.boardState)
-      syncEngineSteps(get().timeline, res.currentStepId)
+      restoreEngineSteps(get().timeline)
       return true
     } catch (err) {
       console.error('[useDuelEngineStore] jumpToStep failed:', err)
@@ -910,21 +1086,24 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
   undo: async () => {
     const { timeline, currentStepId, jumpToStep } = get()
     if (!currentStepId || timeline.length === 0) return
-    const currentIndex = timeline.findIndex((n) => n.id === currentStepId)
-    if (currentIndex > 0) {
-      const prevNode = timeline[currentIndex - 1]
-      await jumpToStep(prevNode.id)
-    }
+    const currentIndex = timeline.findIndex((node) => node.id === currentStepId)
+    if (currentIndex < 0) return
+    const previous = [...timeline]
+      .map((node, index) => ({ id: node.id, index }))
+      .reverse()
+      .find((item) => item.index < currentIndex && engineSteps.has(item.id))
+    if (previous) await jumpToStep(previous.id)
   },
 
   redo: async () => {
     const { timeline, currentStepId, jumpToStep } = get()
     if (!currentStepId || timeline.length === 0) return
-    const currentIndex = timeline.findIndex((n) => n.id === currentStepId)
-    if (currentIndex >= 0 && currentIndex < timeline.length - 1) {
-      const nextNode = timeline[currentIndex + 1]
-      await jumpToStep(nextNode.id)
-    }
+    const currentIndex = timeline.findIndex((node) => node.id === currentStepId)
+    if (currentIndex < 0) return
+    const next = timeline
+      .map((node, index) => ({ id: node.id, index }))
+      .find((item) => item.index > currentIndex && engineSteps.has(item.id))
+    if (next) await jumpToStep(next.id)
   },
 
   setSelectedCardId: (id) => set({ selectedCardId: id }),
@@ -938,14 +1117,16 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
   canUndo: () => {
     const { timeline, currentStepId } = get()
     if (!currentStepId || timeline.length <= 1) return false
-    const idx = timeline.findIndex((n) => n.id === currentStepId)
-    return idx > 0
+    const index = timeline.findIndex((node) => node.id === currentStepId)
+    if (index < 0) return false
+    return timeline.some((node, i) => i < index && engineSteps.has(node.id))
   },
 
   canRedo: () => {
     const { timeline, currentStepId } = get()
     if (!currentStepId || timeline.length === 0) return false
-    const idx = timeline.findIndex((n) => n.id === currentStepId)
-    return idx >= 0 && idx < timeline.length - 1
+    const index = timeline.findIndex((node) => node.id === currentStepId)
+    if (index < 0) return false
+    return timeline.some((node, i) => i > index && engineSteps.has(node.id))
   }
 }))

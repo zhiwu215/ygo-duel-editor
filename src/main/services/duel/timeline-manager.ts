@@ -20,6 +20,18 @@ export class EngineTimelineManager {
     this.rootStepId = null
   }
 
+  restore(nodes: EngineTimelineNode[], currentStepId: string): void {
+    this.steps.clear()
+    this.rootStepId = null
+    for (const node of nodes) {
+      this.steps.set(node.id, { node: structuredClone(node) })
+      if (node.parentId === null) this.rootStepId = node.id
+    }
+    this.currentStepId = this.steps.has(currentStepId)
+      ? currentStepId
+      : this.rootStepId
+  }
+
   addStep(
     title: string,
     player: 0 | 1,

@@ -66,6 +66,7 @@ interface GridMetrics {
 const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
   const openContextMenu = useContextMenuStore((s) => s.openMenu)
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const {
     state,
     activeDuelistId,
@@ -122,8 +123,12 @@ const PileListContent: React.FC = () => {
           c.location === target.location &&
           (ownerScope ? c.duelistId === ownerScope : true)
       )
-      .sort((a, b) => a.sequence - b.sequence)
-  }, [state.cards, state.duelists, activeDuelistId, target])
+      .sort((a, b) =>
+        target.location === CardLocation.DECK && isEngineActive
+          ? b.sequence - a.sequence
+          : a.sequence - b.sequence
+      )
+  }, [state.cards, state.duelists, activeDuelistId, target, isEngineActive])
 
   const pendingCodesRef = useRef<Set<number>>(new Set())
   const unknownCodesRef = useRef<Set<number>>(new Set())
@@ -353,7 +358,7 @@ const PileListContent: React.FC = () => {
     const handleWindowPointerMove = (e: PointerEvent): void => {
       lastPointerRef.current = { x: e.clientX, y: e.clientY }
 
-      if (pendingDragCardRef.current && dragStartPosRef.current) {
+      if (pendingDragCardRef.current && dragStartPosRef.current && !isEngineActive) {
         const dx = e.clientX - dragStartPosRef.current.x
         const dy = e.clientY - dragStartPosRef.current.y
         if (dx * dx + dy * dy >= 16) {
@@ -434,6 +439,7 @@ const PileListContent: React.FC = () => {
   }, [
     dropSlotIndex,
     target,
+    isEngineActive,
     reorderPileCards,
     ownerDuelist,
     stopAutoScroll,

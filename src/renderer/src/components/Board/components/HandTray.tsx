@@ -16,6 +16,7 @@ import { LpInput } from './LpInput'
 import { useHandShufflePulse } from '../../../hooks/useHandShufflePulse'
 import { cn } from '../../../lib/utils'
 import { getDropPosOverride } from '../../../utils/zoneDrop'
+import { buildInjectCommand } from '../../../utils/engineInject'
 import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
 import {
   captureHandCardAnchors,
@@ -43,6 +44,7 @@ const SingleHandTray: React.FC<{
   const moveCard = useDuelStore((s) => s.moveCard)
   const reorderHandCards = useDuelStore((s) => s.reorderHandCards)
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
+  const masterRule = useDuelStore((s) => s.state.masterRule)
   const isOpponent = controller === 1
   const shuffle = useHandShufflePulse(controller)
 
@@ -248,10 +250,28 @@ const SingleHandTray: React.FC<{
 
       const dataStr = e.dataTransfer.getData('application/json')
       if (!dataStr) return
-      const droppedCard = JSON.parse(dataStr) as CdbCard
+      let droppedCard: CdbCard
+      try {
+        droppedCard = JSON.parse(dataStr) as CdbCard
+      } catch {
+        useDuelEngineStore.setState({ error: '拖拽数据解析失败，请重试' })
+        return
+      }
       const engine = useDuelEngineStore.getState()
       if (engine.isInitialized) {
-        void engine.inject({ op: 'add-card', player: controller, code: droppedCard.id, to: 'hand' })
+        const command = buildInjectCommand({
+          card: droppedCard,
+          controller,
+          location: CardLocation.HAND,
+          sequence: cards.length,
+          ctrlKey: e.ctrlKey,
+          masterRule
+        })
+        if (!command) {
+          useDuelEngineStore.setState({ error: '该落点不支持剧情安排注入' })
+          return
+        }
+        void engine.inject(command)
         return
       }
       addCardToZone(
@@ -264,6 +284,9 @@ const SingleHandTray: React.FC<{
       )
     } catch (err) {
       console.error('[SingleHandTray] Drop failed:', err)
+      useDuelEngineStore.setState({
+        error: err instanceof Error ? err.message : '拖拽操作失败'
+      })
     }
   }
 
@@ -280,6 +303,10 @@ const SingleHandTray: React.FC<{
   return (
     <div
       ref={trayRef}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1"
     >
       {/* 顶部单行信息与操作栏 */}

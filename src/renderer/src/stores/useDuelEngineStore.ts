@@ -26,7 +26,6 @@ import {
   normalizeTimingPolicy
 } from '@shared/index'
 import { useDuelStore } from './useDuelStore'
-import { setEngineActive } from './engineStatus'
 
 export type EngineMode = 'idle' | 'running' | 'paused'
 
@@ -707,12 +706,12 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       // 引擎是唯一真相：把引擎开局的真实场面全量同步进棋盘显示
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(timeline)
-      setEngineActive(true)
     } catch (err) {
       console.error('[useDuelEngineStore] startEngine failed:', err)
       set({
         loading: false,
         engineMode: 'idle',
+        isInitialized: false,
         error: err instanceof Error ? err.message : '启动决斗引擎失败'
       })
     }
@@ -721,7 +720,6 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
   stopEngine: (revertToSnapshot = false) => {
     engineSteps.clear()
     engineToEditorId.clear()
-    setEngineActive(false)
     useDuelStore.getState().exitPreview()
     const backup = get().backupDuelState
     if (revertToSnapshot && backup) {
@@ -775,12 +773,12 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       // 引擎是唯一真相：把引擎开局的真实场面全量同步进棋盘显示
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(timeline)
-      setEngineActive(true)
     } catch (err) {
       console.error('[useDuelEngineStore] initDuel failed:', err)
       set({
         loading: false,
         engineMode: 'idle',
+        isInitialized: false,
         error: err instanceof Error ? err.message : '初始化决斗引擎失败'
       })
     }
@@ -1022,12 +1020,13 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       })
       syncJumpToStepWrapped(boardState)
       restoreEngineSteps(timeline)
-      setEngineActive(true)
       return true
     } catch (err) {
       console.error('[useDuelEngineStore] importSession failed:', err)
       set({
         loading: false,
+        engineMode: 'idle',
+        isInitialized: false,
         error: err instanceof Error ? err.message : '导入对局剧本失败'
       })
       return false

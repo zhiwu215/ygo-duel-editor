@@ -30,7 +30,7 @@ import {
   allocateCustomCounterId
 } from '@shared/index'
 import { alertDialog } from './useDialogStore'
-import { isEngineActive } from './engineStatus'
+import { useDuelEngineStore } from './useDuelEngineStore'
 import { fetchCardDataByCodes } from '../utils/cardData'
 
 let lpFlashSeq = 0
@@ -760,7 +760,7 @@ export const useDuelStore = create<DuelStoreState>()(
       setIsAutoRecording: (recording) => set({ isAutoRecording: recording }),
 
       previewStepBoard: (stepIndex) => {
-        const engineRunning = isEngineActive()
+        const engineRunning = useDuelEngineStore.getState().isInitialized
         if (engineRunning) useDuelStore.temporal.getState().pause()
         try {
           set((prev) => {

@@ -10,6 +10,7 @@ import { TurnOrderBadge } from './TurnOrderBadge'
 import { LpInput } from './LpInput'
 import { HandShuffleOverlay } from './HandShuffleOverlay'
 import { getDropPosOverride } from '../../../utils/zoneDrop'
+import { buildInjectCommand } from '../../../utils/engineInject'
 import { cn } from '../../../lib/utils'
 import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
 import {
@@ -68,6 +69,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   const moveCard = useDuelStore((s) => s.moveCard)
   const reorderHandCards = useDuelStore((s) => s.reorderHandCards)
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
+  const masterRule = useDuelStore((s) => s.state.masterRule)
   const isSharedLp = Boolean(useDuelStore((s) => s.state.matchConfig?.sharedLp))
   const isActiveViewer = useDuelStore((s) => s.activeDuelistId === duelist.id)
   const setActiveDuelistId = useDuelStore((s) => s.setActiveDuelistId)
@@ -317,7 +319,15 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
       const droppedCard = JSON.parse(dataStr) as CdbCard
       const engine = useDuelEngineStore.getState()
       if (engine.isInitialized) {
-        void engine.inject({ op: 'add-card', player: controller, code: droppedCard.id, to: 'hand' })
+        const command = buildInjectCommand({
+          card: droppedCard,
+          controller,
+          location: CardLocation.HAND,
+          sequence: cards.length,
+          ctrlKey: e.ctrlKey,
+          masterRule
+        })
+        if (command) void engine.inject(command)
         return
       }
       addCardToZone(
@@ -434,9 +444,11 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
       onDragEnter={(e) => {
         if (!e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) setIsDragOver(true)
       }}
+      onDragOver={handleDragOver}
       onDragLeave={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false)
       }}
+      onDrop={handleDrop}
       className={cn(
         'flex-1 min-w-[180px] h-[136px] rounded border-2 flex flex-col p-1 transition-all gap-0.5 relative',
         isActiveViewer && 'ring-1 ring-primary/60',

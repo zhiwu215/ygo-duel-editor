@@ -22,7 +22,10 @@ export interface CardRowItemProps {
   onHover?: (card: CdbCard) => void
   /** 行点击回调（选择卡片等），未提供时沿用 hover 语义 */
   onRowClick?: (card: CdbCard) => void
+  /** 行双击回调（引擎激活时用于快速加入手牌） */
+  onRowDoubleClick?: (card: CdbCard) => void
   onDragStart?: (e: React.DragEvent, card: CdbCard) => void
+  onContextMenu?: (e: React.MouseEvent, card: CdbCard) => void
   className?: string
 }
 
@@ -34,7 +37,9 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
   onToggleFavorite,
   onHover,
   onRowClick,
+  onRowDoubleClick,
   onDragStart,
+  onContextMenu,
   className
 }) => {
   const line2 = formatSearchItemLine2(card)
@@ -50,8 +55,10 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
     <div
       draggable={onDragStart !== undefined}
       onDragStart={onDragStart ? (e) => onDragStart(e, card) : undefined}
+      onContextMenu={onContextMenu ? (e) => onContextMenu(e, card) : undefined}
       onMouseEnter={onHover ? () => onHover(card) : undefined}
       onClick={onRowClick ? () => onRowClick(card) : onHover ? () => onHover(card) : undefined}
+      onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(card) : undefined}
       className={cn(
         'flex items-center gap-2 px-2 py-1 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-primary/40 transition-all group shadow-2xs',
         onDragStart && 'cursor-grab active:cursor-grabbing',
@@ -64,6 +71,7 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
           src={getCardImageUrl(card.id)}
           alt={card.name}
           loading="lazy"
+          draggable={false}
           className="w-[42px] h-[60px] object-cover rounded border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
           onError={(e) => {
             const target = e.currentTarget

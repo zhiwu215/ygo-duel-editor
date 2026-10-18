@@ -160,7 +160,11 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
     kind = 'position'
     identifier = YGOProMsgSelectPosition.identifier
     title = `Player ${player} 请选择表示形式`
-    data = { kind: 'position', positions: decodePositions(msg.positions) }
+    data = {
+      kind: 'position',
+      positions: decodePositions(msg.positions),
+      code: msg.code > 0 ? msg.code : undefined
+    }
   } else if (msg instanceof YGOProMsgSelectEffectYn || msg instanceof YGOProMsgSelectYesNo) {
     player = normalizePlayer(msg.player, 0)
     kind = 'yesno'

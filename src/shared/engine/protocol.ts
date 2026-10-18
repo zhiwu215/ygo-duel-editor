@@ -76,7 +76,7 @@ export type RequestData =
   | { kind: 'chain'; chains: RequestCard[]; forced: boolean }
   | { kind: 'place'; places: RequestPlace[]; count: number }
   | { kind: 'disfield'; places: RequestPlace[]; count: number }
-  | { kind: 'position'; positions: number[] }
+  | { kind: 'position'; positions: number[]; code?: number }
   /** SelectYesNo(13) 与 SelectEffectYn(12) 统一 */
   | { kind: 'yesno'; desc: number; card?: RequestCard }
   | { kind: 'option'; options: { code: number; text?: string }[] }

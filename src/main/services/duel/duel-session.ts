@@ -10,7 +10,8 @@ import {
   YGOProMsgNewTurn,
   YGOProMsgDamage,
   YGOProMsgRecover,
-  YGOProMsgRetry
+  YGOProMsgRetry,
+  YGOProMsgSelectUnselectCard
 } from 'ygopro-msg-encode'
 import {
   EngineDuelInitParams,
@@ -37,6 +38,7 @@ export interface SubmitAnswerResult extends EngineSubmitAnswerResult {}
 const { OcgcoreScriptConstants } = _OcgcoreConstants
 
 const MAX_PROCESS_LOOPS = 10000
+const MAX_AUTO_FINISH_LOOPS = 8
 const FIELD_ZONE_SEQUENCE = 5
 
 const MASTER_RULE_TO_DUEL_RULE: Record<number, OcgcoreDuelRule> = {
@@ -60,7 +62,7 @@ export class DuelSession {
   private lastAdvanceRetried = false
   private seed: number[] = []
   private initParams: EngineDuelInitParams | null = null
-  private responses = new Map<string, Uint8Array>()
+  private responses = new Map<string, Uint8Array[]>()
 
   async init(): Promise<void> {
     if (!this.ocgcore) {
@@ -110,15 +112,17 @@ export class DuelSession {
     const canStepForward =
       currentPath.length + 1 === path.length &&
       path.slice(0, currentPath.length).every((n, i) => n.id === currentPath[i].id)
-    if (canStepForward && this.duel && !this.duel.ended) {
-      const response = this.responses.get(path[path.length - 1].id)
-      if (response) {
+    const forwardResponses = canStepForward
+      ? this.responses.get(path[path.length - 1].id)
+      : undefined
+    if (forwardResponses && this.duel && !this.duel.ended) {
+      for (const response of forwardResponses) {
         this.duel.setResponse(response)
         this.advanceEngine()
-        this.accumulatedLogs = []
-        this.timeline.setCurrentStepId(stepId)
-        return
       }
+      this.accumulatedLogs = []
+      this.timeline.setCurrentStepId(stepId)
+      return
     }
 
     this.disposeDuel()
@@ -126,12 +130,14 @@ export class DuelSession {
     this.createDuelFromInit()
 
     for (let i = 1; i < path.length; i++) {
-      const response = this.responses.get(path[i].id)
-      if (!response) {
+      const responses = this.responses.get(path[i].id)
+      if (!responses || responses.length === 0) {
         throw new Error(`步骤 ${path[i].id} 缺少响应记录，无法重放。`)
       }
-      this.duel!.setResponse(response)
-      this.advanceEngine()
+      for (const response of responses) {
+        this.duel!.setResponse(response)
+        this.advanceEngine()
+      }
     }
 
     this.accumulatedLogs = []
@@ -421,6 +427,16 @@ export class DuelSession {
       return { retry: true, pendingRequest: this.currentPendingRequest }
     }
 
+    const autoResponses: Uint8Array[] = []
+    for (let loops = 0; loops < MAX_AUTO_FINISH_LOOPS; loops++) {
+      if (!this.isAutoFinishableUnselect(requestMsg)) break
+      const autoResponse = encodeAnswer(this.currentPendingMsg, { kind: 'unselect', card: null })
+      this.duel.setResponse(autoResponse)
+      this.advanceEngine()
+      autoResponses.push(autoResponse)
+      if (this.lastAdvanceRetried) break
+    }
+
     this.accumulatedLogs.push(logText)
 
     const boardState = this.readBoard()
@@ -433,7 +449,7 @@ export class DuelSession {
       this.currentPendingRequest,
       [...this.accumulatedLogs]
     )
-    this.responses.set(node.id, response)
+    this.responses.set(node.id, [response, ...autoResponses])
     this.requestSeq += 1
     this.accumulatedLogs = []
 
@@ -444,6 +460,19 @@ export class DuelSession {
       node,
       diff
     }
+  }
+
+  private isAutoFinishableUnselect(answeredMsg: unknown): boolean {
+    const msg = this.currentPendingMsg
+    if (!(msg instanceof YGOProMsgSelectUnselectCard)) return false
+    if (msg === answeredMsg) return true
+    const data = this.currentPendingRequest?.data
+    return (
+      data?.kind === 'unselect' &&
+      data.finishable &&
+      data.selectable.length === 0 &&
+      data.unselectable.length > 0
+    )
   }
 
   async jumpToStep(stepId: string): Promise<{
@@ -567,8 +596,7 @@ export class DuelSession {
     return this.timeline
       .getHistoryPath()
       .slice(1)
-      .map((n) => this.responses.get(n.id))
-      .filter((r): r is Uint8Array => Boolean(r))
+      .flatMap((n) => this.responses.get(n.id) ?? [])
   }
 }
 

@@ -18,7 +18,7 @@ import {
   submitSelection
 } from '../../utils/duelSelection'
 import { fetchCardDataByCodes } from '../../utils/cardData'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { getCardBack, getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '../../lib/utils'
@@ -104,7 +104,7 @@ function cardNameOf(meta: Record<number, CdbCard>, code: number): string {
 // ------------------------------------------------------------------ 通用外壳
 
 interface RequestModalShellProps {
-  title: string
+  title?: string
   subtitle?: string
   width?: string
   children: React.ReactNode
@@ -129,17 +129,19 @@ const RequestModalShell: React.FC<RequestModalShellProps> = ({
         width
       )}
     >
-      <div className="flex shrink-0 items-start gap-2 border-b border-border/70 bg-muted/40 px-4 py-3">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-        <div className="min-w-0">
-          <h2 className="break-words text-sm font-bold leading-snug">{title}</h2>
-          {subtitle && (
-            <p className="mt-0.5 break-words text-[11px] leading-snug text-muted-foreground">
-              {subtitle}
-            </p>
-          )}
+      {(title || subtitle) && (
+        <div className="flex shrink-0 items-start gap-2 border-b border-border/70 bg-muted/40 px-4 py-3">
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0">
+            {title && <h2 className="break-words text-sm font-bold leading-snug">{title}</h2>}
+            {subtitle && (
+              <p className="mt-0.5 break-words text-[11px] leading-snug text-muted-foreground">
+                {subtitle}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto p-3">{children}</div>
       {footer && (
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/70 bg-muted/30 px-3 py-2.5">
@@ -341,25 +343,51 @@ const POSITION_LABELS: Record<number, string> = {
   [CardPosition.FACEDOWN_ATTACK]: '里侧攻击'
 }
 
-const PositionRequestModal: React.FC<{
-  request: EngineRequest
-  data: DataOf<'position'>
-}> = ({ request, data }) => {
+const POSITION_DEFENSE = new Set<number>([
+  CardPosition.FACEUP_DEFENSE,
+  CardPosition.FACEDOWN_DEFENSE
+])
+
+const POSITION_FACEDOWN = new Set<number>([
+  CardPosition.FACEDOWN_ATTACK,
+  CardPosition.FACEDOWN_DEFENSE
+])
+
+const PositionRequestModal: React.FC<{ data: DataOf<'position'> }> = ({ data }) => {
   const loading = useDuelEngineStore((s) => s.loading)
+  const faceImage = data.code && data.code > 0 ? getCardImageUrl(data.code) : UNKNOWN_CARD_IMAGE
   return (
-    <RequestModalShell title={request.title} subtitle={request.subtitle} width="max-w-sm">
-      <div className="grid grid-cols-2 gap-2">
-        {data.positions.map((position) => (
-          <Button
-            key={position}
-            variant="outline"
-            disabled={loading}
-            className="h-12 text-xs font-bold"
-            onClick={() => submitAnswer({ kind: 'position', position })}
-          >
-            {POSITION_LABELS[position] ?? `表示形式 #${position}`}
-          </Button>
-        ))}
+    <RequestModalShell width="max-w-2xl">
+      <div className="flex flex-wrap items-center justify-center gap-3 py-1">
+        {data.positions.map((position) => {
+          const label = POSITION_LABELS[position] ?? `表示形式 #${position}`
+          return (
+            <button
+              key={position}
+              type="button"
+              disabled={loading}
+              aria-label={label}
+              title={label}
+              onClick={() => submitAnswer({ kind: 'position', position })}
+              className="flex h-[176px] w-[176px] items-center justify-center rounded-xl border border-border/70 bg-background/60 transition-all hover:border-primary/70 hover:bg-primary/10 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
+            >
+              <img
+                src={POSITION_FACEDOWN.has(position) ? getCardBack() : faceImage}
+                alt={label}
+                draggable={false}
+                className={cn(
+                  'w-[104px] rounded border border-border/60 pointer-events-none',
+                  POSITION_DEFENSE.has(position) && 'rotate-90'
+                )}
+                onError={(e) => {
+                  if (e.currentTarget.src !== UNKNOWN_CARD_IMAGE) {
+                    e.currentTarget.src = UNKNOWN_CARD_IMAGE
+                  }
+                }}
+              />
+            </button>
+          )
+        })}
       </div>
     </RequestModalShell>
   )
@@ -1096,7 +1124,7 @@ export const DuelRequestModals: React.FC = () => {
     case 'option':
       return <OptionRequestModal key={key} request={request} data={data} />
     case 'position':
-      return <PositionRequestModal key={key} request={request} data={data} />
+      return <PositionRequestModal key={key} data={data} />
     case 'announce':
       return <AnnounceRequestModal key={key} request={request} data={data} />
     case 'counter':

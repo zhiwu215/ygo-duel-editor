@@ -31,6 +31,7 @@ import {
   EngineChainMode
 } from '@shared/index'
 import { alertDialog } from './useDialogStore'
+import { fetchCardDataByCodes } from '../utils/cardData'
 
 export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON'
 
@@ -1519,7 +1520,7 @@ export const useDuelStore = create<DuelStoreState>()(
               steps: [],
               initialBoardSnapshot: undefined,
               turnPlayer: 0,
-              firstTurnAttack: newConfig.mode === '1v1' ? prev.state.firstTurnAttack : true,
+              firstTurnAttack: newConfig.mode === '1v1' ? prev.state.firstTurnAttack : false,
               scenarios: updatedScenarios
             },
             ...resetRuntime
@@ -2445,7 +2446,7 @@ export const useDuelStore = create<DuelStoreState>()(
           }
         })),
 
-      applyDeckToPlayer: (player, deck, drawCount = 0, duelistId) =>
+      applyDeckToPlayer: (player, deck, drawCount = 0, duelistId) => {
         set((prev) => {
           const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === player)
           const multi = teamDuelists.length > 1
@@ -2541,7 +2542,9 @@ export const useDuelStore = create<DuelStoreState>()(
             selectedCardId: null,
             hoveredCard: null
           }
-        }),
+        })
+        fillMissingCardData()
+      },
 
       toggleTacticalView: () => set((prev) => ({ tacticalView: !prev.tacticalView })),
       setTacticalView: (enabled) => set({ tacticalView: enabled }),
@@ -2570,4 +2573,35 @@ if (typeof window !== 'undefined' && window.api?.onApplyDeckToDuel) {
   window.api.onApplyDeckToDuel(({ player, deck, drawCount }) => {
     useDuelStore.getState().applyDeckToPlayer(player, deck, drawCount)
   })
+}
+
+const pendingCardCodes = new Set<number>()
+
+/**
+ * 补齐卡表里缺少 CDB 数据的卡片（按卡密铺卡组等场景）。
+ * 步骤卡名 / 卡面 / 选卡条的名字都从这里的数据解析，缺数据时只能显示卡密。
+ */
+function fillMissingCardData(): void {
+  const missing = Array.from(
+    new Set(
+      useDuelStore
+        .getState()
+        .state.cards.filter(
+          (card) => card.code > 0 && !card.card && !pendingCardCodes.has(card.code)
+        )
+        .map((card) => card.code)
+    )
+  )
+  if (missing.length === 0) return
+  for (const code of missing) pendingCardCodes.add(code)
+  void fetchCardDataByCodes(missing)
+    .then((map) => {
+      const store = useDuelStore.getState()
+      for (const card of store.state.cards) {
+        if (!card.card && map[card.code]) store.setCardData(card.instanceId, map[card.code])
+      }
+    })
+    .finally(() => {
+      for (const code of missing) pendingCardCodes.delete(code)
+    })
 }

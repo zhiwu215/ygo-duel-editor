@@ -534,6 +534,7 @@ export class DuelSession {
             seq: this.requestSeq,
             descHint: this.lastHintDesc
           })
+          this.lastHintDesc = undefined
         }
 
         if (msgs.some((m) => m instanceof YGOProMsgRetry)) {

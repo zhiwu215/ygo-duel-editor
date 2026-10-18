@@ -53,3 +53,15 @@ await esbuild.build({
   entryPoints: [path.join(root, 'scripts/smoke/session-smoke.ts')],
   outfile: 'scripts/smoke/session-smoke.bundle.cjs'
 })
+
+await esbuild.build({
+  ...commonOptions,
+  entryPoints: [path.join(root, 'scripts/smoke/attack-smoke.ts')],
+  outfile: 'scripts/smoke/attack-smoke.bundle.cjs'
+})
+
+await esbuild.build({
+  ...commonOptions,
+  entryPoints: [path.join(root, 'scripts/smoke/atk-propagation-smoke.ts')],
+  outfile: 'scripts/smoke/atk-propagation-smoke.bundle.cjs'
+})

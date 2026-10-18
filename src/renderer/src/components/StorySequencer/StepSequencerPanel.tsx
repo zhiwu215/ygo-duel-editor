@@ -299,6 +299,16 @@ export const StepSequencerPanel: React.FC = () => {
     }
   }
 
+  const handleStepClick = (index: number, step: DuelStep): void => {
+    const engine = useDuelEngineStore.getState()
+    const actId = step.actId
+    if (engine.isInitialized && actId && engine.timeline.some((n) => n.id === actId)) {
+      void engine.jumpToStep(actId)
+      return
+    }
+    previewStepBoard(index)
+  }
+
   return (
     <div className="w-full h-full flex flex-col shrink-0 select-none overflow-hidden text-xs">
       <div className="p-2.5 border-b border-border/60 bg-muted/10 flex items-center justify-between shrink-0">
@@ -567,6 +577,12 @@ export const StepSequencerPanel: React.FC = () => {
                 ACTION_TYPE_COLORS[step.actionType] || ACTION_TYPE_COLORS.NORMAL_SUMMON
               const actionLabel = ACTION_TYPE_NAMES[step.actionType] || step.actionType
               const isCurrentPlaying = currentStepIndex === index
+              const stepCardName =
+                step.cardName ||
+                (step.cardCode
+                  ? state.cards.find((c) => c.code === step.cardCode)?.card?.name ||
+                    String(step.cardCode)
+                  : '剧情事件')
 
               const fromName = getLocationDisplayName(step.fromLocation, step.fromSequence)
               const toName = getLocationDisplayName(step.toLocation, step.toSequence)
@@ -574,13 +590,7 @@ export const StepSequencerPanel: React.FC = () => {
               return (
                 <div key={step.id} className="flex flex-col gap-1.5">
                   <div
-                    onClick={() => {
-                      if (useDuelEngineStore.getState().isInitialized && step.id) {
-                        void useDuelEngineStore.getState().jumpToStep(step.id)
-                      } else {
-                        previewStepBoard(index)
-                      }
-                    }}
+                    onClick={() => handleStepClick(index, step)}
                     onMouseEnter={() => {
                       if (step.instanceId) setHoveredInstanceId(step.instanceId)
                     }}
@@ -599,7 +609,7 @@ export const StepSequencerPanel: React.FC = () => {
                         <div className="w-9 h-[52px] rounded overflow-hidden border border-border/80 bg-black/60 shrink-0 shadow-sm relative">
                           <img
                             src={getCardImageUrl(step.cardCode, true)}
-                            alt={step.cardName || String(step.cardCode)}
+                            alt={stepCardName}
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               e.currentTarget.src = UNKNOWN_CARD_IMAGE
@@ -629,15 +639,11 @@ export const StepSequencerPanel: React.FC = () => {
                               <TooltipTrigger
                                 render={
                                   <span className="font-bold text-xs text-foreground truncate">
-                                    {step.cardName ||
-                                      (step.cardCode ? String(step.cardCode) : '剧情事件')}
+                                    {stepCardName}
                                   </span>
                                 }
                               />
-                              <TooltipContent>
-                                {step.cardName ||
-                                  (step.cardCode ? String(step.cardCode) : '剧情事件')}
-                              </TooltipContent>
+                              <TooltipContent>{stepCardName}</TooltipContent>
                             </Tooltip>
                           </div>
 

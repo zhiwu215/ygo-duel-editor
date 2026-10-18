@@ -46,16 +46,19 @@ export async function bindEngineCapabilities(wrapper: any): Promise<void> {
   wrapper.setCardReader((code: number) => {
     const c = cdbService.getCardById(code)
     if (!c) return null
+    const type = Number(c.type ?? 0)
+    const isLink = (type & 0x4000000) !== 0
     return {
       code: c.id,
       alias: c.alias ?? 0,
       setcode: Number(c.setcode ?? 0),
-      type: Number(c.type ?? 0),
-      atk: c.atk ?? 0,
-      def: c.def ?? 0,
+      type,
       level: c.level ?? 0,
       race: Number(c.race ?? 0),
       attribute: Number(c.attribute ?? 0),
+      attack: c.atk ?? 0,
+      defense: isLink ? 0 : (c.def ?? 0),
+      linkMarker: isLink ? (c.def ?? 0) : 0,
       category: 0
     }
   })

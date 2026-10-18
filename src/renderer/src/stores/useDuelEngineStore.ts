@@ -45,7 +45,7 @@ interface DuelEngineState {
 
   initDuel: (params?: EngineDuelInitParams) => Promise<void>
   submitAnswer: (answer: Answer) => Promise<void>
-  jumpToStep: (stepId: string) => Promise<void>
+  jumpToStep: (stepId: string) => Promise<boolean>
   undo: () => Promise<void>
   redo: () => Promise<void>
 
@@ -301,9 +301,11 @@ function answerToEngineStepAction(answer: Answer): EngineStepAction | undefined 
   return undefined
 }
 
-/** 在编辑器卡表里按卡密找一个名称（步骤展示用；同名无碍，只取名字） */
+/** 在编辑器卡表里按卡密找一个名称（步骤展示用；同名无碍，只取名字），卡表缺数据时退回引擎侧 CDB 数据 */
 function cardNameOfCode(code: number): string | undefined {
-  return useDuelStore.getState().state.cards.find((c) => c.code === code)?.card?.name
+  const editorName = useDuelStore.getState().state.cards.find((c) => c.code === code)?.card?.name
+  if (editorName) return editorName
+  return useDuelEngineStore.getState().boardState?.allCards.find((c) => c.code === code)?.card?.name
 }
 
 /**
@@ -577,7 +579,11 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
     }
   },
 
-  jumpToStep: async (stepId: string) => {
+  jumpToStep: async (stepId: string): Promise<boolean> => {
+    if (!get().timeline.some((node) => node.id === stepId)) {
+      console.warn(`[useDuelEngineStore] 步骤 ${stepId} 不在当前引擎时间线，已跳过跳转`)
+      return false
+    }
     set({ loading: true, error: null })
     try {
       const res = await window.api.duelEngineJumpToStep(stepId)
@@ -595,12 +601,14 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       })
       syncJumpToStepWrapped(res.boardState)
       syncEngineSteps(get().timeline, res.currentStepId)
+      return true
     } catch (err) {
       console.error('[useDuelEngineStore] jumpToStep failed:', err)
       set({
         loading: false,
         error: err instanceof Error ? err.message : '回退/跳转步骤失败'
       })
+      return false
     }
   },
 

@@ -250,7 +250,7 @@ export function createInitialDuelState(
     matchConfig,
     scenarios: {},
     turnPlayer: 0,
-    firstTurnAttack: true,
+    firstTurnAttack: false,
     cards: [],
     steps: []
   }

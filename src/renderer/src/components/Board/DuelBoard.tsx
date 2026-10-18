@@ -596,7 +596,6 @@ export const DuelBoard: React.FC = () => {
 
       <PhaseBanner />
 
-      {/* 生命值变动浮层（攻击/效果造成的伤害与回复数字） */}
       <LpChangeOverlay />
 
       {/* 堆叠型区域 (额外/卡组/墓地/除外) 卡片列表查看与编排弹窗 */}

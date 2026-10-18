@@ -159,11 +159,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   // 1. 场上所有怪兽卡默认全部展示实战数据 (卡名、攻守、星阶/种族/属性、指示物)
   // 2. 魔法陷阱卡平时不展示，仅当真正挂载了指示物时才亮起展示指示物数据
   const showHud = tacticalView && isFieldZone && (isMonster || hasCounters)
-  // 卡面攻守数字 (neos 风格)：场上表侧怪兽常显当前攻守
-  const showFieldStats =
-    isMonster &&
-    card.location === CardLocation.MZONE &&
-    (card.position === CardPosition.FACEUP_ATTACK || card.position === CardPosition.FACEUP_DEFENSE)
+  const showFieldStats = isMonster && card.location === CardLocation.MZONE
 
   // 若卡片缺少 CDB 详情数据，自动补全缓存以准确识别超量类型
   useEffect(() => {
@@ -215,7 +211,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const oruPos = squareCell
     ? isDefense
       ? { bottom: 18, right: 3 }
-      : { bottom: 3, right: 18 }
+      : { bottom: 20, right: 18 }
     : { bottom: 3, right: 3 }
 
   return (

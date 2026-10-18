@@ -78,7 +78,6 @@ export const LpInput: React.FC<LpInputProps> = ({
   const inputRef = useRef<HTMLInputElement>(null)
   const isCommittingRef = useRef(false)
 
-  // 未聚焦时数字滚动到最新值（受击/回复的数值变化更醒目）；聚焦时使用编辑草稿 text
   const animatedLp = useAnimatedNumber(lp)
   const displayValue = isFocused ? text : isInfiniteVal(animatedLp) ? '无限' : String(animatedLp)
   const parseResult = parseLpExpression(displayValue, lp)

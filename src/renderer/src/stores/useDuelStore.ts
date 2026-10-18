@@ -364,7 +364,6 @@ interface DuelStoreState {
   hoveredCard: CdbCard | null
   hoveredInstanceId: string | null
   tacticalView: boolean
-  /** 最近一次生命值变动（供棋盘浮层弹出伤害/回复数字；null 表示还没有变动） */
   lpFlash: LpFlash | null
 
   activeLeftTab: 'archives' | 'library' | 'card' | 'agent'

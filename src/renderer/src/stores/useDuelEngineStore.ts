@@ -392,10 +392,6 @@ function patchPlacementStep(
   }))
 }
 
-/**
- * CARD 选择结果的步骤补丁：装备对象 / 攻击对象等「选择目标」本身没有独立步骤，
- * 回填到最近的祖先动作步骤上，步骤列表才能显示选中的对象。
- */
 function patchTargetStep(
   selected: RequestCard[],
   node: EngineTimelineNode,

@@ -11,10 +11,6 @@ interface CardFieldStatsProps {
   card: FieldCard
 }
 
-/**
- * 场上卡面攻守数字（neos 风格）：贴在卡格底部，大号描边字，不占额外面板。
- * 当前战斗位置对应的数值更大；被效果修正时按增减着色。
- */
 export const CardFieldStats: React.FC<CardFieldStatsProps> = ({ card }) => {
   const cdb = card.card
   const origAtk = cdb?.atk ?? 0

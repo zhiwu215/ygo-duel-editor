@@ -65,6 +65,7 @@ export function App(): React.JSX.Element {
     <div className="flex flex-col h-screen w-screen bg-background text-foreground overflow-hidden">
       <Header />
 
+      {/* 主内容行：左栏 + 棋盘 + 固定右栏（各列常驻，无浮层） */}
       <div className="flex-1 flex overflow-hidden">
         <LeftSidebar />
 

@@ -5,7 +5,8 @@ import { usePileListStore } from '../../stores/usePileListStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { CardPosition, CardLocation, CardType } from '@shared/index'
+import { CardPosition, CardLocation, CardType, Answer } from '@shared/index'
+import { deriveCardEngineActions } from '../../utils/engineActions'
 import {
   Swords,
   Shield,
@@ -43,7 +44,7 @@ const LOCATION_LABELS: Record<number, string> = {
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
-  const getActionsForCard = useDuelEngineStore((s) => s.getActionsForCard)
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const { updateCardPosition, moveCard, removeCard, state, executeSendToGrave, executeBanishCard } =
     useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
@@ -52,6 +53,13 @@ export const CardContextMenu: React.FC = () => {
   const openDeckSwitcher = useDeckSwitcherStore((s) => s.openDeckSwitcher)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
+
+  // 引擎激活时菜单动作来自 pendingRequest（与 CardCommandMenu 同源同提交方式）
+  const menuCard = menu?.kind === 'card' ? menu.card : null
+  const requestActions = React.useMemo(
+    () => deriveCardEngineActions(pendingRequest, menuCard),
+    [pendingRequest, menuCard]
+  )
 
   useLayoutEffect(() => {
     if (!menu) return
@@ -157,28 +165,72 @@ export const CardContextMenu: React.FC = () => {
   const moveTo = (loc: number, ctrl?: 0 | 1): (() => void) =>
     act(() => moveCard(card.instanceId, loc, 0, ctrl))
 
-  const engineActions = getActionsForCard(card)
+  const codeName = (code: number): string =>
+    code === card.code
+      ? card.card?.name || `卡片 ${code}`
+      : state.cards.find((c) => c.code === code)?.card?.name || `卡片 ${code}`
+
+  const engineActions = isEngine ? requestActions : null
 
   const duelActionItems: MenuItemConfig[] = []
-  if (isEngine) {
-    for (const opt of engineActions) {
-      let icon = <Zap className="w-3.5 h-3.5 text-amber-500" />
-      if (opt.type === 'SUMMON' || opt.type === 'SPSUMMON') {
-        icon = <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-      } else if (opt.type === 'ATTACK') {
-        icon = <Swords className="w-3.5 h-3.5 text-rose-500" />
-      } else if (opt.type === 'CHAIN') {
-        icon = <Layers className="w-3.5 h-3.5 text-teal-400" />
-      } else if (opt.type === 'MSET' || opt.type === 'SSET') {
-        icon = <RotateCw className="w-3.5 h-3.5 text-emerald-400" />
-      }
+  if (engineActions) {
+    const addItem = (icon: React.ReactNode, label: string, answer: Answer): void => {
       duelActionItems.push({
         icon,
-        label: opt.label,
+        label,
         action: act(() => {
-          void useDuelEngineStore.getState().submitAction(opt.id)
+          void useDuelEngineStore.getState().submitAnswer(answer)
         })
       })
+    }
+    const zapIcon = <Zap className="w-3.5 h-3.5 text-amber-500" />
+    const summonIcon = <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+    const attackIcon = <Swords className="w-3.5 h-3.5 text-rose-500" />
+    const chainIcon = <Layers className="w-3.5 h-3.5 text-teal-400" />
+    const setIcon = <RotateCw className="w-3.5 h-3.5 text-emerald-400" />
+
+    if (engineActions.summon) {
+      addItem(summonIcon, '召唤', { kind: 'idle', cmd: 'SUMMON', card: engineActions.summon })
+    }
+    if (engineActions.spSummon) {
+      addItem(summonIcon, '特殊召唤', {
+        kind: 'idle',
+        cmd: 'SPSUMMON',
+        card: engineActions.spSummon
+      })
+    }
+    const setCard = engineActions.sset ?? engineActions.mset
+    if (setCard) {
+      addItem(setIcon, '盖放', {
+        kind: 'idle',
+        cmd: engineActions.sset ? 'SSET' : 'MSET',
+        card: setCard
+      })
+    }
+    engineActions.activate.forEach((cardReq, index) => {
+      const suffix = engineActions.activate.length > 1 ? `（效果 ${index + 1}）` : ''
+      addItem(
+        zapIcon,
+        `发动 [${codeName(cardReq.code)}]${suffix}`,
+        engineActions.requestKind === 'battle'
+          ? { kind: 'battle', cmd: 'ACTIVATE', card: cardReq }
+          : { kind: 'idle', cmd: 'ACTIVATE', card: cardReq }
+      )
+    })
+    if (engineActions.repos) {
+      const reposLabel =
+        card.position === CardPosition.FACEDOWN_DEFENSE
+          ? '反转召唤'
+          : card.position === CardPosition.FACEUP_ATTACK
+            ? '转为守备'
+            : '转为攻击'
+      addItem(setIcon, reposLabel, { kind: 'idle', cmd: 'REPOS', card: engineActions.repos })
+    }
+    if (engineActions.attack) {
+      addItem(attackIcon, '攻击', { kind: 'battle', cmd: 'ATTACK', card: engineActions.attack })
+    }
+    if (engineActions.chain) {
+      addItem(chainIcon, '发动连锁', { kind: 'chain', card: engineActions.chain })
     }
   }
 

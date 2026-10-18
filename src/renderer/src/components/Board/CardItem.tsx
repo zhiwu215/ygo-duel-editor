@@ -1,19 +1,9 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import {
-  FieldCard,
-  CardPosition,
-  CardLocation,
-  CardUtils,
-  isCardMatchingEngineOption
-} from '@shared/index'
+import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
 import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
-import {
-  enginePromptUsesModal,
-  getActionsFromEngine,
-  getFallbackActions
-} from '../../utils/ruleCheck'
+import { getFallbackActions, type CardActionOptions } from '../../utils/ruleCheck'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
@@ -21,6 +11,14 @@ import { usePileListStore } from '../../stores/usePileListStore'
 import { CardHudOverlay } from './components/CardHudOverlay'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { useSelectionStore } from '../../stores/useSelectionStore'
+import { hasCardEngineActions } from '../../utils/engineActions'
+import {
+  deriveSelection,
+  isSameRequestCard,
+  requestCardKey,
+  submitSelection
+} from '../../utils/duelSelection'
 import { cn } from '../../lib/utils'
 
 export const HAND_REORDER_DRAG_TYPE = 'application/x-ygo-hand-reorder'
@@ -43,9 +41,15 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   } = useDuelStore()
   const tacticalView = useDuelStore((s) => s.tacticalView)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
-  const pendingAction = useDuelEngineStore((s) => s.pendingAction)
-  const pickedOptionIds = useDuelEngineStore((s) => s.pickedOptionIds)
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  const selectedKeys = useSelectionStore((s) => s.selectedKeys)
   const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
+
+  // R2：引擎请求下该卡是否有合法动作（发光提示）
+  const hasRequestActions = React.useMemo(
+    () => hasCardEngineActions(pendingRequest, card),
+    [pendingRequest, card]
+  )
 
   const isPlacementSource =
     pendingPlacement !== null && pendingPlacement.sourceId === card.instanceId
@@ -59,55 +63,59 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         s.controller === card.controller
     )
 
-  const matchedEngineOption = React.useMemo(() => {
-    if (!pendingAction || !pendingAction.options) return undefined
-    return pendingAction.options.find((opt) => isCardMatchingEngineOption(card, opt))
-  }, [pendingAction, card])
-
-  const isBoardPickMode = React.useMemo(() => {
-    if (!isEngineActive || !pendingAction) return false
-    if (pendingAction.kind !== 'SELECT_CARD' && pendingAction.kind !== 'SELECT_TRIBUTE')
-      return false
-    return !enginePromptUsesModal(pendingAction)
-  }, [isEngineActive, pendingAction])
-
-  const isPicked =
-    isBoardPickMode &&
-    Boolean(matchedEngineOption && pickedOptionIds.includes(matchedEngineOption.id))
-
-  const availableActions = React.useMemo(() => {
+  // 引擎激活时，菜单动作完全来自 pendingRequest（CardCommandMenu 内推导）；
+  // 这里只负责「该卡此刻有没有合法请求动作」的发光与菜单开启判断，本地自由模式动作不参与。
+  const availableActions = React.useMemo<CardActionOptions>(() => {
     if (!isEngineActive) {
       return getFallbackActions(card)
     }
-    return getActionsFromEngine(card, pendingAction?.options || [])
-  }, [card, isEngineActive, pendingAction])
+    return {
+      canSummon: false,
+      canSpSummon: false,
+      canMonsterSet: false,
+      canSpellSet: false,
+      canActivate: false,
+      activateOptions: [],
+      canChain: false,
+      chainOptions: [],
+      canRepos: false,
+      canAttack: false,
+      hasAnyAction: hasRequestActions
+    }
+  }, [card, isEngineActive, hasRequestActions])
 
-  const role = React.useMemo((): 'none' | 'source' | 'chosen' | 'legal' | 'dim' => {
+  // S3（neos 模式）：card / tribute / sum / unselect 的点选模式——候选卡高亮，点击选择/取消。
+  // 已选状态：unselect 由引擎随请求累计回传（unselectable）；其余 kind 在 useSelectionStore 维护。
+  const selectionMatch = React.useMemo(() => {
+    const derived = deriveSelection(pendingRequest)
+    if (!derived || derived.mode !== 'point') return null
+    const pool =
+      derived.kind === 'unselect'
+        ? [...derived.candidates, ...derived.selected]
+        : derived.candidates
+    const requestCard = pool.find((c) => isSameRequestCard(c, card))
+    if (!requestCard) return null
+    const chosen =
+      derived.kind === 'unselect'
+        ? derived.selected.some((c) => isSameRequestCard(c, requestCard))
+        : selectedKeys.includes(requestCardKey(requestCard))
+    return { derived, requestCard, chosen }
+  }, [pendingRequest, card, selectedKeys])
+
+  const role = React.useMemo((): 'none' | 'source' | 'chosen' | 'legal' | 'dim' | 'target' => {
     if (pendingPlacement) {
       if (isPlacementSource) return 'source'
       if (isPlacementDisplaceTarget) return 'legal'
       return 'dim'
     }
-    if (isEngineActive && pendingAction) {
-      if (isBoardPickMode) {
-        if (matchedEngineOption) return isPicked ? 'chosen' : 'legal'
-        return 'dim'
-      }
-      if (pendingAction.kind === 'SELECT_CHAIN') {
-        if (matchedEngineOption && matchedEngineOption.type === 'CHAIN') return 'legal'
-      }
+    // S3（neos 模式）：选卡询问点选模式下，候选卡高亮（legal）、已选卡标记（chosen）
+    // S4：攻击目标选择（descHint 549）的候选卡用红色目标高亮（target）
+    if (selectionMatch) {
+      if (selectionMatch.derived.attackTarget) return 'target'
+      return selectionMatch.chosen ? 'chosen' : 'legal'
     }
     return 'none'
-  }, [
-    pendingPlacement,
-    isPlacementSource,
-    isPlacementDisplaceTarget,
-    isEngineActive,
-    pendingAction,
-    matchedEngineOption,
-    isBoardPickMode,
-    isPicked
-  ])
+  }, [pendingPlacement, isPlacementSource, isPlacementDisplaceTarget, selectionMatch])
 
   const { openMenu } = useContextMenuStore()
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
@@ -184,8 +192,9 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const isSetOnField = isFacedown && !isDeckPile && !isHand
   /** 暗化蒙版：场上盖放 + 主卡组/额外卡组里侧 */
   const showFacedownVeil = isSetOnField || isPileFacedown
-  // 手牌一律正常显示卡面；position FACEUP 表示公开手牌，用角标提示
-  const isPublicHand = isHand && !isFacedown
+  // 手牌一律正常显示卡面；position === FACEUP(0x5) 表示公开手牌，用角标提示。
+  // 直接读引擎同步进 FieldCard.position 的值，不做本地推导（避免 engine/编辑器不同步时贴错卡）。
+  const isPublicHand = isHand && card.position === CardPosition.FACEUP
 
   // 外层格子尺寸 104x104 (正方形) 或 74x104 (竖长格)
   // 当正方形格横置 (isDefense) 时，卡片视觉为 104x71.3，纵向居中 (top 留白约 16.3px)
@@ -225,6 +234,22 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       onClick={(e) => {
         e.stopPropagation()
         if (role === 'dim') return
+        // S3（neos 模式）：选卡询问点选模式——点击卡 = 选择/取消；单选(min=max=1)点击即提交
+        if (selectionMatch) {
+          closeCommandMenu()
+          const derived = selectionMatch.derived
+          if (derived.kind === 'unselect') {
+            // unselect 是逐张语义：点可选卡 = 选择，点已选卡 = 取消（各提交一张）
+            submitSelection(derived, [selectionMatch.requestCard])
+            return
+          }
+          if (derived.min === 1 && derived.max === 1) {
+            submitSelection(derived, [selectionMatch.requestCard])
+            return
+          }
+          useSelectionStore.getState().toggle(selectionMatch.requestCard)
+          return
+        }
         if (isPlacementSource) {
           useDuelStore.getState().cancelPlacement()
           return
@@ -236,16 +261,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
             controller: card.controller
           })
           return
-        }
-        if (isEngineActive && pendingAction) {
-          if (isBoardPickMode && matchedEngineOption) {
-            useDuelEngineStore.getState().togglePendingSelection(matchedEngineOption.id)
-            return
-          }
-          if (pendingAction.kind === 'SELECT_CHAIN' && matchedEngineOption) {
-            void useDuelEngineStore.getState().submitAction(matchedEngineOption.id)
-            return
-          }
         }
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
@@ -305,7 +320,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       className={cn(
         'w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none',
         role === 'dim' && 'opacity-25',
-        role === 'legal' && 'cursor-crosshair'
+        (role === 'legal' || role === 'target') && 'cursor-crosshair'
       )}
     >
       <div
@@ -359,25 +374,28 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           initial={false}
           animate={{
             rotate: isDefense ? 90 : 0,
-            rotateY: isFacedown && isSetOnField ? 180 : 0,
-            z: isSelected ? 20 : role === 'legal' ? 10 : 0,
+            z: isSelected ? 20 : role === 'legal' || role === 'target' ? 10 : 0,
             scale: isSelected ? 1.04 : 1
           }}
           transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-          className={`relative w-full h-full rounded shadow-md [transform-style:preserve-3d] ${
+          className={`relative w-full h-full rounded shadow-md ${
             role === 'source'
               ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-background'
-              : role === 'chosen'
-                ? 'ring-2 ring-rose-500 ring-offset-1 ring-offset-background'
-                : role === 'legal'
-                  ? 'ring-2 ring-emerald-400/80 ring-offset-1 ring-offset-background shadow-[0_0_12px_rgba(52,211,153,0.4)]'
-                  : isSelected
-                    ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background shadow-[0_4px_16px_rgba(96,165,250,0.3)]'
-                    : 'group-hover:ring-1 group-hover:ring-blue-400/50'
+              : role === 'target'
+                ? 'ring-2 ring-rose-500 ring-offset-1 ring-offset-background shadow-[0_0_14px_rgba(244,63,94,0.65)]'
+                : role === 'chosen'
+                  ? 'ring-2 ring-rose-500 ring-offset-1 ring-offset-background'
+                  : role === 'legal'
+                    ? 'ring-2 ring-emerald-400/80 ring-offset-1 ring-offset-background shadow-[0_0_12px_rgba(52,211,153,0.4)]'
+                    : isSelected
+                      ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-background shadow-[0_4px_16px_rgba(96,165,250,0.3)]'
+                      : hasRequestActions
+                        ? 'ring-2 ring-yellow-400/90 ring-offset-1 ring-offset-background shadow-[0_0_10px_rgba(250,204,21,0.45)]'
+                        : 'group-hover:ring-1 group-hover:ring-blue-400/50'
           }`}
           style={{ zIndex: (card.overlayMaterials?.length || 0) + 2 }}
         >
-          <div className="absolute inset-0 [backface-visibility:hidden] rounded overflow-hidden">
+          <div className="absolute inset-0 rounded overflow-hidden">
             <img
               src={getCardImageUrl(card.code, true)}
               alt={card.card?.name || String(card.code)}
@@ -390,17 +408,9 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
                 }
               }}
             />
-            {showFacedownVeil && !isSetOnField && (
-              <div className="absolute inset-0 bg-black/25 border border-amber-400/50 rounded pointer-events-none" />
+            {showFacedownVeil && (
+              <div className="absolute inset-0 bg-black/30 border border-amber-400/50 rounded pointer-events-none" />
             )}
-          </div>
-
-          <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] rounded overflow-hidden bg-neutral-900 border border-amber-900/40">
-            <img
-              src={getCardBack(card.controller)}
-              alt="Card Back"
-              className="w-full h-full object-cover select-none pointer-events-none"
-            />
           </div>
         </motion.div>
       </div>

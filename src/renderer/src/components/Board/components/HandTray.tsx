@@ -4,6 +4,10 @@ import { motion } from 'framer-motion'
 import { Plus, Check, Edit2 } from 'lucide-react'
 import { CardLocation, CdbCard, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
+import {
+  orderEditorCardsByEngineHand,
+  useDuelEngineStore
+} from '../../../stores/useDuelEngineStore'
 import { DuelistHandStrip } from './DuelistHandStrip'
 import { ZoneSlot } from '../ZoneSlot'
 import { TurnOrderBadge } from './TurnOrderBadge'
@@ -636,6 +640,9 @@ const MultiHandTray: React.FC<{
 
 export const HandTray: React.FC<HandTrayProps> = ({ controller }) => {
   const { state } = useDuelStore()
+  // 引擎激活时手牌顺序 = 引擎手牌顺序（订阅引擎状态，同步完成后触发重排）
+  const engineBoardState = useDuelEngineStore((s) => s.boardState)
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
 
   // 获取本阵营决斗者列表
   const rawDuelists = (state.duelists || []).filter((d) => d.team === controller)
@@ -654,10 +661,16 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller }) => {
           }
         ]
 
-  // 本阵营全部手牌
-  const teamHandCards = state.cards
+  // 本阵营全部手牌（本地排序：按编辑器 sequence）
+  const localHandCards = state.cards
     .filter((c) => c.controller === controller && c.location === CardLocation.HAND)
     .sort((a, b) => a.sequence - b.sequence)
+
+  // 引擎激活时改用引擎手牌顺序（身份映射定位，零猜测）；未激活保持本地排序
+  const teamHandCards =
+    (isEngineActive
+      ? orderEditorCardsByEngineHand(controller, localHandCards, engineBoardState)
+      : null) ?? localHandCards
 
   if (duelists.length === 1) {
     return (

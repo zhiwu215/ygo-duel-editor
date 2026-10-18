@@ -12,7 +12,8 @@ import {
   CardNoteKind,
   SettingsSectionId,
   EngineExportReplayParams,
-  EngineExportReplayResult
+  EngineExportReplayResult,
+  Answer
 } from '@shared/index'
 
 const api: IpcApi = {
@@ -84,12 +85,11 @@ const api: IpcApi = {
     ipcRenderer.invoke('duel:export-replay', params),
 
   duelEngineInit: (params) => ipcRenderer.invoke('duel-engine:init', params),
-  duelEngineSubmitAction: (optionId, payload) =>
-    ipcRenderer.invoke('duel-engine:submit-action', optionId, payload),
+  duelEngineSubmitAnswer: (answer: Answer) => ipcRenderer.invoke('duel-engine:submit-answer', answer),
+  duelEngineGetPendingRequest: () => ipcRenderer.invoke('duel-engine:get-pending-request'),
   duelEngineJumpToStep: (stepId) => ipcRenderer.invoke('duel-engine:jump-to-step', stepId),
   duelEngineGetTimeline: () => ipcRenderer.invoke('duel-engine:get-timeline'),
   duelEngineGetBoardState: () => ipcRenderer.invoke('duel-engine:get-board-state'),
-  duelEngineGetPendingAction: () => ipcRenderer.invoke('duel-engine:get-pending-action'),
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   saveProjectToPath: (filePath: string, state: DuelPuzzleState) =>

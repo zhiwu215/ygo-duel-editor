@@ -806,7 +806,6 @@ export const useDuelStore = create<DuelStoreState>()(
 
           return {
             currentStepIndex: stepIndex,
-            pendingAction: null,
             pendingPlacement: null,
             currentTurn: targetStep.turn,
             currentPhase: targetStep.phase,

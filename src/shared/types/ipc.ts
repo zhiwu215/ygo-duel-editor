@@ -3,13 +3,9 @@ import { CustomCard, CustomCardInput } from './customCard'
 import { DuelPuzzleState, DuelSourceRef, DuelType } from './duel'
 import { DeckData, DeckLibrary } from './deck'
 import { DuelPhase, DuelActionType } from './story'
-import {
-  EngineDuelInitParams,
-  EngineBoardState,
-  EnginePendingAction,
-  EngineTimelineNode,
-  EngineDiffResult
-} from './duelEngine'
+import { EngineDuelInitParams, EngineBoardState, EngineTimelineNode } from './duelEngine'
+import { Answer, EngineRequest } from '../engine/protocol'
+import type { EngineSubmitAnswerResult } from '../engine/protocol'
 
 export interface CardSearchParams {
   keyword?: string
@@ -748,26 +744,17 @@ export interface IpcApi {
 
   duelEngineInit: (params: EngineDuelInitParams) => Promise<{
     boardState: EngineBoardState
-    pendingAction: EnginePendingAction | null
+    pendingRequest: EngineRequest | null
     initialNode: EngineTimelineNode
   }>
-  duelEngineSubmitAction: (
-    optionId: string,
-    payload?: unknown
-  ) => Promise<{
-    boardState: EngineBoardState
-    pendingAction: EnginePendingAction | null
-    node: EngineTimelineNode
-    diff: EngineDiffResult
-  }>
+  duelEngineSubmitAnswer: (answer: Answer) => Promise<EngineSubmitAnswerResult>
+  duelEngineGetPendingRequest: () => Promise<EngineRequest | null>
   duelEngineJumpToStep: (stepId: string) => Promise<{
     boardState: EngineBoardState
-    pendingAction: EnginePendingAction | null
     currentStepId: string
   }>
   duelEngineGetTimeline: () => Promise<EngineTimelineNode[]>
   duelEngineGetBoardState: () => Promise<EngineBoardState>
-  duelEngineGetPendingAction: () => Promise<EnginePendingAction | null>
   openSettingsWindow: (section?: SettingsSectionId) => Promise<void>
   onSettingsNavigate: (callback: (section: SettingsSectionId) => void) => () => void
   openExternal: (url: string) => Promise<boolean>

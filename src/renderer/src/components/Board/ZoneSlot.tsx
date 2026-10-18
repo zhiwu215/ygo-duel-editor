@@ -221,17 +221,16 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     (s) => s.location === location && s.sequence === sequence && s.controller === controller
   )
 
-  const enginePendingAction = useDuelEngineStore((s) => s.pendingAction)
-  const matchingEnginePlaceOption =
-    enginePendingAction?.kind === 'SELECT_PLACE'
-      ? enginePendingAction.options.find(
-          (o) =>
-            (o.controller === undefined || o.controller === controller) &&
-            (o.location === undefined || o.location === location) &&
-            (o.sequence !== undefined ? o.sequence === sequence : o.zoneIndex === sequence)
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  // 引擎 PLACE/DISFIELD 请求的可选区域（合法格子才可点）
+  const enginePlaceMatch =
+    pendingRequest !== null &&
+    (pendingRequest.data.kind === 'place' || pendingRequest.data.kind === 'disfield')
+      ? pendingRequest.data.places.find(
+          (p) => p.controller === controller && p.location === location && p.sequence === sequence
         )
       : undefined
-  const isEnginePlaceTarget = Boolean(matchingEnginePlaceOption)
+  const isEnginePlaceTarget = Boolean(enginePlaceMatch)
 
   /** 「发动 / 盖放」待选模式下，本格是否为合法的落点（顶掉型槽位允许格内已有卡） */
   const isPlacementTarget =
@@ -241,8 +240,10 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
 
   /** 点击格子放置待选模式的源卡 */
   const handlePlacementClick = (): boolean => {
-    if (matchingEnginePlaceOption) {
-      void useDuelEngineStore.getState().submitAction(matchingEnginePlaceOption.id)
+    if (enginePlaceMatch) {
+      void useDuelEngineStore
+        .getState()
+        .submitAnswer({ kind: 'place', places: [enginePlaceMatch] })
       return true
     }
     if (!pendingPlacement || !isPlacementTarget) return false

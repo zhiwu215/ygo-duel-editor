@@ -33,9 +33,11 @@ export const PhaseMiddleButton: React.FC = () => {
   const activeTurnPlayer = useDuelStore((s) => s.activeTurnPlayer)
   const executeDrawCard = useDuelStore((s) => s.executeDrawCard)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
-  const enginePendingAction = useDuelEngineStore((s) => s.pendingAction)
-  const bpOpt = enginePendingAction?.options.find((o) => o.type === 'BP')
-  const m2Opt = enginePendingAction?.options.find((o) => o.type === 'M2')
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  // R2：阶段入口由引擎请求数据决定（合法才显示）
+  const canBp = pendingRequest !== null && pendingRequest.data.kind === 'idle' && pendingRequest.data.canBp
+  const canM2 =
+    pendingRequest !== null && pendingRequest.data.kind === 'battle' && pendingRequest.data.canM2
 
   if (currentPhase === 'DP') {
     return (
@@ -53,13 +55,14 @@ export const PhaseMiddleButton: React.FC = () => {
   }
 
   if (currentPhase === 'M1') {
-    if (isEngine && !bpOpt) return null
+    if (isEngine && !canBp) return null
     return (
       <button
         type="button"
         onClick={() => {
-          if (bpOpt) void useDuelEngineStore.getState().submitAction(bpOpt.id)
-          else setCurrentPhase('BP')
+          if (isEngine && canBp) {
+            void useDuelEngineStore.getState().submitAnswer({ kind: 'idle', cmd: 'TO_BP' })
+          } else setCurrentPhase('BP')
         }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
@@ -72,13 +75,14 @@ export const PhaseMiddleButton: React.FC = () => {
   }
 
   if (currentPhase === 'BP') {
-    if (isEngine && !m2Opt) return null
+    if (isEngine && !canM2) return null
     return (
       <button
         type="button"
         onClick={() => {
-          if (m2Opt) void useDuelEngineStore.getState().submitAction(m2Opt.id)
-          else setCurrentPhase('M2')
+          if (isEngine && canM2) {
+            void useDuelEngineStore.getState().submitAnswer({ kind: 'battle', cmd: 'TO_M2' })
+          } else setCurrentPhase('M2')
         }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
@@ -98,8 +102,11 @@ export const PhaseEpButton: React.FC = () => {
   const setCurrentPhase = useDuelStore((s) => s.setCurrentPhase)
   const nextTurn = useDuelStore((s) => s.nextTurn)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
-  const enginePendingAction = useDuelEngineStore((s) => s.pendingAction)
-  const epOpt = enginePendingAction?.options.find((o) => o.type === 'EP')
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  const canEp =
+    pendingRequest !== null &&
+    ((pendingRequest.data.kind === 'idle' && pendingRequest.data.canEp) ||
+      (pendingRequest.data.kind === 'battle' && pendingRequest.data.canEp))
 
   if (currentPhase === 'DP' || currentPhase === 'SP') {
     return (
@@ -117,13 +124,20 @@ export const PhaseEpButton: React.FC = () => {
   }
 
   if (currentPhase === 'M1' || currentPhase === 'BP' || currentPhase === 'M2') {
-    if (isEngine && !epOpt) return null
+    if (isEngine && !canEp) return null
     return (
       <button
         type="button"
         onClick={() => {
-          if (epOpt) void useDuelEngineStore.getState().submitAction(epOpt.id)
-          else setCurrentPhase('EP')
+          if (isEngine && canEp) {
+            void useDuelEngineStore
+              .getState()
+              .submitAnswer(
+                pendingRequest?.kind === 'battle'
+                  ? { kind: 'battle', cmd: 'TO_EP' }
+                  : { kind: 'idle', cmd: 'TO_EP' }
+              )
+          } else setCurrentPhase('EP')
         }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',

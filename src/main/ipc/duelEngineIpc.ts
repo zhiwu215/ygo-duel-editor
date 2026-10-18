@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { duelDirector } from '../services/duel/duel-director'
-import { EngineDuelInitParams } from '@shared/index'
+import { EngineDuelInitParams, Answer } from '@shared/index'
 
 export function registerDuelEngineIpc(): void {
   ipcMain.handle('duel-engine:init', async (_, params: EngineDuelInitParams) => {
@@ -12,11 +12,11 @@ export function registerDuelEngineIpc(): void {
     }
   })
 
-  ipcMain.handle('duel-engine:submit-action', (_, optionId: string, payload?: unknown) => {
+  ipcMain.handle('duel-engine:submit-answer', (_, answer: Answer) => {
     try {
-      return duelDirector.submitAction(optionId, payload)
+      return duelDirector.submitAnswer(answer)
     } catch (err: unknown) {
-      console.error('[duelEngineIpc] Error in duel-engine:submit-action:', err)
+      console.error('[duelEngineIpc] Error in duel-engine:submit-answer:', err)
       throw new Error(err instanceof Error ? err.message : String(err))
     }
   })
@@ -38,7 +38,7 @@ export function registerDuelEngineIpc(): void {
     return duelDirector.getBoardState()
   })
 
-  ipcMain.handle('duel-engine:get-pending-action', () => {
-    return duelDirector.getPendingAction()
+  ipcMain.handle('duel-engine:get-pending-request', () => {
+    return duelDirector.getPendingRequest()
   })
 }

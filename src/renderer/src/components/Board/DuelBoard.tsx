@@ -7,8 +7,10 @@ import { HandTray } from './components/HandTray'
 import { CardContextMenu } from './CardContextMenu'
 import { CardCommandMenu } from './CardCommandMenu'
 import { PileListModal } from './PileListModal'
-import { EngineSelectModal } from './EngineSelectModal'
+import { DuelRequestModals } from './DuelRequestModals'
+import { DuelSelectionBar } from './DuelSelectionBar'
 import { ChainModeToggle } from './ChainModeToggle'
+import { EngineFeedbackToast } from './EngineFeedbackToast'
 import { OverlayListModal } from './OverlayListModal'
 import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardStatPopover } from './components/CardStatPopover'
@@ -591,6 +593,12 @@ export const DuelBoard: React.FC = () => {
       {/* 超量素材列表查看与编排弹窗 */}
       <OverlayListModal />
 
+      {/* 引擎问答反馈（拒绝/错误提示） */}
+      <EngineFeedbackToast />
+
+      {/* 选卡询问（card/tribute/sum/unselect）：场上点选底部条 / unselect 弹窗 */}
+      <DuelSelectionBar />
+
       {/* 主卡组「切换卡组」弹窗 (由主卡组格右键菜单唤起) */}
       <DeckSwitcherModal />
 
@@ -602,7 +610,8 @@ export const DuelBoard: React.FC = () => {
       {/* 全局独立实战属性与指示物自由拖拽操作面板 (Shift+左键点击唤出，移动卡片时面板独立不跟随) */}
       <CardStatPopover />
 
-      <EngineSelectModal />
+      {/* 引擎问答分发（yesno/option/表示形式/宣言/指示物/合计/排序/猜拳/连锁/选卡） */}
+      <DuelRequestModals />
 
       <ChainModeToggle />
 

@@ -1,5 +1,4 @@
 import {
-  createOcgcoreDuelFromSnapshot,
   OcgcoreWrapper,
   OcgcoreDuel,
   OcgcoreDuelOptionFlag,
@@ -7,7 +6,6 @@ import {
   _OcgcoreConstants
 } from 'koishipro-core.js'
 import {
-  YGOProMessages,
   YGOProMsgDraw,
   YGOProMsgNewTurn,
   YGOProMsgDamage,
@@ -16,24 +14,30 @@ import {
 } from 'ygopro-msg-encode'
 import {
   EngineDuelInitParams,
-  EnginePendingAction,
   EngineTimelineNode,
   EngineBoardState,
   CardLocation,
-  DuelPuzzleState,
-  CdbCard
+  DuelPuzzleState
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
-import { BoardTracker } from './board-tracker'
-import { EngineTimelineManager, decompressDuelSnapshot } from './timeline-manager'
-import { getOcgcoreEngine, bindEngineCapabilities } from './ocgcore-engine'
-import { isInteractiveQuery, parsePendingAction } from './message-parser'
-import { buildResponseForOption } from './response-builder'
-import { computeDiff, EngineDiffResult } from './diff-resolver'
+import { FieldReader } from './field-reader'
+import { EngineTimelineManager } from './timeline-manager'
+import { getOcgcoreEngine } from './ocgcore-engine'
+import { isInteractiveQuery, isEmptyChainQuery } from './message-parser'
+import { computeDiff } from './diff-resolver'
+import { routeRequest } from './request-router'
+import { encodeAnswer, describeAnswer } from './answer-encoder'
+import { Answer, EngineRequest, EngineSubmitAnswerResult } from '@shared/engine/protocol'
+import { YGOProMsgHint, YGOProMsgSelectChain } from 'ygopro-msg-encode'
+
+const HINT_TYPE_SELECTMSG = 3
+
+export interface SubmitAnswerResult extends EngineSubmitAnswerResult {}
 
 const { OcgcoreScriptConstants } = _OcgcoreConstants
 
 const MAX_PROCESS_LOOPS = 10000
+const FIELD_ZONE_SEQUENCE = 5
 
 const MASTER_RULE_TO_DUEL_RULE: Record<number, OcgcoreDuelRule> = {
   2: OcgcoreDuelRule.Rule2,
@@ -42,23 +46,21 @@ const MASTER_RULE_TO_DUEL_RULE: Record<number, OcgcoreDuelRule> = {
   5: OcgcoreDuelRule.MasterRule2020
 }
 
-export interface SubmitActionResult {
-  boardState: EngineBoardState
-  pendingAction: EnginePendingAction | null
-  node: EngineTimelineNode
-  diff: EngineDiffResult
-}
-
 export class DuelSession {
   private ocgcore: OcgcoreWrapper | null = null
   private duel: OcgcoreDuel | null = null
-  private boardTracker = new BoardTracker()
+  private ownedWrapper: OcgcoreWrapper | null = null
+  private fieldReader = new FieldReader()
   private timeline = new EngineTimelineManager()
   private currentPendingMsg: unknown = null
-  private currentPendingAction: EnginePendingAction | null = null
-  private currentPendingRaw: Uint8Array | null = null
+  private currentPendingRequest: EngineRequest | null = null
+  private requestSeq = 1
+  private lastHintDesc: number | undefined = undefined
   private accumulatedLogs: string[] = []
   private lastAdvanceRetried = false
+  private seed: number[] = []
+  private initParams: EngineDuelInitParams | null = null
+  private responses = new Map<string, Uint8Array>()
 
   async init(): Promise<void> {
     if (!this.ocgcore) {
@@ -66,57 +68,116 @@ export class DuelSession {
     }
   }
 
+  private disposeDuel(): void {
+    if (this.duel) {
+      this.duel.endDuel()
+      this.duel = null
+    }
+    if (this.ownedWrapper) {
+      this.ownedWrapper.finalize()
+      this.ownedWrapper = null
+    }
+  }
+
+  /** 全量查询引擎当前场地（引擎是唯一真相） */
+  private readBoard(): EngineBoardState {
+    if (!this.duel) {
+      throw new Error('当前没有可查询的对局。')
+    }
+    return this.fieldReader.readBoard(this.duel)
+  }
+
+  private createDuelFromInit(): void {
+    if (!this.initParams) {
+      throw new Error('引擎会话尚未初始化。')
+    }
+    this.duel = this.ocgcore!.createDuelV2(this.seed)
+    if (this.initParams.puzzleState) {
+      this.setupFromPuzzleState(this.initParams.puzzleState)
+    } else {
+      this.setupFromDeckParams(this.initParams)
+    }
+    this.advanceEngine()
+  }
+
+  private replayTo(stepId: string): void {
+    const path = this.timeline.getHistoryPath(stepId)
+    if (path.length === 0) {
+      throw new Error(`步骤 ${stepId} 不存在。`)
+    }
+
+    const currentPath = this.timeline.getHistoryPath()
+    const canStepForward =
+      currentPath.length + 1 === path.length &&
+      path.slice(0, currentPath.length).every((n, i) => n.id === currentPath[i].id)
+    if (canStepForward && this.duel && !this.duel.ended) {
+      const response = this.responses.get(path[path.length - 1].id)
+      if (response) {
+        this.duel.setResponse(response)
+        this.advanceEngine()
+        this.accumulatedLogs = []
+        this.timeline.setCurrentStepId(stepId)
+        return
+      }
+    }
+
+    this.disposeDuel()
+    this.accumulatedLogs = []
+    this.createDuelFromInit()
+
+    for (let i = 1; i < path.length; i++) {
+      const response = this.responses.get(path[i].id)
+      if (!response) {
+        throw new Error(`步骤 ${path[i].id} 缺少响应记录，无法重放。`)
+      }
+      this.duel!.setResponse(response)
+      this.advanceEngine()
+    }
+
+    this.accumulatedLogs = []
+    this.timeline.setCurrentStepId(stepId)
+  }
+
   async startDuel(params: EngineDuelInitParams): Promise<{
     boardState: EngineBoardState
-    pendingAction: EnginePendingAction | null
+    pendingRequest: EngineRequest | null
     initialNode: EngineTimelineNode
   }> {
     await this.init()
 
-    if (this.duel && !this.duel.ended) {
-      this.duel.endDuel()
-    }
+    this.disposeDuel()
 
     this.timeline.clear()
+    this.responses.clear()
     this.accumulatedLogs = []
     this.currentPendingMsg = null
-    this.currentPendingAction = null
-    this.currentPendingRaw = null
+    this.currentPendingRequest = null
+    this.requestSeq = 1
+    this.lastHintDesc = undefined
 
-    const seed = params.seed || [
+    this.seed = params.seed || [
       Math.floor(Math.random() * 100000),
       Math.floor(Math.random() * 100000),
       Math.floor(Math.random() * 100000),
       Math.floor(Math.random() * 100000)
     ]
+    this.initParams = params
 
-    this.duel = this.ocgcore!.createDuelV2(seed)
+    this.createDuelFromInit()
 
-    if (params.puzzleState) {
-      this.setupFromPuzzleState(params.puzzleState)
-    } else {
-      this.setupFromDeckParams(params)
-    }
-
-    this.advanceEngine()
-    this.verifyWithEngineQuery()
-
-    const snapshot = this.duel.ended ? new Uint8Array(0) : this.duel.snapshot()
+    const initialBoard = this.readBoard()
     const initialNode = this.timeline.addStep(
       '决斗开局',
-      this.boardTracker.getState().turnPlayer,
-      this.boardTracker.getState(),
-      this.currentPendingAction,
-      [...this.accumulatedLogs],
-      snapshot,
-      undefined,
-      this.currentPendingRaw ?? undefined
+      initialBoard.turnPlayer,
+      initialBoard,
+      this.currentPendingRequest,
+      [...this.accumulatedLogs]
     )
     this.accumulatedLogs = []
 
     return {
       boardState: initialNode.boardState,
-      pendingAction: this.currentPendingAction,
+      pendingRequest: this.currentPendingRequest,
       initialNode
     }
   }
@@ -150,41 +211,72 @@ export class DuelSession {
   private setupFromPuzzleState(state: DuelPuzzleState): void {
     const p0Lp = Number(state.players[0]?.lp ?? 8000)
     const p1Lp = Number(state.players[1]?.lp ?? 8000)
-    this.boardTracker.reset(p0Lp, p1Lp)
+    this.fieldReader.reset([p0Lp, p1Lp], state.turnPlayer)
 
     this.duel!.setPlayerInfo({ player: 0, lp: p0Lp, startHand: 0, drawCount: 1 })
     this.duel!.setPlayerInfo({ player: 1, lp: p1Lp, startHand: 0, drawCount: 1 })
 
+    // 灵摆区物理映射（与 ygopro-core get_pzone_sequence 一致）：
+    // MR4+ → szone 序号 0/4（魔陷区两端格）；MR2/3 → szone 序号 6/7
+    const pzoneSeq = state.masterRule >= 4 ? [0, 4] : [6, 7]
+
     const fieldCards = state.cards.filter((c) => c.code > 0)
-    const handCounts: [number, number] = [0, 0]
+    // 手牌进引擎的 sequence 必须按编辑器手牌顺序（sequence 升序）编号（S1 身份对齐）：
+    // cards 数组顺序不一定等于 sequence 顺序（例如中途插入手牌是数组尾部追加 + 序号插入），
+    // 若按数组顺序编号，引擎手牌顺序会与编辑器错位，导致开局身份映射/选卡全部错卡。
+    const handSequenceByInstance = new Map<string, number>()
+    for (const controller of [0, 1] as const) {
+      state.cards
+        .filter((c) => c.controller === controller && c.location === CardLocation.HAND)
+        .sort((a, b) => a.sequence - b.sequence)
+        .forEach((c, index) => handSequenceByInstance.set(c.instanceId, index))
+    }
+    const handFallback: [number, number] = [0, 0]
+    let unsupportedPendulum = 0
+
+    // 预扫描：已占用的 szone 序号（灵摆格与魔陷格物理上共用，冲突时跳过）
+    const takenSzone = new Set<number>()
+    for (const card of fieldCards) {
+      if (card.location === CardLocation.SZONE) takenSzone.add(card.sequence)
+      if (card.location === CardLocation.FZONE) takenSzone.add(FIELD_ZONE_SEQUENCE)
+    }
 
     for (const card of fieldCards) {
-      if (
-        card.location === CardLocation.DECK ||
-        card.location === CardLocation.EXTRA ||
-        card.location === CardLocation.MZONE
-      ) {
+      if (card.location === CardLocation.DECK || card.location === CardLocation.EXTRA) {
         continue
       }
-      if (card.location === CardLocation.HAND) {
+      if (card.location === CardLocation.PZONE) {
+        const seq = pzoneSeq[card.sequence]
+        if (seq === undefined || takenSzone.has(seq)) {
+          unsupportedPendulum++
+          continue
+        }
+        takenSzone.add(seq)
         this.newEngineCard({
           code: card.code,
           owner: card.owner ?? card.controller,
           player: card.controller,
-          location: card.location,
-          sequence: handCounts[card.controller]++,
-          position: card.position
+          location: CardLocation.SZONE,
+          sequence: seq,
+          position: OcgcoreScriptConstants.POS_FACEUP
         })
-      } else {
-        this.newEngineCard({
-          code: card.code,
-          owner: card.owner ?? card.controller,
-          player: card.controller,
-          location: card.location,
-          sequence: card.sequence,
-          position: card.position
-        })
+        continue
       }
+      const isFieldZone = card.location === CardLocation.FZONE
+      const sequence =
+        card.location === CardLocation.HAND
+          ? (handSequenceByInstance.get(card.instanceId) ?? handFallback[card.controller]++)
+          : isFieldZone
+            ? FIELD_ZONE_SEQUENCE
+            : card.sequence
+      this.newEngineCard({
+        code: card.code,
+        owner: card.owner ?? card.controller,
+        player: card.controller,
+        location: isFieldZone ? CardLocation.SZONE : card.location,
+        sequence,
+        position: card.position
+      })
     }
 
     for (const location of [CardLocation.DECK, CardLocation.EXTRA]) {
@@ -204,22 +296,11 @@ export class DuelSession {
       }
     }
 
+    let unsupportedOverlay = 0
     for (const card of fieldCards) {
       if (card.location !== CardLocation.MZONE || !card.overlayMaterials?.length) continue
-      for (const matCode of card.overlayMaterials) {
-        if (matCode <= 0) continue
-        this.newEngineCard({
-          code: matCode,
-          owner: card.owner ?? card.controller,
-          player: card.controller,
-          location: OcgcoreScriptConstants.LOCATION_OVERLAY,
-          sequence: card.sequence,
-          position: OcgcoreScriptConstants.POS_FACEUP_ATTACK
-        })
-      }
+      unsupportedOverlay += card.overlayMaterials.filter((matCode) => matCode > 0).length
     }
-
-    this.boardTracker.initializeFromCards(fieldCards)
 
     const { rule, flags } = this.buildStartDuelOptions(
       state.masterRule,
@@ -227,12 +308,22 @@ export class DuelSession {
     )
     this.duel!.startDuel({ rule, flags })
     this.accumulatedLogs.push(`决斗开始！(MR${state.masterRule})`)
+    if (unsupportedPendulum > 0) {
+      this.accumulatedLogs.push(
+        `有 ${unsupportedPendulum} 张灵摆区卡片未能还原（物理格冲突或规则版本不支持）`
+      )
+    }
+    if (unsupportedOverlay > 0) {
+      this.accumulatedLogs.push(
+        `引擎无法还原 ${unsupportedOverlay} 张超量素材（ocgcore 建卡不接受 LOCATION_OVERLAY）`
+      )
+    }
   }
 
   private setupFromDeckParams(params: EngineDuelInitParams): void {
     const p0Lp = params.p0Lp ?? 8000
     const p1Lp = params.p1Lp ?? 8000
-    this.boardTracker.reset(p0Lp, p1Lp)
+    this.fieldReader.reset([p0Lp, p1Lp], 0)
 
     const DEFAULT_DECK = [
       89631139, 89631139, 89631139, 46986414, 46986414, 46986414, 70781052, 70781052, 70781052,
@@ -297,8 +388,6 @@ export class DuelSession {
       })
     }
 
-    this.boardTracker.initializeDecks(p0Deck, p0Extra, p1Deck, p1Extra)
-
     this.duel!.startDuel({
       rule: OcgcoreDuelRule.MasterRule2020,
       flags: [OcgcoreDuelOptionFlag.PseudoShuffle]
@@ -306,58 +395,52 @@ export class DuelSession {
     this.accumulatedLogs.push('决斗开始！')
   }
 
-  submitAction(optionId: string, payload?: unknown): SubmitActionResult {
+  /**
+   * 提交语义化答案（R2 新模型）。
+   * RETRY 时返回 { retry: true }，同一条请求保持待答状态（面板应重新打开）。
+   */
+  submitAnswer(answer: Answer): SubmitAnswerResult {
     if (!this.duel || this.duel.ended) {
       throw new Error('当前没有进行中的对局。')
     }
-    if (
-      !this.currentPendingAction ||
-      !this.currentPendingMsg ||
-      this.currentPendingAction.kind === 'END' ||
-      this.currentPendingAction.kind === 'WAITING'
-    ) {
+    if (!this.currentPendingMsg || !this.currentPendingRequest) {
       throw new Error('引擎当前没有等待响应的操作。')
     }
 
-    const option = this.currentPendingAction.options.find((o) => o.id === optionId)
-    if (!option) {
-      throw new Error(`选项 ${optionId} 不存在，请刷新操作列表。`)
-    }
+    const requestMsg = this.currentPendingMsg
+    const actingPlayer = this.currentPendingRequest.player
+    const response = encodeAnswer(requestMsg, answer)
+    const logText = describeAnswer(requestMsg, answer)
 
-    const { response, logText } = buildResponseForOption(this.currentPendingMsg, option, payload)
-
-    const beforeBoard = this.boardTracker.getState()
-
+    const beforeBoard = this.readBoard()
     this.duel.setResponse(response)
     this.advanceEngine()
-    this.verifyWithEngineQuery()
 
     if (this.lastAdvanceRetried) {
       this.accumulatedLogs = []
-      throw new Error('引擎拒绝了该操作 (RETRY)，请选择其他合法操作。')
+      return { retry: true, pendingRequest: this.currentPendingRequest }
     }
 
     this.accumulatedLogs.push(logText)
 
-    const snapshot = this.duel.ended ? new Uint8Array(0) : this.duel.snapshot()
-    const boardState = this.boardTracker.getState()
+    const boardState = this.readBoard()
     const diff = computeDiff(beforeBoard, boardState)
 
     const node = this.timeline.addStep(
       logText,
-      this.currentPendingAction.player,
+      actingPlayer,
       boardState,
-      this.currentPendingAction,
-      [...this.accumulatedLogs],
-      snapshot,
-      response,
-      this.currentPendingRaw ?? undefined
+      this.currentPendingRequest,
+      [...this.accumulatedLogs]
     )
+    this.responses.set(node.id, response)
+    this.requestSeq += 1
     this.accumulatedLogs = []
 
     return {
+      retry: false,
       boardState,
-      pendingAction: this.currentPendingAction,
+      pendingRequest: this.currentPendingRequest,
       node,
       diff
     }
@@ -365,65 +448,18 @@ export class DuelSession {
 
   async jumpToStep(stepId: string): Promise<{
     boardState: EngineBoardState
-    pendingAction: EnginePendingAction | null
     currentStepId: string
   }> {
-    const record = this.timeline.getStep(stepId)
-    if (!record) {
+    if (!this.timeline.getStep(stepId)) {
       throw new Error(`步骤 ${stepId} 不存在。`)
     }
-    if (!record.snapshot || record.snapshot.length === 0) {
-      throw new Error('该步骤没有可用快照（对局已结束）。')
-    }
 
-    if (this.duel && !this.duel.ended) {
-      this.duel.endDuel()
-    }
-
-    const restored = await createOcgcoreDuelFromSnapshot(decompressDuelSnapshot(record.snapshot))
-    await bindEngineCapabilities(restored.ocgcoreWrapper)
-
-    this.duel = restored
-    this.boardTracker.setState(record.node.boardState)
-    this.timeline.setCurrentStepId(stepId)
-
-    this.currentPendingMsg = null
-    this.currentPendingAction = record.node.pendingAction
-    this.currentPendingRaw = record.pendingMsgRaw ?? null
-    if (this.currentPendingRaw && this.currentPendingRaw.length > 0) {
-      try {
-        const msgs = YGOProMessages.getInstancesFromPayload(this.currentPendingRaw)
-        for (const msg of msgs) {
-          if (isInteractiveQuery(msg)) {
-            this.currentPendingMsg = msg
-            this.currentPendingAction = parsePendingAction(
-              msg,
-              (controller, location, sequence, code) =>
-                this.resolveTrackerCard(controller, location, sequence, code)
-            )
-          }
-        }
-      } catch (err) {
-        console.error('[duel-session] 恢复询问消息失败:', err)
-      }
-    }
+    this.replayTo(stepId)
 
     return {
-      boardState: record.node.boardState,
-      pendingAction: this.currentPendingAction,
+      boardState: this.readBoard(),
       currentStepId: stepId
     }
-  }
-
-  private resolveTrackerCard(
-    controller: number,
-    location: number,
-    sequence: number,
-    code?: number
-  ): { instanceId: string; card?: CdbCard } | undefined {
-    const found = this.boardTracker.findCard(controller, location, sequence, code)
-    if (!found) return undefined
-    return { instanceId: found.instanceId, card: found.card }
   }
 
   private advanceEngine(): void {
@@ -439,21 +475,36 @@ export class DuelSession {
 
       const res = this.duel.process()
       const msgs = res.messages ?? []
+      let autoResponse: Uint8Array | null = null
+      // 批内已含玩家交互点时，不允许自动应答吞掉交互。
+      // 空连锁（无可连锁卡）会在下面被静默放弃，因此不算交互点 —— 否则空连锁自己
+      // 就会触发这个守卫，让 autoResponse 永远不生效，全部变成 UI 弹窗。
+      const hasInteractiveInBatch = msgs.some(
+        (m) => isInteractiveQuery(m) && !isEmptyChainQuery(m)
+      )
 
       if (msgs.length > 0) {
-        this.boardTracker.applyMessages(msgs)
+        for (const msg of msgs) {
+          this.fieldReader.applyMetaMessage(msg)
+          if (msg instanceof YGOProMsgHint && msg.type === HINT_TYPE_SELECTMSG) {
+            this.lastHintDesc = msg.desc
+          }
+          // 空连锁询问自动放弃（无可连锁卡时引擎仍会询问，不自动处理会卡死）
+          if (msg instanceof YGOProMsgSelectChain && msg.chains.length === 0) {
+            autoResponse = msg.defaultResponse()
+          }
+        }
         this.collectLogs(msgs)
 
         for (const msg of msgs) {
-          if (isInteractiveQuery(msg)) {
-            this.currentPendingMsg = msg
-            this.currentPendingRaw = res.raw
-            this.currentPendingAction = parsePendingAction(
-              msg,
-              (controller, location, sequence, code) =>
-                this.resolveTrackerCard(controller, location, sequence, code)
-            )
-          }
+          // 空连锁已被自动放弃（见上方 autoResponse），不注册为待答请求，避免 UI 空弹窗
+          if (!isInteractiveQuery(msg) || isEmptyChainQuery(msg)) continue
+          this.currentPendingMsg = msg
+          this.currentPendingRequest = routeRequest(msg, {
+            id: `req-${this.requestSeq}`,
+            seq: this.requestSeq,
+            descHint: this.lastHintDesc
+          })
         }
 
         if (msgs.some((m) => m instanceof YGOProMsgRetry)) {
@@ -463,57 +514,20 @@ export class DuelSession {
         }
       }
 
+      // 自动应答排队：喂回引擎并继续推进（仅当批内没有交互点时）
+      if (autoResponse && !hasInteractiveInBatch) {
+        this.duel.setResponse(autoResponse)
+        continue
+      }
+
       if (res.status === 1) {
         break
       }
       if (res.status === 2 || this.duel.ended) {
         this.currentPendingMsg = null
-        this.currentPendingRaw = null
-        this.currentPendingAction = {
-          kind: 'END',
-          player: 0,
-          title: '决斗已结束',
-          options: []
-        }
+        this.currentPendingRequest = null
         break
       }
-    }
-  }
-
-  private verifyWithEngineQuery(): void {
-    if (!this.duel || this.duel.ended) return
-    try {
-      const info = this.duel.queryFieldInfo()
-      const field = info.field
-      if (!field) return
-      const tracked = this.boardTracker.snapshotCounts()
-      for (let i = 0; i < 2; i++) {
-        const fp = field.players[i]
-        const tp = tracked[i]
-        if (!fp || !tp) continue
-        const mismatches: string[] = []
-        if (Number(fp.lp) !== tp.lp) mismatches.push(`LP 引擎=${fp.lp} 镜像=${tp.lp}`)
-        if (Number(fp.handCount) !== tp.handCount)
-          mismatches.push(`手牌 引擎=${fp.handCount} 镜像=${tp.handCount}`)
-        if (Number(fp.deckCount) !== tp.deckCount)
-          mismatches.push(`卡组 引擎=${fp.deckCount} 镜像=${tp.deckCount}`)
-        if (Number(fp.extraCount) !== tp.extraCount)
-          mismatches.push(`额外 引擎=${fp.extraCount} 镜像=${tp.extraCount}`)
-        if (Number(fp.graveCount) !== tp.graveCount)
-          mismatches.push(`墓地 引擎=${fp.graveCount} 镜像=${tp.graveCount}`)
-        if (Number(fp.removedCount) !== tp.removedCount)
-          mismatches.push(`除外 引擎=${fp.removedCount} 镜像=${tp.removedCount}`)
-        const mzoneOccupied = fp.mzone.filter((z) => z.occupied).length
-        if (mzoneOccupied !== tp.mzoneCount)
-          mismatches.push(`怪兽区 引擎=${mzoneOccupied} 镜像=${tp.mzoneCount}`)
-        if (mismatches.length > 0) {
-          console.warn(
-            `[duel-session] 场面镜像与引擎不一致 (player ${i}): ${mismatches.join('; ')}`
-          )
-        }
-      }
-    } catch (err) {
-      console.warn('[duel-session] queryFieldInfo 校验失败:', err)
     }
   }
 
@@ -539,17 +553,21 @@ export class DuelSession {
   }
 
   getBoardState(): EngineBoardState {
-    return this.boardTracker.getState()
+    if (this.duel && !this.duel.ended) {
+      return this.readBoard()
+    }
+    return this.fieldReader.getState()
   }
 
-  getPendingAction(): EnginePendingAction | null {
-    return this.currentPendingAction
+  getPendingRequest(): EngineRequest | null {
+    return this.currentPendingRequest
   }
 
   getAllTimelineResponses(): Uint8Array[] {
     return this.timeline
       .getHistoryPath()
-      .map((n) => this.timeline.getStep(n.id)?.responseToNext)
+      .slice(1)
+      .map((n) => this.responses.get(n.id))
       .filter((r): r is Uint8Array => Boolean(r))
   }
 }

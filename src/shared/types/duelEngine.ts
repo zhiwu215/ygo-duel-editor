@@ -1,6 +1,6 @@
 import { CdbCard } from './card'
 import { DuelPuzzleState } from './duel'
-import { CardLocation } from '../constants/locations'
+import type { EngineRequest } from '../engine/protocol'
 
 export interface EngineCard {
   instanceId: string
@@ -43,68 +43,6 @@ export interface EngineBoardState {
   allCards: EngineCard[]
 }
 
-export type EngineActionType =
-  | 'SUMMON'
-  | 'SPSUMMON'
-  | 'MSET'
-  | 'SSET'
-  | 'ACTIVATE'
-  | 'REPOS'
-  | 'ATTACK'
-  | 'BP'
-  | 'M2'
-  | 'EP'
-  | 'PLACE'
-  | 'CHAIN'
-  | 'PASS'
-  | 'TRIBUTE'
-  | 'SELECT_CARD'
-  | 'YES'
-  | 'NO'
-  | 'OPTION'
-  | 'POSITION'
-  | 'ANNOUNCE'
-
-export interface EngineActionOption {
-  id: string
-  label: string
-  type: EngineActionType
-  instanceId?: string
-  cardCode?: number
-  controller?: 0 | 1
-  location?: number
-  sequence?: number
-  zoneIndex?: number
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  rawPayload: any
-}
-
-export type EnginePromptKind =
-  | 'IDLE_CMD'
-  | 'BATTLE_CMD'
-  | 'SELECT_PLACE'
-  | 'SELECT_CHAIN'
-  | 'SELECT_CARD'
-  | 'SELECT_TRIBUTE'
-  | 'SELECT_YESNO'
-  | 'SELECT_EFFECTYN'
-  | 'SELECT_OPTION'
-  | 'SELECT_POSITION'
-  | 'ANNOUNCE'
-  | 'WAITING'
-  | 'END'
-
-export interface EnginePendingAction {
-  kind: EnginePromptKind
-  player: 0 | 1
-  title: string
-  subtitle?: string
-  options: EngineActionOption[]
-  canCancel?: boolean
-  min?: number
-  max?: number
-}
-
 export interface EngineTimelineNode {
   id: string
   parentId: string | null
@@ -113,7 +51,8 @@ export interface EngineTimelineNode {
   player: 0 | 1
   logs: string[]
   boardState: EngineBoardState
-  pendingAction: EnginePendingAction | null
+  /** 该步骤完成后等待作答的请求（与 pendingRequest 语义一致；无询问时为 null） */
+  pendingRequest: EngineRequest | null
   createdAt: number
 }
 
@@ -128,58 +67,6 @@ export interface EngineDuelInitParams {
   p1Extra?: number[]
   seed?: number[]
   puzzleState?: DuelPuzzleState
-}
-
-export interface EngineOptionMatchCard {
-  instanceId?: string
-  controller?: number
-  location: number
-  sequence?: number
-  code?: number
-}
-
-function isSameEngineZone(
-  optLocation: number | undefined,
-  cardLocation: number,
-  optSequence: number | undefined,
-  cardSequence: number | undefined
-): boolean {
-  if (optLocation === undefined) return true
-  if (optLocation === cardLocation) {
-    if (optSequence !== undefined && cardSequence !== undefined && optSequence !== cardSequence) {
-      return false
-    }
-    return true
-  }
-  const optIsField =
-    optLocation === CardLocation.FZONE || (optLocation === CardLocation.SZONE && optSequence === 5)
-  const cardIsField =
-    cardLocation === CardLocation.FZONE ||
-    (cardLocation === CardLocation.SZONE && cardSequence === 5)
-  return optIsField && cardIsField
-}
-
-export function isCardMatchingEngineOption(
-  card: EngineOptionMatchCard,
-  opt: EngineActionOption
-): boolean {
-  if (card.instanceId && opt.instanceId) {
-    return card.instanceId === opt.instanceId
-  }
-  if (opt.cardCode === undefined) {
-    return false
-  }
-  if (card.code !== undefined && opt.cardCode !== card.code) {
-    return false
-  }
-  if (
-    opt.controller !== undefined &&
-    card.controller !== undefined &&
-    opt.controller !== card.controller
-  ) {
-    return false
-  }
-  return isSameEngineZone(opt.location, card.location, opt.sequence, card.sequence)
 }
 
 export interface EngineDiffMovedCard {

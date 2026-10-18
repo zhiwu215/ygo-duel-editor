@@ -2,12 +2,13 @@ import fs from 'fs'
 import path from 'path'
 import {
   EngineDuelInitParams,
-  EnginePendingAction,
   EngineTimelineNode,
-  EngineBoardState
+  EngineBoardState,
+  EngineRequest,
+  Answer
 } from '@shared/index'
 import { getOcgcoreEngine, isEngineReady } from './ocgcore-engine'
-import { duelSession, SubmitActionResult } from './duel-session'
+import { duelSession, SubmitAnswerResult } from './duel-session'
 
 export class DuelDirector {
   private static instance: DuelDirector
@@ -41,19 +42,18 @@ export class DuelDirector {
 
   startDuel(params: EngineDuelInitParams): Promise<{
     boardState: EngineBoardState
-    pendingAction: EnginePendingAction | null
+    pendingRequest: EngineRequest | null
     initialNode: EngineTimelineNode
   }> {
     return duelSession.startDuel(params)
   }
 
-  submitAction(optionId: string, payload?: unknown): SubmitActionResult {
-    return duelSession.submitAction(optionId, payload)
+  submitAnswer(answer: Answer): SubmitAnswerResult {
+    return duelSession.submitAnswer(answer)
   }
 
   jumpToStep(stepId: string): Promise<{
     boardState: EngineBoardState
-    pendingAction: EnginePendingAction | null
     currentStepId: string
   }> {
     return duelSession.jumpToStep(stepId)
@@ -67,8 +67,8 @@ export class DuelDirector {
     return duelSession.getBoardState()
   }
 
-  getPendingAction(): EnginePendingAction | null {
-    return duelSession.getPendingAction()
+  getPendingRequest(): EngineRequest | null {
+    return duelSession.getPendingRequest()
   }
 
   getAllTimelineResponses(): Uint8Array[] {

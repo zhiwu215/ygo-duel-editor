@@ -206,3 +206,9 @@ export interface EngineSubmitAnswerResult {
   node?: EngineTimelineNode
   diff?: EngineDiffResult
 }
+
+export interface EngineInjectResult {
+  boardState: EngineBoardState
+  node: EngineTimelineNode
+  warning?: string
+}

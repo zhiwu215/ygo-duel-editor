@@ -2,8 +2,9 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { CardLocation, CardPosition, CdbCard } from '@shared/index'
+import { CardLocation, CardPosition, CdbCard, InjectCommand } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
@@ -504,6 +505,31 @@ const PileListContent: React.FC = () => {
         const dataStr = e.dataTransfer.getData('application/json')
         if (!dataStr) return
         const droppedCard = JSON.parse(dataStr) as CdbCard
+        const engine = useDuelEngineStore.getState()
+        if (engine.isInitialized) {
+          const to: Extract<InjectCommand, { op: 'add-card' }>['to'] | null =
+            target.location === CardLocation.DECK
+              ? insertIndex <= 0
+                ? 'deck-top'
+                : 'deck-bottom'
+              : target.location === CardLocation.GRAVE
+                ? insertIndex <= 0
+                  ? 'grave-top'
+                  : 'grave-bottom'
+                : target.location === CardLocation.EXTRA
+                  ? 'extra'
+                  : target.location === CardLocation.REMOVED
+                    ? 'removed'
+                    : null
+          if (!to) return
+          void engine.inject({
+            op: 'add-card',
+            player: target.controller,
+            code: droppedCard.id,
+            to
+          })
+          return
+        }
         addCardToZone(droppedCard, target.controller, target.location, insertIndex, posOverride)
       }
     } catch (err) {

@@ -33,7 +33,16 @@ import {
 import { alertDialog } from './useDialogStore'
 import { fetchCardDataByCodes } from '../utils/cardData'
 
+let lpFlashSeq = 0
+
 export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON'
+
+export interface LpFlash {
+  id: number
+  player: 0 | 1
+  delta: number
+}
+
 export interface PendingPlacementSlot {
   location: number
   sequence: number
@@ -358,6 +367,8 @@ interface DuelStoreState {
   hoveredCard: CdbCard | null
   hoveredInstanceId: string | null
   tacticalView: boolean
+  /** 最近一次生命值变动（供棋盘浮层弹出伤害/回复数字；null 表示还没有变动） */
+  lpFlash: LpFlash | null
 
   activeLeftTab: 'archives' | 'library' | 'card' | 'agent'
   isLeftOpen: boolean
@@ -577,6 +588,7 @@ export const useDuelStore = create<DuelStoreState>()(
       hoveredCard: null,
       hoveredInstanceId: null,
       tacticalView: false,
+      lpFlash: null,
       activeLeftTab: 'card',
       isLeftOpen: true,
       leftWidth: 340,
@@ -1408,6 +1420,7 @@ export const useDuelStore = create<DuelStoreState>()(
       setPlayerLp: (player, lp) =>
         set((prev) => {
           const updatedLp = Math.max(0, lp)
+          const previousLp = prev.state.players[player]?.lp
           const players: [PlayerState, PlayerState] = [
             player === 0 ? { ...prev.state.players[0], lp: updatedLp } : prev.state.players[0],
             player === 1 ? { ...prev.state.players[1], lp: updatedLp } : prev.state.players[1]
@@ -1429,6 +1442,10 @@ export const useDuelStore = create<DuelStoreState>()(
             return d
           })
           return {
+            lpFlash:
+              previousLp === undefined || previousLp === updatedLp
+                ? prev.lpFlash
+                : { id: ++lpFlashSeq, player, delta: updatedLp - previousLp },
             state: { ...prev.state, players, duelists }
           }
         }),
@@ -1596,6 +1613,10 @@ export const useDuelStore = create<DuelStoreState>()(
           }
 
           return {
+            lpFlash:
+              updatedLp === undefined || !target || target.lp === updatedLp
+                ? prev.lpFlash
+                : { id: ++lpFlashSeq, player: targetTeam, delta: updatedLp - target.lp },
             state: {
               ...prev.state,
               duelists,

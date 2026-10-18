@@ -16,17 +16,24 @@ import {
   Answer,
   RequestCard,
   EngineSubmitAnswerResult,
+  InjectCommand,
   resolveEngineCardStats
 } from '@shared/index'
 import { useDuelStore } from './useDuelStore'
 
 export type EngineMode = 'idle' | 'running' | 'paused'
 
+export interface EngineInjectNotice {
+  kind: 'success' | 'warning'
+  message: string
+}
+
 interface DuelEngineState {
   engineMode: EngineMode
   isInitialized: boolean
   loading: boolean
   error: string | null
+  injectNotice: EngineInjectNotice | null
 
   boardState: EngineBoardState | null
   pendingRequest: EngineRequest | null
@@ -46,6 +53,8 @@ interface DuelEngineState {
 
   initDuel: (params?: EngineDuelInitParams) => Promise<void>
   submitAnswer: (answer: Answer) => Promise<void>
+  inject: (command: InjectCommand) => Promise<boolean>
+  clearInjectNotice: () => void
   jumpToStep: (stepId: string) => Promise<boolean>
   undo: () => Promise<void>
   redo: () => Promise<void>
@@ -432,6 +441,7 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
   isInitialized: false,
   loading: false,
   error: null,
+  injectNotice: null,
 
   boardState: null,
   pendingRequest: null,
@@ -497,6 +507,7 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       isInitialized: false,
       loading: false,
       error: null,
+      injectNotice: null,
       pendingRequest: null,
       lastAttacker: null,
       backupDuelState: null,
@@ -557,7 +568,11 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         return
       }
       const prevTimeline = get().timeline
-      const newTimeline = res.node ? [...prevTimeline, res.node] : prevTimeline
+      const currentId = get().currentStepId
+      const currentIndex = prevTimeline.findIndex((node) => node.id === currentId)
+      const baseTimeline =
+        currentIndex >= 0 ? prevTimeline.slice(0, currentIndex + 1) : prevTimeline
+      const newTimeline = res.node ? [...baseTimeline, res.node] : prevTimeline
       set({
         loading: false,
         error: null,
@@ -578,6 +593,9 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
         // 表现为特殊召唤后场上不更新、回退后才可见、手牌多一张等漂移。
         syncJumpToStepWrapped(res.boardState)
       }
+      if (res.node) {
+        syncEngineSteps(newTimeline, res.node.id)
+      }
       if (res.node && res.diff) {
         // res.diff 仅用于步骤记录（推导 to 位置），不再用于棋盘同步
         appendEngineStepFromAnswer(answer, res.node, res.diff)
@@ -590,6 +608,46 @@ export const useDuelEngineStore = create<DuelEngineState>((set, get) => ({
       })
     }
   },
+
+  inject: async (command) => {
+    if (!get().isInitialized) {
+      set({ error: '引擎尚未启动，无法执行剧情安排。' })
+      return false
+    }
+    set({ loading: true, error: null })
+    try {
+      const res = await window.api.duelEngineInject(command)
+      const prevTimeline = get().timeline
+      const currentId = get().currentStepId
+      const currentIndex = prevTimeline.findIndex((node) => node.id === currentId)
+      const baseTimeline =
+        currentIndex >= 0 ? prevTimeline.slice(0, currentIndex + 1) : prevTimeline
+      set({
+        loading: false,
+        error: null,
+        boardState: res.boardState,
+        timeline: [...baseTimeline, res.node],
+        currentStepId: res.node.id,
+        selectedCardId: null,
+        injectNotice: {
+          kind: res.warning ? 'warning' : 'success',
+          message: res.warning ? `${res.node.title}：${res.warning}` : res.node.title
+        }
+      })
+      syncJumpToStepWrapped(res.boardState)
+      syncEngineSteps(get().timeline, res.node.id)
+      return true
+    } catch (err) {
+      console.error('[useDuelEngineStore] inject failed:', err)
+      set({
+        loading: false,
+        error: err instanceof Error ? err.message : '剧情安排执行失败'
+      })
+      return false
+    }
+  },
+
+  clearInjectNotice: () => set({ injectNotice: null }),
 
   jumpToStep: async (stepId: string): Promise<boolean> => {
     if (!get().timeline.some((node) => node.id === stepId)) {

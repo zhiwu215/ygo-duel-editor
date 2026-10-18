@@ -20,7 +20,8 @@ export class EngineTimelineManager {
     player: 0 | 1,
     boardState: EngineBoardState,
     pendingRequest: EngineRequest | null,
-    logs: string[]
+    logs: string[],
+    opIndex: number
   ): EngineTimelineNode {
     const parentId = this.currentStepId
     const parent = parentId ? this.steps.get(parentId) : null
@@ -37,6 +38,7 @@ export class EngineTimelineManager {
       logs,
       boardState,
       pendingRequest,
+      opIndex,
       createdAt: Date.now()
     }
 
@@ -65,6 +67,16 @@ export class EngineTimelineManager {
       return true
     }
     return false
+  }
+
+  retainHistory(id: string): void {
+    const path = this.getHistoryPath(id)
+    if (path.length === 0) return
+    const allowed = new Set(path.map((node) => node.id))
+    for (const key of [...this.steps.keys()]) {
+      if (!allowed.has(key)) this.steps.delete(key)
+    }
+    this.currentStepId = id
   }
 
   getAllNodes(): EngineTimelineNode[] {

@@ -9,6 +9,7 @@ import { useTokenStore } from '../../stores/useTokenStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { getDropPosOverride } from '../../utils/zoneDrop'
+import { buildInjectCommand } from '../../utils/engineInject'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -222,6 +223,8 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   )
 
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const masterRule = useDuelStore((s) => s.state.masterRule)
   // 引擎 PLACE/DISFIELD 请求的可选区域（合法格子才可点）
   const enginePlaceMatch =
     pendingRequest !== null &&
@@ -349,6 +352,30 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           }
           return
         }
+      }
+      if (!movedInstanceId && isEngineActive) {
+        const dataStr = e.dataTransfer.getData('application/json')
+        if (!dataStr) return
+        const droppedCard = JSON.parse(dataStr) as CdbCard
+        const isFieldSlot =
+          location === CardLocation.MZONE ||
+          location === CardLocation.SZONE ||
+          location === CardLocation.PZONE ||
+          location === CardLocation.FZONE
+        if (isFieldSlot && card) {
+          useDuelEngineStore.setState({ error: '该格已有卡片，请拖到空位。' })
+          return
+        }
+        const command = buildInjectCommand({
+          card: droppedCard,
+          controller,
+          location,
+          sequence,
+          ctrlKey: e.ctrlKey,
+          masterRule
+        })
+        if (command) void useDuelEngineStore.getState().inject(command)
+        return
       }
       if (movedInstanceId) {
         // 「发动 / 盖放」待选模式下，拖到合法槽 = 直接落子 (顶掉型槽位允许格内已有卡)

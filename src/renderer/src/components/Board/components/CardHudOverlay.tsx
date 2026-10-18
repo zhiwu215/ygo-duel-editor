@@ -2,6 +2,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React from 'react'
 import {
   FieldCard,
+  CardLocation,
+  CardPosition,
   CardUtils,
   resolveCounterName,
   RACE_NAMES,
@@ -9,19 +11,70 @@ import {
   isInfiniteVal
 } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
+import { cn } from '../../../lib/utils'
 
 interface CardHudOverlayProps {
   card: FieldCard
 }
 
+interface StatLineProps {
+  label: string
+  value: number
+  diff: number
+  infinite: boolean
+  emphasized: boolean
+  dashed?: boolean
+}
+
+/**
+ * 单行攻守数值：左侧标签，右侧大号数值 + 变动量徽标
+ */
+const StatLine: React.FC<StatLineProps> = ({
+  label,
+  value,
+  diff,
+  infinite,
+  emphasized,
+  dashed
+}) => (
+  <div className="flex items-baseline justify-between gap-1.5 leading-none">
+    <span className="font-sans text-[8.5px] font-bold tracking-wider text-white/50">{label}</span>
+    <span className="flex items-baseline gap-1 font-mono tabular-nums">
+      <span
+        className={cn(
+          'font-bold',
+          emphasized ? 'text-[13px]' : 'text-[11px]',
+          dashed || infinite || diff === 0
+            ? 'text-white/95'
+            : diff > 0
+              ? 'text-emerald-300'
+              : 'text-rose-300'
+        )}
+      >
+        {dashed ? '—' : infinite ? '无限' : value}
+      </span>
+      {!dashed && diff !== 0 && (
+        <span
+          className={cn(
+            'rounded px-1 text-[8.5px] font-bold',
+            diff > 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-rose-400/20 text-rose-300'
+          )}
+        >
+          {infinite ? '+无限' : diff > 0 ? `+${diff}` : diff}
+        </span>
+      )}
+    </span>
+  </div>
+)
+
 /**
  * YGOPro 风格的半透明战场全息 HUD 浮层
- * 展示卡名、攻守数值（支持变动差值高亮与无限 ∞ 展示）、星阶/种族/属性以及全称指示物列表
+ * 展示卡名、表示形式、攻守数值（含变动徽标）、星阶/种族/属性以及全称指示物列表
  */
 export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
   const customCounters = useDuelStore((s) => s.state.customCounters)
   const cdb = card.card
-  const isMonster = cdb ? CardUtils.isMonster(cdb.type) : card.location === 4 // MZONE
+  const isMonster = cdb ? CardUtils.isMonster(cdb.type) : card.location === CardLocation.MZONE
   const cardName = cdb?.name || (card.code ? String(card.code) : '未知卡片')
 
   // 攻守与变动
@@ -40,10 +93,15 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
 
   // 星级/种族/属性
   const star = cdb ? CardUtils.getStarLevel(cdb.level, cdb.type) : 0
-  const isXyz = cdb ? CardUtils.isXyz(cdb.type) : false
   const isLink = cdb ? CardUtils.isLink(cdb.type) : false
   const race = cdb ? RACE_NAMES[cdb.race] || '' : ''
   const attr = cdb ? ATTRIBUTE_NAMES[cdb.attribute] || '' : ''
+
+  // 表示形式 (攻/守/盖)
+  const isDefense =
+    card.position === CardPosition.FACEUP_DEFENSE || card.position === CardPosition.FACEDOWN_DEFENSE
+  const isFacedown =
+    card.position === CardPosition.FACEDOWN || card.position === CardPosition.FACEDOWN_DEFENSE
 
   // 指示物列表
   const counterEntries = Object.entries(card.counters || {})
@@ -55,68 +113,61 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
     }))
 
   return (
-    <div className="absolute z-40 pointer-events-none select-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] min-w-[110px] max-w-[124px] bg-black/85 backdrop-blur-xs border border-white/20 rounded shadow-2xl p-1.5 flex flex-col gap-0.5 text-[10px] leading-tight text-white font-sans animate-in fade-in zoom-in-95 duration-100">
-      {/* 卡名 */}
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <div className="font-bold text-center truncate text-[11px] text-white/95">
-              {cardName}
-            </div>
-          }
-        />
-        <TooltipContent>{cardName}</TooltipContent>
-      </Tooltip>
+    <div className="absolute z-40 pointer-events-none select-none top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-max min-w-[112px] max-w-[136px] bg-black/85 backdrop-blur-xs border border-white/20 rounded-md shadow-2xl px-2 py-1.5 flex flex-col gap-1 text-[10px] leading-tight text-white font-sans animate-in fade-in zoom-in-95 duration-100">
+      {/* 表示形式角标 + 卡名 */}
+      <div className="flex items-center gap-1 min-w-0">
+        {isMonster && (
+          <span
+            className={cn(
+              'shrink-0 rounded px-1 text-[8.5px] font-bold leading-none py-0.5',
+              isFacedown
+                ? 'bg-amber-400/20 text-amber-300'
+                : isDefense
+                  ? 'bg-sky-400/20 text-sky-300'
+                  : 'bg-rose-400/20 text-rose-300'
+            )}
+          >
+            {isFacedown ? '盖' : isDefense ? '守' : '攻'}
+          </span>
+        )}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <div className="font-bold text-left truncate text-[11px] text-white/95 min-w-0">
+                {cardName}
+              </div>
+            }
+          />
+          <TooltipContent>{cardName}</TooltipContent>
+        </Tooltip>
+      </div>
 
-      {/* 攻守数值行 (仅怪兽，支持无限与变动高亮) */}
+      {/* 攻守数值 (仅怪兽；支持无限、? 与变动徽标) */}
       {isMonster && (
-        <div className="font-mono text-center font-bold flex items-center justify-center gap-1">
-          <span
-            className={
-              isAtkInf
-                ? 'text-white font-extrabold'
-                : atkDiff > 0
-                  ? 'text-emerald-400 font-extrabold'
-                  : atkDiff < 0
-                    ? 'text-rose-400 font-extrabold'
-                    : 'text-white'
-            }
-          >
-            {isAtkInf ? '无限' : origAtk === -2 && !hasCustomAtk ? '?' : effectiveAtk}
-            {hasCustomAtk && atkDiff !== 0 && (
-              <span className="text-[8px] ml-0.5 opacity-90">
-                ({isAtkInf ? '+无限' : atkDiff > 0 ? `+${atkDiff}` : atkDiff})
-              </span>
-            )}
-          </span>
-          <span className="text-white/60">/</span>
-          <span
-            className={
-              isLink
-                ? 'text-white/50'
-                : isDefInf
-                  ? 'text-white font-extrabold'
-                  : defDiff > 0
-                    ? 'text-emerald-400 font-extrabold'
-                    : defDiff < 0
-                      ? 'text-rose-400 font-extrabold'
-                      : 'text-white'
-            }
-          >
-            {isLink ? '-' : isDefInf ? '无限' : origDef === -2 && !hasCustomDef ? '?' : effectiveDef}
-            {!isLink && hasCustomDef && defDiff !== 0 && (
-              <span className="text-[8px] ml-0.5 opacity-90">
-                ({isDefInf ? '+无限' : defDiff > 0 ? `+${defDiff}` : defDiff})
-              </span>
-            )}
-          </span>
+        <div className="flex flex-col gap-1 rounded bg-white/5 px-1.5 py-1">
+          <StatLine
+            label="ATK"
+            value={effectiveAtk}
+            diff={atkDiff}
+            infinite={isAtkInf}
+            emphasized={!isDefense}
+          />
+          {!isLink && (
+            <StatLine
+              label="DEF"
+              value={effectiveDef}
+              diff={defDiff}
+              infinite={isDefInf}
+              emphasized={isDefense}
+            />
+          )}
         </div>
       )}
 
       {/* 星阶/种族/属性行 (仅怪兽) */}
       {isMonster && cdb && (
         <div className="text-[9px] text-center text-white/80 truncate">
-          {isLink ? `LINK-${star}` : isXyz ? `★${star}` : `★${star}`} {race}/{attr}
+          {isLink ? `LINK-${star}` : `★${star}`} {race}/{attr}
         </div>
       )}
 

@@ -5,7 +5,9 @@ import {
   EngineTimelineNode,
   EngineBoardState,
   EngineRequest,
-  Answer
+  Answer,
+  EngineInjectResult,
+  InjectCommand
 } from '@shared/index'
 import { getOcgcoreEngine, isEngineReady } from './ocgcore-engine'
 import { duelSession, SubmitAnswerResult } from './duel-session'
@@ -50,6 +52,10 @@ export class DuelDirector {
 
   submitAnswer(answer: Answer): SubmitAnswerResult {
     return duelSession.submitAnswer(answer)
+  }
+
+  inject(command: InjectCommand): EngineInjectResult {
+    return duelSession.inject(command)
   }
 
   jumpToStep(stepId: string): Promise<{

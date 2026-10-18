@@ -57,6 +57,7 @@ export interface EngineTimelineNode {
   boardState: EngineBoardState
   /** 该步骤完成后等待作答的请求（与 pendingRequest 语义一致；无询问时为 null） */
   pendingRequest: EngineRequest | null
+  opIndex: number
   createdAt: number
 }
 

@@ -13,7 +13,8 @@ import {
   SettingsSectionId,
   EngineExportReplayParams,
   EngineExportReplayResult,
-  Answer
+  Answer,
+  InjectCommand
 } from '@shared/index'
 
 const api: IpcApi = {
@@ -86,6 +87,7 @@ const api: IpcApi = {
 
   duelEngineInit: (params) => ipcRenderer.invoke('duel-engine:init', params),
   duelEngineSubmitAnswer: (answer: Answer) => ipcRenderer.invoke('duel-engine:submit-answer', answer),
+  duelEngineInject: (command: InjectCommand) => ipcRenderer.invoke('duel-engine:inject', command),
   duelEngineGetPendingRequest: () => ipcRenderer.invoke('duel-engine:get-pending-request'),
   duelEngineJumpToStep: (stepId) => ipcRenderer.invoke('duel-engine:jump-to-step', stepId),
   duelEngineGetTimeline: () => ipcRenderer.invoke('duel-engine:get-timeline'),

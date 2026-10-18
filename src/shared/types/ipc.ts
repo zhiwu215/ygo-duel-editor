@@ -4,7 +4,7 @@ import { DuelPuzzleState, DuelSourceRef, DuelType } from './duel'
 import { DeckData, DeckLibrary } from './deck'
 import { DuelPhase, DuelActionType } from './story'
 import { EngineDuelInitParams, EngineBoardState, EngineTimelineNode } from './duelEngine'
-import { Answer, EngineRequest } from '../engine/protocol'
+import { Answer, EngineInjectResult, EngineRequest, InjectCommand } from '../engine/protocol'
 import type { EngineSubmitAnswerResult } from '../engine/protocol'
 
 export interface CardSearchParams {
@@ -748,6 +748,7 @@ export interface IpcApi {
     initialNode: EngineTimelineNode
   }>
   duelEngineSubmitAnswer: (answer: Answer) => Promise<EngineSubmitAnswerResult>
+  duelEngineInject: (command: InjectCommand) => Promise<EngineInjectResult>
   duelEngineGetPendingRequest: () => Promise<EngineRequest | null>
   duelEngineJumpToStep: (stepId: string) => Promise<{
     boardState: EngineBoardState

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { duelDirector } from '../services/duel/duel-director'
-import { EngineDuelInitParams, Answer } from '@shared/index'
+import { EngineDuelInitParams, Answer, InjectCommand } from '@shared/index'
 
 export function registerDuelEngineIpc(): void {
   ipcMain.handle('duel-engine:init', async (_, params: EngineDuelInitParams) => {
@@ -17,6 +17,15 @@ export function registerDuelEngineIpc(): void {
       return duelDirector.submitAnswer(answer)
     } catch (err: unknown) {
       console.error('[duelEngineIpc] Error in duel-engine:submit-answer:', err)
+      throw new Error(err instanceof Error ? err.message : String(err))
+    }
+  })
+
+  ipcMain.handle('duel-engine:inject', (_, command: InjectCommand) => {
+    try {
+      return duelDirector.inject(command)
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:inject:', err)
       throw new Error(err instanceof Error ? err.message : String(err))
     }
   })

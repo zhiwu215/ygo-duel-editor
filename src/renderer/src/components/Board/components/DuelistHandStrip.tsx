@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Crown, Plus } from 'lucide-react'
 import { CardLocation, CdbCard, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { ZoneSlot } from '../ZoneSlot'
 import { TurnOrderBadge } from './TurnOrderBadge'
 import { LpInput } from './LpInput'
@@ -308,6 +309,11 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
       const dataStr = e.dataTransfer.getData('application/json')
       if (!dataStr) return
       const droppedCard = JSON.parse(dataStr) as CdbCard
+      const engine = useDuelEngineStore.getState()
+      if (engine.isInitialized) {
+        void engine.inject({ op: 'add-card', player: controller, code: droppedCard.id, to: 'hand' })
+        return
+      }
       addCardToZone(
         droppedCard,
         controller,
@@ -475,7 +481,14 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
                     size="sm"
                     player={controller}
                     popoverPlacement="bottom"
-                    onLpChange={(newLp) => updateDuelist(duelist.id, { lp: newLp })}
+                    onLpChange={(newLp) => {
+                      const engine = useDuelEngineStore.getState()
+                      if (engine.isInitialized) {
+                        void engine.inject({ op: 'set-lp', player: controller, lp: newLp })
+                        return
+                      }
+                      updateDuelist(duelist.id, { lp: newLp })
+                    }}
                   />
                 )}
 

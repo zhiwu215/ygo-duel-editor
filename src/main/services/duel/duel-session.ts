@@ -28,12 +28,23 @@ import { isInteractiveQuery, isEmptyChainQuery } from './message-parser'
 import { computeDiff } from './diff-resolver'
 import { routeRequest } from './request-router'
 import { encodeAnswer, describeAnswer } from './answer-encoder'
-import { Answer, EngineRequest, EngineSubmitAnswerResult } from '@shared/engine/protocol'
+import {
+  Answer,
+  EngineInjectResult,
+  EngineRequest,
+  EngineSubmitAnswerResult,
+  InjectCommand
+} from '@shared/engine/protocol'
 import { YGOProMsgHint, YGOProMsgSelectChain } from 'ygopro-msg-encode'
+import { describeInject, executeInject, injectCardName, verifyInject } from './injector'
 
 const HINT_TYPE_SELECTMSG = 3
 
 export interface SubmitAnswerResult extends EngineSubmitAnswerResult {}
+
+export type DuelOperation =
+  | { type: 'answer'; nodeId: string; responses: Uint8Array[] }
+  | { type: 'inject'; command: InjectCommand }
 
 const { OcgcoreScriptConstants } = _OcgcoreConstants
 
@@ -62,7 +73,7 @@ export class DuelSession {
   private lastAdvanceRetried = false
   private seed: number[] = []
   private initParams: EngineDuelInitParams | null = null
-  private responses = new Map<string, Uint8Array[]>()
+  private ops: DuelOperation[] = []
 
   async init(): Promise<void> {
     if (!this.ocgcore) {
@@ -103,45 +114,49 @@ export class DuelSession {
   }
 
   private replayTo(stepId: string): void {
-    const path = this.timeline.getHistoryPath(stepId)
-    if (path.length === 0) {
+    const target = this.timeline.getStep(stepId)
+    if (!target) {
       throw new Error(`步骤 ${stepId} 不存在。`)
-    }
-
-    const currentPath = this.timeline.getHistoryPath()
-    const canStepForward =
-      currentPath.length + 1 === path.length &&
-      path.slice(0, currentPath.length).every((n, i) => n.id === currentPath[i].id)
-    const forwardResponses = canStepForward
-      ? this.responses.get(path[path.length - 1].id)
-      : undefined
-    if (forwardResponses && this.duel && !this.duel.ended) {
-      for (const response of forwardResponses) {
-        this.duel.setResponse(response)
-        this.advanceEngine()
-      }
-      this.accumulatedLogs = []
-      this.timeline.setCurrentStepId(stepId)
-      return
     }
 
     this.disposeDuel()
     this.accumulatedLogs = []
+    this.currentPendingMsg = null
+    this.currentPendingRequest = null
+    this.lastHintDesc = undefined
     this.createDuelFromInit()
 
-    for (let i = 1; i < path.length; i++) {
-      const responses = this.responses.get(path[i].id)
-      if (!responses || responses.length === 0) {
-        throw new Error(`步骤 ${path[i].id} 缺少响应记录，无法重放。`)
+    for (let index = 0; index <= target.node.opIndex; index++) {
+      const op = this.ops[index]
+      if (!op) {
+        throw new Error(`操作流缺少第 ${index} 条记录，无法重放。`)
       }
-      for (const response of responses) {
-        this.duel!.setResponse(response)
-        this.advanceEngine()
+      if (op.type === 'answer') {
+        for (const response of op.responses) {
+          this.duel!.setResponse(response)
+          this.advanceEngine()
+          if (this.lastAdvanceRetried) {
+            throw new Error(`重放第 ${index + 1} 条操作时引擎拒绝了历史响应。`)
+          }
+        }
+      } else {
+        executeInject(this.duel!, op.command, this.readBoard())
       }
     }
 
     this.accumulatedLogs = []
     this.timeline.setCurrentStepId(stepId)
+  }
+
+  private truncateToCurrentStep(): void {
+    const current = this.timeline.getCurrentStep()
+    if (!current) {
+      this.ops.length = 0
+      return
+    }
+    const limit = current.node.opIndex + 1
+    if (this.ops.length > limit) this.ops.length = limit
+    this.timeline.retainHistory(current.node.id)
   }
 
   async startDuel(params: EngineDuelInitParams): Promise<{
@@ -154,7 +169,7 @@ export class DuelSession {
     this.disposeDuel()
 
     this.timeline.clear()
-    this.responses.clear()
+    this.ops = []
     this.accumulatedLogs = []
     this.currentPendingMsg = null
     this.currentPendingRequest = null
@@ -177,7 +192,8 @@ export class DuelSession {
       initialBoard.turnPlayer,
       initialBoard,
       this.currentPendingRequest,
-      [...this.accumulatedLogs]
+      [...this.accumulatedLogs],
+      -1
     )
     this.accumulatedLogs = []
 
@@ -439,17 +455,24 @@ export class DuelSession {
 
     this.accumulatedLogs.push(logText)
 
+    this.truncateToCurrentStep()
     const boardState = this.readBoard()
     const diff = computeDiff(beforeBoard, boardState)
+    const opIndex = this.ops.length
 
     const node = this.timeline.addStep(
       logText,
       actingPlayer,
       boardState,
       this.currentPendingRequest,
-      [...this.accumulatedLogs]
+      [...this.accumulatedLogs],
+      opIndex
     )
-    this.responses.set(node.id, [response, ...autoResponses])
+    this.ops.push({
+      type: 'answer',
+      nodeId: node.id,
+      responses: [response, ...autoResponses]
+    })
     this.requestSeq += 1
     this.accumulatedLogs = []
 
@@ -460,6 +483,35 @@ export class DuelSession {
       node,
       diff
     }
+  }
+
+  inject(command: InjectCommand): EngineInjectResult {
+    if (!this.duel || this.duel.ended) {
+      throw new Error('当前没有进行中的对局，无法执行剧情安排。')
+    }
+
+    const before = this.readBoard()
+    this.truncateToCurrentStep()
+    const outcome = executeInject(this.duel, command, before)
+    const boardState = this.readBoard()
+    const warning = outcome.warning ?? verifyInject(command, before, boardState)
+
+    const opIndex = this.ops.length
+    const title = describeInject(command, outcome.label, injectCardName(command))
+    const logs = [`[剧情安排] ${outcome.label}`]
+    if (warning) logs.push(warning)
+
+    const node = this.timeline.addStep(
+      title,
+      command.player,
+      boardState,
+      this.currentPendingRequest,
+      logs,
+      opIndex
+    )
+    this.ops.push({ type: 'inject', command })
+
+    return { boardState, node, warning }
   }
 
   private isAutoFinishableUnselect(answeredMsg: unknown): boolean {
@@ -594,10 +646,10 @@ export class DuelSession {
   }
 
   getAllTimelineResponses(): Uint8Array[] {
-    return this.timeline
-      .getHistoryPath()
-      .slice(1)
-      .flatMap((n) => this.responses.get(n.id) ?? [])
+    const lastOpIndex = this.timeline.getCurrentStep()?.node.opIndex ?? -1
+    return this.ops
+      .slice(0, lastOpIndex + 1)
+      .flatMap((op) => (op.type === 'answer' ? op.responses : []))
   }
 }
 

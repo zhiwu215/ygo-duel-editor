@@ -246,6 +246,11 @@ const SingleHandTray: React.FC<{
       const dataStr = e.dataTransfer.getData('application/json')
       if (!dataStr) return
       const droppedCard = JSON.parse(dataStr) as CdbCard
+      const engine = useDuelEngineStore.getState()
+      if (engine.isInitialized) {
+        void engine.inject({ op: 'add-card', player: controller, code: droppedCard.id, to: 'hand' })
+        return
+      }
       addCardToZone(
         droppedCard,
         controller,
@@ -339,7 +344,14 @@ const SingleHandTray: React.FC<{
           size="sm"
           player={controller}
           popoverPlacement={controller === 0 ? 'top' : 'bottom'}
-          onLpChange={(newLp) => updateDuelist(duelist.id, { lp: newLp })}
+          onLpChange={(newLp) => {
+            const engine = useDuelEngineStore.getState()
+            if (engine.isInitialized) {
+              void engine.inject({ op: 'set-lp', player: controller, lp: newLp })
+              return
+            }
+            updateDuelist(duelist.id, { lp: newLp })
+          }}
         />
 
         {/* 顺位与先攻标记（支持直接下拉切换全场每位角色的行动次序） */}
@@ -592,7 +604,14 @@ const MultiHandTray: React.FC<{
             size="sm"
             player={controller}
             popoverPlacement={controller === 0 ? 'top' : 'bottom'}
-            onLpChange={(newLp) => setPlayerLp(controller, newLp)}
+            onLpChange={(newLp) => {
+              const engine = useDuelEngineStore.getState()
+              if (engine.isInitialized) {
+                void engine.inject({ op: 'set-lp', player: controller, lp: newLp })
+                return
+              }
+              setPlayerLp(controller, newLp)
+            }}
           />
         )}
       </div>

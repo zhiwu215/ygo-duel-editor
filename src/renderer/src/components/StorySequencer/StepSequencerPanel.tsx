@@ -224,6 +224,16 @@ function buildStepList(steps: DuelStep[]): StepListItem[] {
 
   const flush = (): void => {
     if (pending.length === 0) return
+    const first = pending[0]
+    const groupKey = `${first.step.turn}|${first.step.turnPlayer}|${first.step.phase}`
+    const playerName = first.step.turnPlayer === 0 ? '我方' : '对方'
+    const phaseName = PHASE_SHORT_NAMES[first.step.phase] || first.step.phase
+    items.push({
+      kind: 'separator',
+      key: `separator_${first.index}_${groupKey}`,
+      label: `第 ${first.step.turn} 回合 ${playerName} · ${phaseName}`,
+      turnPlayer: first.step.turnPlayer
+    })
     buildGroups(pending).forEach((group) => items.push({ kind: 'group', group }))
     pending = []
   }
@@ -233,14 +243,6 @@ function buildStepList(steps: DuelStep[]): StepListItem[] {
     if (groupKey !== lastGroupKey) {
       flush()
       lastGroupKey = groupKey
-      const playerName = step.turnPlayer === 0 ? '我方' : '对方'
-      const phaseName = PHASE_SHORT_NAMES[step.phase] || step.phase
-      items.push({
-        kind: 'separator',
-        key: `separator_${index}_${groupKey}`,
-        label: `第 ${step.turn} 回合 ${playerName} · ${phaseName}`,
-        turnPlayer: step.turnPlayer
-      })
     }
     if (step.actionType !== 'PHASE_CHANGE' && step.actionType !== 'TURN_CHANGE') {
       pending.push({ step, index })

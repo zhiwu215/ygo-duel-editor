@@ -379,7 +379,6 @@ function hasBoardChange(diff: EngineDiffResult): boolean {
   )
 }
 
-/** 从本节点向上找最近一条已记录的步骤（引擎的询问节点本身通常没有步骤） */
 function findHostStep(
   node: EngineTimelineNode,
   timeline: EngineTimelineNode[]
@@ -394,10 +393,6 @@ function findHostStep(
   return null
 }
 
-/**
- * 步骤换挂到"完成节点"。引擎的询问节点（选格位/选祭品/选表示形式/选对象）本身不产生步骤，
- * 但它才是父步骤真正改盘的地方 —— 换挂过去，回退到该步骤时看到的才是"这一步做完"的场面。
- */
 function storeEngineStep(hostId: string, nextId: string | null, step: DuelStep): void {
   engineSteps.delete(hostId)
   const stored: DuelStep = nextId ? { ...step, actId: nextId } : step
@@ -411,10 +406,6 @@ function storeEngineStep(hostId: string, nextId: string | null, step: DuelStep):
   }))
 }
 
-/**
- * PLACE 答案没有独立步骤：放置格位补丁到父步骤（召唤/盖放/发动那一步）上，
- * 并把该步骤换挂到放置完成的节点。
- */
 function patchPlacementStep(
   answer: Extract<Answer, { kind: 'place' }>,
   node: EngineTimelineNode,
@@ -432,7 +423,6 @@ function patchPlacementStep(
   })
 }
 
-/** 询问类答案（祭品/表示形式/选卡）真正改盘时，把改动归属到父步骤并换挂到本节点 */
 function patchCompletedStep(
   node: EngineTimelineNode,
   diff: EngineDiffResult,
@@ -571,7 +561,6 @@ function splitTimeline(
   return { kept: timeline.slice(0, index + 1), dropped: timeline.slice(index + 1) }
 }
 
-/** 从回退点重新编排时，才真正丢弃被覆盖的后续步骤（引擎操作流同步裁剪） */
 function discardFutureSteps(
   keptTimeline: EngineTimelineNode[],
   droppedTimeline: EngineTimelineNode[]

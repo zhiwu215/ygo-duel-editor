@@ -86,11 +86,9 @@ export interface CdbStatusResult {
   ready: boolean
   path: string | null
   loadedPaths: string[]
-  /** 自建卡托管 cdb 的当前路径（设置里标记为托管库，不作为普通附加库卸载） */
   customCdbPath: string
 }
 
-/** 自建卡脚本（c<卡密>.lua）在自建脚本目录中的状态 */
 export interface CustomCardScriptInfo {
   code: number
   fileName: string

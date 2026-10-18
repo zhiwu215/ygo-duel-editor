@@ -302,7 +302,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
 
       // Alt 键拖入已有怪兽格：进行超量叠放（超量怪兽置顶，素材垫在下方）
-      if (card && location === CardLocation.MZONE && e.altKey) {
+      if (!isEngineActive && card && location === CardLocation.MZONE && e.altKey) {
         // 防止自己叠放自己
         if (movedInstanceId && movedInstanceId === card.instanceId) {
           return

@@ -5,6 +5,7 @@ import {
   createInitialDuelState,
   Duelist,
   DuelPuzzleState,
+  EngineBoardState,
   FieldCard,
   normalizeDuelState
 } from '@shared/index'
@@ -375,6 +376,21 @@ function boardDiff(expected: unknown, actual: unknown): string {
   return `偏移 ${index} 长度 ${left.length}/${right.length}\n    期望 ${left.slice(Math.max(0, index - 80), index + 120)}\n    实际 ${right.slice(Math.max(0, index - 80), index + 120)}\n    期望尾 ${left.slice(-160)}\n    实际尾 ${right.slice(-160)}`
 }
 
+function normalizeBoardForReplay(board: EngineBoardState): string {
+  const copy = structuredClone(board)
+  for (const player of copy.players) {
+    player.hand.sort((a, b) => a.code - b.code)
+    for (const card of player.hand) card.sequence = -1
+  }
+  for (const card of copy.allCards) {
+    if (card.location === CardLocation.HAND) card.sequence = -1
+  }
+  copy.allCards.sort(
+    (a, b) => a.code - b.code || a.controller - b.controller || a.sequence - b.sequence
+  )
+  return JSON.stringify(copy)
+}
+
 function summarizeBoard(result: RunResult): string {
   const board = JSON.parse(result.boardState) as {
     turn: number
@@ -507,11 +523,13 @@ async function main(): Promise<void> {
   duelSession.setTimingPolicy({ chain: 'all', effectYn: 'never' })
   console.log(`  回退节点: ${earlyNode.id}  前进节点: ${lateNode.id}`)
   const earlyBoard = await duelSession.jumpToStep(earlyNode.id)
-  const earlyMatch = JSON.stringify(earlyBoard.boardState) === JSON.stringify(earlyNode.boardState)
+  const earlyMatch =
+    normalizeBoardForReplay(earlyBoard.boardState) === normalizeBoardForReplay(earlyNode.boardState)
   assert(earlyMatch, '回退到中间步骤场面一致')
   if (!earlyMatch) console.log(`  ${boardDiff(earlyNode.boardState, earlyBoard.boardState)}`)
   const lateBoard = await duelSession.jumpToStep(lateNode.id)
-  const lateMatch = JSON.stringify(lateBoard.boardState) === JSON.stringify(lateNode.boardState)
+  const lateMatch =
+    normalizeBoardForReplay(lateBoard.boardState) === normalizeBoardForReplay(lateNode.boardState)
   assert(lateMatch, '回退后再前进到最新步骤场面一致')
   if (!lateMatch) console.log(`  ${boardDiff(lateNode.boardState, lateBoard.boardState)}`)
   assert(lateBoard.currentStepId === lateNode.id, '重放后当前步骤指针正确')

@@ -167,9 +167,6 @@ export const DuelBoard: React.FC = () => {
           c.location === location &&
           (ownerScope ? c.duelistId === ownerScope : true)
       )
-      // 主卡组：空闲编排时 sequence 最小 = 卡组顶 = 下一抽，与卡组面板列表最左一张保持一致；
-      // 引擎接管后卡组序号由 ocgcore 给出（数值越大越靠近牌堆顶），改取最大。
-      // 墓地/额外/除外：后加入的压在更上层，数组末位即最新一张。
       if (location === CardLocation.DECK) {
         return pile.reduce<FieldCard | undefined>(
           (top, c) =>

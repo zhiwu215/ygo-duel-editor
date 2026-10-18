@@ -526,7 +526,7 @@ export class DuelSession {
     for (const location of [CardLocation.DECK, CardLocation.EXTRA]) {
       const pile = fieldCards
         .filter((c) => c.location === location)
-        .sort((a, b) => a.controller - b.controller || b.sequence - a.sequence)
+        .sort((a, b) => a.controller - b.controller || a.sequence - b.sequence)
       const pileIndex: [number, number] = [0, 0]
       for (const card of pile) {
         this.newEngineCard({
@@ -926,7 +926,7 @@ export class DuelSession {
         )
       cards
         .filter((card) => card.controller === controller && card.location === CardLocation.DECK)
-        .sort((a, b) => a.sequence - b.sequence)
+        .sort((a, b) => b.sequence - a.sequence)
         .forEach((card, index) =>
           map.set(this.locationKey(controller, CardLocation.DECK, index), card)
         )

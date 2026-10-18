@@ -505,7 +505,7 @@ export const CardContextMenu: React.FC = () => {
         </>
       )}
 
-      {hasOverlayMaterials && (
+      {hasOverlayMaterials && !isEngine && (
         <>
           <Button
             variant="ghost"

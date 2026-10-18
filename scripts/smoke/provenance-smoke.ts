@@ -44,7 +44,7 @@ function makeCard(
 }
 
 function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
-  const p0Deck = [23434538, 14558127, 70342110, 66518841, 97997309]
+  const p0Deck = [97997309, 23434538, 14558127, 70342110, 66518841]
   const p1Deck = [23434538, 14558127, 70342110, 66518841, 97997309]
   const cards: FieldCard[] = [
     ...p0Deck.map((code, i) =>

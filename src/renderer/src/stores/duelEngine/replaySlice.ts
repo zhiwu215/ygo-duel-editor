@@ -29,7 +29,7 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       const preReplayPuzzle = structuredClone(useDuelStore.getState().state)
       const res = await window.api.duelEngineImportReplay()
       if (!res.success || !res.payload) {
-        set({ loading: false, error: res.error ?? '导入 YRP 回放失败' })
+        set({ loading: false, error: res.error ?? '导入 YRP 录像失败' })
         return false
       }
       const { info, boardState, timeline, currentStepId } = res.payload
@@ -62,7 +62,7 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       console.error('[useDuelEngineStore] importReplay failed:', err)
       set({
         loading: false,
-        error: err instanceof Error ? err.message : '导入 YRP 回放失败'
+        error: err instanceof Error ? err.message : '导入 YRP 录像失败'
       })
       return false
     }

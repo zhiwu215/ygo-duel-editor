@@ -160,7 +160,7 @@ export function useProjectCommands(): ProjectCommands {
     if (ok) return
     const error = useDuelEngineStore.getState().error
     if (error) {
-      void alertDialog(`导入 YRP 回放失败\n\n${error}`)
+      void alertDialog(`导入 YRP 录像失败\n\n${error}`)
     }
   }, [])
 

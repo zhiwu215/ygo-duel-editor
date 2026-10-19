@@ -144,7 +144,7 @@ export function registerDuelEngineIpc(): void {
       return {
         success: false,
         filePath: loaded.filePath,
-        error: err instanceof Error ? err.message : '导入 YRP 回放失败'
+        error: err instanceof Error ? err.message : '导入 YRP 录像失败'
       }
     }
   })

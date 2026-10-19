@@ -38,23 +38,26 @@
 
 ## 技术栈
 
-| 技术              | 说明                                      | 官网                                                |
-| ----------------- | ----------------------------------------- | --------------------------------------------------- |
-| Electron 39       | 跨平台桌面应用框架                        | https://www.electronjs.org/                         |
-| electron-vite 5   | Electron 项目的 Vite 集成与构建工具       | https://electron-vite.org/                          |
-| React 19          | UI 框架                                   | https://react.dev/                                  |
-| TypeScript 5      | JavaScript 的类型化超集                   | https://www.typescriptlang.org/                     |
-| TailwindCSS 4     | 原子化 CSS 框架                           | https://tailwindcss.com/                            |
-| shadcn/ui         | 无样式可复制组件库                        | https://ui.shadcn.com/                              |
-| Zustand 5         | 轻量级状态管理                            | https://zustand-demo.pmnd.rs/                       |
-| zundo             | Zustand 的撤销/重做中间件                 | https://github.com/charkour/zundo                   |
-| better-sqlite3    | 同步式 SQLite 客户端                      | https://github.com/WiseLibs/better-sqlite3          |
-| ocgcore-wasm      | ocgcore 决斗引擎的 WebAssembly 移植       | https://github.com/n1xx1/ocgcore-wasm               |
-| ygopro-yrp-encode | YGOPro 录像(.yrp)编码库，用于导出对局回放 | https://github.com/purerosefallen/ygopro-yrp-encode |
-| @dnd-kit          | React 拖拽交互套件                        | https://dndkit.com/                                 |
-| Lucide React      | 简洁的开源图标库                          | https://lucide.dev/                                 |
-| electron-builder  | Electron 应用打包工具                     | https://www.electron.build/                         |
-| Pi Coding Agent   | Pi Agent 的 SDK                           | https://pi.dev/docs/latest/sdk                      |
+| 技术              | 说明                                       | 官网                                                |
+| ----------------- | ------------------------------------------ | --------------------------------------------------- |
+| Electron 39       | 跨平台桌面应用框架                         | https://www.electronjs.org/                         |
+| electron-vite 5   | Electron 项目的 Vite 集成与构建工具        | https://electron-vite.org/                          |
+| React 19          | UI 框架                                    | https://react.dev/                                  |
+| TypeScript 5      | JavaScript 的类型化超集                    | https://www.typescriptlang.org/                     |
+| TailwindCSS 4     | 原子化 CSS 框架                            | https://tailwindcss.com/                            |
+| shadcn/ui         | 无样式可复制组件库                         | https://ui.shadcn.com/                              |
+| Base UI           | React 无头组件原语库（shadcn/ui 底层依赖） | https://base-ui.com/                                |
+| Zustand 5         | 轻量级状态管理                             | https://zustand-demo.pmnd.rs/                       |
+| zundo             | Zustand 的撤销/重做中间件                  | https://github.com/charkour/zundo                   |
+| better-sqlite3    | 同步式 SQLite 客户端                       | https://github.com/WiseLibs/better-sqlite3          |
+| koishipro-core.js | YGOPro 决斗核心（ocgcore）的 WASM 封装     | https://github.com/purerosefallen/koishipro-core.js |
+| ygopro-msg-encode | YGOPro 决斗协议编解码库                    | https://github.com/purerosefallen/ygopro-msg-encode |
+| framer-motion     | React 动画库                               | https://motion.dev/                                 |
+| @dnd-kit          | React 拖拽交互套件                         | https://dndkit.com/                                 |
+| react-markdown    | Markdown 渲染组件（配合 remark-gfm）       | https://github.com/remarkjs/react-markdown          |
+| Lucide React      | 简洁的开源图标库                           | https://lucide.dev/                                 |
+| electron-builder  | Electron 应用打包工具                      | https://www.electron.build/                         |
+| Pi Coding Agent   | Pi Agent 的 SDK                            | https://pi.dev/docs/latest/sdk                      |
 
 ## 开发
 

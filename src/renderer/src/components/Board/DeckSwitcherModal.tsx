@@ -9,7 +9,7 @@ import { useConfigStore } from '../../stores/useConfigStore'
 import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { resolveViewerDuelist } from '../../utils/duelistNames'
 import { CardImage } from '../ui/CardImage'
-import { ArrowLeftRight, X, Search, Layers, SquarePen } from 'lucide-react'
+import { ArrowLeftRight, X, Search, Layers, SquarePen, Plus } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '../../lib/utils'
@@ -101,6 +101,11 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
     void window.api.openDeckEditor(deck.id)
   }
 
+  const handleCreateDeck = (): void => {
+    closeDeckSwitcher()
+    void window.api.openDeckEditor()
+  }
+
   const ctrlLabel = targetDuelist ? targetDuelist.name : controller === 0 ? '我方' : '对方'
   const menuDeck = deckMenu?.deck ?? null
   const menuX = deckMenu ? Math.min(deckMenu.x, window.innerWidth - 200) : 0
@@ -178,6 +183,16 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
               className="h-7 text-xs pl-8 pr-2"
             />
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCreateDeck}
+            className="h-7 text-xs gap-1.5 shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>新增卡组</span>
+          </Button>
         </div>
 
         <ScrollArea className="flex-1 min-h-[240px]">

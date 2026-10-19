@@ -396,9 +396,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         </button>
       )}
 
-      {isHintTarget && card && (
-        <DropHintPopover card={card} location={location} controller={controller} />
-      )}
+      {isHintTarget && card && <DropHintPopover card={card} location={location} />}
 
       {card ? (
         <CardItem key={card.instanceId} card={card} squareCell={isSquareCell} />

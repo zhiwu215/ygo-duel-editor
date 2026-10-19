@@ -32,10 +32,9 @@ const POSITION_OPTIONS: Record<string, { pos: number; label: string }[]> = {
 interface DropHintPopoverProps {
   card: FieldCard
   location: number
-  controller: 0 | 1
 }
 
-export const DropHintPopover: React.FC<DropHintPopoverProps> = ({ card, location, controller }) => {
+export const DropHintPopover: React.FC<DropHintPopoverProps> = ({ card, location }) => {
   const closeHint = useDropHintStore((s) => s.close)
   const updateCardPosition = useDuelStore((s) => s.updateCardPosition)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -56,10 +55,7 @@ export const DropHintPopover: React.FC<DropHintPopoverProps> = ({ card, location
   return (
     <div
       ref={popoverRef}
-      className={cn(
-        'absolute left-1/2 -translate-x-1/2 z-40 flex items-center gap-0.5 whitespace-nowrap bg-popover border border-border rounded-md shadow-lg p-0.5 animate-in fade-in',
-        controller === 1 ? 'top-full mt-1' : 'bottom-full mb-1'
-      )}
+      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 z-40 flex items-center gap-0.5 whitespace-nowrap bg-popover border border-border rounded-md shadow-lg p-0.5 animate-in fade-in"
     >
       {options.map((opt) => (
         <button

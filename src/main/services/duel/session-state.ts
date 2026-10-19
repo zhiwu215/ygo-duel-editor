@@ -4,6 +4,7 @@ import { DEFAULT_TIMING_POLICY, type TimingPolicy } from '@shared/engine/protoco
 import type { DuelOperation } from '@shared/engine/session-doc'
 import type { ProvenanceRecord } from './provenance-tracker'
 import type { DrawEvent } from './engine-pump'
+import type { ReplayPlayback } from './replay-session'
 import { FieldReader } from './field-reader'
 import { EngineTimelineManager } from './timeline-manager'
 
@@ -25,6 +26,7 @@ export interface SessionState {
   ops: DuelOperation[]
   timingPolicy: TimingPolicy
   replaying: boolean
+  replay: ReplayPlayback | null
   provenance: Map<string, ProvenanceRecord>
   sequenceProvenance: Map<string, ProvenanceRecord>
   drawCounts: [number, number]
@@ -52,6 +54,7 @@ export function createSessionState(): SessionState {
     ops: [],
     timingPolicy: { ...DEFAULT_TIMING_POLICY },
     replaying: false,
+    replay: null,
     provenance: new Map(),
     sequenceProvenance: new Map(),
     drawCounts: [0, 0],

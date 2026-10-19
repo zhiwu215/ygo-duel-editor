@@ -15,6 +15,7 @@ export interface ProjectCommands {
   handleTestInYgo: () => Promise<void>
   handleImportLua: () => Promise<void>
   handleExportYrp: () => Promise<void>
+  handleImportReplay: () => Promise<void>
   handleExportScreenplay: () => Promise<void>
   handleExportSession: () => void
   handleImportSession: () => void
@@ -154,6 +155,15 @@ export function useProjectCommands(): ProjectCommands {
     }
   }, [])
 
+  const handleImportReplay = useCallback(async (): Promise<void> => {
+    const ok = await useDuelEngineStore.getState().importReplay()
+    if (ok) return
+    const error = useDuelEngineStore.getState().error
+    if (error) {
+      void alertDialog(`导入 YRP 回放失败\n\n${error}`)
+    }
+  }, [])
+
   const handleExportScreenplay = useCallback(async (): Promise<void> => {
     if (!window.api?.exportScreenplayFile) return
     const res = await window.api.exportScreenplayFile(state)
@@ -187,6 +197,7 @@ export function useProjectCommands(): ProjectCommands {
     handleTestInYgo,
     handleImportLua,
     handleExportYrp,
+    handleImportReplay,
     handleExportScreenplay,
     handleExportSession,
     handleImportSession

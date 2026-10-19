@@ -36,6 +36,7 @@ export const Header: React.FC = () => {
     handleTestInYgo,
     handleImportLua,
     handleExportYrp,
+    handleImportReplay,
     handleExportScreenplay,
     handleExportSession,
     handleImportSession
@@ -75,6 +76,7 @@ export const Header: React.FC = () => {
               onImportLua={handleImportLua}
               onExportLua={handleExportLua}
               onExportYrp={handleExportYrp}
+              onImportReplay={handleImportReplay}
               onExportScreenplay={handleExportScreenplay}
               onExportSession={handleExportSession}
               onImportSession={handleImportSession}

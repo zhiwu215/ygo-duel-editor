@@ -103,6 +103,8 @@ const api: IpcApi = {
   duelEngineRemoveCard: (ref) => ipcRenderer.invoke('duel-engine:remove-card', ref),
   duelEngineExportSession: () => ipcRenderer.invoke('duel-engine:export-session'),
   duelEngineImportSession: () => ipcRenderer.invoke('duel-engine:import-session'),
+  duelEngineImportReplay: () => ipcRenderer.invoke('duel-engine:import-replay'),
+  duelEngineExitReplay: () => ipcRenderer.invoke('duel-engine:exit-replay'),
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   saveProjectToPath: (filePath: string, state: DuelPuzzleState) =>

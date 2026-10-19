@@ -15,6 +15,7 @@ import {
 } from '../../engine/protocol'
 import type { EngineSubmitAnswerResult } from '../../engine/protocol'
 import type { EngineSessionFileResult, EngineSessionImportResult } from '../../engine/sessionDoc'
+import type { EngineImportReplayResult } from './engine'
 import {
   CardSearchFilterOptions,
   CardSearchParams,
@@ -242,6 +243,8 @@ export interface IpcApi {
   duelEngineRemoveCard: (ref: EngineCardRef) => Promise<EngineCardEditResult>
   duelEngineExportSession: () => Promise<EngineSessionFileResult>
   duelEngineImportSession: () => Promise<EngineSessionImportResult>
+  duelEngineImportReplay: () => Promise<EngineImportReplayResult>
+  duelEngineExitReplay: () => Promise<void>
   openSettingsWindow: (section?: SettingsSectionId) => Promise<void>
   onSettingsNavigate: (callback: (section: SettingsSectionId) => void) => () => void
   openExternal: (url: string) => Promise<boolean>

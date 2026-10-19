@@ -49,6 +49,7 @@ export interface MenuActions {
   onImportLua: () => void
   onExportLua: () => void
   onExportYrp: () => void
+  onImportReplay: () => void
   onExportScreenplay?: () => void
   onExportSession: () => void
   onImportSession: () => void
@@ -136,6 +137,11 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           label: '导出 YRP 录像',
           icon: Clapperboard,
           action: actions.onExportYrp
+        },
+        {
+          label: '导入 YRP 回放...',
+          icon: Upload,
+          action: actions.onImportReplay
         },
         {
           label: '导出同人剧本台本',

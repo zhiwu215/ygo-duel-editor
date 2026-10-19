@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { duelDirector } from '../services/duel/duel-director'
 import { sessionDocFileService } from '../services/sessionDocFileService'
+import { yrpReplayFileService } from '../services/yrpReplayFileService'
 import {
   EngineDuelInitParams,
   EngineCardRef,
@@ -8,7 +9,8 @@ import {
   InjectCommand,
   TimingPolicy,
   EngineSessionFileResult,
-  EngineSessionImportResult
+  EngineSessionImportResult,
+  EngineImportReplayResult
 } from '@shared/index'
 
 export function registerDuelEngineIpc(): void {
@@ -127,5 +129,27 @@ export function registerDuelEngineIpc(): void {
         error: err instanceof Error ? err.message : '导入对局剧本失败'
       }
     }
+  })
+
+  ipcMain.handle('duel-engine:import-replay', async (): Promise<EngineImportReplayResult> => {
+    const loaded = await yrpReplayFileService.loadYrpFile()
+    if (!loaded.success || !loaded.bytes || !loaded.fileName) {
+      return { success: false, canceled: loaded.canceled, error: loaded.error }
+    }
+    try {
+      const payload = await duelDirector.startReplay(loaded.bytes, loaded.fileName)
+      return { success: true, filePath: loaded.filePath, payload }
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:import-replay:', err)
+      return {
+        success: false,
+        filePath: loaded.filePath,
+        error: err instanceof Error ? err.message : '导入 YRP 回放失败'
+      }
+    }
+  })
+
+  ipcMain.handle('duel-engine:exit-replay', () => {
+    duelDirector.exitReplay()
   })
 }

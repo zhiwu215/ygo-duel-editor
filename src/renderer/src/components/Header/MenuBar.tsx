@@ -19,6 +19,7 @@ interface MenuBarProps {
   onImportLua: () => void
   onExportLua: () => void
   onExportYrp: () => void
+  onImportReplay: () => void
   onExportScreenplay?: () => void
   onExportSession: () => void
   onImportSession: () => void
@@ -33,6 +34,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   onImportLua,
   onExportLua,
   onExportYrp,
+  onImportReplay,
   onExportScreenplay,
   onExportSession,
   onImportSession
@@ -106,6 +108,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     onImportLua,
     onExportLua,
     onExportYrp,
+    onImportReplay,
     onExportScreenplay,
     onExportSession,
     onImportSession,

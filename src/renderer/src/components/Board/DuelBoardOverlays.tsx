@@ -6,6 +6,7 @@ import { OverlayListModal } from './OverlayListModal'
 import { EngineFeedbackToast } from './EngineFeedbackToast'
 import { EngineCardEditDialogs } from './EngineCardEditDialogs'
 import { DuelSelectionBar } from './DuelSelectionBar'
+import { ReplayBar } from './ReplayBar'
 import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardContextMenu } from './CardContextMenu'
 import { CardCommandMenu } from './CardCommandMenu'
@@ -16,6 +17,8 @@ import { ActionIntentBar } from './ActionIntentBar'
 export const DuelBoardOverlays: React.FC = () => {
   return (
     <>
+      <ReplayBar />
+
       <PhaseBanner />
 
       <LpChangeOverlay />

@@ -24,12 +24,19 @@ import {
   TimingPolicy,
   normalizeTimingPolicy
 } from '@shared/engine/protocol'
+import { createDuelFromYrp } from 'koishipro-core.js'
 import { getOcgcoreEngine } from './ocgcore-engine'
 import { computeDiff } from './diff-resolver'
 import { encodeAnswer, describeAnswer } from './answer-encoder'
 import { describeInject, executeInject, injectCardName, verifyInject } from './injector'
 import { createSessionState } from './session-state'
 import { setupFromPuzzleState, setupFromDeckParams } from './session-setup'
+import {
+  buildReplayTimeline,
+  parseYrpReplay,
+  setupReplayDuel,
+  type EngineReplayStartPayload
+} from './replay-session'
 import {
   alignProvenance,
   cardSignature,
@@ -93,6 +100,11 @@ export class DuelSession {
 
   private createDuelFromInit(): Uint8Array[] {
     const state = this.state
+    if (state.replay) {
+      const { duel } = createDuelFromYrp(state.ocgcore!, state.replay.bytes)
+      state.duel = duel
+      return advanceEngine(state)
+    }
     if (!state.initParams) {
       throw new Error('引擎会话尚未初始化。')
     }
@@ -192,6 +204,7 @@ export class DuelSession {
     state.requestSeq = 1
     state.lastHintDesc = undefined
     state.replaying = false
+    state.replay = null
     state.provenance.clear()
     state.sequenceProvenance.clear()
     state.drawCounts = [0, 0]
@@ -234,6 +247,9 @@ export class DuelSession {
 
   exportSessionDoc(): EngineSessionDoc {
     const state = this.state
+    if (state.replay) {
+      throw new Error('回放模式为只读，无法导出对局剧本。')
+    }
     const current = state.timeline.getCurrentStep()
     if (!state.initParams || !current) {
       throw new Error('引擎尚未启动，无法导出对局剧本。')
@@ -339,8 +355,54 @@ export class DuelSession {
     }
   }
 
+  async startReplay(bytes: Uint8Array, fileName: string): Promise<EngineReplayStartPayload> {
+    const state = this.state
+    await this.init()
+
+    const yrp = parseYrpReplay(bytes, fileName)
+    const previous = this.captureSessionState()
+
+    try {
+      this.disposeDuel()
+      state.timeline.clear()
+      this.resetSessionState()
+      setupReplayDuel(state, yrp, bytes, fileName)
+      const warning = buildReplayTimeline(state, yrp)
+      const currentStepId = state.timeline.getCurrentStep()?.node.id
+      if (!currentStepId) {
+        throw new Error('回放时间线构建失败。')
+      }
+      return {
+        info: {
+          fileName,
+          hostName: yrp.hostName,
+          clientName: yrp.clientName,
+          isSingleMode: yrp.isSingleMode,
+          totalSteps: yrp.responses.length,
+          ...(warning ? { warning } : {})
+        },
+        boardState: this.readBoard(),
+        timeline: state.timeline.getAllNodes(),
+        currentStepId
+      }
+    } catch (err) {
+      this.restoreSessionState(previous)
+      throw err
+    }
+  }
+
+  exitReplay(): void {
+    const state = this.state
+    this.disposeDuel()
+    state.timeline.clear()
+    this.resetSessionState()
+  }
+
   submitAnswer(answer: Answer): EngineSubmitAnswerResult {
     const state = this.state
+    if (state.replay) {
+      throw new Error('回放模式为只读，请先退出回放。')
+    }
     if (!state.duel || state.duel.ended) {
       throw new Error('当前没有进行中的对局。')
     }
@@ -413,6 +475,9 @@ export class DuelSession {
 
   inject(command: InjectCommand): EngineInjectResult {
     const state = this.state
+    if (state.replay) {
+      throw new Error('回放模式为只读，请先退出回放。')
+    }
     if (!state.duel || state.duel.ended) {
       throw new Error('当前没有进行中的对局，无法执行剧情安排。')
     }
@@ -454,6 +519,10 @@ export class DuelSession {
     }
 
     this.replayTo(stepId)
+    if (state.replay) {
+      state.currentPendingMsg = null
+      state.currentPendingRequest = null
+    }
 
     const boardState = this.readBoard()
     alignProvenance(state, boardState)
@@ -518,10 +587,16 @@ export class DuelSession {
   }
 
   replaceCard(ref: EngineCardRef, newCode: number): EngineCardEditResult {
+    if (this.state.replay) {
+      throw new Error('回放模式为只读，请先退出回放。')
+    }
     return replaceCardOp(this.state, this.cardEditorDeps(), ref, newCode)
   }
 
   removeCard(ref: EngineCardRef): EngineCardEditResult {
+    if (this.state.replay) {
+      throw new Error('回放模式为只读，请先退出回放。')
+    }
     return removeCardOp(this.state, this.cardEditorDeps(), ref)
   }
 
@@ -552,6 +627,9 @@ export class DuelSession {
 
   getAllTimelineResponses(): Uint8Array[] {
     const state = this.state
+    if (state.replay) {
+      throw new Error('回放模式为只读，无法导出录像。')
+    }
     const lastOpIndex = state.timeline.getCurrentStep()?.node.opIndex ?? -1
     return state.ops
       .slice(0, lastOpIndex + 1)

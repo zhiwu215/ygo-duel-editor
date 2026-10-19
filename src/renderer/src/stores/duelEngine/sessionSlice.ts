@@ -91,6 +91,13 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   },
 
   stopEngine: () => {
+    const { replayInfo, preReplayPuzzle } = get()
+    if (replayInfo) {
+      void window.api.duelEngineExitReplay().catch(() => undefined)
+      if (preReplayPuzzle) {
+        useDuelStore.getState().loadState(preReplayPuzzle)
+      }
+    }
     clearEngineSteps()
     clearIdentities()
     useDuelStore.getState().exitPreview()
@@ -102,7 +109,9 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       injectNotice: null,
       handShuffle: null,
       pendingRequest: null,
-      lastAttacker: null
+      lastAttacker: null,
+      replayInfo: null,
+      preReplayPuzzle: null
     })
   },
 

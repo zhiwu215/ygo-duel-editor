@@ -18,6 +18,7 @@ import {
 } from '@shared/index'
 import { getOcgcoreEngine } from './ocgcore-engine'
 import { duelSession } from './duel-session'
+import type { EngineReplayStartPayload } from './replay-session'
 
 export class DuelDirector {
   private static instance: DuelDirector
@@ -102,6 +103,14 @@ export class DuelDirector {
 
   importSessionDoc(doc: EngineSessionDoc): Promise<EngineSessionImportPayload> {
     return duelSession.importSessionDoc(doc)
+  }
+
+  startReplay(bytes: Uint8Array, fileName: string): Promise<EngineReplayStartPayload> {
+    return duelSession.startReplay(bytes, fileName)
+  }
+
+  exitReplay(): void {
+    duelSession.exitReplay()
   }
 }
 

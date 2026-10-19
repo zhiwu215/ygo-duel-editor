@@ -68,6 +68,9 @@ importers:
       ygopro-msg-encode:
         specifier: ^1.3.0
         version: 1.3.0
+      ygopro-yrp-encode:
+        specifier: 1.0.8
+        version: 1.0.8
       zundo:
         specifier: ^2.3.0
         version: 2.3.0(zustand@5.0.15(@types/react@19.3.0)(react@19.3.0)(use-sync-external-store@1.7.0(react@19.3.0)))
@@ -75,6 +78,9 @@ importers:
         specifier: ^5.0.15
         version: 5.0.15(@types/react@19.3.0)(react@19.3.0)(use-sync-external-store@1.7.0(react@19.3.0))
     devDependencies:
+      '@cjser/lzma1':
+        specifier: 0.6.1-cjser.2
+        version: 0.6.1-cjser.2
       '@electron-toolkit/eslint-config-prettier':
         specifier: ^3.0.0
         version: 3.0.1(eslint@9.39.4(jiti@2.7.0)(supports-color@7.2.0))(prettier@3.9.9)
@@ -419,6 +425,10 @@ packages:
 
   '@cjser/lzma1@0.3.0-cjser.2':
     resolution: {integrity: sha512-Zpyu58lLYjh/H58Vt3/fc513z5za6EfOUgIp3W3P4WWm9yoNmNbByIsmYOhf2reKh6ZWsI+PSarnMeXa+U8g+w==}
+    engines: {bun: '>=1.0.0', node: '>=18.0.0'}
+
+  '@cjser/lzma1@0.6.1-cjser.2':
+    resolution: {integrity: sha512-tfFya/0TaMf2FscnyQ55Cc6iVCBM6VhoNsHK3otFxvxmkWu55+mSAIOvKpefCc/xO1+XfZD4q17PoacCcIkrwQ==}
     engines: {bun: '>=1.0.0', node: '>=18.0.0'}
 
   '@dnd-kit/accessibility@3.1.1':
@@ -5832,6 +5842,8 @@ snapshots:
       '@types/react': 19.3.0
 
   '@cjser/lzma1@0.3.0-cjser.2': {}
+
+  '@cjser/lzma1@0.6.1-cjser.2': {}
 
   '@dnd-kit/accessibility@3.1.1(react@19.3.0)':
     dependencies:

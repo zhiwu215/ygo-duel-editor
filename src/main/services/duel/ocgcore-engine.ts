@@ -78,6 +78,21 @@ async function loadScriptReaders(): Promise<ScriptReader[]> {
   return readers
 }
 
+const LIBRARY_PRELOAD_SCRIPTS = [
+  'script/patches/entry.lua',
+  'script/special.lua',
+  'script/init.lua'
+]
+
+function createPreloadStubReader(): ScriptReader {
+  return (path: string) => {
+    const normalized = path.replace(/^\.\//, '')
+    if (!LIBRARY_PRELOAD_SCRIPTS.includes(normalized)) return null
+    console.warn(`[ocgcore-engine] stub missing library preload script: ${path}`)
+    return new Uint8Array(0)
+  }
+}
+
 export async function bindEngineCapabilities(wrapper: OcgcoreWrapper): Promise<void> {
   wrapper.setMessageHandler((_, message, type) => {
     console.log(`[Core Log (${type})]: ${message}`)
@@ -91,6 +106,8 @@ export async function bindEngineCapabilities(wrapper: OcgcoreWrapper): Promise<v
   for (const reader of readers) {
     wrapper.setScriptReader(reader)
   }
+
+  wrapper.setScriptReader(createPreloadStubReader())
 }
 
 export async function getOcgcoreEngine(): Promise<OcgcoreWrapper> {

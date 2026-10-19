@@ -209,7 +209,7 @@ export interface IpcApi {
   setCardImageOverride: (code: number, variantCode: number | null) => Promise<boolean>
   onCardImageUpdated: (callback: () => void) => () => void
 
-  openDeckEditor: (deckId?: string) => Promise<void>
+  openDeckEditor: (deckId?: string, createNew?: boolean) => Promise<void>
   consumePendingDeckToEdit: () => Promise<DeckData | null>
   onOpenDeckInEditor: (callback: (deck: DeckData) => void) => () => void
 

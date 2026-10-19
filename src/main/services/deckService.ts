@@ -191,8 +191,20 @@ export class DeckService {
       return null
     }
   }
-  public openDeckEditorWindow(deckId?: string): void {
-    const deck = deckId ? (this.getLibrary().decks.find((d) => d.id === deckId) ?? null) : null
+  public openDeckEditorWindow(deckId?: string, createNew?: boolean): void {
+    const deck = deckId
+      ? (this.getLibrary().decks.find((d) => d.id === deckId) ?? null)
+      : createNew
+        ? {
+            id: `deck_${Date.now()}`,
+            name: '新建卡组',
+            description: '',
+            tags: [],
+            main: [],
+            extra: [],
+            side: []
+          }
+        : null
 
     if (this.deckWindow && !this.deckWindow.isDestroyed()) {
       if (this.deckWindow.isMinimized()) {

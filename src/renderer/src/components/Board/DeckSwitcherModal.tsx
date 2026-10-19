@@ -103,7 +103,7 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
 
   const handleCreateDeck = (): void => {
     closeDeckSwitcher()
-    void window.api.openDeckEditor()
+    void window.api.openDeckEditor(undefined, true)
   }
 
   const ctrlLabel = targetDuelist ? targetDuelist.name : controller === 0 ? '我方' : '对方'

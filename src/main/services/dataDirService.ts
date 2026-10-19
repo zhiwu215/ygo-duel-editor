@@ -13,9 +13,10 @@ import {
 } from 'fs'
 import { DataDirectoryResult } from '@shared/index'
 import { configService } from './configService'
+import { broadcastToWindows } from './broadcast'
 
 const DATA_FILES = ['ygo_duel_editor_decks.json', 'card_notes.json', 'custom_cards.json']
-const DATA_DIRS = ['pics/custom', 'projects', 'texts']
+const DATA_DIRS = ['pics/custom', 'projects', 'texts', 'custom']
 
 let installDataDirectory: string | null | undefined
 
@@ -168,7 +169,7 @@ export class DataDirService {
 
     const moved = doMigrate ? this.migrate(directory) : []
     configService.save({ dataDirectory: directory })
-    this.broadcast()
+    broadcastToWindows('data-dir:changed')
     return { directory, migrated: moved.length > 0 }
   }
 
@@ -176,7 +177,7 @@ export class DataDirService {
     const directory = this.defaultDirectory
     const moved = doMigrate ? this.migrate(directory) : []
     configService.save({ dataDirectory: undefined })
-    this.broadcast()
+    broadcastToWindows('data-dir:changed')
     return { directory, migrated: moved.length > 0 }
   }
 
@@ -185,12 +186,6 @@ export class DataDirService {
       await shell.openPath(this.getDataDirectory())
     } catch (err) {
       console.error('[DataDirService] openDataDirectory failed:', err)
-    }
-  }
-
-  private broadcast(): void {
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send('data-dir:changed')
     }
   }
 }

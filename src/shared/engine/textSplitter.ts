@@ -1,11 +1,11 @@
-export interface ParsedChapter {
+interface ParsedChapter {
   title: string
   index: number
   content: string
   wordCount: number
 }
 
-export interface SplitResult {
+interface SplitResult {
   chapters: ParsedChapter[]
 
   strategy: 'heading' | 'regex' | 'whole'
@@ -40,7 +40,7 @@ function normalizeText(raw: string): string {
   )
 }
 
-export function isHeadingLine(line: string): boolean {
+function isHeadingLine(line: string): boolean {
   const trimmed = line.trim()
   if (!trimmed || trimmed.length > 60) return false
   return HEADING_PATTERNS.some((re) => re.test(trimmed))

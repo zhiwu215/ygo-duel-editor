@@ -1,21 +1,19 @@
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { useDraggable, useDndContext, useDroppable } from '@dnd-kit/core'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { canPlaceInSection, CdbCard, DeckSection } from '@shared/index'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { Button } from '../ui/button'
 import { Search, Star, Layers, Loader2, Minus, Plus } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { CardRowItem } from '../CardSearch/CardRowItem'
 import { SORT_OPTIONS } from '../CardSearch/sortOptions'
 import { cn } from '../../lib/utils'
-import {
-  DeckDragSourceData,
-  DeckDropTargetData,
-  DECK_SECTION_NAMES,
-  deckDragGuard
-} from './deckDnd'
+import { DeckDragSourceData, DeckDropTargetData, DECK_SECTION_NAMES } from './deckDnd'
+import { SearchCardItem } from './SearchCardItem'
+import { useFavoriteCards } from '../../hooks/useFavoriteCards'
+import { useInfiniteSentinel } from '../../hooks/useInfiniteSentinel'
+import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 
 interface DeckSearchPanelProps {
   onSelectCard: (card: CdbCard | null) => void
@@ -54,57 +52,6 @@ const DeckRemoveFeedback: React.FC = () => {
   )
 }
 
-interface SearchCardItemProps {
-  card: CdbCard
-  fav: boolean
-  onSelectCard: (card: CdbCard | null) => void
-  onAddCard: (card: CdbCard, section?: DeckSection) => boolean
-  onToggleFavorite: (code: number) => void
-  onOpenMenu: (card: CdbCard, x: number, y: number) => void
-}
-
-const SearchCardItem: React.FC<SearchCardItemProps> = ({
-  card,
-  fav,
-  onSelectCard,
-  onAddCard,
-  onToggleFavorite,
-  onOpenMenu
-}) => {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `search:${card.id}`,
-    data: { source: 'search', card } as DeckDragSourceData
-  })
-
-  const handleClick = (): void => {
-    if (Date.now() - deckDragGuard.lastDragEndAt < 250) return
-    onAddCard(card)
-  }
-
-  const handleContextMenu = (e: React.MouseEvent): void => {
-    e.preventDefault()
-    onOpenMenu(card, e.clientX, e.clientY)
-  }
-
-  return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      onClick={handleClick}
-      onContextMenu={handleContextMenu}
-      className={cn(isDragging && 'opacity-40')}
-    >
-      <CardRowItem
-        card={card}
-        isFavorite={fav}
-        onToggleFavorite={onToggleFavorite}
-        onHover={onSelectCard}
-      />
-    </div>
-  )
-}
-
 export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, onAddCard }) => {
   const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search')
   const [cardMenu, setCardMenu] = useState<{ card: CdbCard; x: number; y: number } | null>(null)
@@ -123,88 +70,23 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
   } = useCardSearchStore()
 
   const { favorites, isFavorite, toggleFavorite, loadFavorites } = useFavoritesStore()
-  const [favoriteCards, setFavoriteCards] = useState<CdbCard[]>([])
+  const favoriteCards = useFavoriteCards(activeTab === 'favorites', favorites)
   const sortLabel = SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? SORT_OPTIONS[0].label
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
-  // 初始加载收藏夹
   useEffect(() => {
     void loadFavorites()
   }, [loadFavorites])
 
-  // 卡组编辑器窗口持有独立的搜索 store，首次挂载时拉一页默认结果
   useEffect(() => {
     void search({ limit: 40 })
   }, [search])
 
-  // 下滑到底自动续拉，对齐 YGOPro 没有「加载更多」按钮的结果列表
-  useEffect(() => {
-    if (activeTab !== 'search' || !hasMore) return
-    const node = sentinelRef.current
-    if (!node) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) void loadMore()
-      },
-      { rootMargin: '320px' }
-    )
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [activeTab, hasMore, loadMore, results.length])
+  useInfiniteSentinel(sentinelRef, activeTab === 'search' && hasMore, loadMore, results.length)
 
-  // 当切换到收藏夹或收藏列表变化时，拉取收藏卡的详细数据
-  useEffect(() => {
-    let canceled = false
-    if (activeTab !== 'favorites' || favorites.length === 0) {
-      Promise.resolve().then(() => {
-        if (!canceled) setFavoriteCards([])
-      })
-      return () => {
-        canceled = true
-      }
-    }
-    window.api
-      ?.getCardsByIds(favorites)
-      .then((map) => {
-        if (canceled) return
-        const list = favorites.map((code) => map[code]).filter(Boolean) as CdbCard[]
-        setFavoriteCards(list)
-      })
-      .catch((err) => console.error('[DeckSearchPanel] load favorites details error:', err))
-    return () => {
-      canceled = true
-    }
-  }, [activeTab, favorites])
+  const closeCardMenu = useCallback((): void => setCardMenu(null), [])
 
-  // 卡库变更后刷新收藏卡详情；搜索结果由 useCardSearchStore 自行重查
-  useEffect(() => {
-    return window.api.onCdbUpdated(() => {
-      if (activeTab !== 'favorites' || favorites.length === 0) return
-      void window.api
-        .getCardsByIds(favorites)
-        .then((map) => {
-          setFavoriteCards(favorites.map((code) => map[code]).filter(Boolean) as CdbCard[])
-        })
-        .catch((err) => console.error('[DeckSearchPanel] refresh favorites error:', err))
-    })
-  }, [activeTab, favorites])
-
-  // 右键菜单：点空白处 / 改窗口尺寸 / Esc 关闭
-  useEffect(() => {
-    if (!cardMenu) return
-    const close = (): void => setCardMenu(null)
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setCardMenu(null)
-    }
-    window.addEventListener('mousedown', close)
-    window.addEventListener('resize', close)
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('resize', close)
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [cardMenu])
+  useDismissOnOutside(null, Boolean(cardMenu), closeCardMenu)
 
   const handleOpenMenu = useCallback((card: CdbCard, x: number, y: number): void => {
     setCardMenu({ card, x, y })
@@ -216,7 +98,6 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
 
   return (
     <SearchPanelDropZone className="relative w-[270px] lg:w-[320px] xl:w-[400px] h-full flex flex-col bg-card border-l border-border select-none shrink-0">
-      {/* 1. 顶部 Tab 切换 */}
       <div className="flex items-center border-b border-border/80 p-1.5 gap-1 bg-muted/40">
         <button
           type="button"
@@ -251,7 +132,6 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
         </button>
       </div>
 
-      {/* 2. 结果计数 + 排序（对应 YGOPro 悬浮在结果列表上方的 wSort） */}
       {activeTab === 'search' && (
         <div className="px-2.5 py-1 border-b border-border/40 bg-muted/20 flex items-center justify-between gap-2 text-[11px] shrink-0">
           <span className="text-muted-foreground shrink-0">

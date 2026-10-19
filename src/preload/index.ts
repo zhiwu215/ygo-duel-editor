@@ -11,13 +11,11 @@ import {
   CardNote,
   CardNoteKind,
   SettingsSectionId,
-  EngineProbeOptionsParams,
-  EngineProbeOptionsResult,
-  EngineProbeActionParams,
-  EngineProbeActionResult,
-  EngineProbeSelectParams,
   EngineExportReplayParams,
-  EngineExportReplayResult
+  EngineExportReplayResult,
+  Answer,
+  InjectCommand,
+  TimingPolicy
 } from '@shared/index'
 
 const api: IpcApi = {
@@ -38,6 +36,10 @@ const api: IpcApi = {
   deleteCustomCard: (id) => ipcRenderer.invoke('customcard:delete', id),
   pickCustomCardImage: () => ipcRenderer.invoke('customcard:pick-image'),
   applyCustomCardImage: (id) => ipcRenderer.invoke('customcard:apply-image', id),
+  getCustomCardScript: (code) => ipcRenderer.invoke('customcard:script-info', code),
+  pickCustomCardScript: (code) => ipcRenderer.invoke('customcard:pick-script', code),
+  deleteCustomCardScript: (code) => ipcRenderer.invoke('customcard:delete-script', code),
+  openCustomCardScriptDir: () => ipcRenderer.invoke('customcard:open-script-dir'),
   onCustomCardsUpdated: (callback) => {
     const handler = (): void => callback()
     ipcRenderer.on('custom-cards:updated', handler)
@@ -83,22 +85,24 @@ const api: IpcApi = {
   reorderCardNotes: (cardCode: number, kind: CardNoteKind, labels: string[]) =>
     ipcRenderer.invoke('note:reorder', cardCode, kind, labels),
 
-  testRunOcgcore: () => ipcRenderer.invoke('ocgcore:test-run'),
-
-  duelProbeOptions: (params: EngineProbeOptionsParams): Promise<EngineProbeOptionsResult> =>
-    ipcRenderer.invoke('duel:probe-options', params),
-
-  duelProbeAction: (params: EngineProbeActionParams): Promise<EngineProbeActionResult> =>
-    ipcRenderer.invoke('duel:probe-action', params),
-
-  duelProbeSelect: (params: EngineProbeSelectParams): Promise<EngineProbeActionResult> =>
-    ipcRenderer.invoke('duel:probe-select', params),
-
-  duelProbeCancelSelect: (sessionId: string): Promise<void> =>
-    ipcRenderer.invoke('duel:probe-cancel-select', sessionId),
-
   duelExportReplay: (params: EngineExportReplayParams): Promise<EngineExportReplayResult> =>
     ipcRenderer.invoke('duel:export-replay', params),
+
+  duelEngineInit: (params) => ipcRenderer.invoke('duel-engine:init', params),
+  duelEngineSetPolicy: (policy: TimingPolicy) =>
+    ipcRenderer.invoke('duel-engine:set-policy', policy),
+  duelEngineSubmitAnswer: (answer: Answer) =>
+    ipcRenderer.invoke('duel-engine:submit-answer', answer),
+  duelEngineInject: (command: InjectCommand) => ipcRenderer.invoke('duel-engine:inject', command),
+  duelEngineGetPendingRequest: () => ipcRenderer.invoke('duel-engine:get-pending-request'),
+  duelEngineJumpToStep: (stepId) => ipcRenderer.invoke('duel-engine:jump-to-step', stepId),
+  duelEngineGetTimeline: () => ipcRenderer.invoke('duel-engine:get-timeline'),
+  duelEngineGetProvenance: (ref) => ipcRenderer.invoke('duel-engine:provenance', ref),
+  duelEngineReplaceCard: (ref, newCode) =>
+    ipcRenderer.invoke('duel-engine:replace-card', ref, newCode),
+  duelEngineRemoveCard: (ref) => ipcRenderer.invoke('duel-engine:remove-card', ref),
+  duelEngineExportSession: () => ipcRenderer.invoke('duel-engine:export-session'),
+  duelEngineImportSession: () => ipcRenderer.invoke('duel-engine:import-session'),
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   saveProjectToPath: (filePath: string, state: DuelPuzzleState) =>
@@ -116,7 +120,6 @@ const api: IpcApi = {
   openProjectsDirectory: () => ipcRenderer.invoke('file:open-projects-dir'),
   selectProjectsDirectory: () => ipcRenderer.invoke('file:select-projects-dir'),
 
-  getDataDirectory: () => ipcRenderer.invoke('data:get-dir'),
   getDefaultDataDirectory: () => ipcRenderer.invoke('data:get-default-dir'),
   openDataDirectory: () => ipcRenderer.invoke('data:open-dir'),
   selectDataDirectory: (migrate: boolean) => ipcRenderer.invoke('data:select-dir', migrate),
@@ -149,9 +152,6 @@ const api: IpcApi = {
     }
   },
 
-  getCardImagePath: (code: number, small?: boolean) =>
-    ipcRenderer.invoke('image:get-path', code, small),
-
   openDeckEditor: (deckId?: string) => ipcRenderer.invoke('window:open-deck-editor', deckId),
   consumePendingDeckToEdit: () => ipcRenderer.invoke('deck:consume-pending-edit'),
   onOpenDeckInEditor: (callback) => {
@@ -161,8 +161,6 @@ const api: IpcApi = {
       ipcRenderer.removeListener('deck:open-in-editor', handler)
     }
   },
-  getDeckList: () => ipcRenderer.invoke('deck:get-list'),
-
   getDeckLibrary: () => ipcRenderer.invoke('deck:get-library'),
   createDeckGroup: (name, parent) => ipcRenderer.invoke('deck:create-group', name, parent ?? null),
   renameDeckGroup: (oldName, newName) => ipcRenderer.invoke('deck:rename-group', oldName, newName),
@@ -173,17 +171,6 @@ const api: IpcApi = {
   duplicateDeckInLibrary: (id) => ipcRenderer.invoke('deck:duplicate-in-library', id),
   saveDeckFile: (deck) => ipcRenderer.invoke('deck:save-file', deck),
   loadDeckFile: () => ipcRenderer.invoke('deck:load-file'),
-  applyDeckToDuel: (params) => ipcRenderer.invoke('deck:apply-to-duel', params),
-  onApplyDeckToDuel: (callback) => {
-    const handler = (
-      _: unknown,
-      params: { player: 0 | 1; deck: DeckData; drawCount?: number }
-    ): void => callback(params)
-    ipcRenderer.on('deck:applied-to-duel', handler)
-    return () => {
-      ipcRenderer.removeListener('deck:applied-to-duel', handler)
-    }
-  },
 
   getFavorites: () => ipcRenderer.invoke('favorites:get'),
   toggleFavorite: (code) => ipcRenderer.invoke('favorites:toggle', code),

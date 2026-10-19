@@ -4,6 +4,7 @@ import { Crown } from 'lucide-react'
 import { Duelist } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { cn } from '../../../lib/utils'
+import { turnOrderOf } from '../../../utils/duelistNames'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '../../ui/select'
 
 interface TurnOrderBadgeProps {
@@ -19,7 +20,7 @@ export const TurnOrderBadge: React.FC<TurnOrderBadgeProps> = ({
 }) => {
   const { setDuelistTurnOrder } = useDuelStore()
 
-  const currentOrder = duelist.turnOrder ?? (duelist.isFirst ? 1 : 2)
+  const currentOrder = turnOrderOf(duelist)
   const isFirst = currentOrder === 1
   const orders = Array.from({ length: Math.max(2, totalCount) }, (_, i) => i + 1)
   const orderLabel = (order: number): string =>
@@ -39,7 +40,6 @@ export const TurnOrderBadge: React.FC<TurnOrderBadgeProps> = ({
                 className
               )}
             >
-              {/* 视觉展现徽标 */}
               <div
                 className={cn(
                   'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all',

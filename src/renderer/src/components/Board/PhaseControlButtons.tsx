@@ -1,7 +1,8 @@
 import React from 'react'
 import { DuelPhase } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useRuleCheck } from '../../stores/useRuleCheckStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { canBp, canM2, canEp } from '../../utils/phaseFlow'
 import { cn } from '../../lib/utils'
 
 const PHASE_LABELS: Record<DuelPhase, string> = {
@@ -29,12 +30,16 @@ export const PhaseStatusButton: React.FC = () => {
 
 export const PhaseMiddleButton: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
+  const setCurrentPhase = useDuelStore((s) => s.setCurrentPhase)
   const activeTurnPlayer = useDuelStore((s) => s.activeTurnPlayer)
-  const executePhaseChange = useDuelStore((s) => s.executePhaseChange)
   const executeDrawCard = useDuelStore((s) => s.executeDrawCard)
-  const rule = useRuleCheck()
+  const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  const canEnterBp = canBp(pendingRequest)
+  const canEnterM2 = canM2(pendingRequest)
 
   if (currentPhase === 'DP') {
+    if (isEngine) return null
     return (
       <button
         type="button"
@@ -50,12 +55,15 @@ export const PhaseMiddleButton: React.FC = () => {
   }
 
   if (currentPhase === 'M1') {
-    const canBp = !rule.active || rule.probe?.toBp === true
-    if (!canBp) return null
+    if (isEngine && !canEnterBp) return null
     return (
       <button
         type="button"
-        onClick={() => void executePhaseChange('BP')}
+        onClick={() => {
+          if (isEngine && canEnterBp) {
+            void useDuelEngineStore.getState().submitAnswer({ kind: 'idle', cmd: 'TO_BP' })
+          } else setCurrentPhase('BP')
+        }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
           'border-neutral-400 dark:border-neutral-500 bg-neutral-200/95 dark:bg-neutral-700/95 hover:bg-neutral-100 dark:hover:bg-neutral-600 active:bg-neutral-300 text-neutral-900 dark:text-neutral-100 shadow-xs'
@@ -67,12 +75,15 @@ export const PhaseMiddleButton: React.FC = () => {
   }
 
   if (currentPhase === 'BP') {
-    const canM2 = !rule.active || rule.probe?.toM2 === true
-    if (!canM2) return null
+    if (isEngine && !canEnterM2) return null
     return (
       <button
         type="button"
-        onClick={() => void executePhaseChange('M2')}
+        onClick={() => {
+          if (isEngine && canEnterM2) {
+            void useDuelEngineStore.getState().submitAnswer({ kind: 'battle', cmd: 'TO_M2' })
+          } else setCurrentPhase('M2')
+        }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
           'border-neutral-400 dark:border-neutral-500 bg-neutral-200/95 dark:bg-neutral-700/95 hover:bg-neutral-100 dark:hover:bg-neutral-600 active:bg-neutral-300 text-neutral-900 dark:text-neutral-100 shadow-xs'
@@ -89,11 +100,13 @@ export const PhaseMiddleButton: React.FC = () => {
 export const PhaseEpButton: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
   const setCurrentPhase = useDuelStore((s) => s.setCurrentPhase)
-  const executePhaseChange = useDuelStore((s) => s.executePhaseChange)
   const nextTurn = useDuelStore((s) => s.nextTurn)
-  const rule = useRuleCheck()
+  const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  const canEnterEp = canEp(pendingRequest)
 
   if (currentPhase === 'DP' || currentPhase === 'SP') {
+    if (isEngine) return null
     return (
       <button
         type="button"
@@ -109,12 +122,21 @@ export const PhaseEpButton: React.FC = () => {
   }
 
   if (currentPhase === 'M1' || currentPhase === 'BP' || currentPhase === 'M2') {
-    const canEp = !rule.active || rule.probe?.toEp === true
-    if (!canEp) return null
+    if (isEngine && !canEnterEp) return null
     return (
       <button
         type="button"
-        onClick={() => void executePhaseChange('EP')}
+        onClick={() => {
+          if (isEngine && canEnterEp) {
+            void useDuelEngineStore
+              .getState()
+              .submitAnswer(
+                pendingRequest?.kind === 'battle'
+                  ? { kind: 'battle', cmd: 'TO_EP' }
+                  : { kind: 'idle', cmd: 'TO_EP' }
+              )
+          } else setCurrentPhase('EP')
+        }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
           'border-neutral-400 dark:border-neutral-500 bg-neutral-200/95 dark:bg-neutral-700/95 hover:bg-neutral-100 dark:hover:bg-neutral-600 active:bg-neutral-300 text-neutral-900 dark:text-neutral-100 shadow-xs'
@@ -126,6 +148,7 @@ export const PhaseEpButton: React.FC = () => {
   }
 
   if (currentPhase === 'EP') {
+    if (isEngine) return null
     return (
       <button
         type="button"

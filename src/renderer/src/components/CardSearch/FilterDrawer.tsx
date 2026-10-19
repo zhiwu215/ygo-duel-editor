@@ -1,7 +1,7 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React from 'react'
-import { SlidersHorizontal, RotateCcw, CheckSquare, Square, Search, Loader2 } from 'lucide-react'
+import { SlidersHorizontal, RotateCcw, CheckSquare, Square, Search } from 'lucide-react'
 import {
   CardType,
   CardAttribute,
@@ -9,10 +9,8 @@ import {
   CardRace,
   RACE_NAMES,
   CardPoolFilter,
-  CardSearchFilterOptions,
   LimitFilter,
-  LINK_MARKERS,
-  NumericCompareOp
+  LINK_MARKERS
 } from '@shared/index'
 import { CardSearchFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { Button } from '../ui/button'
@@ -21,9 +19,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { LinkMarkerPopover } from './LinkMarkerPopover'
 import { EffectCategoryPopover } from './EffectCategoryPopover'
 import { SORT_OPTIONS } from './sortOptions'
+import { FilterField } from './FilterField'
+import { NumericRow } from './NumericRow'
+import { FilterBand } from './FilterBand'
+import {
+  CARD_POOL_OPTIONS,
+  LIMIT_OPTIONS,
+  MONSTER_SUB_TYPES,
+  NONE_LABEL,
+  SPELL_SUB_TYPES,
+  TRAP_SUB_TYPES
+} from './filterOptions'
+import { useCardFilterOptions } from '../../hooks/useCardFilterOptions'
 import { cn } from '../../lib/utils'
-
-const NONE_LABEL = '（无）'
 
 const MAIN_TYPES = [
   { label: NONE_LABEL, value: 0 },
@@ -32,220 +40,24 @@ const MAIN_TYPES = [
   { label: '陷阱', value: CardType.TRAP }
 ]
 
-/** 使用 YGOPro 的细分类型值：怪兽按位包含筛选，魔法/陷阱按完整类型精确匹配。 */
-const MONSTER_SUB_TYPES = [
-  { label: NONE_LABEL, value: 0 },
-  { label: '通常怪兽', value: CardType.MONSTER | CardType.NORMAL },
-  { label: '效果怪兽', value: CardType.MONSTER | CardType.EFFECT },
-  { label: '融合怪兽', value: CardType.MONSTER | CardType.FUSION },
-  { label: '仪式怪兽', value: CardType.MONSTER | CardType.RITUAL },
-  { label: '同调怪兽', value: CardType.MONSTER | CardType.SYNCHRO },
-  { label: '超量怪兽', value: CardType.MONSTER | CardType.XYZ },
-  { label: '灵摆怪兽', value: CardType.MONSTER | CardType.PENDULUM },
-  { label: '连接怪兽', value: CardType.MONSTER | CardType.LINK },
-  { label: '特殊召唤怪兽', value: CardType.MONSTER | CardType.SPECIAL_SUMMON },
-  { label: '调整', value: CardType.MONSTER | CardType.TUNER },
-  { label: '通常调整', value: CardType.MONSTER | CardType.NORMAL | CardType.TUNER },
-  { label: '通常灵摆', value: CardType.MONSTER | CardType.NORMAL | CardType.PENDULUM },
-  { label: '同调调整', value: CardType.MONSTER | CardType.SYNCHRO | CardType.TUNER },
-  { label: '灵摆调整', value: CardType.MONSTER | CardType.PENDULUM | CardType.TUNER },
-  { label: '灵摆效果怪兽', value: CardType.MONSTER | CardType.PENDULUM | CardType.EFFECT },
-  { label: '翻转怪兽', value: CardType.MONSTER | CardType.FLIP },
-  { label: '灵摆翻转怪兽', value: CardType.MONSTER | CardType.PENDULUM | CardType.FLIP },
-  { label: '灵魂怪兽', value: CardType.MONSTER | CardType.SPIRIT },
-  { label: '同盟怪兽', value: CardType.MONSTER | CardType.UNION },
-  { label: '二重怪兽', value: CardType.MONSTER | CardType.GEMINI },
-  { label: '卡通怪兽', value: CardType.MONSTER | CardType.TOON },
-  { label: '衍生物', value: CardType.MONSTER | CardType.TOKEN }
-]
-
-const SPELL_SUB_TYPES = [
-  { label: NONE_LABEL, value: 0 },
-  { label: '通常魔法', value: CardType.SPELL },
-  { label: '速攻魔法', value: CardType.SPELL | CardType.QUICKPLAY },
-  { label: '永续魔法', value: CardType.SPELL | CardType.CONTINUOUS },
-  { label: '装备魔法', value: CardType.SPELL | CardType.EQUIP },
-  { label: '场地魔法', value: CardType.SPELL | CardType.FIELD },
-  { label: '仪式魔法', value: CardType.SPELL | CardType.RITUAL }
-]
-
-const TRAP_SUB_TYPES = [
-  { label: NONE_LABEL, value: 0 },
-  { label: '通常陷阱', value: CardType.TRAP },
-  { label: '永续陷阱', value: CardType.TRAP | CardType.CONTINUOUS },
-  { label: '反击陷阱', value: CardType.TRAP | CardType.COUNTER }
-]
-
-const OP_PREFIX: Record<NumericCompareOp, string> = {
-  eq: '',
-  gt: '>',
-  gte: '>=',
-  lt: '<',
-  lte: '<=',
-  unknown: '?'
-}
-
-const PREFIX_TO_OP: Record<string, NumericCompareOp> = {
-  '>=': 'gte',
-  '<=': 'lte',
-  '>': 'gt',
-  '<': 'lt',
-  '=': 'eq'
-}
-
-function filterText(value: number | undefined, op: NumericCompareOp): string {
-  if (op === 'unknown') return '?'
-  if (value === undefined || Number.isNaN(value)) return ''
-  return `${OP_PREFIX[op]}${value}`
-}
-
-function parseFilterText(
-  text: string,
-  allowUnknown: boolean
-): { value: number | undefined; op: NumericCompareOp } {
-  const raw = text.trim()
-  if (raw === '') return { value: undefined, op: 'eq' }
-  if (raw === '?') return { value: undefined, op: allowUnknown ? 'unknown' : 'eq' }
-  const matched = /^(>=|<=|>|<|=)?\s*(-?\d+)$/.exec(raw)
-  if (!matched) return { value: undefined, op: 'eq' }
-  return { value: parseInt(matched[2], 10), op: PREFIX_TO_OP[matched[1] ?? '='] }
-}
-
-const LIMIT_OPTIONS: Array<{ value: LimitFilter; label: string }> = [
-  { value: 0, label: '不限' },
-  { value: 1, label: '禁止' },
-  { value: 2, label: '限制' },
-  { value: 3, label: '准限制' }
-]
-
 const NONE_VALUE = '__none__'
 const LIMIT_VALUE_PREFIX = 'limit:'
 
-/**
- * 赛区卡池选项。
- * ocg/tcg 判「可用」，ocgOnly/tcgOnly 判「独有」（对齐 YGOPro 的下拉四项）；
- * anime/rush/tf 按所属卡库标记判定，未加载对应标记的附加库时该项不显示。
- */
-interface CardPoolOptionItem {
-  value: CardPoolFilter
-  label: string
-  tag?: string
+function isLinkSelection(type: number, subType: number, markers: number): boolean {
+  if (subType === (CardType.MONSTER | CardType.LINK)) return true
+  if (type !== 0 && (type & CardType.LINK) !== 0) return true
+  return markers !== 0
 }
 
-const CARD_POOL_OPTIONS: CardPoolOptionItem[] = [
-  { value: 'any', label: '全部卡池' },
-  { value: 'ocg', label: 'OCG' },
-  { value: 'tcg', label: 'TCG' },
-  { value: 'ocgOnly', label: 'OCG 独有' },
-  { value: 'tcgOnly', label: 'TCG 独有' },
-  { value: 'anime', label: '动漫/漫画', tag: 'anime' },
-  { value: 'rush', label: '超速（Rush）', tag: 'rush' },
-  { value: 'tf', label: '卡片力量（TF）', tag: 'tf' }
-]
-
-interface FilterFieldProps {
-  label: string
-  tooltip?: string
-  disabled?: boolean
-  labelClassName?: string
-  className?: string
-  children: React.ReactNode
-}
-
-/** YGOPro 式行内字段：左侧定宽标签，右侧控件依次排列 */
-const FilterField: React.FC<FilterFieldProps> = ({
-  label,
-  tooltip,
-  disabled,
-  labelClassName,
-  className,
-  children
-}) => {
-  const labelNode = (
-    <span
-      className={cn(
-        'w-9 shrink-0 whitespace-nowrap text-[11px] leading-none text-muted-foreground/90',
-        disabled && 'opacity-50',
-        labelClassName
-      )}
-    >
-      {label}
-    </span>
-  )
-  return (
-    <div className={cn('flex min-w-0 items-center gap-1', className)}>
-      {tooltip ? (
-        <Tooltip>
-          <TooltipTrigger render={labelNode} />
-          <TooltipContent>{tooltip}</TooltipContent>
-        </Tooltip>
-      ) : (
-        labelNode
-      )}
-      {children}
-    </div>
-  )
-}
-
-interface NumericRowProps {
-  label: string
-  tooltip?: string
-  op: NumericCompareOp
-  value: number | undefined
-  allowUnknown?: boolean
-  disabled?: boolean
-  className?: string
-  inputClassName?: string
-  onChange: (value: number | undefined, op: NumericCompareOp) => void
-}
-
-const NumericRow: React.FC<NumericRowProps> = ({
-  label,
-  tooltip,
-  op,
-  value,
-  allowUnknown = false,
-  disabled = false,
-  className,
-  inputClassName = 'h-7',
-  onChange
-}) => {
-  const [draft, setDraft] = React.useState<string | null>(null)
-  return (
-    <FilterField label={label} tooltip={tooltip} disabled={disabled} className={className}>
-      <Input
-        type="text"
-        inputMode="numeric"
-        disabled={disabled}
-        value={draft ?? filterText(value, op)}
-        onChange={(e) => {
-          const next = e.target.value
-          setDraft(next)
-          const parsed = parseFilterText(next, allowUnknown)
-          onChange(parsed.value, parsed.op)
-        }}
-        onBlur={() => setDraft(null)}
-        className={cn(inputClassName, 'min-w-0 flex-1 px-1.5 text-xs')}
-      />
-    </FilterField>
-  )
-}
-
-/** Link 怪兽没有守备力，切到 Link 条件时顺手清掉已填的 DEF 避免筛出空集 */
 function clearDefIfLink(
   nextMarkers: number,
   nextSubType: number,
   nextType: number
 ): Pick<CardSearchFilters, 'def' | 'defOp'> | Record<string, never> {
-  const isLink =
-    nextSubType === (CardType.MONSTER | CardType.LINK) ||
-    (nextType !== 0 && (nextType & CardType.LINK) !== 0) ||
-    nextMarkers !== 0
-  return isLink ? { def: undefined, defOp: 'eq' } : {}
+  return isLinkSelection(nextType, nextSubType, nextMarkers) ? { def: undefined, defOp: 'eq' } : {}
 }
 
 interface FilterDrawerProps {
-  /** drawer = 主窗口右侧滑出抽屉；band = 卡组编辑器顶部常驻横带（对齐 YGOPro wFilter） */
   variant?: 'drawer' | 'band'
   className?: string
   headerSlot?: React.ReactNode
@@ -297,30 +109,8 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     void search({ keyword: trimmed })
   }
 
-  const [filterOptions, setFilterOptions] = React.useState<CardSearchFilterOptions>({
-    effectCategories: [],
-    availablePools: []
-  })
+  const filterOptions = useCardFilterOptions()
 
-  React.useEffect(() => {
-    let isActive = true
-    const load = (): void => {
-      window.api
-        .getCardSearchFilterOptions()
-        .then((options) => {
-          if (isActive) setFilterOptions(options)
-        })
-        .catch((error) => console.error('[FilterDrawer] Failed to load filter labels:', error))
-    }
-    load()
-    const unsubscribe = window.api.onCdbUpdated?.(load)
-    return () => {
-      isActive = false
-      unsubscribe?.()
-    }
-  }, [])
-
-  // 根据当前主种类动态获得子种类列表
   const currentSubTypes = React.useMemo(() => {
     if (type === CardType.SPELL) return SPELL_SUB_TYPES
     if (type === CardType.TRAP) return TRAP_SUB_TYPES
@@ -347,22 +137,14 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     limitFilter !== 0 ? limitLabel : cardPool === 'any' ? NONE_LABEL : cardPoolLabel
   const markerCount = LINK_MARKERS.filter((m) => (markers & m.mask) !== 0).length
 
-  /**
-   * 联动规则严格对齐 YGOPro 的 COMBOBOX_MAINTYPE 分支：
-   * - 大类 = 全部种类：细分类型 / 属性 / 种族 / 等级 / 刻度 / 攻防 全部不可选
-   * - 大类 = 魔法 / 陷阱：仅细分类型可选，其余全部不可选
-   * - 大类 = 怪兽：全部可选
-   * - 细分类型 = 连接：守备力不可选
-   */
   const isAllTypes = type === 0
   const detailDisabled = isAllTypes || type === CardType.SPELL || type === CardType.TRAP
   const subTypeDisabled = isAllTypes
 
-  const isLinkMonster = React.useMemo(() => {
-    if (subType === (CardType.MONSTER | CardType.LINK)) return true
-    if (type !== 0 && (type & CardType.LINK) !== 0) return true
-    return markers !== 0
-  }, [subType, type, markers])
+  const isLinkMonster = React.useMemo(
+    () => isLinkSelection(type, subType, markers),
+    [subType, type, markers]
+  )
   const defDisabled = detailDisabled || isLinkMonster
 
   const availablePools = React.useMemo(
@@ -370,13 +152,11 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     [filterOptions.availablePools]
   )
 
-  // 未加载对应标记附加库的卡池（动漫/漫画、超速、卡片力量）直接不显示
   const visiblePoolOptions = React.useMemo(
     () => CARD_POOL_OPTIONS.filter((o) => o.tag === undefined || availablePools.has(o.tag)),
     [availablePools]
   )
 
-  // 卡库变化后若当前选中的卡池已不存在（该标记的附加库被移除/停用），回退到全部卡池
   React.useEffect(() => {
     const option = CARD_POOL_OPTIONS.find((o) => o.value === cardPool)
     if (option?.tag && !availablePools.has(option.tag)) {
@@ -712,93 +492,32 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
   )
 
   if (isBand) {
-    const keywordField = (
-      <FilterField label="关键字：" labelClassName="w-12" className="flex-1 min-w-0">
-        <Input
-          type="text"
-          value={localKw}
-          onChange={(e) => setLocalKw(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') runKeywordSearch()
-          }}
-          className={`${controlH} min-w-0 flex-1 bg-background text-xs`}
-        />
-      </FilterField>
-    )
-
-    const clearButton = (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
+    return (
+      <FilterBand
+        className={className}
+        headerSlot={headerSlot}
+        isLoading={isLoading}
+        keyword={localKw}
+        onKeywordChange={setLocalKw}
+        onKeywordSubmit={runKeywordSearch}
+        onClear={() => {
           setLocalKw('')
           setKeyword('')
           resetFilters()
         }}
-        className={`${controlH} w-14 shrink-0 px-2 text-xs text-muted-foreground hover:text-foreground`}
-      >
-        清空
-      </Button>
-    )
-
-    const searchButton = (
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={runKeywordSearch}
-        aria-busy={isLoading}
-        className={`${controlH} min-w-0 flex-1 gap-1 px-2 text-xs font-semibold`}
-      >
-        <span>搜索</span>
-        <Loader2
-          className={cn(
-            'w-3 h-3 transition-opacity',
-            isLoading ? 'animate-spin opacity-100' : 'opacity-0'
-          )}
-        />
-      </Button>
-    )
-
-    return (
-      <div
-        className={cn(
-          'flex flex-col gap-1 rounded-md border border-border bg-muted/20 p-2 text-xs [-webkit-app-region:no-drag]',
-          className
-        )}
-      >
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-4 gap-y-1">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">{mainTypeField}</div>
-            <div className="flex items-center gap-2">{attributeField}</div>
-            <div className="flex items-center gap-2">{raceField}</div>
-            <div className="flex items-center gap-2">
-              {levelField}
-              {scaleField}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              {limitField}
-              {headerSlot}
-            </div>
-            <div className="flex items-stretch gap-2">
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-center gap-2">{atkField}</div>
-                <div className="flex items-center gap-2">{defField}</div>
-              </div>
-              {effectField}
-            </div>
-            <div className="flex items-center gap-2">{keywordField}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {markerField}
-          {clearButton}
-          {searchButton}
-        </div>
-      </div>
+        fields={{
+          mainType: mainTypeField,
+          limit: limitField,
+          attribute: attributeField,
+          race: raceField,
+          level: levelField,
+          scale: scaleField,
+          atk: atkField,
+          def: defField,
+          effect: effectField,
+          marker: markerField
+        }}
+      />
     )
   }
 

@@ -20,7 +20,6 @@ import opencodeDark from '../../../assets/provider-icons/model-provider-opencode
 import { cn } from '../../../lib/utils'
 
 interface ProviderLogoProps {
-  /** 供应商的 presetId（如 deepseek / dashscope / moonshot），自定义供应商传undefined */
   presetId?: string
   className?: string
 }
@@ -28,14 +27,9 @@ interface ProviderLogoProps {
 interface LogoAsset {
   light: string
   dark?: string
-  /** 单色线稿：深色主题下用 CSS 反色渲染（图片文件本身不做修改） */
   monochrome?: boolean
 }
 
-/**
- * 内置供应商品牌图映射，键为供应商标识。
- * 素材来源与品牌归属见同目录 model-provider-logo-sources.json（均为各厂商官方商标）。
- */
 const LOGO_ASSETS: Record<string, LogoAsset> = {
   deepseek: { light: deepseekLogo },
   dashscope: { light: alibabaCloudLogo },
@@ -52,14 +46,9 @@ const LOGO_ASSETS: Record<string, LogoAsset> = {
   'start-plan': { light: startPlanLogo },
   openrouter: { light: openrouterLight, dark: openrouterDark },
   opencode: { light: opencodeLight, dark: opencodeDark },
-  // 官方只提供黑色线稿（无白色版本），深色主题靠 CSS 反色，避免多存一份改过的图
   ollama: { light: ollamaLogo, monochrome: true }
 }
 
-/**
- * 供应商图标：优先展示内置预设的品牌图，加载失败或未内置时回退到通用图标。
- * 兜底图标与传入的 className 同尺寸，避免在窄行 / 大卡片两种场景下大小失配。
- */
 export const ProviderLogo: React.FC<ProviderLogoProps> = ({ presetId, className }) => {
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const [isDark, setIsDark] = useState<boolean>(

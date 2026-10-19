@@ -2,12 +2,6 @@ import { CdbCard } from '@shared/index'
 
 const CHUNK_SIZE = 400
 
-/**
- * 按卡密批量取卡片详情，跨 cdb 库合并；单批失败降级为空结果，不影响其它批次。
- *
- * 分片原因：主进程那条SQL 是 `WHERE d.id IN (?,?,...)`，SQLite 绑定变量有上限
- * （老版本999），一次几百个卡密会直接抛错。
- */
 export async function fetchCardDataByCodes(codes: number[]): Promise<Record<number, CdbCard>> {
   const uniqueCodes = Array.from(new Set(codes.filter((code) => code > 0)))
   if (uniqueCodes.length === 0) return {}

@@ -1,6 +1,6 @@
 import React from 'react'
 import { useDialogStore } from '../../stores/useDialogStore'
-import { ConfirmDialog } from '../Settings/components/ConfirmDialog'
+import { ConfirmDialog } from './ConfirmDialog'
 
 export const ConfirmDialogHost: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const requests = useDialogStore((state) => state.requests)

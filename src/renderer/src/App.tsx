@@ -11,11 +11,22 @@ import { TextLibraryApp } from './components/TextLibrary/TextLibraryApp'
 import { CdbSetupModal } from './components/CardSearch/CdbSetupModal'
 import { CustomCardEditorDialog } from './components/CustomCard/CustomCardEditorDialog'
 import { useConfigStore } from './stores/useConfigStore'
+import { useDuelEngineStore } from './stores/useDuelEngineStore'
 import { useDeckEditorStore } from './stores/useDeckEditorStore'
 import { useCustomCardStore } from './stores/useCustomCardStore'
 
+function AppModals(): React.JSX.Element {
+  return (
+    <>
+      <CustomCardEditorDialog />
+      <CdbSetupModal />
+    </>
+  )
+}
+
 export function App(): React.JSX.Element {
-  const { loadConfig } = useConfigStore()
+  const { loadConfig, isLoaded } = useConfigStore()
+  const loadTimingPolicy = useDuelEngineStore((s) => s.loadTimingPolicy)
   const isDeckEditor = window.location.hash === '#deck-editor'
   const isSettingsWindow = window.location.hash.startsWith('#settings')
   const isCardNotes = window.location.hash === '#card-notes'
@@ -24,6 +35,10 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     loadConfig()
   }, [loadConfig])
+
+  useEffect(() => {
+    if (isLoaded) void loadTimingPolicy()
+  }, [isLoaded, loadTimingPolicy])
 
   useEffect(() => {
     if (!window.api?.onDataDirectoryChanged) return
@@ -45,8 +60,7 @@ export function App(): React.JSX.Element {
     return (
       <>
         <CardNoteApp />
-        <CustomCardEditorDialog />
-        <CdbSetupModal />
+        <AppModals />
       </>
     )
   }
@@ -55,8 +69,7 @@ export function App(): React.JSX.Element {
     return (
       <>
         <DeckEditorApp />
-        <CustomCardEditorDialog />
-        <CdbSetupModal />
+        <AppModals />
       </>
     )
   }
@@ -75,9 +88,7 @@ export function App(): React.JSX.Element {
 
       <DuelScreenplayModal />
 
-      <CustomCardEditorDialog />
-
-      <CdbSetupModal />
+      <AppModals />
     </div>
   )
 }

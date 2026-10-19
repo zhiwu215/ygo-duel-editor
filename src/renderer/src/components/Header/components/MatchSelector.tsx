@@ -26,7 +26,6 @@ export const MatchSelector: React.FC = () => {
   const [team0Input, setTeam0Input] = useState(matchConfig.team0Count || 1)
   const [team1Input, setTeam1Input] = useState(matchConfig.team1Count || 1)
 
-  // 计算下拉菜单当前显示文案
   const getDisplayLabel = (): string => {
     if (matchConfig.mode === '1v1') return '1 v 1'
     if (matchConfig.mode === 'tag') return '2 v 2 双打'
@@ -89,7 +88,6 @@ export const MatchSelector: React.FC = () => {
         </Select>
       </div>
 
-      {/* 自定义人数对话框 (双独立数字输入框，上限 6 人) */}
       <Dialog open={showCustomModal} onOpenChange={(open) => !open && setShowCustomModal(false)}>
         <DialogContent showCloseButton={false} className="max-w-sm gap-4 p-4">
           <DialogHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b border-border pb-2">
@@ -112,7 +110,6 @@ export const MatchSelector: React.FC = () => {
           </DialogDescription>
 
           <div className="grid grid-cols-2 gap-3 py-1">
-            {/* 我方人数 */}
             <div className="flex flex-col gap-1.5 p-2.5 rounded border border-blue-500/20 bg-blue-500/5">
               <label className="text-xs font-semibold text-blue-500 dark:text-blue-400">
                 我方人数 (1 ~ 6)
@@ -130,7 +127,6 @@ export const MatchSelector: React.FC = () => {
               </div>
             </div>
 
-            {/* 对方人数 */}
             <div className="flex flex-col gap-1.5 p-2.5 rounded border border-red-500/20 bg-red-500/5">
               <label className="text-xs font-semibold text-red-500 dark:text-red-400">
                 对方人数 (1 ~ 6)

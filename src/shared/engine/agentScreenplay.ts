@@ -119,13 +119,13 @@ const ACTION_TYPE_ALIASES: Record<string, DuelActionType> = {
   宣言: 'DIALOGUE'
 }
 
-export interface AgentStepNormalizeOk {
+interface AgentStepNormalizeOk {
   ok: true
   step: AgentStepProposal
   note?: string
 }
 
-export interface AgentStepNormalizeFail {
+interface AgentStepNormalizeFail {
   ok: false
   error: string
 }
@@ -158,7 +158,7 @@ function resolveZone(value: unknown): number | undefined {
   return undefined
 }
 
-export function normalizeAgentDuelPhase(raw: unknown): DuelPhase | null {
+function normalizeAgentDuelPhase(raw: unknown): DuelPhase | null {
   if (typeof raw !== 'string') return null
   const cleaned = raw
     .trim()
@@ -167,7 +167,7 @@ export function normalizeAgentDuelPhase(raw: unknown): DuelPhase | null {
   return PHASE_ALIASES[cleaned] ?? null
 }
 
-export function normalizeAgentDuelActionType(raw: unknown): DuelActionType | null {
+function normalizeAgentDuelActionType(raw: unknown): DuelActionType | null {
   if (typeof raw !== 'string') return null
   const cleaned = raw.trim()
   if (!cleaned) return null

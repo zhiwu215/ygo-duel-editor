@@ -5,15 +5,6 @@ import { CircleHelp } from 'lucide-react'
 const TOOLTIP_WIDTH = 224
 const VIEWPORT_MARGIN = 8
 
-/**
- * 参数说明的「?」气泡。
- *
- * 为什么不用 `title` 属性：原生 tooltip 在 Electron/Windows 上是系统级浮层，
- * 延迟长、样式不受控，截图里也看不到，用户会以为「点了没反应」。
- * 为什么用 portal + position:fixed：弹窗正文是 overflow-y-auto 的滚动容器，
- * 绝对定位的浮层会被裁掉；而弹窗本身带 enter 动画（transform 会形成包含块），
- * 直接 fixed 也会定位错。挂到 body 上这两个问题都没有。
- */
 export function HelpTip({ text }: { text: string }): React.JSX.Element {
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)

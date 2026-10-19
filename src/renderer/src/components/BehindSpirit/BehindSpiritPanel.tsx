@@ -1,6 +1,6 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useState, useEffect, useRef, useMemo, JSX } from 'react'
+import React, { useState, useEffect, useRef, JSX } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Send,
@@ -10,42 +10,24 @@ import {
   ChevronRight,
   BrainCircuit,
   Bot,
-  Check,
   Loader2,
-  X,
   Paperclip,
   BookOpen
 } from 'lucide-react'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
-import {
-  AgentProviderModelConfig,
-  AgentTextSourceRef,
-  countWords,
-  isProviderReady,
-  CdbCard,
-  CardUtils
-} from '@shared/index'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { confirmDialog } from '../../stores/useDialogStore'
 import { DuelProposalSummaryCard } from './DuelProposalSummaryCard'
 import { MarkdownContent } from './MarkdownContent'
 import { TextSourcePicker } from './TextSourcePicker'
 import { ToolCallList } from './ToolCallList'
+import { ModelPickerMenu } from './ModelPickerMenu'
+import { AttachmentChips } from './AttachmentChips'
 import { Button } from '../ui/button'
 import { Textarea } from '../ui/textarea'
 import { cn } from '../../lib/utils'
-
-const MANAGE_KEY = 'action:manage'
-
-const MAX_DRAGGED_TEXT_CHARS = 800_000
-
-interface MenuProvider {
-  id: string
-  name: string
-  ready: boolean
-  models: AgentProviderModelConfig[]
-}
+import { buildInjectedPrompt } from '../../utils/agentPrompt'
+import { useChatAttachments } from '../../hooks/useChatAttachments'
 
 export function BehindSpiritPanel(): JSX.Element {
   const {
@@ -53,7 +35,6 @@ export function BehindSpiritPanel(): JSX.Element {
     config,
     messages,
     loadConfig,
-    selectModel,
     resetSession,
     sendMessage,
     abort,
@@ -69,44 +50,31 @@ export function BehindSpiritPanel(): JSX.Element {
   const [applyingProposalMsgId, setApplyingProposalMsgId] = useState<string | null>(null)
   const [proposalError, setProposalError] = useState<{ msgId: string; text: string } | null>(null)
 
-  const [attachedCards, setAttachedCards] = useState<CdbCard[]>([])
-  const [isCardDragOver, setIsCardDragOver] = useState(false)
-
-  const [attachedText, setAttachedText] = useState<AgentTextSourceRef | null>(null)
-  const [textPickerOpen, setTextPickerOpen] = useState(false)
-  const [textPickerPos, setTextPickerPos] = useState<{ right: number; bottom: number } | null>(null)
-  const textPickerAnchorRef = useRef<HTMLDivElement>(null)
-
-  const [modelMenuOpen, setModelMenuOpen] = useState(false)
-  const [openProviderKey, setOpenProviderKey] = useState<string | null>(null)
+  const {
+    attachedCards,
+    attachedText,
+    isCardDragOver,
+    handleDragOver,
+    handleDragLeave,
+    handleCardDrop,
+    removeAttachedCard,
+    removeAttachedText,
+    attachText,
+    clearAttachments,
+    textPickerOpen,
+    textPickerPos,
+    textPickerAnchorRef,
+    openTextPicker,
+    closeTextPicker
+  } = useChatAttachments()
 
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const modelMenuRef = useRef<HTMLDivElement>(null)
-
-  const [modelMenuPos, setModelMenuPos] = useState<{ right: number; bottom: number } | null>(null)
 
   useEffect(() => {
     void loadConfig()
   }, [loadConfig])
-
-  useEffect(() => {
-    if (!modelMenuOpen) return
-    const handler = (e: MouseEvent): void => {
-      const target = e.target as Node
-
-      if (
-        toolbarRef.current &&
-        !toolbarRef.current.contains(target) &&
-        !modelMenuRef.current?.contains(target)
-      ) {
-        setModelMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [modelMenuOpen])
 
   useEffect(() => {
     const chat = chatScrollRef.current
@@ -123,66 +91,6 @@ export function BehindSpiritPanel(): JSX.Element {
     shouldAutoScrollRef.current = chat.scrollHeight - chat.scrollTop - chat.clientHeight <= 64
   }
 
-  const providers = useMemo(() => config.providers ?? [], [config.providers])
-  const activeProvider = useMemo(
-    () => providers.find((p) => p.id === config.provider) ?? null,
-    [providers, config.provider]
-  )
-  const activeModel = useMemo(
-    () => activeProvider?.models.find((m) => m.id === config.model) ?? null,
-    [activeProvider, config.model]
-  )
-
-  const chipLabel = activeProvider
-    ? `${activeProvider.name}/${activeModel?.name ?? config.model}`
-    : config.model || '未配置模型'
-
-  const menuProviders = useMemo(
-    (): MenuProvider[] =>
-      providers
-        .filter((p) => p.enabled !== false && p.models.some((m) => m.enabled))
-        .map((p) => ({
-          id: p.id,
-          name: p.name,
-          ready: isProviderReady(p),
-          models: p.models.filter((m) => m.enabled)
-        })),
-    [providers]
-  )
-
-  const openProviderModels = useMemo(
-    () => menuProviders.find((p) => p.id === openProviderKey)?.models ?? [],
-    [menuProviders, openProviderKey]
-  )
-
-  const openMenu = (): void => {
-    const anchor = toolbarRef.current
-    if (anchor) {
-      const rect = anchor.getBoundingClientRect()
-      setModelMenuPos({
-        right: window.innerWidth - rect.right,
-        bottom: window.innerHeight - rect.top
-      })
-    }
-    setOpenProviderKey(null)
-    setModelMenuOpen(true)
-  }
-
-  const closeMenu = (): void => {
-    setModelMenuOpen(false)
-    setOpenProviderKey(null)
-  }
-
-  const pickModel = (providerId: string, modelId: string): void => {
-    selectModel(providerId, modelId)
-    closeMenu()
-  }
-
-  const openManage = (): void => {
-    closeMenu()
-    void window.api.openSettingsWindow('model-settings')
-  }
-
   const handleSend = (): void => {
     if ((!inputPrompt.trim() && attachedCards.length === 0 && !attachedText) || isGenerating) return
     shouldAutoScrollRef.current = true
@@ -195,8 +103,7 @@ export function BehindSpiritPanel(): JSX.Element {
       attachedText ?? undefined
     )
     setInputPrompt('')
-    setAttachedCards([])
-    setAttachedText(null)
+    clearAttachments()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -204,113 +111,6 @@ export function BehindSpiritPanel(): JSX.Element {
       e.preventDefault()
       handleSend()
     }
-  }
-
-  const buildCardsBlock = (cards: CdbCard[]): string => {
-    const blocks = cards.map((c) => {
-      const typeLabel = CardUtils.getCardTypeLabel(c.type)
-      const isSpellOrTrap = CardUtils.isSpell(c.type) || CardUtils.isTrap(c.type)
-      const stats = isSpellOrTrap
-        ? ''
-        : ` 攻${c.atk} / 防${c.def}${CardUtils.isLink(c.type) ? '' : ` / ${CardUtils.getStarLevel(c.level, c.type)}星`}`
-      return [
-        `【${c.name}】(${typeLabel}${stats})`,
-        `卡密: ${c.id}`,
-        c.desc ? `效果: ${c.desc}` : ''
-      ]
-        .filter(Boolean)
-        .join('\n')
-    })
-    return `【我参考的卡片】\n${blocks.join('\n\n')}`
-  }
-
-  const buildInjectedPrompt = (
-    prompt: string,
-    cards: CdbCard[],
-    text: AgentTextSourceRef | null
-  ): string => {
-    const blocks: string[] = []
-    if (cards.length > 0) blocks.push(buildCardsBlock(cards))
-    if (text) {
-      const size = text.wordCount ? `约 ${text.wordCount} 字` : ''
-      blocks.push(
-        `【文本素材】已附加《${text.title}》${size ? `（${size}）` : ''}。正文不随消息直接发送，请先用 read_text_source 分段通读全文。`
-      )
-    }
-    if (blocks.length === 0) return prompt
-    return `${blocks.join('\n\n')}\n\n【我的问题】\n${prompt}`
-  }
-
-  const handleCardDrop = (e: React.DragEvent): void => {
-    e.preventDefault()
-    setIsCardDragOver(false)
-
-    const files = Array.from(e.dataTransfer.files).filter((f) =>
-      /\.(txt|md|markdown)$/i.test(f.name)
-    )
-    if (files.length > 0) {
-      void handleFileDrop(files)
-      return
-    }
-
-    const raw = e.dataTransfer.getData('application/json')
-    if (!raw) return
-    try {
-      const parsed = JSON.parse(raw) as CdbCard
-      if (typeof parsed?.id !== 'number' || !parsed.name) return
-      setAttachedCards((prev) => (prev.some((c) => c.id === parsed.id) ? prev : [...prev, parsed]))
-    } catch {
-      void 0
-    }
-  }
-
-  const handleFileDrop = async (files: File[]): Promise<void> => {
-    const file = files[0]
-    if (files.length > 1) {
-      void alertDialog('一次只能附加一个文本文件，已取第一个')
-    }
-    try {
-      const content = await file.text()
-      if (!content.trim()) {
-        void alertDialog('这个文件是空的')
-        return
-      }
-      if (content.length > MAX_DRAGGED_TEXT_CHARS) {
-        void alertDialog(
-          `文件过大（${content.length} 字，上限 ${MAX_DRAGGED_TEXT_CHARS}）。请拆分后拖入，或先在资料库按章节导入`
-        )
-        return
-      }
-
-      setAttachedText({
-        title: file.name,
-        wordCount: countWords(content),
-        content
-      })
-    } catch (err) {
-      console.error('[BehindSpiritPanel] 读取拖入文件失败:', err)
-      void alertDialog('读取文件失败，请确认文件未被占用')
-    }
-  }
-
-  const removeAttachedCard = (cardId: number): void => {
-    setAttachedCards((prev) => prev.filter((c) => c.id !== cardId))
-  }
-
-  const openTextPicker = (): void => {
-    if (textPickerOpen) {
-      setTextPickerOpen(false)
-      return
-    }
-    const anchor = textPickerAnchorRef.current
-    if (anchor) {
-      const rect = anchor.getBoundingClientRect()
-      setTextPickerPos({
-        right: window.innerWidth - rect.right,
-        bottom: window.innerHeight - rect.top
-      })
-    }
-    setTextPickerOpen(true)
   }
 
   const handleApplyProposal = async (messageId: string): Promise<void> => {
@@ -379,14 +179,8 @@ export function BehindSpiritPanel(): JSX.Element {
       </div>
 
       <div
-        onDragOver={(e) => {
-          e.preventDefault()
-          e.dataTransfer.dropEffect = 'copy'
-          setIsCardDragOver(true)
-        }}
-        onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsCardDragOver(false)
-        }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         onDrop={handleCardDrop}
         className={cn(
           'flex-1 flex flex-col min-h-0 bg-background/50 relative transition-colors',
@@ -552,78 +346,12 @@ export function BehindSpiritPanel(): JSX.Element {
 
         <div className="p-2.5 border-t border-border bg-card/80 flex flex-col gap-2 shrink-0">
           <div className="flex flex-col gap-2 rounded-md">
-            {attachedCards.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {attachedCards.map((c) => (
-                  <div
-                    key={c.id}
-                    className="group flex items-center gap-1.5 rounded border border-border bg-muted/60 pl-1.5 pr-1 py-1 max-w-full"
-                  >
-                    <img
-                      src={getCardImageUrl(c.id, true)}
-                      alt={c.name}
-                      className="w-6 h-8 object-cover rounded-sm shrink-0 border border-border/60"
-                      onError={(e) => {
-                        const el = e.currentTarget
-                        if (el.src !== UNKNOWN_CARD_IMAGE) el.src = UNKNOWN_CARD_IMAGE
-                      }}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-medium leading-tight truncate max-w-32">
-                        {c.name}
-                      </p>
-                      <p className="text-[9px] text-muted-foreground font-mono leading-tight">
-                        {CardUtils.getCardTypeLabel(c.type)} · {c.id}
-                      </p>
-                    </div>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <button
-                            type="button"
-                            onClick={() => removeAttachedCard(c.id)}
-                            className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        }
-                      />
-                      <TooltipContent>移除这张卡片</TooltipContent>
-                    </Tooltip>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {attachedText && (
-              <div className="flex flex-wrap gap-1.5">
-                <div className="group flex items-center gap-1.5 rounded border border-border bg-muted/60 pl-2 pr-1 py-1 max-w-full">
-                  <BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-medium leading-tight truncate max-w-52">
-                      {attachedText.title}
-                    </p>
-                    <p className="text-[9px] text-muted-foreground font-mono leading-tight">
-                      {attachedText.wordCount ? `约 ${attachedText.wordCount} 字` : '文本素材'}
-                    </p>
-                  </div>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          onClick={() => setAttachedText(null)}
-                          className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      }
-                    />
-                    <TooltipContent>移除这本文本素材</TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
-            )}
+            <AttachmentChips
+              cards={attachedCards}
+              text={attachedText}
+              onRemoveCard={removeAttachedCard}
+              onRemoveText={removeAttachedText}
+            />
 
             <Textarea
               value={inputPrompt}
@@ -667,27 +395,7 @@ export function BehindSpiritPanel(): JSX.Element {
                 </Tooltip>
               </div>
               <div className="relative min-w-0 flex-1">
-                <button
-                  type="button"
-                  onClick={() => (modelMenuOpen ? closeMenu() : openMenu())}
-                  className={cn(
-                    'h-6 w-full min-w-0 px-1.5 rounded flex items-center gap-1 text-[11px] transition-colors',
-                    modelMenuOpen
-                      ? 'bg-muted text-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'w-1.5 h-1.5 rounded-full shrink-0',
-                      activeProvider && isProviderReady(activeProvider)
-                        ? 'bg-emerald-500'
-                        : 'bg-muted-foreground'
-                    )}
-                  />
-                  <span className="font-medium truncate min-w-0">{chipLabel}</span>
-                  <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
-                </button>
+                <ModelPickerMenu toolbarRef={toolbarRef} />
               </div>
             </div>
 
@@ -716,117 +424,13 @@ export function BehindSpiritPanel(): JSX.Element {
         </div>
       </div>
 
-      {modelMenuOpen &&
-        modelMenuPos &&
-        createPortal(
-          <div
-            ref={modelMenuRef}
-            style={{ right: modelMenuPos.right, bottom: modelMenuPos.bottom }}
-            className="fixed z-[70] mb-1 w-52 max-w-[calc(100vw-1.5rem)]"
-          >
-            <div className="bg-popover border border-border rounded-md overflow-hidden shadow-lg py-1">
-              {menuProviders.length === 0 ? (
-                <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
-                  尚未配置可用模型，去「管理模型」连接供应商并拉取
-                </div>
-              ) : (
-                menuProviders.map((provider) => {
-                  const isCurrent = provider.id === config.provider
-                  const open = openProviderKey === provider.id
-                  return (
-                    <button
-                      key={provider.id}
-                      type="button"
-                      onMouseEnter={() => setOpenProviderKey(provider.id)}
-                      onClick={() => setOpenProviderKey(provider.id)}
-                      className={cn(
-                        'w-full px-2.5 py-1.5 flex items-center gap-2 text-left transition-colors',
-                        open && 'bg-muted/60'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'w-1.5 h-1.5 rounded-full shrink-0',
-                          provider.ready ? 'bg-emerald-500' : 'bg-muted-foreground'
-                        )}
-                      />
-                      <span className="flex-1 min-w-0 truncate text-[11px] font-medium">
-                        {provider.name}
-                      </span>
-                      {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
-                      <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                    </button>
-                  )
-                })
-              )}
-
-              <div className="my-1 border-t border-border" />
-              <button
-                type="button"
-                onMouseEnter={() => setOpenProviderKey(MANAGE_KEY)}
-                onClick={openManage}
-                className={cn(
-                  'w-full px-2.5 py-1.5 flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors',
-                  openProviderKey === MANAGE_KEY && 'bg-muted/60'
-                )}
-              >
-                <span className="flex-1 text-left">管理模型</span>
-              </button>
-            </div>
-
-            {openProviderKey && openProviderKey !== MANAGE_KEY && (
-              <ScrollArea className="absolute bottom-0 left-full ml-0.5 w-52 max-w-[calc(100vw-2rem)] max-h-72 bg-popover border border-border rounded-md shadow-lg">
-                <div className="py-1">
-                  {openProviderModels.length === 0 ? (
-                    <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
-                      该供应商暂无可用模型，去「管理模型」拉取后即可选用
-                    </div>
-                  ) : (
-                    openProviderModels.map((model) => {
-                      const isCurrent =
-                        openProviderKey === config.provider && config.model === model.id
-                      return (
-                        <button
-                          key={model.id}
-                          type="button"
-                          onClick={() => pickModel(openProviderKey, model.id)}
-                          className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left hover:bg-muted/60 transition-colors"
-                        >
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-[11px] font-medium truncate">
-                              {model.name ?? model.id}
-                            </span>
-                            <span className="block font-mono text-[10px] text-muted-foreground truncate">
-                              {model.id}
-                            </span>
-                          </span>
-                          {model.supportsReasoning && (
-                            <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
-                              推理
-                            </span>
-                          )}
-                          {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-            )}
-          </div>,
-          document.body
-        )}
-
       {textPickerOpen &&
         createPortal(
           <TextSourcePicker
             pos={textPickerPos}
             anchorRef={textPickerAnchorRef}
-            onClose={() => setTextPickerOpen(false)}
-            onAttach={(selection) => {
-              setAttachedText(selection)
-              setTextPickerOpen(false)
-            }}
+            onClose={closeTextPicker}
+            onAttach={attachText}
           />,
           document.body
         )}

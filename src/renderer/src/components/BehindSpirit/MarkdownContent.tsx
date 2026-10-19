@@ -53,8 +53,6 @@ const components: Components = {
     )
   },
   p({ children }) {
-    // break-words + break-all：AI 回包里常见无空格的长串（JSON 错误、URL、堆栈），
-    // 仅 break-words 无法打断，会横向溢出气泡。
     return (
       <p className="mb-2 last:mb-0 leading-relaxed break-words [overflow-wrap:anywhere]">
         {children}

@@ -6,13 +6,9 @@ import { Button } from '../../ui/button'
 import { ProviderLogo } from './ProviderLogo'
 
 interface ProviderTemplatePickerProps {
-  /** 全部内置供应商预设 */
   presets: AgentProviderPreset[]
-  /** 返回上一屏（供应商详情） */
   onBack: () => void
-  /** 选中某个品牌，按预设创建并选中该供应商 */
   onPick: (preset: AgentProviderPreset) => void
-  /** 创建空白自定义供应商 */
   onCreateCustom: () => void
 }
 
@@ -24,10 +20,6 @@ const GROUP_TITLE: Record<AgentProviderCategory, string> = {
   local: '本地部署'
 }
 
-/**
- * 「添加供应商」面板：按分组列出全部内置品牌，末尾固定提供「创建自定义供应商」。
- * 对齐 ZCode 的模板选择页 —— 品牌一次性平铺，避免只给一个空白自定义供应商让用户自己填地址。
- */
 export const ProviderTemplatePicker: React.FC<ProviderTemplatePickerProps> = ({
   presets,
   onBack,
@@ -47,7 +39,6 @@ export const ProviderTemplatePicker: React.FC<ProviderTemplatePickerProps> = ({
       const items = buckets.get(id)
       if (items && items.length > 0) ordered.push({ id, title: GROUP_TITLE[id], items })
     }
-    // 未标注分组的内置预设归入「其他」，与「创建自定义供应商」同组展示
     const rest = presets.filter((p) => !p.category)
     ordered.push({ id: 'other', title: '其他', items: rest })
     return ordered

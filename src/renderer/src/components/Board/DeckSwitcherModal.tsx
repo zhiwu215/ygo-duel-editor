@@ -1,25 +1,19 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DeckData } from '@shared/index'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
+import { resolveViewerDuelist } from '../../utils/duelistNames'
+import { CardImage } from '../ui/CardImage'
 import { ArrowLeftRight, X, Search, Layers, SquarePen } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '../../lib/utils'
 
-/**
- * 主卡组「切换卡组」弹窗。
- * 由决斗盘主卡组格的右键菜单唤起（卡组为空时右键格子同样可唤起），
- * 从卡组库里挑一副卡组整体载入到该控制者 —— 清空其主卡组与额外卡组后重建，
- * 并可按「载入手牌」决定是否顺带模拟起手抽 5 张。
- *
- * 遮罩与 PileListModal 一致，锚定在 DuelBoard 中央战场容器内，
- * 左右两侧的卡片详情 / 检索面板保持清晰可读。
- */
 export const DeckSwitcherModal: React.FC = () => {
   const controller = useDeckSwitcherStore((s) => s.controller)
 
@@ -34,31 +28,24 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
   const duelists = useDuelStore((s) => s.state.duelists)
   const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
 
-  // 多人对局时每位决斗者拥有独立卡组，装入目标必须是「某个人」而不是整个阵营。
-  // 取值与 store 的 applyDeckToPlayer 写入端同口径：当前查看的决斗者（须同阵营）
-  // → 该阵营首位。未选中时也显式解析出这个人，让徽标显示真实名字而非笼统的「我方」。
-  const teamDuelists = (duelists || []).filter((d) => d.team === controller)
-  const targetDuelist =
-    teamDuelists.find((d) => d.id === activeDuelistId) || teamDuelists[0] || null
+  const targetDuelist = resolveViewerDuelist(duelists, controller, activeDuelistId)
 
   const [decks, setDecks] = useState<DeckData[]>([])
-  // 初值 true：挂载即取一次卡组库，取回前显示加载中（由 promise 收尾置 false）。
-  // 不在 effect 体内同步 setState，避免触发 cascading renders。
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [query, setQuery] = useState<string>('')
-  // 「载入手牌」的选择记忆在全局配置里 (AppConfig.deckLoadDrawCount)，
-  // 关掉软件重启后仍保持上次的选择。未设置过时按「无」处理。
   const drawCount: 0 | 5 = useConfigStore((s) => (s.config.deckLoadDrawCount === 5 ? 5 : 0))
   const setDeckLoadDrawCount = useConfigStore((s) => s.setDeckLoadDrawCount)
 
   const [deckMenu, setDeckMenu] = useState<{ x: number; y: number; deck: DeckData } | null>(null)
+  const deckMenuRef = useRef<HTMLDivElement>(null)
+  const closeDeckMenu = (): void => setDeckMenu(null)
 
   useEffect(() => {
     let cancelled = false
     window.api
-      .getDeckList()
-      .then((list) => {
-        if (!cancelled) setDecks(list)
+      .getDeckLibrary()
+      .then((library) => {
+        if (!cancelled) setDecks(library.decks)
       })
       .catch(() => {
         if (!cancelled) setDecks([])
@@ -79,24 +66,10 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [closeDeckSwitcher])
 
-  useEffect(() => {
-    if (!deckMenu) return
-    const close = (): void => setDeckMenu(null)
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      e.stopPropagation()
-      close()
-    }
-    window.addEventListener('mousedown', close)
-    window.addEventListener('resize', close)
-    window.addEventListener('keydown', handleKeyDown, { capture: true })
-    return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('resize', close)
-      window.removeEventListener('keydown', handleKeyDown, { capture: true })
-    }
-  }, [deckMenu])
+  useDismissOnOutside(deckMenuRef, Boolean(deckMenu), closeDeckMenu, {
+    capture: true,
+    preventDefaultOnEscape: true
+  })
 
   const filteredDecks = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -107,6 +80,11 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
   }, [decks, query])
 
   const handleApply = (deck: DeckData): void => {
+    if (useDuelEngineStore.getState().isInitialized) {
+      useDuelEngineStore.setState({ error: '引擎校验中无法切换卡组，请先退出引擎后再试。' })
+      closeDeckSwitcher()
+      return
+    }
     applyDeckToPlayer(controller, deck, drawCount, targetDuelist?.id)
     closeDeckSwitcher()
   }
@@ -137,7 +115,6 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
         onClick={(e) => e.stopPropagation()}
         className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-3xl max-h-[92%] flex flex-col overflow-hidden animate-in zoom-in-95 duration-100"
       >
-        {/* 顶部标题栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
           <div className="flex items-center gap-2">
             <ArrowLeftRight className="w-4 h-4 text-blue-500" />
@@ -170,7 +147,6 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
           </Tooltip>
         </div>
 
-        {/* 工具条：载入手牌 + 卡组库搜索 */}
         <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/20 shrink-0">
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span>载入手牌</span>
@@ -204,7 +180,6 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
           </div>
         </div>
 
-        {/* 卡组库列表 */}
         <ScrollArea className="flex-1 min-h-[240px]">
           <div className="p-4">
             {isLoading ? (
@@ -230,14 +205,11 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
                       onContextMenu={(e) => handleDeckContextMenu(e, deck)}
                       className="flex items-center gap-2.5 p-2 rounded-lg border border-border/70 hover:border-blue-500/70 hover:bg-blue-500/[0.06] text-left transition-colors cursor-pointer"
                     >
-                      <img
-                        src={getCardImageUrl(cover, true)}
+                      <CardImage
+                        code={cover}
+                        small
                         alt={deck.name}
                         className="w-8 h-[46px] object-cover rounded shrink-0 border border-border/60"
-                        onError={(e) => {
-                          const el = e.currentTarget
-                          if (el.src !== UNKNOWN_CARD_IMAGE) el.src = UNKNOWN_CARD_IMAGE
-                        }}
                       />
                       <div className="min-w-0 flex-1">
                         <Tooltip>
@@ -263,7 +235,6 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
           </div>
         </ScrollArea>
 
-        {/* 底部操作栏 */}
         <div className="flex items-center justify-end px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
           <Button size="sm" onClick={closeDeckSwitcher} className="px-5 h-7 text-xs">
             取消
@@ -271,9 +242,9 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
         </div>
       </div>
 
-      {/* 卡组卡片右键菜单：菜单必须挂在带 scale 动画的弹窗面板之外，否则 fixed 定位会被 transform 带偏 */}
       {menuDeck?.id && (
         <div
+          ref={deckMenuRef}
           style={{ left: menuX, top: menuY }}
           className="fixed z-[70] min-w-44 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
           onMouseDown={(e) => e.stopPropagation()}

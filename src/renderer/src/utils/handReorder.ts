@@ -8,11 +8,6 @@ interface HandCardAnchor {
   centerX: number
 }
 
-/**
- * Capture card centers in the scroll container's content coordinate space.
- * Keeping these anchors fixed during a drag prevents the insertion gap from
- * moving the hit areas underneath the pointer and making the target jitter.
- */
 export function captureHandCardAnchors(container: HTMLElement): HandCardAnchor[] {
   const containerRect = container.getBoundingClientRect()
   const contentLeft = containerRect.left + container.clientLeft
@@ -30,7 +25,6 @@ export function captureHandCardAnchors(container: HTMLElement): HandCardAnchor[]
     .filter((anchor): anchor is HandCardAnchor => anchor !== null)
 }
 
-/** Resolve a stable before/after insertion target from the pointer's content position. */
 export function getHandInsertionPosition(
   container: HTMLElement,
   anchors: HandCardAnchor[],

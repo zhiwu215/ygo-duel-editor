@@ -1,12 +1,5 @@
 import { CdbCard, CardType, CardUtils, RACE_NAMES, ATTRIBUTE_NAMES } from '@shared/index'
 
-/**
- * 格式化 YGOPro 风格的卡片类别与种族属性信息
- * 例如:
- * - 怪兽: "[怪兽|效果] 恐龙/炎" 或 "[怪兽|同调|调整|效果] 龙/光"
- * - 魔法: "[魔法|速攻]" 或 "[魔法|通常]"
- * - 陷阱: "[陷阱|永续]" 或 "[陷阱|反击]"
- */
 export function formatCardTypeLine(card: CdbCard): string {
   if (CardUtils.isMonster(card.type)) {
     const parts: string[] = ['怪兽']
@@ -54,17 +47,10 @@ export function formatCardTypeLine(card: CdbCard): string {
   return '[未知]'
 }
 
-/**
- * 格式化怪兽数值行 (星级/阶级/连接值与攻防)
- * 例如:
- * - "[★4] 1700/400"
- * - "[LINK-3] 2500/-"
- * - "[★4] 1700/400 [刻度 1/1]"
- */
 export function formatCardStatsLine(card: CdbCard): string | null {
   if (!CardUtils.isMonster(card.type)) return null
 
-  const star = CardUtils.getStarLevel(card.level, card.type)
+  const star = CardUtils.getStarLevel(card.level)
   const isLink = CardUtils.isLink(card.type)
   const isXyz = CardUtils.isXyz(card.type)
 
@@ -90,10 +76,6 @@ export function formatCardStatsLine(card: CdbCard): string | null {
   return line
 }
 
-/**
- * 格式化系列行
- * 例如: "系列: 朱罗纪" 或 "系列: 禁忌的"
- */
 export function formatCardSeriesLine(card: CdbCard): string | null {
   if (card.setnames && card.setnames.length > 0) {
     return `系列: ${card.setnames.join(' / ')}`
@@ -101,18 +83,11 @@ export function formatCardSeriesLine(card: CdbCard): string | null {
   return null
 }
 
-/**
- * 格式化 YGOPro 搜索结果列表第二行 (类型/属性/种族/星阶连接)
- * 对标游戏王客户端搜索列表:
- * - 怪兽: "暗/恶魔 ★12"、"暗/恶魔 LINK-3"
- * - 魔法: "魔法|永续"、"魔法|场地"、"魔法|速攻"、"魔法|装备"、"魔法|仪式"、"魔法"
- * - 陷阱: "陷阱"、"陷阱|永续"、"陷阱|反击"
- */
 export function formatSearchItemLine2(card: CdbCard): string {
   if (CardUtils.isMonster(card.type)) {
     const attr = ATTRIBUTE_NAMES[card.attribute] || '无'
     const race = RACE_NAMES[card.race] || '未知'
-    const star = CardUtils.getStarLevel(card.level, card.type)
+    const star = CardUtils.getStarLevel(card.level)
     const isLink = CardUtils.isLink(card.type)
     const starStr = isLink ? `LINK-${star}` : `★${star}`
     return `${attr}/${race} ${starStr}`
@@ -136,15 +111,6 @@ export function formatSearchItemLine2(card: CdbCard): string {
   return '未知'
 }
 
-/**
- * 格式化 YGOPro 搜索结果列表第三行 (攻防数值与灵摆刻度，仅怪兽)
- * 对标游戏王客户端搜索列表:
- * - 普通怪兽: "1900/1000"
- * - 连接怪兽: "2200/-"
- * - 问号攻防: "?/0"
- * - 灵摆怪兽: "3000/3000 10/10"
- * - 魔法 / 陷阱: null (无第三行)
- */
 export function formatSearchItemLine3(card: CdbCard): string | null {
   if (!CardUtils.isMonster(card.type)) {
     return null

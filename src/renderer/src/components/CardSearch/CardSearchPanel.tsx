@@ -8,17 +8,40 @@ import {
   ChevronRight,
   RotateCcw,
   Sparkles,
+  Hand,
+  ArrowUpToLine,
+  ArrowDownToLine,
+  Ghost,
+  Ban,
+  Layers,
   X
 } from 'lucide-react'
 import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { CdbCard } from '@shared/index'
+import { InjectCommand, CdbCard } from '@shared/index'
 import { setCardDragImage } from '../../utils/cardImage'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
+import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { CardRowItem } from './CardRowItem'
+
+type AddCardTarget = Extract<InjectCommand, { op: 'add-card' }>['to']
+
+const INJECT_MENU_ITEMS: {
+  label: string
+  to: AddCardTarget
+  icon: React.ComponentType<{ className?: string }>
+}[] = [
+  { label: '加入手牌', to: 'hand', icon: Hand },
+  { label: '置于卡组顶', to: 'deck-top', icon: ArrowUpToLine },
+  { label: '置于卡组底', to: 'deck-bottom', icon: ArrowDownToLine },
+  { label: '置于墓地', to: 'grave-top', icon: Ghost },
+  { label: '除外', to: 'removed', icon: Ban },
+  { label: '加入额外卡组', to: 'extra', icon: Layers }
+]
 
 export const CardSearchPanel: React.FC = () => {
   const {
@@ -40,8 +63,15 @@ export const CardSearchPanel: React.FC = () => {
 
   const { setHoveredCard } = useDuelStore()
   const { isFavorite, toggleFavorite } = useFavoritesStore()
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const [localKw, setLocalKw] = useState(keyword)
+  const [injectMenu, setInjectMenu] = useState<{ card: CdbCard; x: number; y: number } | null>(null)
+  const injectMenuRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  const closeInjectMenu = (): void => setInjectMenu(null)
+
+  useDismissOnOutside(injectMenuRef, injectMenu !== null, closeInjectMenu)
 
   useEffect(() => {
     search({ limit: 40 })
@@ -60,6 +90,7 @@ export const CardSearchPanel: React.FC = () => {
   }
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>): void => {
+    setInjectMenu(null)
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
     if (scrollHeight - scrollTop - clientHeight < 300) {
       loadMore()
@@ -70,6 +101,18 @@ export const CardSearchPanel: React.FC = () => {
     e.dataTransfer.setData('application/json', JSON.stringify(card))
     e.dataTransfer.effectAllowed = 'copy'
     setCardDragImage(e.dataTransfer, e.currentTarget)
+  }
+
+  const handleRowContextMenu = (e: React.MouseEvent, card: CdbCard): void => {
+    if (!isEngineActive) return
+    e.preventDefault()
+    e.stopPropagation()
+    setInjectMenu({ card, x: e.clientX, y: e.clientY })
+  }
+
+  const injectCard = (card: CdbCard, to: AddCardTarget): void => {
+    setInjectMenu(null)
+    void useDuelEngineStore.getState().inject({ op: 'add-card', player: 0, code: card.id, to })
   }
 
   return (
@@ -192,6 +235,8 @@ export const CardSearchPanel: React.FC = () => {
                 onToggleFavorite={toggleFavorite}
                 onHover={setHoveredCard}
                 onDragStart={handleDragStart}
+                onContextMenu={handleRowContextMenu}
+                onRowDoubleClick={isEngineActive ? (c) => injectCard(c, 'hand') : undefined}
               />
             ))}
 
@@ -204,6 +249,33 @@ export const CardSearchPanel: React.FC = () => {
           </div>
         )}
       </div>
+
+      {injectMenu && (
+        <div
+          ref={injectMenuRef}
+          style={{
+            left: Math.max(8, Math.min(injectMenu.x, window.innerWidth - 176)),
+            top: Math.max(8, Math.min(injectMenu.y, window.innerHeight - 244))
+          }}
+          className="fixed z-[70] min-w-40 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate">
+            剧情安排：{injectMenu.card.name}
+          </div>
+          {INJECT_MENU_ITEMS.map((item) => (
+            <button
+              key={item.to}
+              type="button"
+              onClick={() => injectCard(injectMenu.card, item.to)}
+              className="w-full flex items-center gap-2 h-7 px-2 rounded-md text-xs text-left hover:bg-muted/60 transition-colors cursor-pointer"
+            >
+              <item.icon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

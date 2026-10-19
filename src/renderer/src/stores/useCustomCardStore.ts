@@ -17,7 +17,6 @@ export interface CustomCardEditorForm {
 
 interface CustomCardStoreState {
   cards: CustomCard[]
-  loaded: boolean
   editorOpen: boolean
   editingId: number | null
   prefillName: string
@@ -70,7 +69,6 @@ export function editorFormFromCard(
 
 export const useCustomCardStore = create<CustomCardStoreState>((set, get) => ({
   cards: [],
-  loaded: false,
   editorOpen: false,
   editingId: null,
   prefillName: '',
@@ -78,7 +76,7 @@ export const useCustomCardStore = create<CustomCardStoreState>((set, get) => ({
   load: async () => {
     try {
       const cards = await window.api.listCustomCards()
-      set({ cards, loaded: true })
+      set({ cards })
     } catch (err) {
       console.error('[useCustomCardStore] load failed:', err)
     }

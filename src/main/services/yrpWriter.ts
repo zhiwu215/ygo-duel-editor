@@ -1,5 +1,3 @@
-import { OcgMessageType, OcgResponse } from 'ocgcore-wasm'
-
 export const YRP2_ID = 0x32707279
 export const YRP_VERSION = 0x1362
 export const YRP_FLAG_UNIFORM = 0x10
@@ -40,72 +38,6 @@ class ByteWriter {
 
   public toUint8Array(): Uint8Array {
     return Uint8Array.from(this.buf)
-  }
-}
-
-function int32Response(value: number): Uint8Array {
-  const w = new ByteWriter()
-  w.i32(value)
-  return w.toUint8Array()
-}
-
-function indexListResponse(indices: number[] | null): Uint8Array {
-  if (indices === null) return int32Response(-1)
-  const w = new ByteWriter()
-  w.u8(indices.length)
-  for (const i of indices) w.u8(i)
-  return w.toUint8Array()
-}
-
-function commandResponse(response: OcgResponse): Uint8Array {
-  const r = response as unknown as { action?: number; index?: number | null }
-  const action = Number(r.action ?? 0)
-  if (r.index === null || r.index === undefined) return int32Response(action)
-  return int32Response(((r.index << 16) | action) >>> 0)
-}
-
-export class UnsupportedReplayQuestionError extends Error {
-  constructor(public readonly msgType: number) {
-    super(`录像导出暂不支持该引擎询问 (msg=${msgType})`)
-  }
-}
-
-export function encodeResponseBytes(msgType: number, response: OcgResponse): Uint8Array {
-  const r = response as unknown as Record<string, unknown>
-  switch (msgType) {
-    case OcgMessageType.SELECT_IDLECMD:
-    case OcgMessageType.SELECT_BATTLECMD:
-      return commandResponse(response)
-    case OcgMessageType.SELECT_EFFECTYN:
-    case OcgMessageType.SELECT_YESNO:
-      return int32Response(r.yes ? 1 : 0)
-    case OcgMessageType.SELECT_OPTION:
-      return int32Response(Number(r.index ?? 0))
-    case OcgMessageType.SELECT_CARD:
-    case OcgMessageType.SELECT_TRIBUTE:
-      return indexListResponse((r.indicies as number[] | null) ?? null)
-    case OcgMessageType.SELECT_UNSELECT_CARD: {
-      const index = r.index as number | null | undefined
-      return int32Response(index === null || index === undefined ? -1 : index)
-    }
-    case OcgMessageType.SELECT_CHAIN:
-      return int32Response((r.index as number | null) ?? -1)
-    case OcgMessageType.SELECT_PLACE:
-    case OcgMessageType.SELECT_DISFIELD: {
-      const w = new ByteWriter()
-      const places = (r.places ?? []) as { player: number; location: number; sequence: number }[]
-      if (places.length === 0) throw new UnsupportedReplayQuestionError(msgType)
-      for (const p of places) {
-        w.u8(p.player)
-        w.u8(p.location)
-        w.u8(p.sequence)
-      }
-      return w.toUint8Array()
-    }
-    case OcgMessageType.SELECT_POSITION:
-      return int32Response(Number(r.position ?? 1))
-    default:
-      throw new UnsupportedReplayQuestionError(msgType)
   }
 }
 

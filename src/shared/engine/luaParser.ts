@@ -1,15 +1,12 @@
+import { DuelPuzzleState, FieldCard } from '../types/duel'
 import {
-  DuelPuzzleState,
-  FieldCard,
+  createDefaultDuelists,
   createInitialDuelState,
-  normalizeDuelState,
-  createDefaultDuelists
-} from '../types/duel'
+  normalizeDuelState
+} from '../types/duelFactory'
 import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 import { MasterRule } from '../types/rules'
-
-// 辅助：解析位置数值
 function parseLocationValue(raw: string): number {
   const trimmed = raw.trim().toUpperCase()
   if (trimmed.includes('LOCATION_MZONE')) return CardLocation.MZONE
@@ -26,8 +23,6 @@ function parseLocationValue(raw: string): number {
   const num = parseInt(trimmed, 10)
   return isNaN(num) ? CardLocation.MZONE : num
 }
-
-// 辅助：解析表示形式数值
 function parsePositionValue(raw: string): number {
   const trimmed = raw.trim().toUpperCase()
   if (trimmed.includes('POS_FACEUP_ATTACK')) return CardPosition.FACEUP_ATTACK
@@ -40,32 +35,15 @@ function parsePositionValue(raw: string): number {
   const num = parseInt(trimmed, 10)
   return isNaN(num) ? CardPosition.FACEUP_ATTACK : num
 }
-
-/**
- * 解析 Lua 残局脚本字符串，重构成 DuelPuzzleState
- */
 export function parseLuaScript(luaContent: string): DuelPuzzleState {
   const state: DuelPuzzleState = createInitialDuelState(5)
   const lines = luaContent.split(/\r?\n/)
-
-  // 1. 匹配 Debug.ReloadFieldBegin
-  // 例: Debug.ReloadFieldBegin(DUEL_ATTACK_FIRST_TURN + DUEL_SIMPLE_AI, 5)
   const reloadFieldRegex = /Debug\.ReloadFieldBegin\s*\(([^,)]+)(?:,\s*([^)]+))?\)/i
-
-  // 2. 匹配 Debug.SetPlayerInfo
-  // 例: Debug.SetPlayerInfo(0, 8000, 0, 0)
   const playerInfoRegex =
     /Debug\.SetPlayerInfo\s*\(\s*([0-3])\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i
-
-  // 3. 匹配 Debug.AddCard
-  // 例: Debug.AddCard(89631139, 0, 0, LOCATION_MZONE, 2, POS_FACEUP_ATTACK)
   const addCardRegex =
     /Debug\.AddCard\s*\(\s*(\d+)\s*,\s*([0-3])\s*,\s*([0-3])\s*,\s*([^,]+)\s*,\s*(\d+)\s*,\s*([^,)]+)\s*\)/i
-
-  // 4. 匹配 Debug.ShowHint
   const hintRegex = /Debug\.ShowHint\s*\(\s*["'](.*)["']\s*\)/i
-
-  // 5. 匹配 c:add_counter(0x1, 3)
   const addCounterRegex = /(?:\w+):add_counter\s*\(\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*(\d+)\s*\)/i
 
   let isTag = false
@@ -89,8 +67,6 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
     }
 
     if (trimmed.startsWith('--')) continue
-
-    // 匹配 ReloadFieldBegin
     const reloadMatch = trimmed.match(reloadFieldRegex)
     if (reloadMatch) {
       const flagsPart = reloadMatch[1] || ''
@@ -105,8 +81,6 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
       }
       continue
     }
-
-    // 匹配 SetPlayerInfo
     const playerMatch = trimmed.match(playerInfoRegex)
     if (playerMatch) {
       const rawP = parseInt(playerMatch[1], 10)
@@ -116,15 +90,11 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
       state.players[pIdx].maxHand = parseInt(playerMatch[4], 10)
       continue
     }
-
-    // 匹配 ShowHint
     const hintMatch = trimmed.match(hintRegex)
     if (hintMatch) {
       state.hint = hintMatch[1]
       continue
     }
-
-    // 匹配 AddCard
     const cardMatch = trimmed.match(addCardRegex)
     if (cardMatch) {
       const code = parseInt(cardMatch[1], 10)
@@ -133,23 +103,17 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
       if (rawController === 2 || rawController === 3 || rawOwner === 2 || rawOwner === 3) {
         isTag = true
       }
-
-      // 控制者映射为 0 或 1 (0/2 为我方阵营，1/3 为对方阵营)
       const controller: 0 | 1 = rawController === 0 || rawController === 2 ? 0 : 1
       const owner: 0 | 1 = rawOwner === 0 || rawOwner === 2 ? 0 : 1
       const location = parseLocationValue(cardMatch[4])
       const sequence = parseInt(cardMatch[5], 10)
       const position = parsePositionValue(cardMatch[6])
-
-      // 决斗者 ID 识别 (在手牌或 2v2 Tag 下)
       let duelistId = controller === 0 ? 'duelist_0_0' : 'duelist_1_0'
       if (rawController === 2) {
         duelistId = 'duelist_0_1'
       } else if (rawController === 3) {
         duelistId = 'duelist_1_1'
       }
-
-      // 如果是超量素材 (LOCATION_OVERLAY)，将其附加给对应怪兽
       if (location === CardLocation.OVERLAY) {
         const hostMonster = state.cards.find(
           (c) =>
@@ -178,8 +142,6 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
       }
       continue
     }
-
-    // 匹配 c:add_counter
     const counterMatch = trimmed.match(addCounterRegex)
     if (counterMatch && lastAddedCard) {
       const typeStr = counterMatch[1].trim()

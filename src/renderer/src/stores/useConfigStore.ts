@@ -6,6 +6,7 @@ interface ConfigStoreState {
   config: AppConfig
   isLoaded: boolean
   dbReady: boolean | null
+  customCdbPath: string
   loadConfig: () => Promise<void>
   refreshCdbStatus: () => Promise<void>
   selectYgoDir: () => Promise<string | null>
@@ -28,18 +29,23 @@ interface ConfigStoreState {
 
 let configUpdatedSubscribed = false
 
+function applyTheme(theme: 'dark' | 'light'): void {
+  document.documentElement.classList.toggle('dark', theme === 'dark')
+}
+
 export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   config: {
     theme: 'light'
   },
   isLoaded: false,
   dbReady: null,
+  customCdbPath: '',
 
   refreshCdbStatus: async () => {
     try {
       if (!window.api?.getCdbStatus) return
       const status = await window.api.getCdbStatus()
-      set({ dbReady: status.ready })
+      set({ dbReady: status.ready, customCdbPath: status.customCdbPath })
     } catch (err) {
       console.error('[useConfigStore] refreshCdbStatus error:', err)
       set({ dbReady: null })
@@ -56,7 +62,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     try {
       const cfg = await window.api.getConfig()
       const theme = cfg.theme || 'light'
-      document.documentElement.classList.toggle('dark', theme === 'dark')
+      applyTheme(theme)
       set({ config: { ...cfg, theme }, isLoaded: true })
       await get().refreshCdbStatus()
     } catch (err) {
@@ -66,7 +72,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   },
 
   setTheme: async (theme: 'dark' | 'light') => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    applyTheme(theme)
     set((state) => ({ config: { ...state.config, theme } }))
     await window.api.saveConfig({ theme })
   },

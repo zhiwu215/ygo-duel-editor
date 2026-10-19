@@ -30,18 +30,6 @@ function sanitizeFileName(name: string): string {
   return cleaned || '未命名'
 }
 
-/**
- * 文本素材服务：AI 编排决斗对局的**原料层**
- *
- * 只存「还没变成对局」的东西：导入的原文（`texts/<id>.<ext>`）
- * 与按章节拆分的结果（`texts/<id>.chapters.json`）。
- *
- * **为什么小说独立于工程目录**：它是原始素材而非对局成品——一本书能拆出
- * 多个章节、每章可生成多个不同对局，成品统一落进 `projects/*.ygoduel`。
- * 曾经存在的「台本」层（`screenplays/*.yscript`）已删除：台本只存 steps，
- * 而 steps 里的 instanceId / boardAfter / 格子序号都指向具体盘面，
- * 脱离 .ygoduel 无法回放，属于把同一份数据存两遍。
- */
 export class LibraryService {
   private get textsDir(): string {
     return this.ensureDirs()
@@ -60,8 +48,6 @@ export class LibraryService {
     }
     return dir
   }
-
-  /* ------------------------------ 文本素材 ------------------------------ */
 
   private textId(filePath: string): string {
     return (
@@ -92,7 +78,6 @@ export class LibraryService {
           filePath,
           title: inferTextTitle(file),
           wordCount: raw ? countWords(raw) : 0,
-          // 已有拆分结果即视为可用（拆分是导入时同步完成的）
           progress: chapters.length > 0 ? 'split' : 'raw',
           chapterCount: chapters.length || undefined,
           updatedAt: stat
@@ -106,7 +91,6 @@ export class LibraryService {
 
   private safeMtime(filePath: string): number {
     try {
-      // 单独包一层：文件可能在列举后被外部删除
       return statSync(filePath).mtimeMs
     } catch {
       return 0
@@ -117,8 +101,6 @@ export class LibraryService {
     try {
       if (!existsSync(filePath)) return ''
       if (filePath.toLowerCase().endsWith('.epub')) {
-        // EPUB 是 zip 容器，需要二进制解析；当前按 UTF-8 直读并抽标签，
-        // 解析不出来时返回空串由 UI 提示「该 EPUB 暂不支持」
         return extractEpubText(readFileSync(filePath, 'utf-8'))
       }
       return readFileSync(filePath, 'utf-8')
@@ -157,7 +139,6 @@ export class LibraryService {
     this.ensureDirs()
     const first = pickedPaths[0]
     const baseName = first.split(/[\\/]/).pop() || 'text.txt'
-    // 原文件复制进资料库：用户从网上下载的文件可能随时被清理
     const destPath = join(this.textsDir, baseName)
     try {
       writeFileSync(destPath, readFileSync(first))
@@ -210,7 +191,6 @@ export class LibraryService {
   }
 
   private extOfId(id: string): string {
-    // 列表里 id 是去掉扩展名的文件名，重新拆分时要还原扩展名
     for (const ext of TEXT_EXTS) {
       if (existsSync(join(this.textsDir, `${sanitizeFileName(id)}${ext}`))) return ext
     }

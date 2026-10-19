@@ -1,107 +1,33 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Loader2, RefreshCw, Search, Upload } from 'lucide-react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { TextMeta } from '@shared/index'
 import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
-import { confirmDialog } from '../../stores/useDialogStore'
+import { useTextLibrary } from '../../hooks/useTextLibrary'
 import { LibraryGrid } from './LibraryGrid'
 import { ChapterReader } from './ChapterReader'
 
 export const TextLibraryApp: React.FC = () => {
-  const [texts, setTexts] = useState<TextMeta[]>([])
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [importing, setImporting] = useState(false)
-  const [feedback, setFeedback] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [openText, setOpenText] = useState<TextMeta | null>(null)
 
-  const flash = useCallback((msg: string): void => {
-    setFeedback(msg)
-    setTimeout(() => setFeedback(null), 3000)
-  }, [])
-
-  const refresh = useCallback(async (): Promise<void> => {
-    try {
-      setTexts(await window.api.getTextList())
-      setError(null)
-    } catch (err) {
-      console.error('[TextLibraryApp] 刷新文本列表失败:', err)
-      setError('读取文本列表失败')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    window.api
-      .getTextList()
-      .then((list) => {
-        if (!cancelled) setTexts(list)
-      })
-      .catch((err) => {
-        console.error('[TextLibraryApp] 读取文本列表失败:', err)
-        if (!cancelled) setError('读取文本列表失败')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const handleImport = async (): Promise<void> => {
-    setImporting(true)
-    setError(null)
-    try {
-      const res = await window.api.importTextFile()
-      if (res.canceled) {
-        return
-      }
-      if (res.success && res.text) {
-        await refresh()
-        flash(`已导入《${res.text.title}》`)
-      } else {
-        setError(res.error || '导入失败')
-      }
-    } catch (err) {
-      console.error('[TextLibraryApp] 导入文本失败:', err)
-      setError('导入失败')
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  const handleDelete = async (text: TextMeta): Promise<void> => {
-    const ok = await confirmDialog({
-      title: `删除《${text.title}》`,
-      description: '原文与拆分结果都会移除。',
-      confirmText: '删除'
-    })
-    if (!ok) return
-    const res = await window.api.deleteText(text.id)
-    if (!res.success) {
-      flash(res.error || '删除失败')
-      return
-    }
-    if (openText?.id === text.id) setOpenText(null)
-    await refresh()
-    flash('已删除')
-  }
-
-  const handleResplit = async (text: TextMeta): Promise<void> => {
-    const res = await window.api.resplitText(text.id)
-    if (!res.success) {
-      flash(res.error || '重新拆分失败')
-      return
-    }
-    await refresh()
-    setOpenText((prev) => (prev?.id === text.id ? (res.text ?? null) : prev))
-    flash(`《${text.title}》已重新拆分为 ${res.text?.chapterCount ?? 0} 章`)
-  }
+  const {
+    texts,
+    loading,
+    busy: importing,
+    feedback,
+    error,
+    flash,
+    refresh,
+    importText,
+    removeText,
+    resplitText
+  } = useTextLibrary({
+    tag: 'TextLibraryApp',
+    activeId: openText?.id ?? null,
+    onActiveReplaced: (text) => setOpenText(text)
+  })
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -118,10 +44,6 @@ export const TextLibraryApp: React.FC = () => {
           await refresh()
         }}
         onTextUpdated={refresh}
-        onDeleted={async () => {
-          setOpenText(null)
-          await refresh()
-        }}
         flash={flash}
       />
     )
@@ -155,7 +77,7 @@ export const TextLibraryApp: React.FC = () => {
                 render={
                   <button
                     type="button"
-                    onClick={() => void handleImport()}
+                    onClick={() => void importText()}
                     disabled={importing}
 
                     className="flex items-center gap-1.5 px-2.5 h-8 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
@@ -204,9 +126,9 @@ export const TextLibraryApp: React.FC = () => {
         loading={loading}
         search={search}
         onOpen={setOpenText}
-        onDelete={(n) => void handleDelete(n)}
-        onResplit={(n) => void handleResplit(n)}
-        onImport={() => void handleImport()}
+        onDelete={(n) => void removeText(n)}
+        onResplit={(n) => void resplitText(n)}
+        onImport={() => void importText()}
       />
     </div>
   )

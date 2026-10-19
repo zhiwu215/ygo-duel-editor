@@ -4,12 +4,13 @@ import React, { useState, useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { confirmDialog } from '../../stores/useDialogStore'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import {
   formatCardTypeLine,
   formatCardStatsLine,
   formatCardSeriesLine
 } from '../../utils/cardFormat'
+import { CardImage } from '../ui/CardImage'
+import { useCopyFeedback } from '../../hooks/useCopyFeedback'
 import { HelpCircle, ZoomIn, Copy, Check, Pencil, Trash2 } from 'lucide-react'
 import { CardImageViewer } from './CardImageViewer'
 
@@ -17,7 +18,7 @@ export const CardDetailPanel: React.FC = () => {
   const { hoveredCard, selectedCardId, state } = useDuelStore()
   const { openEdit, remove } = useCustomCardStore()
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
-  const [copiedName, setCopiedName] = useState<boolean>(false)
+  const { copiedField, copy } = useCopyFeedback('CardDetailPanel')
 
   let currentCard = hoveredCard
   const selectedFieldCard = selectedCardId
@@ -43,16 +44,10 @@ export const CardDetailPanel: React.FC = () => {
     }
   }, [currentCard, selectedFieldCard])
 
-  const handleCopyName = async (e: React.MouseEvent): Promise<void> => {
+  const handleCopyName = (e: React.MouseEvent): void => {
     e.stopPropagation()
     if (!currentCard?.name) return
-    try {
-      await navigator.clipboard.writeText(currentCard.name)
-      setCopiedName(true)
-      setTimeout(() => setCopiedName(false), 1500)
-    } catch (err) {
-      console.error('[CardDetailPanel] Failed to copy card name:', err)
-    }
+    void copy('name', currentCard.name)
   }
 
   const handleEdit = (): void => {
@@ -136,16 +131,10 @@ export const CardDetailPanel: React.FC = () => {
                   className="group relative cursor-zoom-in rounded-md overflow-hidden shadow-md border border-border/80 bg-black/40"
                   onClick={() => setShowImageModal(true)}
                 >
-                  <img
-                    src={getCardImageUrl(currentCard.id)}
+                  <CardImage
+                    code={currentCard.id}
                     alt={currentCard.name}
                     className="w-[200px] h-[291px] object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-                    onError={(e) => {
-                      const target = e.currentTarget
-                      if (target.src !== UNKNOWN_CARD_IMAGE) {
-                        target.src = UNKNOWN_CARD_IMAGE
-                      }
-                    }}
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none">
                     <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 text-white text-[11px] font-medium backdrop-blur-sm shadow-md">
@@ -180,7 +169,7 @@ export const CardDetailPanel: React.FC = () => {
                       </span>
                     )}
                     <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">
-                      {copiedName ? (
+                      {copiedField === 'name' ? (
                         <Check className="w-3 h-3 text-emerald-500" />
                       ) : (
                         <Copy className="w-3 h-3" />

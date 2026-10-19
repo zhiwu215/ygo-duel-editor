@@ -2,8 +2,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React from 'react'
 import { Star } from 'lucide-react'
 import { CdbCard, CardUtils, LIMIT_MARKS, cardPoolLabel, otBadgeIds } from '@shared/index'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
+import { CardImage } from '../ui/CardImage'
 import { CardPoolBadges } from './CardPoolBadges'
 import { cn } from '../../lib/utils'
 import limitSprite from '../../assets/textures/lim.png'
@@ -15,15 +15,14 @@ const LIMIT_SPRITE_SCALE = LIMIT_BADGE_SIZE / LIMIT_SPRITE_SIZE
 export interface CardRowItemProps {
   card: CdbCard
   cardPool?: string
-  /** 紧凑模式：只显示卡名/卡密、卡池角标与文字标注，不显示类型攻防行 */
   compact?: boolean
   isFavorite?: boolean
   onToggleFavorite?: (code: number) => void
   onHover?: (card: CdbCard) => void
-  /** 行点击回调（选择卡片等），未提供时沿用 hover 语义 */
   onRowClick?: (card: CdbCard) => void
+  onRowDoubleClick?: (card: CdbCard) => void
   onDragStart?: (e: React.DragEvent, card: CdbCard) => void
-  className?: string
+  onContextMenu?: (e: React.MouseEvent, card: CdbCard) => void
 }
 
 export const CardRowItem: React.FC<CardRowItemProps> = ({
@@ -34,8 +33,9 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
   onToggleFavorite,
   onHover,
   onRowClick,
+  onRowDoubleClick,
   onDragStart,
-  className
+  onContextMenu
 }) => {
   const line2 = formatSearchItemLine2(card)
   const line3 = formatSearchItemLine3(card)
@@ -50,25 +50,23 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
     <div
       draggable={onDragStart !== undefined}
       onDragStart={onDragStart ? (e) => onDragStart(e, card) : undefined}
+      onContextMenu={onContextMenu ? (e) => onContextMenu(e, card) : undefined}
       onMouseEnter={onHover ? () => onHover(card) : undefined}
       onClick={onRowClick ? () => onRowClick(card) : onHover ? () => onHover(card) : undefined}
+      onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(card) : undefined}
       className={cn(
         'flex items-center gap-2 px-2 py-1 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-primary/40 transition-all group shadow-2xs',
         onDragStart && 'cursor-grab active:cursor-grabbing',
-        onRowClick && 'cursor-pointer',
-        className
+        onRowClick && 'cursor-pointer'
       )}
     >
       <div className="relative shrink-0">
-        <img
-          src={getCardImageUrl(card.id)}
+        <CardImage
+          code={card.id}
           alt={card.name}
           loading="lazy"
+          draggable={false}
           className="w-[42px] h-[60px] object-cover rounded border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
-          onError={(e) => {
-            const target = e.currentTarget
-            if (target.src !== UNKNOWN_CARD_IMAGE) target.src = UNKNOWN_CARD_IMAGE
-          }}
         />
         {(() => {
           const mark = LIMIT_MARKS.find((m) => m.id === card.limit)

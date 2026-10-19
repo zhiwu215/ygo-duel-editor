@@ -1,19 +1,20 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { CardLocation, CardPosition, CdbCard } from '@shared/index'
+import { CardLocation, CardPosition, CdbCard, FieldCard, InjectCommand } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
-import { fetchCardDataByCodes } from '../../utils/cardData'
+import { resolveCardName } from '../../utils/cardNames'
 import { getDropPosOverride } from '../../utils/zoneDrop'
-import { Layers, Ghost, Ban, X, Trash2, Search, MoreHorizontal } from 'lucide-react'
+import { useCardDataMap } from '../../hooks/useCardDataMap'
+import { usePileDragReorder } from '../../hooks/usePileDragReorder'
+import { Layers, Ghost, Ban, X, Search } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
-import { cn } from '../../lib/utils'
+import { PileCardTile } from './components/PileCardTile'
 
 interface LocationMeta {
   name: string
@@ -36,35 +37,13 @@ export const PileListModal: React.FC = () => {
   return <PileListContent key={`${openSeq}_${target.controller}_${target.location}`} />
 }
 
-type CdbCardItem = ReturnType<typeof useDuelStore.getState>['state']['cards'][number]
-
 type PileRenderItem =
-  { type: 'card'; card: CdbCardItem; remainingIndex: number } | { type: 'placeholder'; key: string }
-
-interface PointerDragState {
-  card: CdbCardItem
-  originalIndex: number
-  clientX: number
-  clientY: number
-  offsetX: number
-  offsetY: number
-  width: number
-  height: number
-}
-
-interface GridMetrics {
-  containerLeft: number
-  containerTop: number
-  colWidth: number
-  rowHeight: number
-  gap: number
-  columns: number
-  totalCards: number
-}
+  { type: 'card'; card: FieldCard; remainingIndex: number } | { type: 'placeholder'; key: string }
 
 const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
   const openContextMenu = useContextMenuStore((s) => s.openMenu)
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const {
     state,
     activeDuelistId,
@@ -80,31 +59,10 @@ const PileListContent: React.FC = () => {
   } = useDuelStore()
 
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [cardDataMap, setCardDataMap] = useState<Record<number, CdbCard>>({})
-  const [draggedCardId, setDraggedCardId] = useState<string | null>(null)
-  const [dropSlotIndex, setDropSlotIndex] = useState<number | null>(null)
   const [isExternalDrag, setIsExternalDrag] = useState<boolean>(false)
-  const [pointerDrag, setPointerDrag] = useState<PointerDragState | null>(null)
-
-  const pointerDragRef = useRef<PointerDragState | null>(null)
-  const floatingCardRef = useRef<HTMLDivElement>(null)
-  const dragStartPosRef = useRef<{ x: number; y: number } | null>(null)
-  const pendingDragCardRef = useRef<{
-    card: CdbCardItem
-    originalIndex: number
-    rect: DOMRect
-    offsetX: number
-    offsetY: number
-  } | null>(null)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
-  const gridInfoRef = useRef<GridMetrics | null>(null)
-
-  const autoScrollRafRef = useRef<number | null>(null)
-  const slotRafRef = useRef<number | null>(null)
-  const scrollVelocityRef = useRef<number>(0)
-  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
 
   const pileCards = useMemo(() => {
     if (!target) return []
@@ -121,196 +79,66 @@ const PileListContent: React.FC = () => {
           c.location === target.location &&
           (ownerScope ? c.duelistId === ownerScope : true)
       )
-      .sort((a, b) => a.sequence - b.sequence)
-  }, [state.cards, state.duelists, activeDuelistId, target])
-
-  const pendingCodesRef = useRef<Set<number>>(new Set())
-  const unknownCodesRef = useRef<Set<number>>(new Set())
-
-  useEffect(() => {
-    const missingCodes = Array.from(
-      new Set(
-        pileCards
-          .filter(
-            (c) =>
-              c.code > 0 &&
-              !cardDataMap[c.code] &&
-              !pendingCodesRef.current.has(c.code) &&
-              !unknownCodesRef.current.has(c.code)
-          )
-          .map((c) => c.code)
+      .sort((a, b) =>
+        target.location === CardLocation.DECK && isEngineActive
+          ? b.sequence - a.sequence
+          : a.sequence - b.sequence
       )
-    )
-    if (missingCodes.length === 0) return
-    for (const code of missingCodes) pendingCodesRef.current.add(code)
+  }, [state.cards, state.duelists, activeDuelistId, target, isEngineActive])
 
-    fetchCardDataByCodes(missingCodes)
-      .then((map) => {
-        for (const code of missingCodes) {
-          pendingCodesRef.current.delete(code)
-          if (!map[code]) unknownCodesRef.current.add(code)
-        }
-        setCardDataMap((prev) => {
-          const next = { ...prev }
-          let changed = false
-          for (const code of missingCodes) {
-            const cardData = map[code]
-            if (cardData && !next[code]) {
-              next[code] = cardData
-              changed = true
-            }
-          }
-          return changed ? next : prev
-        })
-      })
-      .catch((err) => {
-        for (const code of missingCodes) pendingCodesRef.current.delete(code)
-        void err
-      })
-  }, [pileCards, cardDataMap])
+  const codes = useMemo(() => pileCards.map((c) => c.code), [pileCards])
+  const cardDataMap = useCardDataMap(codes)
+
+  const getCardName = useCallback(
+    (code: number): string => cardDataMap[code]?.name || resolveCardName(code),
+    [cardDataMap]
+  )
 
   const filteredCards = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) return pileCards
     return pileCards.filter((c) => {
-      const name = (c.card?.name || cardDataMap[c.code]?.name || '').toLowerCase()
+      const name = getCardName(c.code).toLowerCase()
       const code = String(c.code)
       return name.includes(query) || code.includes(query)
     })
-  }, [pileCards, searchQuery, cardDataMap])
+  }, [pileCards, searchQuery, getCardName])
 
   const ownerDuelist =
     state.duelists?.find((d) => d.id === activeDuelistId && d.team === target?.controller) || null
 
-  const stopAutoScroll = useCallback((): void => {
-    if (autoScrollRafRef.current !== null) {
-      window.cancelAnimationFrame(autoScrollRafRef.current)
-      autoScrollRafRef.current = null
-    }
-    scrollVelocityRef.current = 0
-    lastPointerRef.current = null
-  }, [])
-
-  const queueSlotUpdate = useCallback((clientX: number, clientY: number): void => {
-    if (slotRafRef.current !== null) return
-    slotRafRef.current = window.requestAnimationFrame(() => {
-      slotRafRef.current = null
-      const grid = gridInfoRef.current
-      const container = scrollContainerRef.current
-      if (!grid || !container) return
-
-      const relX = clientX - grid.containerLeft
-      const relY = clientY - grid.containerTop + container.scrollTop
-      const col = Math.min(
-        grid.columns - 1,
-        Math.max(0, Math.floor(relX / (grid.colWidth + grid.gap)))
-      )
-      const row = Math.max(0, Math.floor(relY / (grid.rowHeight + grid.gap)))
-      const targetSlot = Math.max(0, Math.min(grid.totalCards - 1, row * grid.columns + col))
-
-      setDropSlotIndex((prev) => (prev === targetSlot ? prev : targetSlot))
-    })
-  }, [])
-
-  const startAutoScrollIfNeeded = useCallback((): void => {
-    if (autoScrollRafRef.current !== null) return
-
-    const scrollLoop = (): void => {
-      const container = scrollContainerRef.current
-      const velocity = scrollVelocityRef.current
-      if (container && velocity !== 0) {
-        container.scrollTop += velocity
-        if (lastPointerRef.current) {
-          queueSlotUpdate(lastPointerRef.current.x, lastPointerRef.current.y)
-        }
-      }
-      autoScrollRafRef.current = window.requestAnimationFrame(scrollLoop)
-    }
-
-    autoScrollRafRef.current = window.requestAnimationFrame(scrollLoop)
-  }, [queueSlotUpdate])
-
-  const isPointerOutsideList = useCallback((clientX: number, clientY: number): boolean => {
-    const rect = modalRef.current?.getBoundingClientRect()
-    if (!rect) return false
-    return (
-      clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom
-    )
-  }, [])
-
-  const handlePointerAutoScroll = useCallback(
-    (clientX: number, clientY: number): void => {
-      const container = scrollContainerRef.current
-      if (!container) return
-
-      lastPointerRef.current = { x: clientX, y: clientY }
-      if (isPointerOutsideList(clientX, clientY)) {
-        scrollVelocityRef.current = 0
-        return
-      }
-
-      const rect = container.getBoundingClientRect()
-      const EDGE_ZONE = 70
-      const MAX_SPEED = 16
-
-      if (clientY <= rect.top + EDGE_ZONE) {
-        const ratio = Math.max(0, Math.min(1, (rect.top + EDGE_ZONE - clientY) / EDGE_ZONE))
-        scrollVelocityRef.current = -Math.max(3, ratio * MAX_SPEED)
-        startAutoScrollIfNeeded()
-      } else if (clientY >= rect.bottom - EDGE_ZONE) {
-        const ratio = Math.max(0, Math.min(1, (clientY - (rect.bottom - EDGE_ZONE)) / EDGE_ZONE))
-        scrollVelocityRef.current = Math.max(3, ratio * MAX_SPEED)
-        startAutoScrollIfNeeded()
-      } else {
-        scrollVelocityRef.current = 0
-      }
+  const handleReorder = useCallback(
+    (fromIndex: number, toIndex: number): void => {
+      if (!target) return
+      reorderPileCards(target.controller, target.location, fromIndex, toIndex, ownerDuelist?.id)
     },
-    [isPointerOutsideList, startAutoScrollIfNeeded]
+    [target, reorderPileCards, ownerDuelist]
   )
 
-  const initGridMetrics = useCallback((): void => {
-    const container = scrollContainerRef.current
-    if (!container) return
+  const handleSelectPendingCard = useCallback(
+    (card: FieldCard): void => {
+      setSelectedCardId(card.instanceId)
+      const detail = card.card || cardDataMap[card.code]
+      if (detail) setHoveredCard(detail)
+    },
+    [setSelectedCardId, setHoveredCard, cardDataMap]
+  )
 
-    const gridEl = container.querySelector('.grid') as HTMLElement | null
-    if (!gridEl) return
-
-    const gridRect = gridEl.getBoundingClientRect()
-    const firstChild = gridEl.firstElementChild as HTMLElement | null
-    const childRect = firstChild?.getBoundingClientRect()
-
-    const colWidth = childRect?.width ?? 104
-    const rowHeight = childRect?.height ?? 180
-    const gap = 10
-    const style = window.getComputedStyle(gridEl)
-    const columns = Math.max(1, style.gridTemplateColumns.split(' ').length)
-
-    gridInfoRef.current = {
-      containerLeft: gridRect.left,
-      containerTop: gridRect.top - container.scrollTop,
-      colWidth,
-      rowHeight,
-      gap,
-      columns,
-      totalCards: pileCards.length
-    }
-  }, [pileCards.length])
+  const drag = usePileDragReorder({
+    cards: pileCards,
+    dragEnabled: !isEngineActive,
+    scrollContainerRef,
+    modalRef,
+    getCardName,
+    onReorder: handleReorder,
+    onSelectPendingCard: handleSelectPendingCard
+  })
 
   useEffect(() => {
     if (!target) return
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
-        if (pointerDragRef.current) {
-          pointerDragRef.current = null
-          gridInfoRef.current = null
-          setPointerDrag(null)
-          setDraggedCardId(null)
-          setDropSlotIndex(null)
-          dragStartPosRef.current = null
-          pendingDragCardRef.current = null
-          stopAutoScroll()
-          return
-        }
+        if (drag.cancelPointerDrag()) return
         closePile()
       }
     }
@@ -319,133 +147,10 @@ const PileListContent: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown)
       setHoveredInstanceId(null)
     }
-  }, [target, closePile, setHoveredInstanceId, stopAutoScroll])
-
-  useEffect(() => {
-    return () => {
-      stopAutoScroll()
-      if (slotRafRef.current !== null) {
-        window.cancelAnimationFrame(slotRafRef.current)
-      }
-    }
-  }, [stopAutoScroll])
-
-  useEffect(() => {
-    const container = scrollContainerRef.current
-    if (!container) return
-
-    const handleWheelDuringPointerDrag = (e: WheelEvent): void => {
-      if (!pointerDragRef.current) return
-      if (e.deltaY !== 0) {
-        container.scrollTop += e.deltaY
-        if (lastPointerRef.current) {
-          queueSlotUpdate(lastPointerRef.current.x, lastPointerRef.current.y)
-        }
-      }
-    }
-
-    container.addEventListener('wheel', handleWheelDuringPointerDrag, { passive: true })
-    return () => container.removeEventListener('wheel', handleWheelDuringPointerDrag)
-  }, [queueSlotUpdate])
-
-  useEffect(() => {
-    const handleWindowPointerMove = (e: PointerEvent): void => {
-      lastPointerRef.current = { x: e.clientX, y: e.clientY }
-
-      if (pendingDragCardRef.current && dragStartPosRef.current) {
-        const dx = e.clientX - dragStartPosRef.current.x
-        const dy = e.clientY - dragStartPosRef.current.y
-        if (dx * dx + dy * dy >= 16) {
-          const pending = pendingDragCardRef.current
-          pendingDragCardRef.current = null
-          initGridMetrics()
-          const dragInfo: PointerDragState = {
-            card: pending.card,
-            originalIndex: pending.originalIndex,
-            clientX: e.clientX,
-            clientY: e.clientY,
-            offsetX: pending.offsetX,
-            offsetY: pending.offsetY,
-            width: pending.rect.width,
-            height: pending.rect.height
-          }
-          pointerDragRef.current = dragInfo
-          setPointerDrag(dragInfo)
-          setDraggedCardId(pending.card.instanceId)
-          setDropSlotIndex(pending.originalIndex)
-        }
-      }
-
-      if (pointerDragRef.current) {
-        pointerDragRef.current.clientX = e.clientX
-        pointerDragRef.current.clientY = e.clientY
-
-        if (floatingCardRef.current) {
-          const x = e.clientX - pointerDragRef.current.offsetX
-          const y = e.clientY - pointerDragRef.current.offsetY
-          floatingCardRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`
-        }
-
-        handlePointerAutoScroll(e.clientX, e.clientY)
-        queueSlotUpdate(e.clientX, e.clientY)
-      }
-    }
-
-    const handleWindowPointerUp = (): void => {
-      if (pointerDragRef.current) {
-        stopAutoScroll()
-        const fromIndex = pointerDragRef.current.originalIndex
-        const toIndex = dropSlotIndex
-
-        if (toIndex !== null && fromIndex !== null && fromIndex !== toIndex && target) {
-          reorderPileCards(target.controller, target.location, fromIndex, toIndex, ownerDuelist?.id)
-        }
-
-        pointerDragRef.current = null
-        gridInfoRef.current = null
-        setPointerDrag(null)
-        setDraggedCardId(null)
-        setDropSlotIndex(null)
-        dragStartPosRef.current = null
-        pendingDragCardRef.current = null
-        return
-      }
-
-      if (pendingDragCardRef.current) {
-        const pending = pendingDragCardRef.current
-        pendingDragCardRef.current = null
-        dragStartPosRef.current = null
-        setSelectedCardId(pending.card.instanceId)
-        const detail = pending.card.card || cardDataMap[pending.card.code]
-        if (detail) setHoveredCard(detail)
-      }
-    }
-
-    window.addEventListener('pointermove', handleWindowPointerMove)
-    window.addEventListener('pointerup', handleWindowPointerUp)
-    window.addEventListener('pointercancel', handleWindowPointerUp)
-
-    return () => {
-      window.removeEventListener('pointermove', handleWindowPointerMove)
-      window.removeEventListener('pointerup', handleWindowPointerUp)
-      window.removeEventListener('pointercancel', handleWindowPointerUp)
-    }
-  }, [
-    dropSlotIndex,
-    target,
-    reorderPileCards,
-    ownerDuelist,
-    stopAutoScroll,
-    handlePointerAutoScroll,
-    queueSlotUpdate,
-    initGridMetrics,
-    cardDataMap,
-    setSelectedCardId,
-    setHoveredCard
-  ])
+  }, [target, closePile, setHoveredInstanceId, drag.cancelPointerDrag])
 
   const renderItems = useMemo<PileRenderItem[]>(() => {
-    if (!draggedCardId && !isExternalDrag) {
+    if (!drag.draggedCardId && !isExternalDrag) {
       return filteredCards.map((card, idx) => ({
         type: 'card',
         card,
@@ -453,11 +158,11 @@ const PileListContent: React.FC = () => {
       }))
     }
 
-    const remaining = draggedCardId
-      ? filteredCards.filter((c) => c.instanceId !== draggedCardId)
+    const remaining = drag.draggedCardId
+      ? filteredCards.filter((c) => c.instanceId !== drag.draggedCardId)
       : filteredCards
 
-    if (dropSlotIndex === null) {
+    if (drag.dropSlotIndex === null) {
       return remaining.map((card, idx) => ({
         type: 'card',
         card,
@@ -465,7 +170,7 @@ const PileListContent: React.FC = () => {
       }))
     }
 
-    const clampedSlot = Math.max(0, Math.min(remaining.length, dropSlotIndex))
+    const clampedSlot = Math.max(0, Math.min(remaining.length, drag.dropSlotIndex))
     const items: PileRenderItem[] = []
 
     for (let i = 0; i < clampedSlot; i++) {
@@ -477,7 +182,7 @@ const PileListContent: React.FC = () => {
     }
 
     return items
-  }, [filteredCards, draggedCardId, isExternalDrag, dropSlotIndex])
+  }, [filteredCards, drag.draggedCardId, isExternalDrag, drag.dropSlotIndex])
 
   if (!target) return null
 
@@ -504,6 +209,31 @@ const PileListContent: React.FC = () => {
         const dataStr = e.dataTransfer.getData('application/json')
         if (!dataStr) return
         const droppedCard = JSON.parse(dataStr) as CdbCard
+        const engine = useDuelEngineStore.getState()
+        if (engine.isInitialized) {
+          const to: Extract<InjectCommand, { op: 'add-card' }>['to'] | null =
+            target.location === CardLocation.DECK
+              ? insertIndex <= 0
+                ? 'deck-top'
+                : 'deck-bottom'
+              : target.location === CardLocation.GRAVE
+                ? insertIndex <= 0
+                  ? 'grave-top'
+                  : 'grave-bottom'
+                : target.location === CardLocation.EXTRA
+                  ? 'extra'
+                  : target.location === CardLocation.REMOVED
+                    ? 'removed'
+                    : null
+          if (!to) return
+          void engine.inject({
+            op: 'add-card',
+            player: target.controller,
+            code: droppedCard.id,
+            to
+          })
+          return
+        }
         addCardToZone(droppedCard, target.controller, target.location, insertIndex, posOverride)
       }
     } catch (err) {
@@ -580,14 +310,14 @@ const PileListContent: React.FC = () => {
             e.dataTransfer.dropEffect = 'copy'
 
             setIsExternalDrag(true)
-            handlePointerAutoScroll(e.clientX, e.clientY)
-            queueSlotUpdate(e.clientX, e.clientY)
+            drag.handlePointerAutoScroll(e.clientX, e.clientY)
+            drag.queueSlotUpdate(e.clientX, e.clientY)
           }}
           onDragLeave={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-              setDropSlotIndex(null)
+              drag.resetDropSlot()
               setIsExternalDrag(false)
-              stopAutoScroll()
+              drag.stopAutoScroll()
             }
           }}
           onDrop={(e) => {
@@ -597,10 +327,10 @@ const PileListContent: React.FC = () => {
             if (isExternal && target) {
               e.preventDefault()
               e.stopPropagation()
-              handleExternalCardDrop(e, dropSlotIndex ?? pileCards.length)
-              setDropSlotIndex(null)
+              handleExternalCardDrop(e, drag.dropSlotIndex ?? pileCards.length)
+              drag.resetDropSlot()
               setIsExternalDrag(false)
-              stopAutoScroll()
+              drag.stopAutoScroll()
             }
           }}
           className="relative flex-1 min-h-[300px] max-h-[66vh] overflow-y-auto overflow-x-hidden p-4 bg-muted/10"
@@ -623,7 +353,7 @@ const PileListContent: React.FC = () => {
                 if (isExternal) {
                   e.preventDefault()
                   handleExternalCardDrop(e, 0)
-                  setDropSlotIndex(null)
+                  drag.resetDropSlot()
                   setIsExternalDrag(false)
                 }
               }}
@@ -664,169 +394,47 @@ const PileListContent: React.FC = () => {
 
                 const card = item.card
                 const originalIndex = pileCards.findIndex((c) => c.instanceId === card.instanceId)
-                const isSelected = selectedCardId === card.instanceId
-                const cardName =
-                  card.card?.name || cardDataMap[card.code]?.name || String(card.code)
                 const cardDetail = card.card || cardDataMap[card.code]
-                const isBeingDragged = draggedCardId === card.instanceId
 
                 return (
-                  <motion.div
+                  <PileCardTile
                     key={card.instanceId}
-                    layout="position"
-                    transition={{
-                      layout: {
-                        type: 'spring',
-                        stiffness: 300,
-                        damping: 30
+                    card={card}
+                    cardName={getCardName(card.code)}
+                    originalIndex={originalIndex}
+                    remainingIndex={item.remainingIndex}
+                    location={target.location}
+                    isSelected={selectedCardId === card.instanceId}
+                    isBeingDragged={drag.draggedCardId === card.instanceId}
+                    onPointerDown={(e) => drag.handleTilePointerDown(e, card, originalIndex)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      openContextMenu({ ...card, card: cardDetail }, e.clientX, e.clientY)
+                    }}
+                    onMouseEnter={() => {
+                      setHoveredInstanceId(card.instanceId)
+                      if (cardDetail) setHoveredCard(cardDetail)
+                    }}
+                    onMouseLeave={() => {
+                      if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {
+                        setHoveredInstanceId(null)
                       }
                     }}
-                    data-remaining-index={item.remainingIndex}
-                    className={cn('h-full', isBeingDragged && 'opacity-0 pointer-events-none')}
-                  >
-                    <div
-                      title={cardName}
-                      onDragStart={(e) => {
-                        e.preventDefault()
-                      }}
-                      onPointerDown={(e) => {
-                        if (e.button !== 0) return
-                        dragStartPosRef.current = { x: e.clientX, y: e.clientY }
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        pendingDragCardRef.current = {
-                          card,
-                          originalIndex,
-                          rect,
-                          offsetX: e.clientX - rect.left,
-                          offsetY: e.clientY - rect.top
-                        }
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        openContextMenu({ ...card, card: cardDetail }, e.clientX, e.clientY)
-                      }}
-                      className={cn(
-                        'group relative flex flex-col rounded-md border bg-card p-1.5 shadow-sm transition-colors select-none cursor-grab active:cursor-grabbing',
-                        isSelected
-                          ? 'border-blue-500 ring-1 ring-blue-500/50'
-                          : 'border-border/80 hover:border-blue-500/70 hover:shadow-md'
-                      )}
-                      onMouseEnter={() => {
-                        setHoveredInstanceId(card.instanceId)
-                        if (cardDetail) setHoveredCard(cardDetail)
-                      }}
-                      onMouseLeave={() => {
-                        if (useDuelStore.getState().hoveredInstanceId === card.instanceId) {
-                          setHoveredInstanceId(null)
-                        }
-                      }}
-                    >
-                      <div className="relative w-full aspect-[59/86] rounded overflow-hidden border border-border/70 bg-black/30">
-                        <img
-                          src={getCardImageUrl(card.code, true)}
-                          alt={cardName}
-                          className="w-full h-full object-cover pointer-events-none"
-                          onError={(e) => {
-                            const targetEl = e.currentTarget
-                            if (targetEl.src !== UNKNOWN_CARD_IMAGE) {
-                              targetEl.src = UNKNOWN_CARD_IMAGE
-                            }
-                          }}
-                        />
-
-                        <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
-                          #{originalIndex + 1}
-                        </span>
-
-                        {target.location === CardLocation.DECK && originalIndex === 0 && (
-                          <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
-                            下一抽
-                          </span>
-                        )}
-
-                        {target.location === CardLocation.EXTRA && (
-                          <span className="absolute right-1 top-1 inline-flex">
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      updateCardPosition(
-                                        card.instanceId,
-                                        card.position === CardPosition.FACEUP
-                                          ? CardPosition.FACEDOWN
-                                          : CardPosition.FACEUP
-                                      )
-                                    }}
-                                    className={cn(
-                                      'px-1 rounded font-sans text-[9px] leading-[14px] border transition-colors cursor-pointer',
-                                      card.position === CardPosition.FACEUP
-                                        ? 'bg-cyan-500/85 text-black border-cyan-500/50 font-bold'
-                                        : 'bg-black/65 text-white/85 border-white/25 hover:text-white'
-                                    )}
-                                  >
-                                    {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
-                                  </button>
-                                }
-                              />
-                              <TooltipContent>点击切换 表侧 / 里侧 表示形式</TooltipContent>
-                            </Tooltip>
-                          </span>
-                        )}
-
-                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    const rect = e.currentTarget.getBoundingClientRect()
-                                    openContextMenu(
-                                      { ...card, card: cardDetail },
-                                      rect.left,
-                                      rect.bottom + 4
-                                    )
-                                  }}
-                                  className="p-1 rounded text-white/85 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
-                                >
-                                  <MoreHorizontal className="w-3.5 h-3.5" />
-                                </button>
-                              }
-                            />
-                            <TooltipContent>
-                              更多操作 (手牌/墓地/除外/回卡组，也可右键卡片)
-                            </TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    removeCard(card.instanceId)
-                                  }}
-                                  className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              }
-                            />
-                            <TooltipContent>从决斗中移除</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </div>
-
-                      <span className="mt-1 min-h-[26px] px-0.5 text-[10.5px] leading-[13px] text-center text-foreground/85 line-clamp-2 break-all">
-                        {cardName}
-                      </span>
-                    </div>
-                  </motion.div>
+                    onTogglePosition={() =>
+                      updateCardPosition(
+                        card.instanceId,
+                        card.position === CardPosition.FACEUP
+                          ? CardPosition.FACEDOWN
+                          : CardPosition.FACEUP
+                      )
+                    }
+                    onOpenMenu={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      openContextMenu({ ...card, card: cardDetail }, rect.left, rect.bottom + 4)
+                    }}
+                    onRemove={() => removeCard(card.instanceId)}
+                  />
                 )
               })}
             </div>
@@ -849,33 +457,7 @@ const PileListContent: React.FC = () => {
         </div>
       </div>
 
-      {pointerDrag &&
-        createPortal(
-          <div
-            ref={floatingCardRef}
-            className="fixed left-0 top-0 pointer-events-none z-[9999] rounded-md border border-border shadow-2xl overflow-hidden bg-card p-1.5 will-change-transform"
-            style={{
-              width: pointerDrag.width,
-              height: pointerDrag.height,
-              transform: `translate3d(${pointerDrag.clientX - pointerDrag.offsetX}px, ${pointerDrag.clientY - pointerDrag.offsetY}px, 0)`,
-              opacity: 0.9
-            }}
-          >
-            <div className="relative w-full aspect-[59/86] rounded overflow-hidden border border-border/70 bg-black/30">
-              <img
-                src={getCardImageUrl(pointerDrag.card.code, true)}
-                alt=""
-                className="w-full h-full object-cover pointer-events-none"
-              />
-            </div>
-            <span className="mt-1 min-h-[26px] px-0.5 text-[10.5px] leading-[13px] text-center text-foreground/85 line-clamp-2 break-all block">
-              {pointerDrag.card.card?.name ||
-                cardDataMap[pointerDrag.card.code]?.name ||
-                String(pointerDrag.card.code)}
-            </span>
-          </div>,
-          document.body
-        )}
+      {drag.ghostPortal}
     </div>
   )
 }

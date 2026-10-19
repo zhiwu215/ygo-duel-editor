@@ -1,39 +1,14 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import React, { useState, useRef, useEffect } from 'react'
-import { useStore } from 'zustand'
-import {
-  FilePlus,
-  FolderOpen,
-  Save,
-  Upload,
-  Download,
-  Undo2,
-  Redo2,
-  RotateCcw,
-  ArrowLeftRight,
-  Keyboard,
-  Info,
-  Coffee,
-  FileText,
-  FolderKanban,
-  BookOpen,
-  BookMarked,
-  SquareStack,
-  Library,
-  Check,
-  Copy,
-  Play,
-  Clapperboard,
-  X
-} from 'lucide-react'
-import appIcon from '../../assets/app-icon.png'
-import { Button } from '../ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { Check } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { confirmDialog } from '../../stores/useDialogStore'
 import { cn } from '../../lib/utils'
-
-const AUTHOR_AFDIAN_URL = 'https://afdian.com/a/zhiwu215'
+import { buildMenus } from './menuDefs'
+import { useEngineAwareUndoRedo } from '../../hooks/useEngineAwareUndoRedo'
+import { ShortcutsDialog } from './components/ShortcutsDialog'
+import { AboutDialog } from './components/AboutDialog'
+import { SupportDialog } from './components/SupportDialog'
 
 interface MenuBarProps {
   onNew: () => void
@@ -45,23 +20,8 @@ interface MenuBarProps {
   onExportLua: () => void
   onExportYrp: () => void
   onExportScreenplay?: () => void
-}
-
-interface MenuItemDef {
-  label: string
-  icon?: React.ComponentType<{ className?: string }>
-  shortcut?: string
-  action?: () => void
-  disabled?: boolean
-  separator?: boolean
-
-  checked?: boolean
-}
-
-interface MenuDef {
-  id: string
-  label: string
-  items: MenuItemDef[]
+  onExportSession: () => void
+  onImportSession: () => void
 }
 
 export const MenuBar: React.FC<MenuBarProps> = ({
@@ -73,29 +33,20 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   onImportLua,
   onExportLua,
   onExportYrp,
-  onExportScreenplay
+  onExportScreenplay,
+  onExportSession,
+  onImportSession
 }) => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showSupportDialog, setShowSupportDialog] = useState(false)
-  const [copiedField, setCopiedField] = useState<string | null>(null)
   const [appVersion, setAppVersion] = useState('')
   const menuBarRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void window.api.getAppVersion().then(setAppVersion)
   }, [])
-
-  const handleCopyField = async (field: string, text: string): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopiedField(field)
-      setTimeout(() => setCopiedField(null), 1500)
-    } catch (err) {
-      console.error('[MenuBar] Failed to copy field:', err)
-    }
-  }
 
   const {
     resetDuel,
@@ -106,9 +57,26 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     openScreenplayWithStep
   } = useDuelStore()
 
-  const { undo, redo, pastStates, futureStates } = useStore(useDuelStore.temporal)
-  const canUndo = pastStates.length > 0
-  const canRedo = futureStates.length > 0
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+
+  const { canUndo, canRedo, undo, redo } = useEngineAwareUndoRedo()
+
+  const handleToggleEngine = useCallback((): void => {
+    if (isEngineActive) {
+      useDuelEngineStore.getState().stopEngine()
+    } else {
+      void useDuelEngineStore.getState().startEngine()
+    }
+  }, [isEngineActive])
+
+  const handleResetDuel = useCallback((): void => {
+    void confirmDialog({
+      title: '清空重置局面',
+      description: '确定清空当前场面上所有摆放的卡片吗？'
+    }).then((ok) => {
+      if (ok) resetDuel()
+    })
+  }, [resetDuel])
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent): void => {
@@ -129,169 +97,34 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     }
   }, [])
 
-  const menus: MenuDef[] = [
-    {
-      id: 'file',
-      label: '文件',
-      items: [
-        {
-          label: '新建局面',
-          icon: FilePlus,
-          shortcut: 'Ctrl+N',
-          action: onNew
-        },
-        {
-          label: '打开工程',
-          icon: FolderOpen,
-          shortcut: 'Ctrl+O',
-          action: onOpenProject
-        },
-        {
-          label: '决斗档案库',
-          icon: FolderKanban,
-          action: () => setActiveLeftTab('archives')
-        },
-        {
-          label: '保存工程',
-          icon: Save,
-          shortcut: 'Ctrl+S',
-          action: onSaveProject
-        },
-        {
-          label: '另存为...',
-          shortcut: 'Ctrl+Alt+S',
-          action: onSaveProjectAs
-        },
-        { label: '', separator: true },
-        {
-          label: '使用 ygo 测试该局',
-          icon: Play,
-          shortcut: 'Ctrl+T',
-          action: onTestInYgo
-        },
-        {
-          label: '导入 Lua 脚本',
-          icon: Upload,
-          shortcut: 'Ctrl+I',
-          action: onImportLua
-        },
-        {
-          label: '导出 Lua 脚本',
-          icon: Download,
-          shortcut: 'Ctrl+E',
-          action: onExportLua
-        },
-        {
-          label: '导出 YRP 录像',
-          icon: Clapperboard,
-          action: onExportYrp
-        },
-        {
-          label: '导出同人剧本台本',
-          icon: FileText,
-          action: onExportScreenplay
-        }
-      ]
-    },
-    {
-      id: 'edit',
-      label: '编辑',
-      items: [
-        {
-          label: '撤销',
-          icon: Undo2,
-          shortcut: 'Ctrl+Z',
-          disabled: !canUndo,
-          action: () => {
-            useDuelStore.getState().clearEngineContext()
-            undo()
-          }
-        },
-        {
-          label: '重做',
-          icon: Redo2,
-          shortcut: 'Ctrl+Y',
-          disabled: !canRedo,
-          action: () => {
-            useDuelStore.getState().clearEngineContext()
-            redo()
-          }
-        },
-        { label: '', separator: true },
-        {
-          label: '翻转双方场地',
-          icon: ArrowLeftRight,
-          action: () => swapSides()
-        },
-        {
-          label: '清空重置局面',
-          icon: RotateCcw,
-          action: () => {
-            void confirmDialog({
-              title: '清空重置局面',
-              description: '确定清空当前场面上所有摆放的卡片吗？'
-            }).then((ok) => {
-              if (ok) resetDuel()
-            })
-          }
-        }
-      ]
-    },
-    {
-      id: 'view',
-      label: '查看',
-      items: [
-        {
-          label: '战术透视',
-          shortcut: 'Tab',
-          checked: tacticalView,
-          action: () => toggleTacticalView()
-        },
-        { label: '', separator: true },
-        {
-          label: '决斗台本',
-          icon: BookOpen,
-          action: () => openScreenplayWithStep()
-        },
-        {
-          label: '卡组编辑器',
-          icon: SquareStack,
-          action: () => window.api.openDeckEditor()
-        },
-        {
-          label: '卡牌图鉴',
-          icon: BookMarked,
-          action: () => window.api.openCardNoteWindow()
-        },
-        {
-          label: '文本素材库',
-          icon: Library,
-          action: () => void window.api.openTextLibrary()
-        }
-      ]
-    },
-    {
-      id: 'help',
-      label: '帮助',
-      items: [
-        {
-          label: '快捷键参考',
-          icon: Keyboard,
-          action: () => setShowShortcutsDialog(true)
-        },
-        {
-          label: '支持作者',
-          icon: Coffee,
-          action: () => setShowSupportDialog(true)
-        },
-        {
-          label: '关于 YGO Duel Editor',
-          icon: Info,
-          action: () => setShowAboutDialog(true)
-        }
-      ]
-    }
-  ]
+  const menus = buildMenus({
+    onNew,
+    onOpenProject,
+    onSaveProject,
+    onSaveProjectAs,
+    onTestInYgo,
+    onImportLua,
+    onExportLua,
+    onExportYrp,
+    onExportScreenplay,
+    onExportSession,
+    onImportSession,
+    isEngineActive,
+    onToggleEngine: handleToggleEngine,
+    canUndo,
+    canRedo,
+    onUndo: undo,
+    onRedo: redo,
+    onSwapSides: () => swapSides(),
+    onResetDuel: handleResetDuel,
+    tacticalView,
+    onToggleTacticalView: () => toggleTacticalView(),
+    onOpenArchives: () => setActiveLeftTab('archives'),
+    onOpenScreenplay: () => openScreenplayWithStep(),
+    onShowShortcutsDialog: () => setShowShortcutsDialog(true),
+    onShowAboutDialog: () => setShowAboutDialog(true),
+    onShowSupportDialog: () => setShowSupportDialog(true)
+  })
 
   return (
     <>
@@ -361,177 +194,13 @@ export const MenuBar: React.FC<MenuBarProps> = ({
         })}
       </div>
 
-      {showShortcutsDialog && (
-        <Dialog open onOpenChange={(open) => !open && setShowShortcutsDialog(false)}>
-          <DialogContent showCloseButton={false} className="max-w-md space-y-3 p-5">
-            <DialogHeader className="flex-row items-center justify-between space-y-0 border-b border-border pb-2.5">
-              <DialogTitle className="flex items-center gap-2 font-semibold text-sm">
-                <Keyboard className="w-4 h-4 text-muted-foreground" />
-                快捷键参考
-              </DialogTitle>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      onClick={() => setShowShortcutsDialog(false)}
-                      className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  }
-                />
-                <TooltipContent>关闭</TooltipContent>
-              </Tooltip>
-            </DialogHeader>
-            <div className="space-y-1 text-xs">
-              {[
-                ['删除卡片', 'Delete / Del'],
-                ['超量叠放', 'Alt + 拖放'],
-                ['战术透视', 'Tab'],
-                ['使用 ygo 测试该局', 'Ctrl + T'],
-                ['攻守与指示物', 'Shift + 鼠标左键'],
-                ['双击卡堆', '查看卡组列表（额外/卡组/墓地/除外）'],
-                ['切换默认放置状态', 'Ctrl + 拖放']
-              ].map(([name, key]) => (
-                <div key={name} className="flex justify-between py-1 border-b border-border/40">
-                  <span className="text-muted-foreground">{name}</span>
-                  <kbd className="bg-muted px-1.5 py-0.5 rounded font-mono text-[11px]">{key}</kbd>
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {showShortcutsDialog && <ShortcutsDialog onClose={() => setShowShortcutsDialog(false)} />}
 
       {showAboutDialog && (
-        <Dialog open onOpenChange={(open) => !open && setShowAboutDialog(false)}>
-          <DialogContent showCloseButton={false} className="max-w-sm space-y-3 p-5">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => setShowAboutDialog(false)}
-                    className="absolute top-3 right-3 text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                }
-              />
-              <TooltipContent>关闭</TooltipContent>
-            </Tooltip>
-
-            <div className="text-center space-y-1">
-              <img
-                src={appIcon}
-                alt=""
-                aria-hidden="true"
-                className="w-10 h-10 mx-auto rounded-md object-cover"
-                draggable={false}
-              />
-              <h3 className="font-semibold text-base pt-1">YGO Duel Editor</h3>
-              <p className="text-xs text-muted-foreground">版本 {appVersion}</p>
-            </div>
-            <div className="space-y-1.5 text-xs border-t border-border pt-3">
-              {[
-                ['作者', '知兀', null],
-                ['邮箱', 'zhiwu_215@qq.com', null],
-                [
-                  'B站',
-                  'space.bilibili.com/3546704263514722',
-                  'https://space.bilibili.com/3546704263514722'
-                ],
-                [
-                  '项目地址',
-                  'github.com/zhiwu215/ygo-duel-editor',
-                  'https://github.com/zhiwu215/ygo-duel-editor'
-                ]
-              ].map(([label, text, href]) => (
-                <div key={label} className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground shrink-0">{label}</span>
-                  {href ? (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline truncate"
-                      title={text ?? undefined}
-                    >
-                      {text}
-                    </a>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <button
-                            type="button"
-                            onClick={() => void handleCopyField(label!, text!)}
-                            className="group flex items-center gap-1.5 truncate hover:text-foreground transition-colors"
-                          >
-                            <span className="truncate">{text}</span>
-                            {copiedField === label ? (
-                              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                            ) : (
-                              <Copy className="w-3 h-3 opacity-0 group-hover:opacity-60 shrink-0 transition-opacity" />
-                            )}
-                          </button>
-                        }
-                      />
-                      <TooltipContent>点击复制</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <AboutDialog appVersion={appVersion} onClose={() => setShowAboutDialog(false)} />
       )}
 
-      {showSupportDialog && (
-        <Dialog open onOpenChange={(open) => !open && setShowSupportDialog(false)}>
-          <DialogContent showCloseButton={false} className="max-w-sm space-y-2 p-4 pb-3">
-            <DialogHeader className="flex-row items-center justify-between space-y-0 border-b border-border pb-2">
-              <DialogTitle className="flex items-center gap-2 font-semibold text-sm">
-                <Coffee className="w-4 h-4 text-muted-foreground" />
-                支持作者
-              </DialogTitle>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      onClick={() => setShowSupportDialog(false)}
-                      className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  }
-                />
-                <TooltipContent>关闭</TooltipContent>
-              </Tooltip>
-            </DialogHeader>
-
-            <p className="text-xs text-muted-foreground leading-relaxed text-center">
-              如果 YGO Duel Editor 对你有帮助，欢迎请作者喝杯咖啡
-            </p>
-
-            <p className="text-[11px] text-muted-foreground/80 leading-relaxed text-center">
-              全部功能免费开放，赞助仅作自愿支持，不影响任何功能
-            </p>
-
-            <Button
-              onClick={() => {
-                setShowSupportDialog(false)
-                void window.api.openExternal(AUTHOR_AFDIAN_URL)
-              }}
-              className="w-full"
-            >
-              <span>打开爱发电主页</span>
-            </Button>
-          </DialogContent>
-        </Dialog>
-      )}
+      {showSupportDialog && <SupportDialog onClose={() => setShowSupportDialog(false)} />}
     </>
   )
 }

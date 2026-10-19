@@ -1,0 +1,233 @@
+import React, { useMemo, useState } from 'react'
+import { DuelStep } from '@shared/index'
+import { useDuelStore } from '../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { useStepPlayback } from '../../hooks/useStepPlayback'
+import { ScrollArea } from '../ui/scroll-area'
+import { Button } from '../ui/button'
+import { BookOpen, Film, PlayCircle, Plus, X } from 'lucide-react'
+import { cn } from '../../lib/utils'
+import { StepGroupHeader } from './StepGroupHeader'
+import { StepCard } from './StepCard'
+import { buildStepList, getAttackDamageText, resolveStepCardName } from './stepGrouping'
+
+interface StepListProps {
+  steps: DuelStep[]
+  onOpenAdd: () => void
+  onEditStep: (step: DuelStep) => void
+}
+
+export const StepList: React.FC<StepListProps> = ({ steps, onOpenAdd, onEditStep }) => {
+  const { currentStepIndex, previewReturn, exitPreview, openScreenplayWithStep } = useDuelStore()
+  const { handleStepClick, handleRestartFromStep } = useStepPlayback()
+  const engineActive = useDuelEngineStore((s) => s.isInitialized)
+  const engineTimeline = useDuelEngineStore((s) => s.timeline)
+  const engineCurrentStepId = useDuelEngineStore((s) => s.currentStepId)
+
+  const stepList = useMemo(() => buildStepList(steps), [steps])
+
+  const engineIndexById = useMemo(() => {
+    const map = new Map<string, number>()
+    engineTimeline.forEach((node, index) => map.set(node.id, index))
+    return map
+  }, [engineTimeline])
+  const engineCursor = useMemo(() => {
+    if (!engineActive || !engineCurrentStepId) return -1
+    return engineIndexById.get(engineCurrentStepId) ?? -1
+  }, [engineActive, engineCurrentStepId, engineIndexById])
+  const futureStepCount = useMemo(() => {
+    if (engineCursor < 0) return 0
+    return stepList.reduce((count, item) => {
+      if (item.kind !== 'group') return count
+      return (
+        count +
+        item.group.entries.filter(({ step }) => {
+          const stepIndex = step.actId ? engineIndexById.get(step.actId) : undefined
+          return stepIndex !== undefined && stepIndex > engineCursor
+        }).length
+      )
+    }, 0)
+  }, [stepList, engineCursor, engineIndexById])
+
+  const previewIndex = currentStepIndex
+  const previewStep = previewIndex !== null ? steps[previewIndex] : undefined
+  const isPreviewing = previewReturn !== null && previewIndex !== null && Boolean(previewStep)
+
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set())
+
+  const toggleGroup = (key: string): void => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const isCurrentStepOf = (step: DuelStep, index: number): boolean => {
+    if (engineCursor < 0) return currentStepIndex === index
+    const stepIndex = step.actId ? engineIndexById.get(step.actId) : undefined
+    return stepIndex === engineCursor
+  }
+
+  const renderStepCard = (step: DuelStep, index: number): React.JSX.Element => {
+    const stepEngineIndex = step.actId ? engineIndexById.get(step.actId) : undefined
+    const isFutureStep =
+      engineCursor >= 0 && stepEngineIndex !== undefined && stepEngineIndex > engineCursor
+    const isCurrentPlaying =
+      engineCursor >= 0 ? stepEngineIndex === engineCursor : currentStepIndex === index
+    return (
+      <StepCard
+        key={step.id}
+        step={step}
+        index={index}
+        stepsLength={steps.length}
+        isCurrentPlaying={isCurrentPlaying}
+        isFutureStep={isFutureStep}
+        stepEngineIndex={stepEngineIndex}
+        onEdit={onEditStep}
+        onRestart={handleRestartFromStep}
+        onClick={handleStepClick}
+      />
+    )
+  }
+
+  return (
+    <ScrollArea className="flex-1 min-h-0">
+      <div className="p-2 flex flex-col gap-2 select-text">
+        {isPreviewing ? (
+          <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md border border-sky-500/40 bg-sky-500/5 text-[10px] leading-relaxed text-sky-600 dark:text-sky-400">
+            <span>
+              正在预览第 {previewIndex! + 1}{' '}
+              步的场面（引擎当前局面没有改变；做任何引擎操作会自动退出预览）。
+            </span>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="xs"
+                variant="ghost"
+                onClick={() => exitPreview()}
+                className="h-6 px-2 text-[10px]"
+              >
+                <X className="w-3 h-3" />
+                <span>退出预览</span>
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => handleRestartFromStep(previewIndex!, previewStep!)}
+                className="h-6 px-2 text-[10px]"
+              >
+                <PlayCircle className="w-3 h-3" />
+                <span>以这一步继续编排</span>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          futureStepCount > 0 && (
+            <div className="px-2 py-1.5 rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
+              已回退到当前步：之后 {futureStepCount} 步保留在列表里（虚线「未来步」），点击可前进；
+              若直接在此处展开新操作，它们会被丢弃。
+            </div>
+          )
+        )}
+        {steps.length === 0 ? (
+          <div className="flex-1 h-full flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none">
+            <Film className="w-10 h-10 text-muted-foreground/30 mb-2.5 animate-pulse" />
+            <p className="font-semibold text-foreground/80">暂无编排动作步骤</p>
+            <p className="text-[11px] text-muted-foreground/60 mt-1 leading-relaxed max-w-[220px]">
+              点击右上角「添加步骤」开始规划回合、阶段、动作与角色台词，打造生动决斗故事！
+            </p>
+            <div className="flex items-center gap-2 mt-3.5">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onOpenAdd}
+                className="h-7 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>新建第 1 步</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => openScreenplayWithStep()}
+                className="h-7 text-xs font-semibold gap-1"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>决斗台本工作台</span>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          stepList.map((item) => {
+            if (item.kind === 'separator') {
+              return (
+                <div
+                  key={item.key}
+                  className="flex w-full items-center gap-1.5 px-1 pt-1 select-none text-[11px] font-semibold text-muted-foreground/80"
+                >
+                  <span
+                    className={cn(
+                      'w-1.5 h-1.5 rounded-full shrink-0',
+                      item.turnPlayer === 0 ? 'bg-blue-500/70' : 'bg-rose-500/70'
+                    )}
+                  />
+                  <span className="shrink-0">{item.label}</span>
+                  <div className="flex-1 h-px bg-border/50 ml-1" />
+                </div>
+              )
+            }
+
+            const { group } = item
+            const firstEntry = group.entries[0]
+
+            if (group.kind === 'single') {
+              return renderStepCard(firstEntry.step, firstEntry.index)
+            }
+
+            const expanded = expandedGroups.has(group.key)
+            const names = group.entries.map(({ step }) => resolveStepCardName(step))
+            const isCurrentPlaying = group.entries.some(({ step, index }) =>
+              isCurrentStepOf(step, index)
+            )
+            const damageText =
+              group.kind === 'attack'
+                ? getAttackDamageText(firstEntry.step, group.entries[1]?.step)
+                : undefined
+
+            return (
+              <div key={group.key} className="flex flex-col gap-1.5">
+                <StepGroupHeader
+                  summary={{
+                    kind: group.kind,
+                    player: firstEntry.step.actionPlayer,
+                    cardCode: firstEntry.step.cardCode,
+                    cardName: names[0],
+                    actionType: firstEntry.step.actionType,
+                    names,
+                    chainNumber: firstEntry.step.chainIndex,
+                    damageText,
+                    count: group.entries.length,
+                    expanded,
+                    isCurrentPlaying,
+                    onToggle: () => toggleGroup(group.key)
+                  }}
+                />
+                {expanded && (
+                  <div
+                    className={cn(
+                      'flex flex-col gap-2 pl-2 ml-1 border-l',
+                      group.kind === 'chain' ? 'border-teal-500/30' : 'border-border/60'
+                    )}
+                  >
+                    {group.entries.map(({ step, index }) => renderStepCard(step, index))}
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+    </ScrollArea>
+  )
+}

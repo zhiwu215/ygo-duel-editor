@@ -10,9 +10,6 @@ export const UNKNOWN_CARD_IMAGE = localUnknown
 
 let imageVersion = 0
 
-/**
- * 卡库或卡图目录变更后递增，强制浏览器重新拉取图片 (否则改路径前的 404 会被缓存)
- */
 export function bumpCardImageVersion(): void {
   imageVersion += 1
 }
@@ -32,11 +29,6 @@ export function getCardImageUrl(code: number | undefined, small = false): string
 const DRAG_IMAGE_WIDTH = 64
 const DRAG_IMAGE_HEIGHT = 92
 
-/**
- * 把卡图单独画成拖影。
- * 不设 setDragImage 时浏览器会抓取整个 draggable 元素，列表行里的卡名、类型、角标都会跟着鼠标走。
- * canvas 必须在 dragstart 期间挂进 DOM 才不会被 Chromium 判为不可见。
- */
 export function setCardDragImage(dataTransfer: DataTransfer, source: Element | null): void {
   const image = source?.tagName === 'IMG' ? source : source?.querySelector('img')
   if (!(image instanceof HTMLImageElement)) return

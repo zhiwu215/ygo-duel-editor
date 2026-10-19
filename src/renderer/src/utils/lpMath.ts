@@ -1,38 +1,26 @@
 import { INFINITY_VALUE, isInfiniteVal } from '@shared/index'
 
-/** 生命值计算器解析结果 */
 export interface LpParseResult {
   valid: boolean
   result: number
-  /** 用户输入的算式或说明展示，例如 "8000 - 1100" */
   formula: string
-  /** 计算模式 */
   mode: 'direct' | 'relative' | 'expression' | 'invalid'
 }
 
-/** 支持的运算符类型 */
 export type LpOperator = '-' | '+' | '/' | '*' | '=' | 'inf'
 
-/**
- * 安全的简易四则运算求值器 (支持 +, -, *, /，支持先乘除后加减)
- * 纯算法分词与堆栈运算，杜绝 eval/Function 安全隐患
- */
 export function safeEvalMath(expr: string): number | null {
-  // 严格只允许数字、小数点、空格与加减乘除符号
   if (!/^[\d\s+\-*/.]+$/.test(expr)) return null
 
-  // 分词
   const tokens = expr.match(/\d+(?:\.\d+)?|[+\-*/]/g)
   if (!tokens || tokens.length === 0) return null
 
-  // 首尾非法符号检查（不能以 * / 开头，不能以任何运算符结尾）
   if (/[*/]/.test(tokens[0]) || /[+\-*/]/.test(tokens[tokens.length - 1])) return null
 
   const numbers: number[] = []
   const ops: string[] = []
   let i = 0
 
-  // 1. 处理首个可能带有的负号或正号
   if (tokens[0] === '-' || tokens[0] === '+') {
     const sign = tokens[0] === '-' ? -1 : 1
     i = 1
@@ -45,7 +33,6 @@ export function safeEvalMath(expr: string): number | null {
     i = 1
   }
 
-  // 2. 乘除高优先级运算
   while (i < tokens.length) {
     const op = tokens[i]
     if (!['+', '-', '*', '/'].includes(op)) return null
@@ -59,7 +46,7 @@ export function safeEvalMath(expr: string): number | null {
       const prev = numbers.pop()!
       numbers.push(prev * num)
     } else if (op === '/') {
-      if (num === 0) return null // 除零保护
+      if (num === 0) return null
       const prev = numbers.pop()!
       numbers.push(prev / num)
     } else {
@@ -68,7 +55,6 @@ export function safeEvalMath(expr: string): number | null {
     }
   }
 
-  // 3. 加减运算
   let total = numbers[0]
   for (let j = 0; j < ops.length; j++) {
     if (ops[j] === '+') {
@@ -81,14 +67,9 @@ export function safeEvalMath(expr: string): number | null {
   return total
 }
 
-/**
- * 解析用户在生命值框输入的字符串 (支持直接数值、增减算式与四则运算、以及无限 ∞ 判定)
- */
 export function parseLpExpression(rawInput: string, currentLp: number): LpParseResult {
-  // 规范化输入：将全角或常见符号统一为标准运算符与无限符号
   let input = rawInput.trim().replace(/÷/g, '/').replace(/[×xX]/g, '*')
 
-  // 兼容用户直接输入带等号的改写格式 (如 "=4000" 或 "= 8000")
   if (input.startsWith('=')) {
     input = input.slice(1).trim()
   }
@@ -97,7 +78,6 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
     return { valid: false, result: currentLp, formula: '请输入数值或算式', mode: 'invalid' }
   }
 
-  // 检测无限关键字 (∞, inf, infinity, 无限)
   const isDirectInfinity =
     input === '∞' ||
     input.toLowerCase() === 'inf' ||
@@ -113,7 +93,6 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
     }
   }
 
-  // 1. 相对算式：以 +、-、*、/ 开头（如 -1100、+500、/2）
   if (/^[+\-*/]/.test(input)) {
     const op = input[0]
     const rest = input.slice(1).trim()
@@ -130,7 +109,6 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
       }
     }
 
-    // 相对算式中指定无限 (如 +无限, +inf)
     const isRestInfinity =
       rest === '∞' ||
       rest.toLowerCase() === 'inf' ||
@@ -154,7 +132,6 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
       }
     }
 
-    // 当前已是无限时进行加减乘除计算
     if (isInfiniteVal(currentLp)) {
       return {
         valid: true,
@@ -178,7 +155,6 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
     return { valid: false, result: currentLp, formula: '算式格式有误', mode: 'invalid' }
   }
 
-  // 2. 绝对纯数字（如 4000）
   if (/^\d+$/.test(input)) {
     const val = parseInt(input, 10)
     if (val >= INFINITY_VALUE) {
@@ -197,7 +173,6 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
     }
   }
 
-  // 3. 完整四则算式（如 8000-1100, 4000+500, 8000/2）
   const evaluated = safeEvalMath(input)
   if (evaluated !== null && !isNaN(evaluated)) {
     const finalVal = Math.max(0, Math.floor(evaluated))
@@ -214,9 +189,6 @@ export function parseLpExpression(rawInput: string, currentLp: number): LpParseR
   return { valid: false, result: currentLp, formula: '输入无效', mode: 'invalid' }
 }
 
-/**
- * 识别输入字符串当前的运算模式
- */
 export function detectCurrentOp(rawInput: string): LpOperator {
   const trimmed = rawInput.trim().toLowerCase()
   if (trimmed === '∞' || trimmed === 'inf' || trimmed === 'infinity' || trimmed === '无限') {
@@ -229,9 +201,6 @@ export function detectCurrentOp(rawInput: string): LpOperator {
   return '='
 }
 
-/**
- * 切换四则运算符时，平滑保留或重置输入框中的数字
- */
 export function switchOperator(currentText: string, newOp: LpOperator, currentLp: number): string {
   if (newOp === 'inf') {
     return '无限'
@@ -240,12 +209,10 @@ export function switchOperator(currentText: string, newOp: LpOperator, currentLp
   const trimmed = currentText.trim()
   const isCurrentInf = trimmed === '∞' || trimmed === '无限' || isInfiniteVal(currentLp)
 
-  // 如果当前是无限，或者初始完整数值/空
   if (isCurrentInf || trimmed === String(currentLp) || !trimmed) {
     return newOp === '=' ? '' : newOp
   }
 
-  // 提取用户已输入的纯数字部分 (如 "-1100" 中的 "1100")
   const numMatch = trimmed.match(/[\d.]+$/)
   const numPart = numMatch ? numMatch[0] : ''
 

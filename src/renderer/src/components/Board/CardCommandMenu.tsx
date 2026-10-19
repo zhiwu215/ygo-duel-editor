@@ -1,23 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FieldCard, CardType, CardPosition, CardLocation } from '@shared/index'
-import { CardActionOptions } from '../../utils/ruleCheck'
+import { CardLocation, Answer } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { deriveCardEngineActions } from '../../utils/engineActions'
+import { buildCardEngineActionMap, reposActionLabel } from '../../utils/cardMenuActions'
 import { cn } from '../../lib/utils'
 
-interface CardCommandMenuProps {
-  card?: FieldCard
-  actions?: CardActionOptions
-  onClose?: () => void
-  anchorRect?: DOMRect | null
-}
-
-export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
+export const CardCommandMenu: React.FC = () => {
   const store = useCardCommandMenuStore()
-  const card = props.card ?? store.card
-  const actions = props.actions ?? store.actions
-  const anchorRect = props.anchorRect ?? store.anchorRect
-  const onClose = props.onClose ?? store.closeMenu
+  const card = store.card
+  const actions = store.actions
+  const anchorRect = store.anchorRect
+  const onClose = store.closeMenu
 
   const [showOptions, setShowOptions] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -49,78 +44,133 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
     }
   }, [onClose])
 
-  if (!card || !actions || !anchorRect || !actions.hasAnyAction) return null
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  const isEngine = useDuelEngineStore((s) => s.isInitialized)
 
-  const cdb = card.card
-  const isPendulum = cdb ? (cdb.type & CardType.PENDULUM) !== 0 : false
-  const setLabel = isPendulum && actions.canSpellSet && !actions.canMonsterSet ? '放置' : '盖放'
+  const requestActions = React.useMemo(
+    () => deriveCardEngineActions(pendingRequest, card),
+    [pendingRequest, card]
+  )
+  const actionMap = React.useMemo(
+    () => (requestActions ? buildCardEngineActionMap(requestActions, card?.position) : null),
+    [requestActions, card]
+  )
+  const useRequestActions = Boolean(isEngine && actionMap)
+
+  if (!card || !actions || !anchorRect) return null
+
+  const submitAnswer = (answer: Answer): void => {
+    void useDuelEngineStore.getState().submitAnswer(answer)
+    onClose()
+  }
 
   const handleSummon = (): void => {
-    executeNormalSummon(card.instanceId)
+    if (useRequestActions && actionMap?.summon) {
+      submitAnswer(actionMap.summon.answer)
+    } else if (!isEngine) {
+      executeNormalSummon(card.instanceId)
+    }
     onClose()
   }
 
   const handleSpSummon = (): void => {
-    executeSpecialSummon(card.instanceId)
+    if (useRequestActions && actionMap?.spSummon) {
+      submitAnswer(actionMap.spSummon.answer)
+    } else if (!isEngine) {
+      executeSpecialSummon(card.instanceId)
+    }
     onClose()
   }
 
   const handleActivate = (): void => {
-    if (actions.activateOptions.length > 1) {
-      setShowOptions(true)
-      return
+    if (useRequestActions && actionMap) {
+      if (actionMap.activate.length > 1) {
+        setShowOptions(true)
+        return
+      }
+      if (actionMap.activate.length === 1) {
+        submitAnswer(actionMap.activate[0].answer)
+        return
+      }
     }
-    const effectIndex = actions.activateOptions[0]?.effectIndex
-    if (card.location === CardLocation.HAND) {
-      useDuelStore.getState().beginPlacement('ACTIVATE', card.instanceId, effectIndex)
-    } else {
-      executeActivateCard(card.instanceId, undefined, false, effectIndex)
-    }
-    onClose()
-  }
-
-  const handleSelectOption = (effectIndex: number): void => {
-    if (card.location === CardLocation.HAND) {
-      useDuelStore.getState().beginPlacement('ACTIVATE', card.instanceId, effectIndex)
-    } else {
-      executeActivateCard(card.instanceId, undefined, false, effectIndex)
+    if (!isEngine) {
+      if (card.location === CardLocation.HAND) {
+        useDuelStore.getState().beginPlacement('ACTIVATE', card.instanceId)
+      } else {
+        executeActivateCard(card.instanceId)
+      }
     }
     onClose()
   }
 
   const handleSet = (): void => {
-    executeSetCard(card.instanceId)
+    if (useRequestActions && actionMap?.set) {
+      submitAnswer(actionMap.set.answer)
+      return
+    }
+    if (!isEngine) {
+      executeSetCard(card.instanceId)
+    }
     onClose()
   }
 
   const handleRepos = (): void => {
-    void executeReposCard(card.instanceId)
+    if (useRequestActions && actionMap?.repos) {
+      submitAnswer(actionMap.repos.answer)
+    } else if (!isEngine) {
+      void executeReposCard(card.instanceId)
+    }
     onClose()
   }
 
   const handleAttack = (): void => {
-    executeAttackCard(card.instanceId)
+    if (useRequestActions && actionMap?.attack) {
+      submitAnswer(actionMap.attack.answer)
+    } else if (!isEngine) {
+      executeAttackCard(card.instanceId)
+    }
     onClose()
   }
 
-  const reposLabel =
-    card.position === CardPosition.FACEDOWN_DEFENSE
-      ? '反转召唤'
-      : card.position === CardPosition.FACEUP_ATTACK
-        ? '转为守备'
-        : '转为攻击'
+  const handleChain = (): void => {
+    if (useRequestActions && actionMap?.chain) {
+      submitAnswer(actionMap.chain.answer)
+    }
+  }
 
-  const buttonCount =
-    (actions.canActivate ? 1 : 0) +
-    (actions.canSummon ? 1 : 0) +
-    (actions.canSpSummon ? 1 : 0) +
-    (actions.canMonsterSet || actions.canSpellSet ? 1 : 0) +
-    (actions.canRepos ? 1 : 0) +
-    (actions.canAttack ? 1 : 0)
+  const reposLabel = reposActionLabel(card.position)
+
+  const attackLabel =
+    useRequestActions && requestActions?.attack?.directAttackable ? '攻击（可直攻）' : '攻击'
+
+  const buttonCount = useRequestActions
+    ? (actionMap?.summon ? 1 : 0) +
+      (actionMap?.spSummon ? 1 : 0) +
+      (actionMap?.set ? 1 : 0) +
+      (actionMap?.repos ? 1 : 0) +
+      (actionMap?.attack ? 1 : 0) +
+      (actionMap?.activate.length ? 1 : 0) +
+      (actionMap?.chain ? 1 : 0)
+    : !isEngine
+      ? (actions.canActivate ? 1 : 0) +
+        (actions.canSummon ? 1 : 0) +
+        (actions.canSpSummon ? 1 : 0) +
+        (actions.canMonsterSet || actions.canSpellSet ? 1 : 0) +
+        (actions.canRepos ? 1 : 0) +
+        (actions.canAttack ? 1 : 0)
+      : 0
+
+  const activateOptionList: { id: string; label: string }[] =
+    actionMap?.activate.map((spec, i) => ({
+      id: `req-act-${i}`,
+      label: spec.label
+    })) ?? []
+
+  if (buttonCount === 0 && !showOptions) return null
 
   const menuWidth = showOptions ? 220 : 96
   const menuHeight = showOptions
-    ? Math.min(220, actions.activateOptions.length * 36 + 36)
+    ? Math.min(220, activateOptionList.length * 36 + 36)
     : Math.max(26, buttonCount * 26)
 
   const x = Math.min(
@@ -137,89 +187,130 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
     'bg-gradient-to-b from-[#e8e8e8] via-[#d6d6d6] to-[#bebebe] text-neutral-900 border-neutral-400/80',
     'hover:from-[#f5f5f5] hover:via-[#e6e6e6] hover:to-[#cecece]',
     'active:from-[#b0b0b0] active:to-[#9a9a9a]',
-    'dark:from-[#3a3d45] dark:via-[#2e3138] dark:to-[#22242a] dark:text-neutral-100 dark:border-neutral-700',
-    'dark:hover:from-[#4b505c] dark:hover:via-[#3b3f49] dark:hover:to-[#2a2d34]',
-    'dark:active:from-[#22242a] dark:active:to-[#17181c]'
+    'dark:from-neutral-700 dark:via-neutral-800 dark:to-neutral-900 dark:text-neutral-100 dark:border-neutral-700/80',
+    'dark:hover:from-neutral-600 dark:hover:via-neutral-700 dark:hover:to-neutral-800'
   )
 
   return (
     <div
       ref={menuRef}
-      style={{
-        position: 'fixed',
-        left: `${x}px`,
-        top: `${y}px`,
-        zIndex: 60
-      }}
-      className={cn(
-        'rounded-[2px] border border-neutral-500/80 dark:border-neutral-600 shadow-2xl overflow-hidden select-none animate-in fade-in zoom-in-95 duration-75',
-        showOptions ? 'w-56' : 'w-24'
-      )}
+      style={{ left: `${x}px`, top: `${y}px` }}
+      className="fixed z-50 flex flex-col rounded-sm border border-neutral-500/80 shadow-2xl overflow-hidden bg-neutral-900/95"
       onClick={(e) => e.stopPropagation()}
     >
-      {!showOptions ? (
-        <div className="flex flex-col w-full">
-          {actions.canActivate && (
-            <button type="button" className={buttonClass} onClick={handleActivate}>
-              发动
-            </button>
-          )}
-          {actions.canSummon && (
-            <button type="button" className={buttonClass} onClick={handleSummon}>
-              召唤
-            </button>
-          )}
-          {actions.canSpSummon && (
-            <button type="button" className={buttonClass} onClick={handleSpSummon}>
-              特殊召唤
-            </button>
-          )}
-          {(actions.canMonsterSet || actions.canSpellSet) && (
-            <button type="button" className={buttonClass} onClick={handleSet}>
-              {setLabel}
-            </button>
-          )}
-          {actions.canRepos && (
-            <button type="button" className={buttonClass} onClick={handleRepos}>
-              {reposLabel}
-            </button>
-          )}
-          {actions.canAttack && (
+      {showOptions ? (
+        <div className="flex flex-col p-1 gap-1 max-h-[220px] overflow-y-auto w-[220px]">
+          <div className="px-2 py-1 text-[11px] font-semibold text-neutral-400 border-b border-neutral-700/60 truncate">
+            选择要发动的效果
+          </div>
+          {activateOptionList.map((opt, index) => (
             <button
+              key={opt.id}
               type="button"
-              className={cn(buttonClass, 'text-rose-700 dark:text-rose-400')}
-              onClick={handleAttack}
+              onClick={() => {
+                const spec = actionMap?.activate[index]
+                if (spec) submitAnswer(spec.answer)
+              }}
+              className="w-full px-2 py-1.5 text-left text-xs font-medium rounded hover:bg-neutral-800 active:bg-neutral-700 text-neutral-200 truncate cursor-pointer transition-colors"
             >
-              攻击
+              {opt.label}
             </button>
-          )}
+          ))}
+          <button
+            type="button"
+            onClick={() => setShowOptions(false)}
+            className="w-full px-2 py-1 text-center text-[11px] text-neutral-400 hover:text-neutral-200 mt-1 cursor-pointer"
+          >
+            返回
+          </button>
         </div>
       ) : (
-        <div className="flex flex-col w-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden">
-          <div className="px-3 py-1.5 text-[11px] font-bold text-neutral-700 dark:text-neutral-300 border-b border-neutral-300 dark:border-neutral-700 bg-neutral-200/80 dark:bg-neutral-800/80 flex items-center justify-between">
-            <span>选择发动效果</span>
-            <button
-              type="button"
-              className="text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
-              onClick={() => setShowOptions(false)}
-            >
-              返回
-            </button>
-          </div>
-          <div className="flex flex-col overflow-y-auto max-h-44 p-1 gap-1">
-            {actions.activateOptions.map((opt, i) => (
-              <button
-                key={i}
-                type="button"
-                className="w-full py-1.5 px-2 text-[11px] font-medium text-left rounded hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer whitespace-normal leading-tight"
-                onClick={() => handleSelectOption(opt.effectIndex)}
-              >
-                <span className="font-bold mr-1 text-primary">{i + 1}.</span>
-                <span>{opt.descText || `效果 ${i + 1}`}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <>
+          {useRequestActions ? (
+            <>
+              {actionMap?.activate.length ? (
+                <button type="button" onClick={handleActivate} className={buttonClass}>
+                  发动
+                </button>
+              ) : null}
+              {actionMap?.summon ? (
+                <button type="button" onClick={handleSummon} className={buttonClass}>
+                  召唤
+                </button>
+              ) : null}
+              {actionMap?.spSummon ? (
+                <button type="button" onClick={handleSpSummon} className={buttonClass}>
+                  特殊召唤
+                </button>
+              ) : null}
+              {actionMap?.set ? (
+                <button type="button" onClick={handleSet} className={buttonClass}>
+                  盖放
+                </button>
+              ) : null}
+              {actionMap?.repos ? (
+                <button type="button" onClick={handleRepos} className={buttonClass}>
+                  {reposLabel}
+                </button>
+              ) : null}
+              {actionMap?.attack ? (
+                <button
+                  type="button"
+                  onClick={handleAttack}
+                  className={cn(buttonClass, 'text-rose-700 dark:text-rose-400')}
+                >
+                  {attackLabel}
+                </button>
+              ) : null}
+              {actionMap?.chain ? (
+                <button
+                  type="button"
+                  onClick={handleChain}
+                  className={cn(buttonClass, 'text-teal-700 dark:text-teal-400')}
+                >
+                  发动连锁
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {actions.canActivate && (
+                <button type="button" onClick={handleActivate} className={buttonClass}>
+                  发动
+                </button>
+              )}
+              {actions.canSummon && (
+                <button type="button" onClick={handleSummon} className={buttonClass}>
+                  召唤
+                </button>
+              )}
+              {actions.canSpSummon && (
+                <button type="button" onClick={handleSpSummon} className={buttonClass}>
+                  特殊召唤
+                </button>
+              )}
+              {(actions.canMonsterSet || actions.canSpellSet) && (
+                <button type="button" onClick={handleSet} className={buttonClass}>
+                  盖放
+                </button>
+              )}
+              {actions.canRepos && (
+                <button type="button" onClick={handleRepos} className={buttonClass}>
+                  {reposLabel}
+                </button>
+              )}
+              {actions.canAttack && (
+                <button
+                  type="button"
+                  onClick={handleAttack}
+                  className={cn(buttonClass, 'text-rose-700 dark:text-rose-400')}
+                >
+                  攻击
+                </button>
+              )}
+            </>
+          )}
+        </>
       )}
     </div>
   )

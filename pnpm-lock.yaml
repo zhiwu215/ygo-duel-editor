@@ -141,9 +141,6 @@ importers:
       react-dom:
         specifier: ^19.2.1
         version: 19.3.0(react@19.3.0)
-      sql.js:
-        specifier: ^1.14.2
-        version: 1.14.2
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3

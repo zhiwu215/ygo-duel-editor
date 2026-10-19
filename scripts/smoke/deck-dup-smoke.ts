@@ -23,7 +23,6 @@ const POT = 55144522
 async function main(): Promise<void> {
   await cdbService.ready()
 
-  const { OcgcoreDuelRule, OcgcoreDuelOptionFlag } = coreRequire('koishipro-core.js')
   const wasmDir = path.join(
     path.dirname(coreRequire.resolve('koishipro-core.js')),
     'vendor/wasm_cjs'
@@ -116,7 +115,6 @@ async function main(): Promise<void> {
     msg instanceof ygopro.YGOProMsgSelectEffectYn
 
   const autoAnswer = (request: ReturnType<typeof routeRequest>): Answer => {
-    const d = request.data
     switch (request.kind) {
       case 'rps':
         return { kind: 'rps', hand: 'paper' }

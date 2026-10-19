@@ -53,12 +53,12 @@ interface ScreenplayWindowBodyProps {
   onSelectStep: (id: string | null) => void
 }
 
-const ScreenplayWindowBody: React.FC<ScreenplayWindowBodyProps> = ({
+const ScreenplayWindowBody = ({
   puzzle,
   setPuzzle,
   selectedStepId,
   onSelectStep
-}) => {
+}: ScreenplayWindowBodyProps): React.JSX.Element => {
   const state = puzzle
   const steps = useMemo(() => state.steps || [], [state.steps])
 

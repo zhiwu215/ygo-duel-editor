@@ -11,16 +11,7 @@ import { StepList } from './StepList'
 import { StepEditDialog } from './StepEditDialog'
 import { ALL_PHASES } from './stepGrouping'
 import { cn } from '../../lib/utils'
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  Film,
-  LogOut,
-  PencilLine,
-  Plus,
-  RotateCcw
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, LogOut, PencilLine, Plus, RotateCcw } from 'lucide-react'
 
 export const StepSequencerPanel: React.FC = () => {
   const {
@@ -77,10 +68,6 @@ export const StepSequencerPanel: React.FC = () => {
     <div className="w-full h-full flex flex-col shrink-0 select-none overflow-hidden text-xs">
       <div className="p-2.5 border-b border-border/60 bg-muted/10 flex items-center justify-between shrink-0">
         <div className="flex flex-col">
-          <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
-            <Film className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>对局剧情编排</span>
-          </span>
           <span className="text-[10px] text-muted-foreground">
             共 {steps.length} 步 · {new Set(steps.map((s) => s.turn)).size || 1} 回合
           </span>

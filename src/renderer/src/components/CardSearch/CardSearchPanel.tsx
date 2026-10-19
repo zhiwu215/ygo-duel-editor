@@ -163,15 +163,13 @@ export const CardSearchPanel: React.FC = () => {
               render={
                 <Button
                   type="button"
-                  variant={isFilterOpen || activeFilterCount > 0 ? 'default' : 'secondary'}
+                  variant="secondary"
                   size="sm"
                   onClick={toggleFilterOpen}
-                  className={`h-8 px-2 shrink-0 relative transition-all ${
-                    isFilterOpen
+                  className={`h-8 px-2 shrink-0 transition-all ${
+                    isFilterOpen || activeFilterCount > 0
                       ? 'bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold'
-                      : activeFilterCount > 0
-                        ? 'border-amber-400/50 text-amber-400'
-                        : ''
+                      : ''
                   }`}
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -179,12 +177,6 @@ export const CardSearchPanel: React.FC = () => {
                     <ChevronRight className="w-3.5 h-3.5 -ml-0.5" />
                   ) : (
                     <ChevronLeft className="w-3.5 h-3.5 -ml-0.5" />
-                  )}
-
-                  {activeFilterCount > 0 && !isFilterOpen && (
-                    <span className="absolute -top-1 -right-1 bg-amber-500 text-neutral-950 font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center shadow">
-                      {activeFilterCount}
-                    </span>
                   )}
                 </Button>
               }

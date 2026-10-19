@@ -25,7 +25,6 @@ import { InjectCommand, CdbCard, CardLocation } from '@shared/index'
 import { setCardDragImage } from '../../utils/cardImage'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
-import { cn } from '../../lib/utils'
 import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { CardRowItem } from './CardRowItem'
 
@@ -166,12 +165,7 @@ export const CardSearchPanel: React.FC = () => {
             aria-busy={isLoading}
           >
             <span>搜索</span>
-            <Loader2
-              className={cn(
-                'w-3.5 h-3.5 transition-opacity',
-                isLoading ? 'animate-spin opacity-100' : 'opacity-0'
-              )}
-            />
+            {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           </Button>
 
           <Tooltip>

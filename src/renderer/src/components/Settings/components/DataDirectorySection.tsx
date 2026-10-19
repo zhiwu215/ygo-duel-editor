@@ -3,7 +3,6 @@ import { Folder, FolderOpen, Loader2 } from 'lucide-react'
 import { useConfigStore } from '../../../stores/useConfigStore'
 import { Button } from '../../ui/button'
 import { Switch } from '../../ui/switch'
-import { cn } from '../../../lib/utils'
 import { SettingsRow } from './SettingsRow'
 
 export function DataDirectorySection(): JSX.Element {
@@ -65,7 +64,7 @@ export function DataDirectorySection(): JSX.Element {
           >
             <Folder className="w-3.5 h-3.5" />
             <span>更换...</span>
-            <Loader2 className={cn('w-3 h-3', busy ? 'animate-spin opacity-100' : 'opacity-0')} />
+            {busy && <Loader2 className="w-3 h-3 animate-spin" />}
           </Button>
           {current && (
             <Button

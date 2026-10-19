@@ -73,12 +73,7 @@ export const FilterBand: React.FC<FilterBandProps> = ({
       className="h-6 min-w-0 flex-1 gap-1 px-2 text-xs font-semibold"
     >
       <span>搜索</span>
-      <Loader2
-        className={cn(
-          'w-3 h-3 transition-opacity',
-          isLoading ? 'animate-spin opacity-100' : 'opacity-0'
-        )}
-      />
+      {isLoading && <Loader2 className="w-3 h-3 animate-spin" />}
     </Button>
   )
 

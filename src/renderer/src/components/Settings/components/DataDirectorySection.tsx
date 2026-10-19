@@ -2,6 +2,7 @@ import { useEffect, useState, type JSX } from 'react'
 import { Folder, FolderOpen, Loader2 } from 'lucide-react'
 import { useConfigStore } from '../../../stores/useConfigStore'
 import { Button } from '../../ui/button'
+import { Switch } from '../../ui/switch'
 import { cn } from '../../../lib/utils'
 import { SettingsRow } from './SettingsRow'
 
@@ -80,23 +81,12 @@ export function DataDirectorySection(): JSX.Element {
         </div>
       </SettingsRow>
       <div className="px-5 py-3 border-t border-border/60 flex items-start gap-2">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={migrate}
-          onClick={() => setMigrate((v) => !v)}
-          className={cn(
-            'mt-0.5 h-4 w-7 shrink-0 rounded-full transition-colors',
-            migrate ? 'bg-primary' : 'bg-neutral-400/40'
-          )}
-        >
-          <span
-            className={cn(
-              'block h-3 w-3 rounded-full bg-white transition-transform',
-              migrate ? 'translate-x-3.5' : 'translate-x-0.5'
-            )}
-          />
-        </button>
+        <Switch
+          checked={migrate}
+          onCheckedChange={setMigrate}
+          aria-label="切换时迁移现有数据"
+          className="mt-0.5"
+        />
         <div className="text-xs text-muted-foreground leading-relaxed">
           <div className="font-medium text-foreground">切换时迁移现有数据</div>
           <div>

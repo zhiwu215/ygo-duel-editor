@@ -13,7 +13,6 @@ import { isAutoRecordingPaused } from './recordingGate'
 export interface StepsSlice {
   activeRightTab: 'search' | 'steps'
   currentStepIndex: number | null
-  isScreenplayOpen: boolean
   selectedStepId: string | null
 
   currentTurn: number
@@ -24,7 +23,6 @@ export interface StepsSlice {
 
   setActiveRightTab: (tab: 'search' | 'steps') => void
   setCurrentStepIndex: (index: number | null) => void
-  setIsScreenplayOpen: (open: boolean) => void
   setSelectedStepId: (id: string | null) => void
   openScreenplayWithStep: (stepId?: string | null) => void
 
@@ -39,6 +37,7 @@ export interface StepsSlice {
   setTurnPlayer: (player: 0 | 1) => void
 
   addStep: (step: Omit<DuelStep, 'id'>) => void
+  insertStep: (step: DuelStep) => void
   updateStep: (stepId: string, patch: Partial<DuelStep>) => void
   deleteStep: (stepId: string) => void
   moveStep: (stepId: string, direction: 'up' | 'down') => void
@@ -50,7 +49,6 @@ export interface StepsSlice {
 export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (set, get) => ({
   activeRightTab: 'search',
   currentStepIndex: null,
-  isScreenplayOpen: false,
   selectedStepId: null,
 
   currentTurn: 1,
@@ -61,14 +59,14 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
 
   setActiveRightTab: (tab) => set({ activeRightTab: tab }),
   setCurrentStepIndex: (index) => set({ currentStepIndex: index }),
-  setIsScreenplayOpen: (open) => set({ isScreenplayOpen: open }),
   setSelectedStepId: (id) => set({ selectedStepId: id }),
-  openScreenplayWithStep: (stepId) =>
+  openScreenplayWithStep: (stepId) => {
     set((prev) => ({
-      isScreenplayOpen: true,
       selectedStepId:
         stepId !== undefined ? stepId : prev.selectedStepId || prev.state.steps?.[0]?.id || null
-    })),
+    }))
+    void window.api.openScreenplayWindow()
+  },
 
   setCurrentTurn: (turn) => set({ currentTurn: turn }),
   setCurrentPhase: (phase) => set({ currentPhase: phase }),
@@ -229,6 +227,18 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         state: {
           ...prev.state,
           steps: [...existing, newStep]
+        }
+      }
+    }),
+
+  insertStep: (step) =>
+    set((prev) => {
+      const existing = prev.state.steps || []
+      if (existing.some((s) => s.id === step.id)) return prev
+      return {
+        state: {
+          ...prev.state,
+          steps: [...existing, step]
         }
       }
     }),

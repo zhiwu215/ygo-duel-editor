@@ -15,7 +15,9 @@ import {
   EngineExportReplayResult,
   Answer,
   InjectCommand,
-  TimingPolicy
+  TimingPolicy,
+  ScreenplayEdit,
+  ScreenplaySnapshot
 } from '@shared/index'
 
 const api: IpcApi = {
@@ -74,6 +76,40 @@ const api: IpcApi = {
 
   openCardNoteWindow: () => ipcRenderer.invoke('window:open-card-notes'),
   openTextLibrary: () => ipcRenderer.invoke('window:open-text-library'),
+  openScreenplayWindow: () => ipcRenderer.invoke('screenplay:open-window'),
+  requestScreenplayState: () => ipcRenderer.invoke('screenplay:request-state'),
+  pushScreenplaySnapshot: (snapshot) => ipcRenderer.invoke('screenplay:push-state', snapshot),
+  sendScreenplayEdit: (edit) => ipcRenderer.invoke('screenplay:edit', edit),
+  sendScreenplayPreview: (stepId: string) => ipcRenderer.invoke('screenplay:preview', stepId),
+  onScreenplaySnapshot: (callback) => {
+    const handler = (_: unknown, snapshot: unknown): void =>
+      callback(snapshot as ScreenplaySnapshot)
+    ipcRenderer.on('screenplay:state', handler)
+    return () => {
+      ipcRenderer.removeListener('screenplay:state', handler)
+    }
+  },
+  onScreenplayEdit: (callback) => {
+    const handler = (_: unknown, edit: unknown): void => callback(edit as ScreenplayEdit)
+    ipcRenderer.on('screenplay:edit', handler)
+    return () => {
+      ipcRenderer.removeListener('screenplay:edit', handler)
+    }
+  },
+  onScreenplayPreview: (callback) => {
+    const handler = (_: unknown, stepId: unknown): void => callback(stepId as string)
+    ipcRenderer.on('screenplay:preview', handler)
+    return () => {
+      ipcRenderer.removeListener('screenplay:preview', handler)
+    }
+  },
+  onScreenplayStateRequested: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('screenplay:request-state', handler)
+    return () => {
+      ipcRenderer.removeListener('screenplay:request-state', handler)
+    }
+  },
   listCardNotes: () => ipcRenderer.invoke('note:list-all'),
   getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') =>
     ipcRenderer.invoke('note:get', cardCode, kind),

@@ -39,4 +39,4 @@ export interface AppConfig {
   timingPolicy?: TimingPolicy
 }
 
-export type SettingsSectionId = 'appearance' | 'paths' | 'duel' | 'model-settings' | 'chat'
+export type SettingsSectionId = 'appearance' | 'paths' | 'model-settings' | 'chat'

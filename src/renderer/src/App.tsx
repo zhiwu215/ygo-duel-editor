@@ -3,7 +3,8 @@ import { Header } from './components/Header/Header'
 import { RightSidebar } from './components/RightSidebar/RightSidebar'
 import { DuelBoard } from './components/Board/DuelBoard'
 import { LeftSidebar } from './components/LeftSidebar/LeftSidebar'
-import { DuelScreenplayModal } from './components/StorySequencer/DuelScreenplayModal'
+import { ScreenplayWindowApp } from './components/StorySequencer/ScreenplayWindowApp'
+import { ScreenplayBridge } from './components/ScreenplayBridge'
 import { DeckEditorApp } from './components/DeckEditor/DeckEditorApp'
 import { CardNoteApp } from './components/LeftSidebar/CardNoteApp'
 import { SettingsApp } from './components/Settings/SettingsApp'
@@ -31,6 +32,7 @@ export function App(): React.JSX.Element {
   const isSettingsWindow = window.location.hash.startsWith('#settings')
   const isCardNotes = window.location.hash === '#card-notes'
   const isTextLibrary = window.location.hash === '#text-library'
+  const isScreenplay = window.location.hash === '#screenplay'
 
   useEffect(() => {
     loadConfig()
@@ -54,6 +56,10 @@ export function App(): React.JSX.Element {
 
   if (isTextLibrary) {
     return <TextLibraryApp />
+  }
+
+  if (isScreenplay) {
+    return <ScreenplayWindowApp />
   }
 
   if (isCardNotes) {
@@ -86,7 +92,7 @@ export function App(): React.JSX.Element {
         <RightSidebar />
       </div>
 
-      <DuelScreenplayModal />
+      <ScreenplayBridge />
 
       <AppModals />
     </div>

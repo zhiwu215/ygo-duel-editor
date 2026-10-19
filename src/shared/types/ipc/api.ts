@@ -1,6 +1,7 @@
 import { CdbCard } from '../card'
 import { CustomCard, CustomCardInput } from '../customCard'
 import { DuelPuzzleState } from '../duel'
+import { DuelStep } from '../story'
 import { DeckData, DeckLibrary } from '../deck'
 import { EngineBoardState, EngineDuelInitParams, EngineTimelineNode } from '../duelEngine'
 import {
@@ -44,6 +45,16 @@ import { EngineExportReplayParams, EngineExportReplayResult } from './engine'
 import { DuelProjectMeta } from './project'
 import { CardNote, CardNoteEntry, CardNoteKind } from './note'
 import { TextChapter, TextMeta } from './text'
+
+export type ScreenplayEdit =
+  | { kind: 'addStep'; step: DuelStep }
+  | { kind: 'updateStep'; stepId: string; patch: Partial<DuelStep> }
+  | { kind: 'deleteStep'; stepId: string }
+
+export interface ScreenplaySnapshot {
+  state: DuelPuzzleState
+  selectedStepId: string | null
+}
 
 export interface IpcApi {
   getAppVersion: () => Promise<string>
@@ -127,6 +138,16 @@ export interface IpcApi {
 
   openCardNoteWindow: () => Promise<void>
   openTextLibrary: () => Promise<void>
+
+  openScreenplayWindow: () => Promise<void>
+  requestScreenplayState: () => Promise<void>
+  pushScreenplaySnapshot: (snapshot: ScreenplaySnapshot) => Promise<void>
+  sendScreenplayEdit: (edit: ScreenplayEdit) => Promise<void>
+  sendScreenplayPreview: (stepId: string) => Promise<void>
+  onScreenplaySnapshot: (callback: (snapshot: ScreenplaySnapshot) => void) => () => void
+  onScreenplayEdit: (callback: (edit: ScreenplayEdit) => void) => () => void
+  onScreenplayPreview: (callback: (stepId: string) => void) => () => void
+  onScreenplayStateRequested: (callback: () => void) => () => void
   listCardNotes: () => Promise<CardNoteEntry[]>
   getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') => Promise<CardNote[]>
   saveCardNote: (note: CardNote) => Promise<{ success: boolean; error?: string }>

@@ -45,6 +45,7 @@ export function useStepPlayback(): {
       if (first) void useDuelEngineStore.getState().jumpToStep(first.id)
     } else {
       previewStepBoard(null)
+      useDuelStore.getState().resetTurn()
     }
   }
 

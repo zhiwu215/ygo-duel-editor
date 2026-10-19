@@ -16,7 +16,6 @@ import {
   buildEngineEditItems,
   buildHandItems,
   buildMonsterItems,
-  buildMoveItems,
   buildSpellTrapItems,
   isPileLocation,
   isSpellTrapLocation,
@@ -33,8 +32,7 @@ export const CardContextMenu: React.FC = () => {
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
-  const { updateCardPosition, moveCard, removeCard, state, executeSendToGrave, executeBanishCard } =
-    useDuelStore()
+  const { updateCardPosition, removeCard, state } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
@@ -130,10 +128,6 @@ export const CardContextMenu: React.FC = () => {
     engineActions,
     act,
     updateCardPosition,
-    moveCard,
-    executeSendToGrave,
-    executeBanishCard,
-    removeCard,
     submitAnswer: (answer) => {
       void useDuelEngineStore.getState().submitAnswer(answer)
     },
@@ -152,7 +146,6 @@ export const CardContextMenu: React.FC = () => {
   const monsterItems = buildMonsterItems(ctx)
   const spellTrapItems = buildSpellTrapItems(ctx)
   const deckPileItems = buildDeckPileItems(ctx)
-  const moveItems = buildMoveItems(ctx)
 
   const renderGroup = (items: MenuItemConfig[]): React.JSX.Element[] =>
     items.map((item, idx) => (
@@ -302,13 +295,6 @@ export const CardContextMenu: React.FC = () => {
       {deckPileItems.length > 0 && (
         <>
           {renderGroup(deckPileItems)}
-          <Separator className="my-1" />
-        </>
-      )}
-
-      {moveItems.length > 0 && (
-        <>
-          {renderGroup(moveItems)}
           <Separator className="my-1" />
         </>
       )}

@@ -1,16 +1,7 @@
-import {
-  Answer,
-  CardLocation,
-  CardPosition,
-  CardType,
-  EngineCardRef,
-  FieldCard
-} from '@shared/index'
+import { Answer, CardLocation, CardPosition, EngineCardRef, FieldCard } from '@shared/index'
 import type { LucideIcon } from 'lucide-react'
 import {
-  ArrowDownToLine,
   ArrowLeftRight,
-  Ban,
   Eye,
   EyeOff,
   History,
@@ -47,17 +38,6 @@ export interface CardMenuItemContext {
   engineActions: CardEngineActions | null
   act: (fn: () => void) => () => void
   updateCardPosition: (instanceId: string, position: number) => void
-  moveCard: (
-    instanceId: string,
-    toLocation: number,
-    toSequence: number,
-    toController?: 0 | 1,
-    customPos?: number,
-    targetDuelistId?: string
-  ) => void
-  executeSendToGrave: (instanceId: string) => void
-  executeBanishCard: (instanceId: string) => void
-  removeCard: (instanceId: string) => void
   submitAnswer: (answer: Answer) => void
   openProvenance: (target: CardMenuEditTarget) => void
   openReplace: (target: CardMenuEditTarget) => void
@@ -180,8 +160,6 @@ export function buildHandItems(ctx: CardMenuItemContext): MenuItemConfig[] {
 
   const setPos = (pos: number): (() => void) =>
     ctx.act(() => ctx.updateCardPosition(ctx.card.instanceId, pos))
-  const moveTo = (loc: number, ctrl?: 0 | 1): (() => void) =>
-    ctx.act(() => ctx.moveCard(ctx.card.instanceId, loc, 0, ctrl))
 
   return [
     {
@@ -195,12 +173,6 @@ export function buildHandItems(ctx: CardMenuItemContext): MenuItemConfig[] {
       iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
       label: '里侧表示 (未公开手牌)',
       action: setPos(CardPosition.FACEDOWN)
-    },
-    {
-      icon: ArrowLeftRight,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: `转移至${ctx.card.controller === 0 ? '对方手牌' : '我方手牌'}`,
-      action: moveTo(CardLocation.HAND, ctx.card.controller === 0 ? 1 : 0)
     }
   ]
 }
@@ -276,70 +248,5 @@ export function buildDeckPileItems(ctx: CardMenuItemContext): MenuItemConfig[] {
       label: '里侧表示',
       action: setPos(CardPosition.FACEDOWN)
     }
-  ]
-}
-
-export function buildMoveItems(ctx: CardMenuItemContext): MenuItemConfig[] {
-  if (!canEditLocally(ctx)) return []
-
-  const card = ctx.card
-  const moveTo = (loc: number, ctrl?: 0 | 1): (() => void) =>
-    ctx.act(() => ctx.moveCard(card.instanceId, loc, 0, ctrl))
-  const isExtraMonster = card.card
-    ? !!(card.card.type & (CardType.FUSION | CardType.SYNCHRO | CardType.XYZ | CardType.LINK))
-    : false
-  const isPendulum = card.card ? !!(card.card.type & CardType.PENDULUM) : false
-
-  return [
-    ...(card.location !== CardLocation.HAND
-      ? [
-          {
-            icon: Layers,
-            iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-            label: '移至手牌',
-            action: moveTo(CardLocation.HAND)
-          }
-        ]
-      : []),
-    ...(card.location !== CardLocation.GRAVE
-      ? [
-          {
-            icon: ArrowDownToLine,
-            iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-            label: '送去墓地',
-            action: ctx.act(() => ctx.executeSendToGrave(card.instanceId))
-          }
-        ]
-      : []),
-    ...(card.location !== CardLocation.REMOVED
-      ? [
-          {
-            icon: Ban,
-            iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-            label: '除外',
-            action: ctx.act(() => ctx.executeBanishCard(card.instanceId))
-          }
-        ]
-      : []),
-    ...((!card.card || !isExtraMonster || isPendulum) && card.location !== CardLocation.DECK
-      ? [
-          {
-            icon: Layers,
-            iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-            label: '回到主卡组',
-            action: moveTo(CardLocation.DECK)
-          }
-        ]
-      : []),
-    ...((!card.card || isExtraMonster || isPendulum) && card.location !== CardLocation.EXTRA
-      ? [
-          {
-            icon: Layers,
-            iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-            label: '回到额外卡组',
-            action: moveTo(CardLocation.EXTRA)
-          }
-        ]
-      : [])
   ]
 }

@@ -4,22 +4,12 @@ import type { DuelStore } from './types'
 
 export interface ExecutionsSlice {
   executeDrawCard: (controller: 0 | 1) => void
-  executeSendToGrave: (instanceId: string) => void
-  executeBanishCard: (instanceId: string) => void
 }
 
 export const createExecutionsSlice: StateCreator<DuelStore, [], [], ExecutionsSlice> = (
   _set,
   get
 ) => ({
-  executeSendToGrave: (instanceId) => {
-    get().moveCard(instanceId, CardLocation.GRAVE, 999)
-  },
-
-  executeBanishCard: (instanceId) => {
-    get().moveCard(instanceId, CardLocation.REMOVED, 999)
-  },
-
   executeDrawCard: (controller) => {
     const { state, moveCard, activeDuelistId } = get()
 

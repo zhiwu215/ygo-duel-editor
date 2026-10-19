@@ -376,7 +376,6 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
   },
 
   removeCard: (instanceId) => {
-    const fromCard = get().state.cards.find((c) => c.instanceId === instanceId)
     useStagingStore.getState().pushOp({ type: 'remove', instanceId })
     set((prev) => ({
       state: {
@@ -386,15 +385,6 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       selectedCardId: prev.selectedCardId === instanceId ? null : prev.selectedCardId,
       hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredInstanceId
     }))
-    if (fromCard) {
-      const name = fromCard.card?.name
-      recordEditorStep({
-        actionType: 'BANISH',
-        controller: fromCard.controller,
-        cardName: name,
-        description: name ? `将【${name}】从对局中移除` : '从对局中移除卡片'
-      })
-    }
   },
 
   updateCardPosition: (instanceId, position) => {

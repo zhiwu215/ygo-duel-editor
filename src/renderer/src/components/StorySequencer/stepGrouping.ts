@@ -135,29 +135,6 @@ export function buildGroups(entries: StepEntry[]): StepGroup[] {
       continue
     }
 
-    if (
-      current.step.actionType !== 'DIALOGUE' &&
-      next &&
-      next.step.actionType === current.step.actionType &&
-      next.step.cardCode === current.step.cardCode
-    ) {
-      let end = cursor + 1
-      while (
-        end < entries.length &&
-        entries[end].step.actionType === current.step.actionType &&
-        entries[end].step.cardCode === current.step.cardCode
-      ) {
-        end++
-      }
-      groups.push({
-        kind: 'repeat',
-        key: current.step.id,
-        entries: entries.slice(cursor, end)
-      })
-      cursor = end
-      continue
-    }
-
     groups.push({ kind: 'single', key: current.step.id, entries: [current] })
     cursor++
   }

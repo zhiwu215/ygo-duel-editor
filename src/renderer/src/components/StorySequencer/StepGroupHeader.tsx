@@ -1,10 +1,10 @@
 import React from 'react'
-import { ACTION_TYPE_COLORS, ACTION_TYPE_NAMES, DuelActionType } from '@shared/index'
-import { ArrowRight, ChevronRight, Layers, Link2, Repeat, Swords } from 'lucide-react'
+import { ACTION_TYPE_COLORS, DuelActionType } from '@shared/index'
+import { ArrowRight, ChevronRight, Layers, Link2 } from 'lucide-react'
 import { CardImage } from '../ui/CardImage'
 import { cn } from '../../lib/utils'
 
-export type StepGroupKind = 'chain' | 'attack' | 'repeat'
+export type StepGroupKind = 'chain' | 'attack'
 
 export interface StepGroupSummary {
   kind: StepGroupKind
@@ -39,8 +39,6 @@ const CardThumb: React.FC<{ code?: number; name: string }> = ({ code, name }) =>
 
 export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summary }) => {
   const colorTheme = ACTION_TYPE_COLORS[summary.actionType] || ACTION_TYPE_COLORS.NORMAL_SUMMON
-  const actionLabel = ACTION_TYPE_NAMES[summary.actionType] || summary.actionType
-  const Icon = summary.kind === 'chain' ? Link2 : summary.kind === 'attack' ? Swords : Repeat
   const chainNames = summary.names.map((name) => `【${name}】`)
   const chainText =
     chainNames.length > 2 ? `${chainNames.slice(0, 2).join(' → ')} …` : chainNames.join(' → ')
@@ -73,7 +71,7 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
         )}
       />
 
-      {summary.kind === 'attack' || summary.kind === 'repeat' ? (
+      {summary.kind === 'attack' ? (
         <CardThumb code={summary.cardCode} name={summary.cardName} />
       ) : null}
 
@@ -81,7 +79,7 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
         {summary.kind === 'chain' ? (
           <>
             <span className="flex items-center gap-0.5 shrink-0 text-[10px] font-bold px-1 py-0.5 rounded bg-teal-500/15 text-teal-400 border border-teal-500/30">
-              <Icon className="w-2.5 h-2.5" />
+              <Link2 className="w-2.5 h-2.5" />
               <span>连锁 #{summary.chainNumber ?? 1}</span>
             </span>
             <span className="text-[10px] text-muted-foreground/50 shrink-0">·</span>
@@ -92,7 +90,7 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
               {chainText}
             </span>
           </>
-        ) : summary.kind === 'attack' ? (
+        ) : (
           <>
             <span className="font-bold text-xs text-foreground truncate">
               【{summary.cardName}】
@@ -115,25 +113,6 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
                 </span>
               </>
             )}
-          </>
-        ) : (
-          <>
-            <span className="font-bold text-xs text-foreground truncate">
-              【{summary.cardName}】
-            </span>
-            <span
-              className={cn(
-                'text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0',
-                colorTheme.bg,
-                colorTheme.text,
-                colorTheme.border
-              )}
-            >
-              {actionLabel}
-            </span>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-background border border-border text-foreground shrink-0">
-              ×{summary.count}
-            </span>
           </>
         )}
       </div>

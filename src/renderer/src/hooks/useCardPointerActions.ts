@@ -97,11 +97,7 @@ export function useCardPointerActions({
       }
       const loc = card.location
       const canHint =
-        loc === CardLocation.MZONE ||
-        loc === CardLocation.SZONE ||
-        loc === CardLocation.EXTRA ||
-        loc === CardLocation.DECK ||
-        loc === CardLocation.HAND
+        loc === CardLocation.MZONE || loc === CardLocation.SZONE || loc === CardLocation.HAND
       if (!canHint) {
         closeHint()
         return
@@ -109,7 +105,7 @@ export function useCardPointerActions({
       const zone = {
         controller: card.controller,
         location: loc,
-        sequence: loc === CardLocation.DECK || loc === CardLocation.EXTRA ? 0 : card.sequence
+        sequence: card.sequence
       }
       if (
         hintZone &&

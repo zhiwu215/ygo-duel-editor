@@ -263,11 +263,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         )
       }
 
-      if (
-        location === CardLocation.MZONE ||
-        location === CardLocation.SZONE ||
-        location === CardLocation.EXTRA
-      ) {
+      if (location === CardLocation.MZONE || location === CardLocation.SZONE) {
         showHint({ controller, location, sequence })
       }
     } catch (err) {

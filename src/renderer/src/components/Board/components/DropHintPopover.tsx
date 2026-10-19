@@ -18,14 +18,6 @@ const POSITION_OPTIONS: Record<string, { pos: number; label: string }[]> = {
     { pos: CardPosition.FACEUP_ATTACK, label: '表攻' },
     { pos: CardPosition.FACEUP_DEFENSE, label: '表守' },
     { pos: CardPosition.FACEDOWN_DEFENSE, label: '盖守' }
-  ],
-  deck: [
-    { pos: CardPosition.FACEDOWN, label: '里侧' },
-    { pos: CardPosition.FACEUP, label: '表侧' }
-  ],
-  extra: [
-    { pos: CardPosition.FACEDOWN, label: '里侧' },
-    { pos: CardPosition.FACEUP, label: '表侧' }
   ]
 }
 
@@ -46,11 +38,7 @@ export const DropHintPopover: React.FC<DropHintPopoverProps> = ({ card, location
       ? POSITION_OPTIONS.szone
       : location === CardLocation.HAND
         ? POSITION_OPTIONS.hand
-        : location === CardLocation.DECK
-          ? POSITION_OPTIONS.deck
-          : location === CardLocation.EXTRA
-            ? POSITION_OPTIONS.extra
-            : POSITION_OPTIONS.mzone
+        : POSITION_OPTIONS.mzone
 
   return (
     <div

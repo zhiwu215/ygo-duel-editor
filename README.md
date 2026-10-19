@@ -84,14 +84,12 @@ QQ 交流群：**1126832557**
 
 本项目灵感源自这个[帖子](https://tieba.baidu.com/p/5058837572?fr=undefined)，我找到了吧友囧囧·D·路飞的 PuzzleEditor，项目并无源码，所以直接参考功能点开发，同时进行额外拓展
 
-**本项目游戏相关素材取自：**
+**本项目素材或代码灵感来自：**
 
-- [YGOPro](https://github.com/Fluorohydride/ygopro)
+- [ygopro](https://github.com/Fluorohydride/ygopro)
 - [MDPro3](https://code.moenext.com/sherry_chaos/MDPro3/-/tree/master)
 - [EDOPro](https://tieba.baidu.com/p/7454495011)
-
-**AI供应商图标相关素材取自：**
-
+- [neos-ts](https://github.com/DarkNeos/neos-ts)
 - [ZCode](https://github.com/zai-org/ZCode)
 
-> 本项目仅作学习与创作用途。**如有问题，创作者可联系我删除**
+> 本项目仅作学习与创作用途。**素材引用如有侵权，创作者可联系我删除**

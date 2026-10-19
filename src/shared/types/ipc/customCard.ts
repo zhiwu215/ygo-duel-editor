@@ -34,3 +34,11 @@ export interface CustomCardPickImageResult {
   previewDataUrl?: string
   error?: string
 }
+
+export interface CustomCardSyncResult {
+  success: boolean
+  error?: string
+  cdb: boolean
+  scripts: number
+  pics: number
+}

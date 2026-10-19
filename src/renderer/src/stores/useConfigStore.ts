@@ -23,8 +23,6 @@ interface ConfigStoreState {
   openDataDir: () => Promise<void>
 
   setDeckLoadDrawCount: (drawCount: 0 | 5) => Promise<void>
-
-  setRuleCheckEnabled: (enabled: boolean) => Promise<void>
 }
 
 type ThemePreference = AppConfig['theme']
@@ -127,11 +125,6 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   setDeckLoadDrawCount: async (drawCount) => {
     set((state) => ({ config: { ...state.config, deckLoadDrawCount: drawCount } }))
     await window.api.saveConfig({ deckLoadDrawCount: drawCount })
-  },
-
-  setRuleCheckEnabled: async (enabled) => {
-    set((state) => ({ config: { ...state.config, ruleCheckEnabled: enabled } }))
-    await window.api.saveConfig({ ruleCheckEnabled: enabled })
   },
 
   selectYgoDir: async () => {

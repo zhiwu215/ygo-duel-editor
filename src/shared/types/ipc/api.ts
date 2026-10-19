@@ -29,7 +29,8 @@ import {
   CustomCardPickImageResult,
   CustomCardSaveResult,
   CustomCardScriptInfo,
-  CustomCardScriptResult
+  CustomCardScriptResult,
+  CustomCardSyncResult
 } from './customCard'
 import {
   AgentFetchModelsParams,
@@ -80,6 +81,7 @@ export interface IpcApi {
   pickCustomCardScript: (code: number) => Promise<CustomCardScriptResult>
   deleteCustomCardScript: (code: number) => Promise<CustomCardScriptResult>
   openCustomCardScriptDir: () => Promise<void>
+  syncCustomCardsToGame: () => Promise<CustomCardSyncResult>
   onCustomCardsUpdated: (callback: () => void) => () => void
 
   exportLuaFile: (

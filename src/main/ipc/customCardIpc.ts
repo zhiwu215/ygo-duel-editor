@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { CustomCardInput } from '@shared/index'
 import { customCardService } from '../services/customCardService'
 import { openCustomScriptDir } from '../services/customCardLibrary'
+import { syncCustomCardsToGame } from '../services/customGameSync'
 import { toErrorMessageOr } from '../utils/errors'
 
 export function registerCustomCardIpc(): void {
@@ -51,5 +52,9 @@ export function registerCustomCardIpc(): void {
 
   ipcMain.handle('customcard:open-script-dir', async () => {
     await openCustomScriptDir()
+  })
+
+  ipcMain.handle('customcard:sync-to-game', () => {
+    return syncCustomCardsToGame()
   })
 }

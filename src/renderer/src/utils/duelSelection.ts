@@ -196,17 +196,7 @@ export function resolveCardSelectionMatch(
   return { derived, requestCard, chosen }
 }
 
-export function resolveCardRole(
-  hasPendingPlacement: boolean,
-  isPlacementSource: boolean,
-  isPlacementDisplaceTarget: boolean,
-  selectionMatch: CardSelectionMatch | null
-): CardSelectionRole {
-  if (hasPendingPlacement) {
-    if (isPlacementSource) return 'source'
-    if (isPlacementDisplaceTarget) return 'legal'
-    return 'dim'
-  }
+export function resolveCardRole(selectionMatch: CardSelectionMatch | null): CardSelectionRole {
   if (selectionMatch) {
     if (selectionMatch.derived.attackTarget) return 'target'
     return selectionMatch.chosen ? 'chosen' : 'legal'

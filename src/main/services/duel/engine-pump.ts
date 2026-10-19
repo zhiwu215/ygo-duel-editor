@@ -152,7 +152,7 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
       continue
     }
 
-    if (res.status === 1) {
+    if (res.status === 1 && res.raw.length > 0) {
       break
     }
     if (res.status === 2 || duel.ended) {

@@ -43,6 +43,7 @@ export interface CardMenuEditTarget {
 export interface CardMenuItemContext {
   card: FieldCard
   isEngine: boolean
+  stagingActive: boolean
   engineActions: CardEngineActions | null
   act: (fn: () => void) => () => void
   updateCardPosition: (instanceId: string, position: number) => void
@@ -172,8 +173,10 @@ export function buildEngineEditItems(ctx: CardMenuItemContext): MenuItemConfig[]
   ]
 }
 
+const canEditLocally = (ctx: CardMenuItemContext): boolean => !ctx.isEngine || ctx.stagingActive
+
 export function buildHandItems(ctx: CardMenuItemContext): MenuItemConfig[] {
-  if (ctx.isEngine || ctx.card.location !== CardLocation.HAND) return []
+  if (!canEditLocally(ctx) || ctx.card.location !== CardLocation.HAND) return []
 
   const setPos = (pos: number): (() => void) =>
     ctx.act(() => ctx.updateCardPosition(ctx.card.instanceId, pos))
@@ -203,7 +206,7 @@ export function buildHandItems(ctx: CardMenuItemContext): MenuItemConfig[] {
 }
 
 export function buildMonsterItems(ctx: CardMenuItemContext): MenuItemConfig[] {
-  if (ctx.isEngine || ctx.card.location !== CardLocation.MZONE) return []
+  if (!canEditLocally(ctx) || ctx.card.location !== CardLocation.MZONE) return []
 
   const setPos = (pos: number): (() => void) =>
     ctx.act(() => ctx.updateCardPosition(ctx.card.instanceId, pos))
@@ -231,7 +234,7 @@ export function buildMonsterItems(ctx: CardMenuItemContext): MenuItemConfig[] {
 }
 
 export function buildSpellTrapItems(ctx: CardMenuItemContext): MenuItemConfig[] {
-  if (ctx.isEngine || !isSpellTrapLocation(ctx.card.location)) return []
+  if (!canEditLocally(ctx) || !isSpellTrapLocation(ctx.card.location)) return []
 
   const setPos = (pos: number): (() => void) =>
     ctx.act(() => ctx.updateCardPosition(ctx.card.instanceId, pos))
@@ -277,7 +280,7 @@ export function buildDeckPileItems(ctx: CardMenuItemContext): MenuItemConfig[] {
 }
 
 export function buildMoveItems(ctx: CardMenuItemContext): MenuItemConfig[] {
-  if (ctx.isEngine) return []
+  if (!canEditLocally(ctx)) return []
 
   const card = ctx.card
   const moveTo = (loc: number, ctrl?: 0 | 1): (() => void) =>

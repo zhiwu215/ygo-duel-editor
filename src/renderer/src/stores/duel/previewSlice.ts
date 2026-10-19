@@ -30,7 +30,6 @@ export const createPreviewSlice: StateCreator<DuelStore, [], [], PreviewSlice> =
       set(() => ({
         previewReturn: null,
         currentStepIndex: null,
-        pendingPlacement: null,
         state: previewReturn.state,
         currentTurn: previewReturn.currentTurn,
         currentPhase: previewReturn.currentPhase,

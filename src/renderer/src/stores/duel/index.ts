@@ -41,11 +41,6 @@ export const useDuelStore = create<DuelStore>()(
 )
 
 export type { DuelStore } from './types'
-export type {
-  MoveCardParams,
-  PendingPlacement,
-  PendingPlacementMode,
-  PendingPlacementSlot
-} from './placementSlice'
+export type { MoveCardParams } from './placementSlice'
 export type { LpFlash } from './lpSlice'
 export type { PreviewReturn } from './previewSlice'

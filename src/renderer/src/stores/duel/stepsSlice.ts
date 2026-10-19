@@ -1,14 +1,15 @@
 import type { StateCreator } from 'zustand'
 import {
+  CardLocation,
+  CardPosition,
   DuelPhase,
   DuelStep,
   FieldCard,
-  PlayerState,
-  createLightweightSnapshot
+  LightweightCardSnapshot,
+  PlayerState
 } from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
 import type { DuelStore } from './types'
-import { isAutoRecordingPaused } from './recordingGate'
 
 export interface StepsSlice {
   activeRightTab: 'search' | 'steps'
@@ -19,7 +20,6 @@ export interface StepsSlice {
   currentPhase: DuelPhase
   currentChain: number
   activeTurnPlayer: 0 | 1
-  isAutoRecording: boolean
 
   setActiveRightTab: (tab: 'search' | 'steps') => void
   setCurrentStepIndex: (index: number | null) => void
@@ -30,11 +30,9 @@ export interface StepsSlice {
   setCurrentPhase: (phase: DuelPhase) => void
   setCurrentChain: (chain: number) => void
   resetChain: () => void
-  resetTurn: () => void
   nextPhase: () => void
   nextTurn: () => void
   setActiveTurnPlayer: (player: 0 | 1) => void
-  setIsAutoRecording: (recording: boolean) => void
   setTurnPlayer: (player: 0 | 1) => void
 
   addStep: (step: Omit<DuelStep, 'id'>) => void
@@ -45,18 +43,69 @@ export interface StepsSlice {
   clearSteps: () => void
 
   previewStepBoard: (stepIndex: number | null) => void
+  resetToOpeningBoard: () => void
+}
+
+function restoreCardsFromSnapshot(
+  currentCards: FieldCard[],
+  snapshot: LightweightCardSnapshot[]
+): FieldCard[] {
+  const cardMap = new Map(currentCards.map((c) => [c.instanceId, c]))
+  return snapshot.map((s) => {
+    const existing = cardMap.get(s.instanceId)
+    return {
+      instanceId: s.instanceId,
+      code: s.code,
+      card: existing?.card,
+      controller: s.controller,
+      owner: s.owner ?? s.controller,
+      location: s.location,
+      sequence: s.sequence,
+      position: s.position,
+      overlayMaterials: [...(s.overlayMaterials || [])],
+      duelistId: s.duelistId,
+      customAtk: s.customAtk,
+      customDef: s.customDef
+    }
+  })
+}
+
+function insertDeckTop(
+  cards: FieldCard[],
+  extra: FieldCard,
+  defaultDuelistId: string
+): FieldCard[] {
+  const duelistId = extra.duelistId || defaultDuelistId
+  const shifted = cards.map((c) =>
+    c.controller === extra.controller &&
+    c.location === CardLocation.DECK &&
+    (c.duelistId || defaultDuelistId) === duelistId
+      ? { ...c, sequence: c.sequence + 1 }
+      : c
+  )
+  return [
+    ...shifted,
+    {
+      ...extra,
+      location: CardLocation.DECK,
+      sequence: 0,
+      position: CardPosition.FACEDOWN,
+      overlayMaterials: [],
+      duelistId
+    }
+  ]
 }
 
 export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (set, get) => ({
   activeRightTab: 'search',
   currentStepIndex: null,
+  isScreenplayOpen: false,
   selectedStepId: null,
 
   currentTurn: 1,
   currentPhase: 'M1',
   currentChain: 0,
   activeTurnPlayer: 0,
-  isAutoRecording: true,
 
   setActiveRightTab: (tab) => set({ activeRightTab: tab }),
   setCurrentStepIndex: (index) => set({ currentStepIndex: index }),
@@ -72,134 +121,21 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   setCurrentTurn: (turn) => set({ currentTurn: turn }),
   setCurrentPhase: (phase) => set({ currentPhase: phase }),
   setCurrentChain: (chain) => set({ currentChain: chain }),
-  resetChain: () =>
-    set((prev) => {
-      if (prev.currentChain === 0) return prev
-      let nextSteps = prev.state.steps || []
-      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
-        nextSteps = [
-          ...nextSteps,
-          {
-            id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            turn: prev.currentTurn,
-            turnPlayer: prev.activeTurnPlayer,
-            phase: prev.currentPhase,
-            actionPlayer: prev.activeTurnPlayer,
-            actionType: 'RESOLVE_CHAIN',
-            description: `连锁结算 (Chain ${prev.currentChain} ~ Chain 1 依次处理)`,
-            boardAfter: createLightweightSnapshot(prev.state.cards)
-          }
-        ]
-      }
-      return {
-        currentChain: 0,
-        state: { ...prev.state, steps: nextSteps }
-      }
-    }),
-  resetTurn: () =>
-    set((prev) => {
-      const firstPlayer = ((prev.state.steps || [])[0]?.turnPlayer ?? 0) as 0 | 1
-      return {
-        currentTurn: 1,
-        currentPhase: 'DP',
-        currentChain: 0,
-        activeTurnPlayer: firstPlayer,
-        state: { ...prev.state, turnPlayer: firstPlayer }
-      }
-    }),
+  resetChain: () => set((prev) => (prev.currentChain === 0 ? prev : { currentChain: 0 })),
   nextPhase: () =>
     set((prev) => {
       const phases: DuelPhase[] = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP']
       const curIdx = phases.indexOf(prev.currentPhase)
-      let nextSteps = prev.state.steps || []
 
       if (curIdx < phases.length - 1) {
-        const targetPhase = phases[curIdx + 1]
-        if (prev.isAutoRecording && !isAutoRecordingPaused()) {
-          const phaseLabel =
-            targetPhase === 'DP'
-              ? '抽卡阶段'
-              : targetPhase === 'SP'
-                ? '准备阶段'
-                : targetPhase === 'M1'
-                  ? '主要阶段1'
-                  : targetPhase === 'BP'
-                    ? '战斗阶段'
-                    : targetPhase === 'M2'
-                      ? '主要阶段2'
-                      : '结束阶段'
-          nextSteps = [
-            ...nextSteps,
-            {
-              id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-              turn: prev.currentTurn,
-              turnPlayer: prev.activeTurnPlayer,
-              phase: targetPhase,
-              actionPlayer: prev.activeTurnPlayer,
-              actionType: 'PHASE_CHANGE',
-              description: `进入${phaseLabel}`,
-              boardAfter: createLightweightSnapshot(prev.state.cards)
-            }
-          ]
-        }
         return {
-          currentPhase: targetPhase,
-          currentChain: 0,
-          state: { ...prev.state, steps: nextSteps }
-        }
-      } else {
-        const nextTurn = prev.currentTurn + 1
-        const nextActive = (prev.activeTurnPlayer === 0 ? 1 : 0) as 0 | 1
-        const pName = nextActive === 0 ? '我方' : '对方'
-        if (prev.isAutoRecording && !isAutoRecordingPaused()) {
-          nextSteps = [
-            ...nextSteps,
-            {
-              id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-              turn: nextTurn,
-              turnPlayer: nextActive,
-              phase: 'DP',
-              actionPlayer: nextActive,
-              actionType: 'TURN_CHANGE',
-              description: `回合结束，进入第 ${nextTurn} 回合 (${pName}回合)`,
-              boardAfter: createLightweightSnapshot(prev.state.cards)
-            }
-          ]
-        }
-        return {
-          currentTurn: nextTurn,
-          currentPhase: 'DP',
-          currentChain: 0,
-          activeTurnPlayer: nextActive,
-          state: {
-            ...prev.state,
-            turnPlayer: nextActive,
-            steps: nextSteps
-          }
+          currentPhase: phases[curIdx + 1],
+          currentChain: 0
         }
       }
-    }),
-  nextTurn: () =>
-    set((prev) => {
+
       const nextTurn = prev.currentTurn + 1
       const nextActive = (prev.activeTurnPlayer === 0 ? 1 : 0) as 0 | 1
-      const pName = nextActive === 0 ? '我方' : '对方'
-      let nextSteps = prev.state.steps || []
-      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
-        nextSteps = [
-          ...nextSteps,
-          {
-            id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            turn: nextTurn,
-            turnPlayer: nextActive,
-            phase: 'DP',
-            actionPlayer: nextActive,
-            actionType: 'TURN_CHANGE',
-            description: `进入第 ${nextTurn} 回合 (${pName}回合)`,
-            boardAfter: createLightweightSnapshot(prev.state.cards)
-          }
-        ]
-      }
       return {
         currentTurn: nextTurn,
         currentPhase: 'DP',
@@ -207,8 +143,22 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         activeTurnPlayer: nextActive,
         state: {
           ...prev.state,
-          turnPlayer: nextActive,
-          steps: nextSteps
+          turnPlayer: nextActive
+        }
+      }
+    }),
+  nextTurn: () =>
+    set((prev) => {
+      const nextTurn = prev.currentTurn + 1
+      const nextActive = (prev.activeTurnPlayer === 0 ? 1 : 0) as 0 | 1
+      return {
+        currentTurn: nextTurn,
+        currentPhase: 'DP',
+        currentChain: 0,
+        activeTurnPlayer: nextActive,
+        state: {
+          ...prev.state,
+          turnPlayer: nextActive
         }
       }
     }),
@@ -220,7 +170,6 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         turnPlayer: player
       }
     })),
-  setIsAutoRecording: (recording) => set({ isAutoRecording: recording }),
 
   setTurnPlayer: (player) =>
     set((prev) => ({
@@ -324,24 +273,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
           }
         }
 
-        const cardMap = new Map(prev.state.cards.map((c) => [c.instanceId, c]))
-        const restoredCards: FieldCard[] = snapshot.map((s) => {
-          const existing = cardMap.get(s.instanceId)
-          return {
-            instanceId: s.instanceId,
-            code: s.code,
-            card: existing?.card,
-            controller: s.controller,
-            owner: s.owner ?? s.controller,
-            location: s.location,
-            sequence: s.sequence,
-            position: s.position,
-            overlayMaterials: [...(s.overlayMaterials || [])],
-            duelistId: s.duelistId,
-            customAtk: s.customAtk,
-            customDef: s.customDef
-          }
-        })
+        const restoredCards: FieldCard[] = restoreCardsFromSnapshot(prev.state.cards, snapshot)
 
         const previewReturn =
           engineRunning && prev.previewReturn === null
@@ -376,7 +308,6 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         return {
           currentStepIndex: stepIndex,
           previewReturn,
-          pendingPlacement: null,
           currentTurn: targetStep.turn,
           currentPhase: targetStep.phase,
           currentChain: targetStep.chainIndex ?? 0,
@@ -387,5 +318,32 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     } finally {
       if (engineRunning) get().resumeUndoTracking()
     }
-  }
+  },
+
+  resetToOpeningBoard: () =>
+    set((prev) => {
+      const snapshot = prev.state.initialBoardSnapshot ?? []
+      const restoredCards = restoreCardsFromSnapshot(prev.state.cards, snapshot)
+      const restoredIds = new Set(restoredCards.map((c) => c.instanceId))
+      const extras = prev.state.cards.filter((c) => !restoredIds.has(c.instanceId))
+
+      const teamDuelistId = (controller: 0 | 1): string => {
+        const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
+        return teamDuelists[0]?.id || `duelist_${controller}_0`
+      }
+      let finalCards = restoredCards
+      for (const extra of extras) {
+        finalCards = insertDeckTop(finalCards, extra, teamDuelistId(extra.controller))
+      }
+
+      const firstPlayer = ((prev.state.steps || [])[0]?.turnPlayer ?? 0) as 0 | 1
+      return {
+        currentStepIndex: null,
+        currentTurn: 1,
+        currentPhase: 'DP',
+        currentChain: 0,
+        activeTurnPlayer: firstPlayer,
+        state: { ...prev.state, steps: [], cards: finalCards, turnPlayer: firstPlayer }
+      }
+    })
 })

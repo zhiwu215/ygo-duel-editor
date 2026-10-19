@@ -42,6 +42,7 @@ const api: IpcApi = {
   pickCustomCardScript: (code) => ipcRenderer.invoke('customcard:pick-script', code),
   deleteCustomCardScript: (code) => ipcRenderer.invoke('customcard:delete-script', code),
   openCustomCardScriptDir: () => ipcRenderer.invoke('customcard:open-script-dir'),
+  syncCustomCardsToGame: () => ipcRenderer.invoke('customcard:sync-to-game'),
   onCustomCardsUpdated: (callback) => {
     const handler = (): void => callback()
     ipcRenderer.on('custom-cards:updated', handler)

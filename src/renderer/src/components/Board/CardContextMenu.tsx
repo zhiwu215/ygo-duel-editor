@@ -6,6 +6,7 @@ import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
+import { useStagingStore } from '../../stores/useStagingStore'
 import { CardLocation } from '@shared/index'
 import { deriveCardEngineActions } from '../../utils/engineActions'
 import { resolveCardName } from '../../utils/cardNames'
@@ -30,6 +31,7 @@ import { Separator } from '../ui/separator'
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const stagingActive = useStagingStore((s) => s.session !== null)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const { updateCardPosition, moveCard, removeCard, state, executeSendToGrave, executeBanishCard } =
     useDuelStore()
@@ -119,11 +121,12 @@ export const CardContextMenu: React.FC = () => {
   const isMonsterZone = card.location === CardLocation.MZONE
   const isSpellTrapZone = isSpellTrapLocation(card.location)
 
-  const engineActions = isEngine ? requestActions : null
+  const engineActions = isEngine && !stagingActive ? requestActions : null
 
   const ctx: CardMenuItemContext = {
     card,
     isEngine,
+    stagingActive,
     engineActions,
     act,
     updateCardPosition,
@@ -310,7 +313,7 @@ export const CardContextMenu: React.FC = () => {
         </>
       )}
 
-      {!isEngine && (
+      {(!isEngine || stagingActive) && (
         <Button
           variant="destructive"
           size="sm"

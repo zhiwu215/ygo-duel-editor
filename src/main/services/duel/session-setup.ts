@@ -18,7 +18,7 @@ export function getPzoneSzoneSequence(masterRule: number): [number, number] {
   return masterRule >= 4 ? [0, 4] : [6, 7]
 }
 
-function buildStartDuelOptions(
+export function buildStartDuelOptions(
   masterRule: number,
   firstTurnAttack: boolean
 ): {

@@ -43,10 +43,9 @@ export function useStepPlayback(): {
     if (useDuelEngineStore.getState().isInitialized) {
       const first = useDuelEngineStore.getState().timeline[0]
       if (first) void useDuelEngineStore.getState().jumpToStep(first.id)
-    } else {
-      previewStepBoard(null)
-      useDuelStore.getState().resetTurn()
+      return
     }
+    useDuelStore.getState().resetToOpeningBoard()
   }
 
   const handleStepClick = (index: number, step: DuelStep): void => {
@@ -60,6 +59,7 @@ export function useStepPlayback(): {
   }
 
   const handleRestartFromStep = (index: number, step: DuelStep): void => {
+    if (useDuelEngineStore.getState().replayInfo) return
     const label = step.cardName || ACTION_TYPE_NAMES[step.actionType] || '这一步'
     const engine = useDuelEngineStore.getState()
     void confirmDialog({

@@ -23,6 +23,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onOpenAdd, onEditStep
   const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const engineTimeline = useDuelEngineStore((s) => s.timeline)
   const engineCurrentStepId = useDuelEngineStore((s) => s.currentStepId)
+  const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
 
   const stepList = useMemo(() => buildStepList(steps), [steps])
 
@@ -123,6 +124,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onOpenAdd, onEditStep
             </div>
           </div>
         ) : (
+          !isReplay &&
           futureStepCount > 0 && (
             <div className="px-2 py-1.5 rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
               已回退到当前步：之后 {futureStepCount} 步保留在列表里（虚线「未来步」），点击可前进；
@@ -133,29 +135,37 @@ export const StepList: React.FC<StepListProps> = ({ steps, onOpenAdd, onEditStep
         {steps.length === 0 ? (
           <div className="flex-1 h-full flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none">
             <Film className="w-10 h-10 text-muted-foreground/30 mb-2.5 animate-pulse" />
-            <p className="font-semibold text-foreground/80">暂无编排动作步骤</p>
-            <p className="text-[11px] text-muted-foreground/60 mt-1 leading-relaxed max-w-[220px]">
-              点击右上角「添加步骤」开始规划回合、阶段、动作与角色台词，打造生动决斗故事！
+            <p className="font-semibold text-foreground/80">
+              {isReplay ? '该回放没有可显示的步骤' : '暂无编排动作步骤'}
             </p>
+            {!isReplay && (
+              <p className="text-[11px] text-muted-foreground/60 mt-1 leading-relaxed max-w-[220px]">
+                点击右上角「添加步骤」开始规划回合、阶段、动作与角色台词，打造生动决斗故事！
+              </p>
+            )}
             <div className="flex items-center gap-2 mt-3.5">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={onOpenAdd}
-                className="h-7 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>新建第 1 步</span>
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => openScreenplayWithStep()}
-                className="h-7 text-xs font-semibold gap-1"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>决斗台本工作台</span>
-              </Button>
+              {!isReplay && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onOpenAdd}
+                  className="h-7 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>新建第 1 步</span>
+                </Button>
+              )}
+              {!isReplay && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => openScreenplayWithStep()}
+                  className="h-7 text-xs font-semibold gap-1"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>决斗台本工作台</span>
+                </Button>
+              )}
             </div>
           </div>
         ) : (

@@ -4,7 +4,6 @@ import { motion } from 'framer-motion'
 import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
 import { setCardDragImage } from '../../utils/cardImage'
 import { resolveCardName } from '../../utils/cardNames'
-import { getFallbackActions, type CardActionOptions } from '../../utils/ruleCheck'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
@@ -14,6 +13,7 @@ import { CardFieldStats } from './components/CardFieldStats'
 import { OverlayMaterialStack } from './components/OverlayMaterialStack'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { useStagingStore } from '../../stores/useStagingStore'
 import { useSelectionStore } from '../../stores/useSelectionStore'
 import { hasCardEngineActions } from '../../utils/engineActions'
 import {
@@ -38,69 +38,27 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const { selectedCardId, setSelectedCardId, setHoveredCard, setHoveredInstanceId } = useDuelStore()
   const tacticalView = useDuelStore((s) => s.tacticalView)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const stagingActive = useStagingStore((s) => s.session !== null)
+  const canDrag = !isEngineActive || stagingActive
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const selectedKeys = useSelectionStore((s) => s.selectedKeys)
-  const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
 
   const hasRequestActions = useMemo(
     () => hasCardEngineActions(pendingRequest, card),
     [pendingRequest, card]
   )
 
-  const isPlacementSource =
-    pendingPlacement !== null && pendingPlacement.sourceId === card.instanceId
-  const isPlacementDisplaceTarget =
-    pendingPlacement !== null &&
-    pendingPlacement.allowedSlots.some(
-      (s) =>
-        s.displaces === true &&
-        s.location === card.location &&
-        s.sequence === card.sequence &&
-        s.controller === card.controller
-    )
-
-  const availableActions = useMemo<CardActionOptions>(() => {
-    if (!isEngineActive) {
-      return getFallbackActions(card)
-    }
-    return {
-      canSummon: false,
-      canSpSummon: false,
-      canMonsterSet: false,
-      canSpellSet: false,
-      canActivate: false,
-      activateOptions: [],
-      canChain: false,
-      chainOptions: [],
-      canRepos: false,
-      canAttack: false,
-      hasAnyAction: hasRequestActions
-    }
-  }, [card, isEngineActive, hasRequestActions])
-
   const selectionMatch = useMemo<CardSelectionMatch | null>(
     () => resolveCardSelectionMatch(pendingRequest, card, selectedKeys),
     [pendingRequest, card, selectedKeys]
   )
 
-  const role = useMemo(
-    () =>
-      resolveCardRole(
-        pendingPlacement !== null,
-        isPlacementSource,
-        isPlacementDisplaceTarget,
-        selectionMatch
-      ),
-    [pendingPlacement, isPlacementSource, isPlacementDisplaceTarget, selectionMatch]
-  )
+  const role = useMemo(() => resolveCardRole(selectionMatch), [selectionMatch])
 
   const handleCardClick = useCardPointerActions({
     card,
     role,
-    selectionMatch,
-    isPlacementSource,
-    isPlacementDisplaceTarget,
-    availableActions
+    selectionMatch
   })
 
   useFieldCardCdb(card)
@@ -162,9 +120,9 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
 
   return (
     <div
-      draggable={!isEngineActive}
+      draggable={canDrag}
       onDragStart={(e) => {
-        if (isEngineActive) {
+        if (!canDrag) {
           e.preventDefault()
           return
         }

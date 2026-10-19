@@ -1,15 +1,17 @@
 import type { StateCreator } from 'zustand'
-import { DuelPuzzleState, EngineReplaySummary } from '@shared/index'
+import { EngineReplaySummary } from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
 import { buildPuzzleStateFromEngineBoard } from '../../utils/engineBoardToPuzzle'
+import { buildReplaySteps } from '../../utils/replayTimelineToSteps'
 import { syncJumpToStepWrapped } from './boardReconcile'
 import { clearIdentities } from './identityMap'
-import { clearEngineSteps, restoreEngineSteps } from './stepRecords'
+import { clearEngineSteps, recordEngineStep } from './stepRecords'
+import type { PreviewReturn } from '../duel/previewSlice'
 import type { DuelEngineStore } from './types'
 
 export interface ReplaySlice {
   replayInfo: EngineReplaySummary | null
-  preReplayPuzzle: DuelPuzzleState | null
+  preReplay: PreviewReturn | null
   importReplay: () => Promise<boolean>
   convertReplayToPuzzle: () => boolean
 }
@@ -18,7 +20,7 @@ type ReplaySliceCreator = StateCreator<DuelEngineStore, [], [], ReplaySlice>
 
 export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
   replayInfo: null,
-  preReplayPuzzle: null,
+  preReplay: null,
 
   importReplay: async () => {
     if (get().replayInfo) {
@@ -26,7 +28,14 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
     }
     set({ loading: true, error: null })
     try {
-      const preReplayPuzzle = structuredClone(useDuelStore.getState().state)
+      const duel = useDuelStore.getState()
+      const preReplay: PreviewReturn = {
+        state: structuredClone(duel.state),
+        currentTurn: duel.currentTurn,
+        currentPhase: duel.currentPhase,
+        currentChain: duel.currentChain,
+        activeTurnPlayer: duel.activeTurnPlayer
+      }
       const res = await window.api.duelEngineImportReplay()
       if (!res.success || !res.payload) {
         set({ loading: false, error: res.error ?? '导入 YRP 录像失败' })
@@ -36,18 +45,25 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       clearEngineSteps()
       clearIdentities()
       useDuelStore.getState().exitPreview()
+      const replaySteps = buildReplaySteps(timeline)
+      for (const step of replaySteps) recordEngineStep(step.actId!, step)
+      useDuelStore.setState((prev) => ({
+        ...prev,
+        state: { ...prev.state, steps: replaySteps }
+      }))
+      const initialNode = timeline[0]
       set({
         engineMode: 'running',
         isInitialized: true,
         loading: false,
         error: null,
-        boardState,
+        boardState: initialNode ? initialNode.boardState : boardState,
         pendingRequest: null,
         lastAttacker: null,
         timeline,
-        currentStepId,
+        currentStepId: initialNode ? initialNode.id : currentStepId,
         replayInfo: info,
-        preReplayPuzzle,
+        preReplay,
         injectNotice: {
           kind: 'success',
           message: info.warning
@@ -55,8 +71,11 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
             : `已载入回放：${info.fileName}（共 ${timeline.length - 1} 步）`
         }
       })
-      syncJumpToStepWrapped(boardState)
-      restoreEngineSteps(timeline)
+      if (initialNode) {
+        syncJumpToStepWrapped(initialNode.boardState)
+      } else {
+        syncJumpToStepWrapped(boardState)
+      }
       return true
     } catch (err) {
       console.error('[useDuelEngineStore] importReplay failed:', err)
@@ -86,7 +105,7 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       loading: false,
       error: null,
       replayInfo: null,
-      preReplayPuzzle: null,
+      preReplay: null,
       boardState: null,
       pendingRequest: null,
       lastAttacker: null,

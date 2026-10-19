@@ -2,30 +2,27 @@ import React from 'react'
 import { FieldCard } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useCardCommandMenuStore } from '../stores/useCardCommandMenuStore'
+import { useDuelEngineStore } from '../stores/useDuelEngineStore'
+import { useStagingStore } from '../stores/useStagingStore'
 import { useSelectionStore } from '../stores/useSelectionStore'
 import {
   submitSelection,
   type CardSelectionMatch,
   type CardSelectionRole
 } from '../utils/duelSelection'
-import type { CardActionOptions } from '../utils/ruleCheck'
+import { hasCardEngineActions, hasCardEngineActivate } from '../utils/engineActions'
+import { isCustomCardCode } from '@shared/index'
 
 interface CardPointerActionsInput {
   card: FieldCard
   role: CardSelectionRole
   selectionMatch: CardSelectionMatch | null
-  isPlacementSource: boolean
-  isPlacementDisplaceTarget: boolean
-  availableActions: CardActionOptions
 }
 
 export function useCardPointerActions({
   card,
   role,
-  selectionMatch,
-  isPlacementSource,
-  isPlacementDisplaceTarget,
-  availableActions
+  selectionMatch
 }: CardPointerActionsInput): (e: React.MouseEvent<HTMLDivElement>) => void {
   const setSelectedCardId = useDuelStore((s) => s.setSelectedCardId)
   const setHoveredCard = useDuelStore((s) => s.setHoveredCard)
@@ -33,6 +30,9 @@ export function useCardPointerActions({
   const closeStatPopover = useDuelStore((s) => s.closeStatPopover)
   const activeStatPopoverCardId = useDuelStore((s) => s.activeStatPopoverCardId)
   const statPopoverPosition = useDuelStore((s) => s.statPopoverPosition)
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const stagingActive = useStagingStore((s) => s.session !== null)
   const {
     card: menuCard,
     openMenu: openCommandMenu,
@@ -56,18 +56,6 @@ export function useCardPointerActions({
       useSelectionStore.getState().toggle(selectionMatch.requestCard)
       return
     }
-    if (isPlacementSource) {
-      useDuelStore.getState().cancelPlacement()
-      return
-    }
-    if (isPlacementDisplaceTarget) {
-      useDuelStore.getState().commitPlacement({
-        location: card.location,
-        sequence: card.sequence,
-        controller: card.controller
-      })
-      return
-    }
     setSelectedCardId(card.instanceId)
     if (card.card) setHoveredCard(card.card)
     if (e.shiftKey) {
@@ -81,11 +69,22 @@ export function useCardPointerActions({
         const defaultY = Math.max(16, Math.min(rect.top - 20, window.innerHeight - 380))
         openStatPopover(card.instanceId, statPopoverPosition || { x: defaultX, y: defaultY })
       }
-    } else if (availableActions.hasAnyAction) {
+    } else if (hasCardEngineActions(pendingRequest, card)) {
       if (menuCard?.instanceId === card.instanceId) {
         closeCommandMenu()
       } else {
-        openCommandMenu(card, availableActions, e.currentTarget.getBoundingClientRect())
+        openCommandMenu(card, e.currentTarget.getBoundingClientRect())
+      }
+    } else if (
+      isEngineActive &&
+      !stagingActive &&
+      isCustomCardCode(card.code) &&
+      !hasCardEngineActivate(pendingRequest, card)
+    ) {
+      if (menuCard?.instanceId === card.instanceId) {
+        closeCommandMenu()
+      } else {
+        openCommandMenu(card, e.currentTarget.getBoundingClientRect())
       }
     } else {
       closeCommandMenu()

@@ -7,6 +7,7 @@ import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useTokenStore } from '../../stores/useTokenStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { useStagingStore } from '../../stores/useStagingStore'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { DropHintPopover } from './components/DropHintPopover'
 import { useDeckZoneInteraction } from '../../hooks/useDeckZoneInteraction'
@@ -99,8 +100,6 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const openZoneMenu = useContextMenuStore((s) => s.openZoneMenu)
   const pendingToken = useTokenStore((s) => s.pendingToken)
   const cancelPendingToken = useTokenStore((s) => s.cancelPending)
-  const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
-  const commitPlacement = useDuelStore((s) => s.commitPlacement)
   const [isOver, setIsOver] = useState(false)
   const { cancelDeckDraw, scheduleDeckDraw } = useDeckZoneInteraction(controller)
 
@@ -119,12 +118,10 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const isTokenDropTarget =
     pendingToken !== null && location === CardLocation.MZONE && !card && sequence <= 4
 
-  const placementSlot = pendingPlacement?.allowedSlots.find(
-    (s) => s.location === location && s.sequence === sequence && s.controller === controller
-  )
-
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const stagingActive = useStagingStore((s) => s.session !== null)
+  const canEditLocally = !isEngineActive || stagingActive
   const masterRule = useDuelStore((s) => s.state.masterRule)
   const enginePlaceMatch =
     pendingRequest !== null &&
@@ -135,19 +132,12 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       : undefined
   const isEnginePlaceTarget = Boolean(enginePlaceMatch)
 
-  const isPlacementTarget =
-    pendingPlacement !== null &&
-    placementSlot !== undefined &&
-    (!card || placementSlot.displaces === true)
-
   const handlePlacementClick = (): boolean => {
     if (enginePlaceMatch) {
       void useDuelEngineStore.getState().submitAnswer({ kind: 'place', places: [enginePlaceMatch] })
       return true
     }
-    if (!pendingPlacement || !isPlacementTarget) return false
-    commitPlacement({ location, sequence, controller })
-    return true
+    return false
   }
 
   const handleTokenDrop = (): boolean => {
@@ -221,7 +211,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           return
         }
       }
-      if (!movedInstanceId && isEngineActive) {
+      if (!movedInstanceId && !canEditLocally) {
         const dataStr = e.dataTransfer.getData('application/json')
         if (!dataStr) return
         const droppedCard = JSON.parse(dataStr) as CdbCard
@@ -246,14 +236,6 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         return
       }
       if (movedInstanceId) {
-        if (
-          pendingPlacement &&
-          pendingPlacement.sourceId === movedInstanceId &&
-          isPlacementTarget
-        ) {
-          commitPlacement({ location, sequence, controller })
-          return
-        }
         const targetRect = e.currentTarget.getBoundingClientRect()
         const insertAfterTarget =
           location === CardLocation.HAND &&
@@ -325,7 +307,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onDrop={handleDrop}
       onClickCapture={(e) => {
         if (location !== CardLocation.DECK) return
-        if (isEngineActive) return
+        if (!canEditLocally) return
         if (isFromZoneBadge(e)) return
         scheduleDeckDraw()
       }}
@@ -333,7 +315,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         if (location === CardLocation.DECK) return
         if (handlePlacementClick()) return
         if (handleTokenDrop()) return
-        if (!card && !pendingPlacement) setSelectedCardId(null)
+        if (!card) setSelectedCardId(null)
       }}
       onDoubleClickCapture={(e) => {
         if (location !== CardLocation.DECK) return
@@ -366,26 +348,24 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           ? 'ring-2 ring-emerald-400/80 bg-emerald-500/10 border-emerald-400/60 cursor-copy animate-pulse'
           : ''
       } ${
-        isPlacementTarget || isEnginePlaceTarget
+        isEnginePlaceTarget
           ? 'ring-2 ring-amber-400 bg-amber-500/10 border-amber-400/60 cursor-pointer animate-pulse'
           : ''
       } ${className}`}
       title={
         isTokenDropTarget
           ? `点击放下「${pendingToken.name}」`
-          : isPlacementTarget
-            ? `点击把【${pendingPlacement?.sourceName}】放到此格 (${pendingPlacement?.mode === 'ACTIVATE' ? '发动' : '盖放'})`
-            : location === CardLocation.DECK
-              ? isEngineActive
-                ? '双击展开卡组列表'
-                : '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
-              : card &&
-                  ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
-                    (card.overlayMaterials && card.overlayMaterials.length > 0))
-                ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
-                : isPileZone && count !== undefined && count > 0
-                  ? '双击直接查看列表'
-                  : undefined
+          : location === CardLocation.DECK
+            ? isEngineActive
+              ? '双击展开卡组列表'
+              : '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
+            : card &&
+                ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
+                  (card.overlayMaterials && card.overlayMaterials.length > 0))
+              ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
+              : isPileZone && count !== undefined && count > 0
+                ? '双击直接查看列表'
+                : undefined
       }
     >
       {count !== undefined && count > 0 && (

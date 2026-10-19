@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { CardLocation, CardPosition, CdbCard, FieldCard, InjectCommand } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { useStagingStore } from '../../stores/useStagingStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { resolveCardName } from '../../utils/cardNames'
@@ -44,6 +45,7 @@ const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
   const openContextMenu = useContextMenuStore((s) => s.openMenu)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const stagingActive = useStagingStore((s) => s.session !== null)
   const {
     state,
     activeDuelistId,
@@ -210,7 +212,7 @@ const PileListContent: React.FC = () => {
         if (!dataStr) return
         const droppedCard = JSON.parse(dataStr) as CdbCard
         const engine = useDuelEngineStore.getState()
-        if (engine.isInitialized) {
+        if (engine.isInitialized && !stagingActive) {
           const to: Extract<InjectCommand, { op: 'add-card' }>['to'] | null =
             target.location === CardLocation.DECK
               ? insertIndex <= 0

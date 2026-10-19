@@ -52,7 +52,6 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
       state: normalizeDuelState(newState),
       currentProjectPath: null,
       selectedCardId: null,
-      pendingPlacement: null,
       expandedDuelistId: null
     })),
 
@@ -70,7 +69,6 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
         state: baseState,
         currentProjectPath: null,
         selectedCardId: null,
-        pendingPlacement: null,
         activeStatPopoverCardId: null,
         statPopoverPosition: null,
         hoveredCard: null,

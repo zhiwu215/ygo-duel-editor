@@ -17,6 +17,7 @@ export const ALL_ACTIONS: DuelActionType[] = [
   'TO_HAND',
   'CHANGE_POS',
   'DAMAGE',
+  'EVENT',
   'CHAIN',
   'DIALOGUE'
 ]

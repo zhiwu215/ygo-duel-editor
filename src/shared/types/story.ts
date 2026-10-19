@@ -39,8 +39,10 @@ export type DuelActionType =
   | 'TO_HAND'
   | 'TO_DECK'
   | 'CHANGE_POS'
+  | 'PLACE'
   | 'DAMAGE'
   | 'RECOVER'
+  | 'EVENT'
   | 'CHAIN'
   | 'RESOLVE_CHAIN'
   | 'PHASE_CHANGE'
@@ -68,8 +70,10 @@ export const ACTION_TYPE_NAMES: Record<DuelActionType, string> = {
   TO_HAND: '加入手牌',
   TO_DECK: '返回卡组',
   CHANGE_POS: '变更表示形式',
+  PLACE: '放置',
   DAMAGE: '受到伤害',
   RECOVER: '生命回复',
+  EVENT: '事件',
   CHAIN: '连锁',
   RESOLVE_CHAIN: '连锁结算',
   PHASE_CHANGE: '阶段更替',
@@ -98,6 +102,7 @@ export const ACTION_TYPE_COLORS: Record<
   ACTIVATE: { bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/30' },
   ACTIVATE_FIELD: { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/30' },
   SET_PENDULUM: { bg: 'bg-violet-500/15', text: 'text-violet-400', border: 'border-violet-500/30' },
+  PLACE: { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border' },
   ATTACK: { bg: 'bg-rose-500/15', text: 'text-rose-400', border: 'border-rose-500/30' },
   TO_GRAVE: { bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30' },
   SEND_TO_GRAVE: {
@@ -111,6 +116,7 @@ export const ACTION_TYPE_COLORS: Record<
   CHANGE_POS: { bg: 'bg-indigo-500/15', text: 'text-indigo-400', border: 'border-indigo-500/30' },
   DAMAGE: { bg: 'bg-rose-600/15', text: 'text-rose-400', border: 'border-rose-600/30' },
   RECOVER: { bg: 'bg-emerald-600/15', text: 'text-emerald-300', border: 'border-emerald-600/30' },
+  EVENT: { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border' },
   CHAIN: { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/30' },
   RESOLVE_CHAIN: {
     bg: 'bg-emerald-500/15',
@@ -135,6 +141,28 @@ export interface LightweightCardSnapshot {
   customAtk?: number
   customDef?: number
 }
+
+export type ManualOp =
+  | {
+      type: 'move'
+      instanceId: string
+      toLocation: number
+      toSequence: number
+      toController?: 0 | 1
+      customPos?: number
+    }
+  | { type: 'position'; instanceId: string; position: number }
+  | { type: 'remove'; instanceId: string }
+  | {
+      type: 'add'
+      code: number
+      controller: 0 | 1
+      location: number
+      sequence: number
+      position?: number
+      duelistId?: string
+    }
+  | { type: 'lp'; player: 0 | 1; value: number }
 
 export interface DuelStep {
   id: string
@@ -163,6 +191,9 @@ export interface DuelStep {
   boardAfter?: LightweightCardSnapshot[]
   lpChange?: { player: 0 | 1; oldLp: number; newLp: number }
   actId?: string
+  manual?: boolean
+  manualOps?: ManualOp[]
+  afterActId?: string
   intent?: string
 }
 

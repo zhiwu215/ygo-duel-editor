@@ -36,8 +36,6 @@ export interface AppConfig {
 
   projectSeries?: string[]
 
-  ruleCheckEnabled?: boolean
-
   timingPolicy?: TimingPolicy
 }
 

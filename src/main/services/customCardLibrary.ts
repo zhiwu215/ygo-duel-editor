@@ -37,8 +37,28 @@ export function customScriptName(code: number): string {
   return `c${code}${SCRIPT_EXTENSION}`
 }
 
+function primaryCustomScriptDir(): string {
+  const gameDirectory = configService.get().gameDirectory
+  return gameDirectory ? join(gameDirectory, 'expansions', 'script') : customScriptDir()
+}
+
+function customScriptDirs(): string[] {
+  return configService.get().gameDirectory
+    ? [primaryCustomScriptDir(), customScriptDir()]
+    : [customScriptDir()]
+}
+
 export function customScriptPath(code: number): string {
-  return join(customScriptDir(), customScriptName(code))
+  return join(primaryCustomScriptDir(), customScriptName(code))
+}
+
+function findCustomScriptPath(code: number): string | null {
+  const name = customScriptName(code)
+  for (const dir of customScriptDirs()) {
+    const path = join(dir, name)
+    if (existsSync(path)) return path
+  }
+  return null
 }
 
 export function isCustomCdbPath(cdbPath: string): boolean {
@@ -168,7 +188,7 @@ export function readCustomScript(scriptPath: string): Uint8Array | null {
 }
 
 export function getCustomScriptInfo(code: number): CustomCardScriptInfo {
-  const path = customScriptPath(code)
+  const path = findCustomScriptPath(code) ?? customScriptPath(code)
   const info: CustomCardScriptInfo = {
     code,
     fileName: customScriptName(code),
@@ -217,8 +237,11 @@ export async function importCustomScript(code: number): Promise<CustomCardScript
 
 export function removeCustomScript(code: number): CustomCardScriptResult {
   try {
-    const path = customScriptPath(code)
-    if (existsSync(path)) rmSync(path)
+    const name = customScriptName(code)
+    for (const dir of customScriptDirs()) {
+      const path = join(dir, name)
+      if (existsSync(path)) rmSync(path)
+    }
     return { success: true, info: getCustomScriptInfo(code) }
   } catch (err) {
     console.error('[CustomCardLibrary] Failed to remove script:', err)
@@ -228,7 +251,9 @@ export function removeCustomScript(code: number): CustomCardScriptResult {
 
 export async function openCustomScriptDir(): Promise<void> {
   try {
-    await shell.openPath(customScriptDir())
+    const dir = primaryCustomScriptDir()
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    await shell.openPath(dir)
   } catch (err) {
     console.error('[CustomCardLibrary] Failed to open script dir:', err)
   }

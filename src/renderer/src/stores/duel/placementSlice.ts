@@ -1,37 +1,9 @@
 import type { StateCreator } from 'zustand'
-import {
-  CdbCard,
-  CardLocation,
-  CardPosition,
-  CardType,
-  DuelStep,
-  FieldCard,
-  createLightweightSnapshot
-} from '@shared/index'
-import { alertDialog } from '../useDialogStore'
-import { resolveCardName } from '../../utils/cardNames'
-import { FIELD_ZONE_SEQ, isFieldSpellCard } from './setupSlice'
+import { CdbCard, CardLocation, CardPosition, FieldCard, LOCATION_NAMES } from '@shared/index'
+import { FIELD_ZONE_SEQ } from './setupSlice'
+import { useStagingStore } from '../useStagingStore'
+import { moveActionType, recordEditorStep } from './editorStepRecorder'
 import type { DuelStore } from './types'
-import { isAutoRecordingPaused } from './recordingGate'
-
-export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON'
-
-export interface PendingPlacementSlot {
-  location: number
-  sequence: number
-  controller: 0 | 1
-  displaces?: boolean
-}
-
-export interface PendingPlacement {
-  sourceId: string
-  sourceName: string
-  sourceController: 0 | 1
-  mode: PendingPlacementMode
-  cardType: number
-  allowedSlots: PendingPlacementSlot[]
-  effectIndex?: number
-}
 
 export interface MoveCardParams {
   instanceId: string
@@ -40,7 +12,6 @@ export interface MoveCardParams {
   toController?: 0 | 1
   customPos?: number
   targetDuelistId?: string
-  chainResponse?: boolean
 }
 
 export function findZoneOccupant(
@@ -160,18 +131,12 @@ function applyMoveCard(prev: DuelStore, params: MoveCardParams): Partial<DuelSto
     currentChain: prev.currentChain,
     state: {
       ...prev.state,
-      cards: finalCards,
-      initialBoardSnapshot: prev.state.initialBoardSnapshot || createLightweightSnapshot(finalCards)
+      cards: finalCards
     }
   }
 }
 
 export interface PlacementSlice {
-  pendingPlacement: PendingPlacement | null
-  beginPlacement: (mode: PendingPlacementMode, sourceId: string, effectIndex?: number) => void
-  cancelPlacement: () => void
-  commitPlacement: (slot: PendingPlacementSlot) => void
-
   addCardToZone: (
     card: CdbCard,
     controller: 0 | 1,
@@ -192,7 +157,7 @@ export interface PlacementSlice {
   ) => void
   moveCards: (moves: MoveCardParams[]) => void
   removeCard: (instanceId: string) => void
-  updateCardPosition: (instanceId: string, position: number, chainResponse?: boolean) => void
+  updateCardPosition: (instanceId: string, position: number) => void
 
   reorderPileCards: (
     controller: 0 | 1,
@@ -215,103 +180,19 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
   set,
   get
 ) => ({
-  pendingPlacement: null,
-
-  beginPlacement: (mode, sourceId, effectIndex) => {
-    const { state } = get()
-    const card = state.cards.find((c) => c.instanceId === sourceId)
-    if (!card || card.location !== CardLocation.HAND) return
-
-    const cardType = card.card?.type ?? 0
-    const isMonster = card.card !== undefined ? (cardType & CardType.MONSTER) !== 0 : false
-
-    const allowedSlots: PendingPlacementSlot[] = []
-    const controller = card.controller
-
-    if (isFieldSpellCard(card)) {
-      allowedSlots.push({
-        location: CardLocation.SZONE,
-        sequence: FIELD_ZONE_SEQ,
+  addCardToZone: (card, controller, location, sequence, customPos, duelistId, engineInstanceId) => {
+    useStagingStore.getState().pushOp(
+      {
+        type: 'add',
+        code: card.id,
         controller,
-        displaces: true
-      })
-    } else if (isMonster) {
-      for (let seq = 0; seq <= 4; seq++) {
-        const taken = state.cards.some(
-          (c) =>
-            c.controller === controller && c.location === CardLocation.MZONE && c.sequence === seq
-        )
-        if (!taken) {
-          allowedSlots.push({ location: CardLocation.MZONE, sequence: seq, controller })
-        }
-      }
-    } else {
-      for (let seq = 0; seq <= 4; seq++) {
-        const taken = state.cards.some(
-          (c) =>
-            c.controller === controller && c.location === CardLocation.SZONE && c.sequence === seq
-        )
-        if (!taken) {
-          allowedSlots.push({ location: CardLocation.SZONE, sequence: seq, controller })
-        }
-      }
-    }
-
-    if (allowedSlots.length === 0) {
-      void alertDialog(
-        isMonster
-          ? '怪兽区已占满\n5 个怪兽格都有卡，无法再召唤或覆盖怪兽。'
-          : '魔陷区已占满\n5 个魔陷格都有卡，无法再发动或盖放魔法/陷阱。'
-      )
-      return
-    }
-
-    set({
-      pendingPlacement: {
-        sourceId,
-        sourceName: resolveCardName(card.code),
-        sourceController: controller,
-        mode,
-        cardType,
-        allowedSlots,
-        effectIndex
+        location,
+        sequence,
+        position: customPos,
+        duelistId
       },
-      selectedCardId: sourceId
-    })
-  },
-
-  cancelPlacement: () => set({ pendingPlacement: null }),
-
-  commitPlacement: (slot) => {
-    const { pendingPlacement } = get()
-    if (!pendingPlacement) return
-
-    if (pendingPlacement.mode === 'SUMMON') {
-      get().moveCard(
-        pendingPlacement.sourceId,
-        slot.location,
-        slot.sequence,
-        slot.controller,
-        CardPosition.FACEUP_ATTACK
-      )
-    } else if (pendingPlacement.mode === 'ACTIVATE') {
-      get().executeActivateCard(pendingPlacement.sourceId, {
-        location: slot.location,
-        sequence: slot.sequence,
-        controller: slot.controller,
-        position: CardPosition.FACEUP
-      })
-    } else {
-      get().executeSetCard(pendingPlacement.sourceId, {
-        location: slot.location,
-        sequence: slot.sequence,
-        controller: slot.controller
-      })
-    }
-    set({ pendingPlacement: null })
-  },
-
-  addCardToZone: (card, controller, location, sequence, customPos, duelistId, engineInstanceId) =>
+      card
+    )
     set((prev) => {
       const isPileZone =
         location === CardLocation.HAND ||
@@ -418,9 +299,20 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         selectedCardId: newCard.instanceId,
         hoveredCard: card
       }
-    }),
+    })
+    recordEditorStep({
+      actionType: 'PLACE',
+      controller,
+      cardName: card.name,
+      description: `将【${card.name}】放置到${LOCATION_NAMES[location] ?? '场上'}`
+    })
+  },
 
-  moveCard: (instanceId, toLocation, toSequence, toController, customPos, targetDuelistId) =>
+  moveCard: (instanceId, toLocation, toSequence, toController, customPos, targetDuelistId) => {
+    const fromCard = get().state.cards.find((c) => c.instanceId === instanceId)
+    useStagingStore
+      .getState()
+      .pushOp({ type: 'move', instanceId, toLocation, toSequence, toController, customPos })
     set((prev) => ({
       ...applyMoveCard(prev, {
         instanceId,
@@ -430,133 +322,112 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         customPos,
         targetDuelistId
       })
-    })),
+    }))
+    if (fromCard) {
+      const name = fromCard.card?.name
+      recordEditorStep({
+        actionType: moveActionType(toLocation),
+        controller: toController ?? fromCard.controller,
+        cardName: name,
+        description: name
+          ? `将【${name}】移至${LOCATION_NAMES[toLocation] ?? '区域'}`
+          : `移动卡片至${LOCATION_NAMES[toLocation] ?? '区域'}`
+      })
+    }
+  },
 
-  moveCards: (moves) =>
+  moveCards: (moves) => {
+    const fromCards = new Map(
+      get()
+        .state.cards.filter((c) => moves.some((m) => m.instanceId === c.instanceId))
+        .map((c) => [c.instanceId, c])
+    )
+    const staging = useStagingStore.getState()
+    for (const m of moves) {
+      staging.pushOp({
+        type: 'move',
+        instanceId: m.instanceId,
+        toLocation: m.toLocation,
+        toSequence: m.toSequence,
+        toController: m.toController,
+        customPos: m.customPos
+      })
+    }
     set((prev) => {
       let acc = prev
       for (const m of moves) {
         acc = { ...acc, ...applyMoveCard(acc, m) }
       }
       return acc
-    }),
+    })
+    for (const m of moves) {
+      const fromCard = fromCards.get(m.instanceId)
+      if (!fromCard) continue
+      const name = fromCard.card?.name
+      recordEditorStep({
+        actionType: moveActionType(m.toLocation),
+        controller: m.toController ?? fromCard.controller,
+        cardName: name,
+        description: name
+          ? `将【${name}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
+          : `移动卡片至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
+      })
+    }
+  },
 
-  removeCard: (instanceId) =>
+  removeCard: (instanceId) => {
+    const fromCard = get().state.cards.find((c) => c.instanceId === instanceId)
+    useStagingStore.getState().pushOp({ type: 'remove', instanceId })
     set((prev) => ({
       state: {
         ...prev.state,
         cards: prev.state.cards.filter((c) => c.instanceId !== instanceId)
       },
       selectedCardId: prev.selectedCardId === instanceId ? null : prev.selectedCardId,
-      hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredInstanceId,
-      pendingPlacement:
-        prev.pendingPlacement?.sourceId === instanceId ? null : prev.pendingPlacement
-    })),
+      hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredInstanceId
+    }))
+    if (fromCard) {
+      const name = fromCard.card?.name
+      recordEditorStep({
+        actionType: 'BANISH',
+        controller: fromCard.controller,
+        cardName: name,
+        description: name ? `将【${name}】从对局中移除` : '从对局中移除卡片'
+      })
+    }
+  },
 
-  updateCardPosition: (instanceId, position, chainResponse = false) =>
+  updateCardPosition: (instanceId, position) => {
+    const oldPos = get().state.cards.find((c) => c.instanceId === instanceId)?.position
+    useStagingStore.getState().pushOp({ type: 'position', instanceId, position })
     set((prev) => {
       const targetCard = prev.state.cards.find((c) => c.instanceId === instanceId)
       if (!targetCard) return prev
-      const oldPos = targetCard.position
-      if (oldPos === position) return prev
+      if (targetCard.position === position) return prev
 
       const updatedCards = prev.state.cards.map((c) =>
         c.instanceId === instanceId ? { ...c, position } : c
       )
 
-      const nextSteps = [...(prev.state.steps || [])]
-      let nextChain = prev.currentChain
-
-      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
-        const lastStep = nextSteps[nextSteps.length - 1]
-        const isJustDropped =
-          lastStep &&
-          lastStep.instanceId === instanceId &&
-          (lastStep.actionType === 'SET_SPELL_TRAP' ||
-            lastStep.actionType === 'ACTIVATE' ||
-            lastStep.actionType === 'SET_MONSTER' ||
-            lastStep.actionType === 'NORMAL_SUMMON' ||
-            lastStep.actionType === 'SPECIAL_SUMMON')
-
-        const pName = targetCard.controller === 0 ? '我方' : '对方'
-        const cName = resolveCardName(targetCard.code)
-
-        if (isJustDropped) {
-          if (
-            targetCard.location === CardLocation.SZONE ||
-            targetCard.location === CardLocation.FZONE
-          ) {
-            const isFacedown = Boolean(position & CardPosition.FACEDOWN)
-            if (isFacedown) {
-              nextSteps[nextSteps.length - 1] = {
-                ...lastStep,
-                actionType: 'SET_SPELL_TRAP',
-                chainIndex: undefined,
-                description: `${pName}覆盖魔陷【${cName}】`,
-                boardAfter: createLightweightSnapshot(updatedCards)
-              }
-            } else {
-              const chainIdx = chainResponse ? prev.currentChain + 1 : 1
-              nextChain = chainIdx
-              nextSteps[nextSteps.length - 1] = {
-                ...lastStep,
-                actionType: 'ACTIVATE',
-                chainIndex: chainIdx,
-                description: `${pName}发动【${cName}】(Chain ${chainIdx})`,
-                boardAfter: createLightweightSnapshot(updatedCards)
-              }
-            }
-          } else if (targetCard.location === CardLocation.MZONE) {
-            const isFacedown = Boolean(position & CardPosition.FACEDOWN)
-            if (isFacedown) {
-              nextSteps[nextSteps.length - 1] = {
-                ...lastStep,
-                actionType: 'SET_MONSTER',
-                description: `${pName}里侧盖放怪兽【${cName}】`,
-                boardAfter: createLightweightSnapshot(updatedCards)
-              }
-            } else {
-              nextSteps[nextSteps.length - 1] = {
-                ...lastStep,
-                actionType: 'NORMAL_SUMMON',
-                description: `${pName}通常召唤【${cName}】`,
-                boardAfter: createLightweightSnapshot(updatedCards)
-              }
-            }
-          }
-        } else {
-          const newStep: DuelStep = {
-            id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            turn: prev.currentTurn,
-            turnPlayer: prev.activeTurnPlayer,
-            phase: prev.currentPhase,
-            actionPlayer: targetCard.controller,
-            actionType: 'CHANGE_POS',
-            instanceId,
-            cardCode: targetCard.code,
-            cardName: targetCard.card?.name,
-            fromLocation: targetCard.location,
-            fromSequence: targetCard.sequence,
-            toLocation: targetCard.location,
-            toSequence: targetCard.sequence,
-            description: `${pName}变更【${cName}】表示形式`,
-            boardAfter: createLightweightSnapshot(updatedCards)
-          }
-          nextSteps.push(newStep)
-        }
-      }
-
       return {
-        currentChain: nextChain,
         state: {
           ...prev.state,
-          cards: updatedCards,
-          steps: nextSteps,
-          initialBoardSnapshot:
-            prev.state.initialBoardSnapshot || createLightweightSnapshot(prev.state.cards)
+          cards: updatedCards
         }
       }
-    }),
+    })
+    if (oldPos !== undefined && oldPos !== position) {
+      const card = get().state.cards.find((c) => c.instanceId === instanceId)
+      if (card) {
+        recordEditorStep({
+          actionType: 'CHANGE_POS',
+          controller: card.controller,
+          cardName: card.card?.name,
+          description: card.card?.name ? `【${card.card.name}】变更表示形式` : '变更表示形式'
+        })
+      }
+    }
+  },
 
   reorderPileCards: (controller, location, fromIndex, toIndex, duelistId) =>
     set((prev) => {
@@ -601,7 +472,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       }
     }),
 
-  reorderHandCards: (controller, duelistId, movingInstanceId, targetInstanceId, insertAfter) =>
+  reorderHandCards: (controller, duelistId, movingInstanceId, targetInstanceId, insertAfter) => {
     set((prev) => {
       if (movingInstanceId === targetInstanceId) return prev
 
@@ -632,6 +503,13 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         return prev
       }
 
+      useStagingStore.getState().pushOp({
+        type: 'move',
+        instanceId: movingInstanceId,
+        toLocation: CardLocation.HAND,
+        toSequence: insertIndex
+      })
+
       const sequenceById = new Map<string, number>()
       reordered.forEach((card, index) => sequenceById.set(card.instanceId, index))
       return {
@@ -644,4 +522,5 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         }
       }
     })
+  }
 })

@@ -4,13 +4,12 @@ import {
   Duelist,
   MatchConfig,
   createDefaultDuelists,
-  createLightweightSnapshot,
   getMatchScenarioKey
 } from '@shared/index'
 import { createLpFlash } from './lpSlice'
+import { useStagingStore } from '../useStagingStore'
 import type { DuelStore } from './types'
 import { turnOrderOf } from '../../utils/duelistNames'
-import { isAutoRecordingPaused } from './recordingGate'
 
 export interface DuelistsSlice {
   expandedDuelistId: string | null
@@ -133,6 +132,9 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
       const targetId = target ? target.id : duelistId
       const targetTeam: 0 | 1 = target ? target.team : duelistId.includes('_1_') ? 1 : 0
       const updatedLp = patch.lp !== undefined ? Math.max(0, patch.lp) : undefined
+      if (updatedLp !== undefined) {
+        useStagingStore.getState().pushOp({ type: 'lp', player: targetTeam, value: updatedLp })
+      }
 
       const duelists = baseDuelists.map((d) => {
         if (d.id === targetId) {
@@ -142,32 +144,8 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
       })
 
       let players = prev.state.players
-      let nextSteps = prev.state.steps || []
 
       if (updatedLp !== undefined) {
-        const oldLp = target ? target.lp : (players[targetTeam]?.lp ?? 8000)
-        const diff = Math.abs(updatedLp - oldLp)
-        if (prev.isAutoRecording && !isAutoRecordingPaused() && diff > 0) {
-          const isDamage = updatedLp < oldLp
-          const roleName = target?.name || (targetTeam === 0 ? '我方' : '对方')
-          nextSteps = [
-            ...nextSteps,
-            {
-              id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-              turn: prev.currentTurn,
-              turnPlayer: prev.activeTurnPlayer,
-              phase: prev.currentPhase,
-              actionPlayer: targetTeam,
-              actionType: isDamage ? 'DAMAGE' : 'RECOVER',
-              description: isDamage
-                ? `${roleName}受到 ${diff} 点伤害 (LP: ${oldLp} → ${updatedLp})`
-                : `${roleName}回复 ${diff} 点生命值 (LP: ${oldLp} → ${updatedLp})`,
-              lpChange: { player: targetTeam, oldLp, newLp: updatedLp },
-              boardAfter: createLightweightSnapshot(prev.state.cards)
-            }
-          ]
-        }
-
         if (prev.state.matchConfig?.sharedLp) {
           duelists.forEach((d) => {
             if (d.team === targetTeam) {
@@ -189,10 +167,7 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
         state: {
           ...prev.state,
           duelists,
-          players,
-          steps: nextSteps,
-          initialBoardSnapshot:
-            prev.state.initialBoardSnapshot || createLightweightSnapshot(prev.state.cards)
+          players
         }
       }
     }),

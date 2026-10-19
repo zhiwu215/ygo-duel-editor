@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { DuelStep, PHASE_NAMES } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { confirmDialog } from '../../stores/useDialogStore'
+import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { confirmDialog, alertDialog } from '../../stores/useDialogStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { Badge } from '../ui/badge'
@@ -10,7 +11,17 @@ import { StepList } from './StepList'
 import { StepEditDialog } from './StepEditDialog'
 import { ALL_PHASES } from './stepGrouping'
 import { cn } from '../../lib/utils'
-import { ArrowLeft, ArrowRight, BookOpen, Film, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Film,
+  LogOut,
+  PencilLine,
+  Plus,
+  RotateCcw,
+  Trash2
+} from 'lucide-react'
 
 export const StepSequencerPanel: React.FC = () => {
   const {
@@ -20,18 +31,26 @@ export const StepSequencerPanel: React.FC = () => {
     currentPhase,
     currentChain,
     activeTurnPlayer,
-    isAutoRecording,
     setCurrentPhase,
     resetChain,
     nextPhase,
     nextTurn,
     setActiveTurnPlayer,
-    setIsAutoRecording,
     openScreenplayWithStep,
     clearSteps
   } = useDuelStore()
 
+  const replayInfo = useDuelEngineStore((s) => s.replayInfo)
+  const engineLoading = useDuelEngineStore((s) => s.loading)
+  const engineCurrentStepId = useDuelEngineStore((s) => s.currentStepId)
+  const stopEngine = useDuelEngineStore((s) => s.stopEngine)
+  const convertReplayToPuzzle = useDuelEngineStore((s) => s.convertReplayToPuzzle)
+
   const steps = state.steps || []
+  const isReplay = replayInfo !== null
+  const replayStepIndex = isReplay
+    ? steps.findIndex((step) => step.actId && step.actId === engineCurrentStepId)
+    : null
 
   const { handlePrevStep, handleNextStep, handleResetPlayback } = useStepPlayback()
 
@@ -48,6 +67,14 @@ export const StepSequencerPanel: React.FC = () => {
     setDialogOpen(true)
   }
 
+  const handleConvert = (): void => {
+    if (convertReplayToPuzzle()) {
+      void alertDialog(
+        '已将当前回放场面转为可编辑残局。\n\n默认按大师规则 2020 解析，如原对局规则不同请手动调整；可通过「另存为...」保存为工程。'
+      )
+    }
+  }
+
   return (
     <div className="w-full h-full flex flex-col shrink-0 select-none overflow-hidden text-xs">
       <div className="p-2.5 border-b border-border/60 bg-muted/10 flex items-center justify-between shrink-0">
@@ -61,60 +88,62 @@ export const StepSequencerPanel: React.FC = () => {
           </span>
         </div>
 
-        <div className="flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={() => openScreenplayWithStep()}
-                  className="h-7 px-2 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>台本</span>
-                </Button>
-              }
-            />
-            <TooltipContent>打开大屏决斗台本工作台，沉浸式编写角色台词与剧情</TooltipContent>
-          </Tooltip>
-
-          <Button
-            size="xs"
-            variant="default"
-            onClick={handleOpenAdd}
-            className="h-7 px-2.5 text-xs font-semibold gap-1 shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>添加步骤</span>
-          </Button>
-
-          {steps.length > 0 && (
+        {!isReplay && (
+          <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger
                 render={
                   <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => {
-                      void confirmDialog({
-                        title: '清空步骤',
-                        description: '确定要清空全部编排动作步骤吗？此操作可使用 Ctrl+Z 撤销。'
-                      }).then((ok) => {
-                        if (ok) clearSteps()
-                      })
-                    }}
-
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    size="xs"
+                    variant="outline"
+                    onClick={() => openScreenplayWithStep()}
+                    className="h-7 px-2 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>台本</span>
                   </Button>
                 }
               />
-              <TooltipContent>清空全部步骤</TooltipContent>
+              <TooltipContent>打开大屏决斗台本工作台，沉浸式编写角色台词与剧情</TooltipContent>
             </Tooltip>
-          )}
-        </div>
+
+            <Button
+              size="xs"
+              variant="default"
+              onClick={handleOpenAdd}
+              className="h-7 px-2.5 text-xs font-semibold gap-1 shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>添加步骤</span>
+            </Button>
+
+            {steps.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => {
+                        void confirmDialog({
+                          title: '清空步骤',
+                          description: '确定要清空全部编排动作步骤吗？此操作可使用 Ctrl+Z 撤销。'
+                        }).then((ok) => {
+                          if (ok) clearSteps()
+                        })
+                      }}
+
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>清空全部步骤</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="p-2 border-b border-border/60 bg-muted/20 flex flex-col gap-2 shrink-0 select-none">
@@ -126,24 +155,31 @@ export const StepSequencerPanel: React.FC = () => {
                 render={
                   <Badge
                     variant="outline"
-                    onClick={() => setActiveTurnPlayer(activeTurnPlayer === 0 ? 1 : 0)}
+                    onClick={
+                      isReplay
+                        ? undefined
+                        : () => setActiveTurnPlayer(activeTurnPlayer === 0 ? 1 : 0)
+                    }
                     className={cn(
-                      'text-[10px] px-1.5 py-0 cursor-pointer font-bold transition-colors',
+                      'text-[10px] px-1.5 py-0 font-bold transition-colors',
+                      !isReplay && 'cursor-pointer',
                       activeTurnPlayer === 0
-                        ? 'border-blue-500/50 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20'
-                        : 'border-rose-500/50 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20'
+                        ? 'border-blue-500/50 text-blue-400 bg-blue-500/10'
+                        : 'border-rose-500/50 text-rose-400 bg-rose-500/10',
+                      !isReplay &&
+                        (activeTurnPlayer === 0 ? 'hover:bg-blue-500/20' : 'hover:bg-rose-500/20')
                     )}
                   >
                     {activeTurnPlayer === 0 ? '我方行动' : '对方行动'}
                   </Badge>
                 }
               />
-              <TooltipContent>点击切换当前行动方 (我方 / 对方)</TooltipContent>
+              {!isReplay && <TooltipContent>点击切换当前行动方 (我方 / 对方)</TooltipContent>}
             </Tooltip>
           </div>
 
           <div className="flex items-center gap-1">
-            {currentChain > 0 ? (
+            {!isReplay && currentChain > 0 ? (
               <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-[10px] font-bold text-teal-300">
                 <span className="animate-pulse">⛓ Chain {currentChain}</span>
                 <Tooltip>
@@ -164,100 +200,80 @@ export const StepSequencerPanel: React.FC = () => {
             ) : (
               <span className="text-[10px] text-muted-foreground/60 font-mono">C0 (无连锁)</span>
             )}
-
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => setIsAutoRecording(!isAutoRecording)}
-                    className={cn(
-                      'text-[10px] font-bold px-1.5 py-0.5 rounded border transition-colors flex items-center gap-1 cursor-pointer',
-                      isAutoRecording
-                        ? 'bg-rose-500/15 border-rose-500/40 text-rose-400'
-                        : 'bg-muted border-border text-muted-foreground'
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'w-1.5 h-1.5 rounded-full',
-                        isAutoRecording ? 'bg-rose-500 animate-pulse' : 'bg-muted-foreground'
-                      )}
-                    />
-                    <span>{isAutoRecording ? '记谱中' : '暂停'}</span>
-                  </button>
-                }
-              />
-              <TooltipContent>
-                {isAutoRecording
-                  ? '自动记谱开启中：在决斗盘拖拽或右键操作将自动记录动作步骤与连锁'
-                  : '自动记谱已暂停：仅摆放卡片，不自动写入步骤流'}
-              </TooltipContent>
-            </Tooltip>
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-1">
-          <div className="flex items-center gap-0.5 bg-background/80 p-0.5 rounded-md border border-border/70 flex-1">
-            {ALL_PHASES.map((p) => {
-              const isActive = currentPhase === p
-              return (
-                <Tooltip key={p}>
+          {isReplay ? (
+            <div className="flex-1 text-[10px] font-extrabold py-0.5 rounded bg-muted/30 border border-border/40 text-center text-foreground/90">
+              {PHASE_NAMES[currentPhase]}
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-0.5 bg-background/80 p-0.5 rounded-md border border-border/70 flex-1">
+                {ALL_PHASES.map((p) => {
+                  const isActive = currentPhase === p
+                  return (
+                    <Tooltip key={p}>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            type="button"
+                            onClick={() => setCurrentPhase(p)}
+                            className={cn(
+                              'flex-1 text-[10px] font-extrabold py-0.5 rounded transition-all text-center cursor-pointer',
+                              isActive
+                                ? 'bg-primary text-primary-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                            )}
+                          >
+                            {p}
+                          </button>
+                        }
+                      />
+                      <TooltipContent>{`切换到 ${PHASE_NAMES[p] || p}`}</TooltipContent>
+                    </Tooltip>
+                  )
+                })}
+              </div>
+
+              <div className="flex items-center gap-0.5 shrink-0">
+                <Tooltip>
                   <TooltipTrigger
                     render={
-                      <button
-                        type="button"
-                        onClick={() => setCurrentPhase(p)}
-                        className={cn(
-                          'flex-1 text-[10px] font-extrabold py-0.5 rounded transition-all text-center cursor-pointer',
-                          isActive
-                            ? 'bg-primary text-primary-foreground shadow-xs'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                        )}
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={nextPhase}
+                        className="h-6 px-1.5 text-[10px] font-bold gap-0.5 border-border"
                       >
-                        {p}
-                      </button>
+                        <span>下阶段</span>
+                        <ArrowRight className="w-2.5 h-2.5" />
+                      </Button>
                     }
                   />
-                  <TooltipContent>{`切换到 ${PHASE_NAMES[p] || p}`}</TooltipContent>
+                  <TooltipContent>
+                    推进到下一个决斗阶段 (DP → SP → M1 → BP → M2 → EP)
+                  </TooltipContent>
                 </Tooltip>
-              )
-            })}
-          </div>
-
-          <div className="flex items-center gap-0.5 shrink-0">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={nextPhase}
-                    className="h-6 px-1.5 text-[10px] font-bold gap-0.5 border-border"
-                  >
-                    <span>下阶段</span>
-                    <ArrowRight className="w-2.5 h-2.5" />
-                  </Button>
-                }
-              />
-              <TooltipContent>推进到下一个决斗阶段 (DP → SP → M1 → BP → M2 → EP)</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="xs"
-                    variant="secondary"
-                    onClick={nextTurn}
-                    className="h-6 px-1.5 text-[10px] font-bold text-foreground/90"
-                  >
-                    <span>下回合</span>
-                  </Button>
-                }
-              />
-              <TooltipContent>回合结束，推进到下一回合并切换回合方</TooltipContent>
-            </Tooltip>
-          </div>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        onClick={nextTurn}
+                        className="h-6 px-1.5 text-[10px] font-bold text-foreground/90"
+                      >
+                        <span>下回合</span>
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>回合结束，推进到下一回合并切换回合方</TooltipContent>
+                </Tooltip>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -287,7 +303,10 @@ export const StepSequencerPanel: React.FC = () => {
                 <Button
                   size="icon-xs"
                   variant="ghost"
-                  disabled={steps.length === 0 || currentStepIndex === 0}
+                  disabled={
+                    steps.length === 0 ||
+                    (isReplay ? (replayStepIndex ?? -1) <= 0 : currentStepIndex === 0)
+                  }
                   onClick={handlePrevStep}
                   className="h-7 w-7 text-muted-foreground"
                 >
@@ -304,7 +323,12 @@ export const StepSequencerPanel: React.FC = () => {
                 <Button
                   size="icon-xs"
                   variant="ghost"
-                  disabled={steps.length === 0 || currentStepIndex === steps.length - 1}
+                  disabled={
+                    steps.length === 0 ||
+                    (isReplay
+                      ? replayStepIndex === steps.length - 1
+                      : currentStepIndex === steps.length - 1)
+                  }
                   onClick={handleNextStep}
                   className="h-7 w-7 text-muted-foreground"
                 >
@@ -317,11 +341,40 @@ export const StepSequencerPanel: React.FC = () => {
         </div>
 
         <span className="text-[11px] font-mono font-medium text-muted-foreground">
-          {currentStepIndex !== null
-            ? `第 ${currentStepIndex + 1} / ${steps.length} 步`
-            : '初始局面'}
+          {isReplay
+            ? (replayStepIndex ?? -1) >= 0
+              ? `第 ${(replayStepIndex ?? 0) + 1} / ${steps.length} 步`
+              : '初始局面'
+            : currentStepIndex !== null
+              ? `第 ${currentStepIndex + 1} / ${steps.length} 步`
+              : '初始局面'}
         </span>
       </div>
+
+      {isReplay && (
+        <div className="p-2 border-t border-violet-500/30 bg-violet-500/5 flex items-center gap-2 select-none shrink-0">
+          <Button
+            size="xs"
+            variant="outline"
+            disabled={engineLoading}
+            onClick={stopEngine}
+            className="flex-1 h-7 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>退出回放</span>
+          </Button>
+          <Button
+            size="xs"
+            variant="default"
+            disabled={engineLoading}
+            onClick={handleConvert}
+            className="flex-1 h-7 text-xs font-semibold gap-1 shadow-sm"
+          >
+            <PencilLine className="w-3.5 h-3.5" />
+            <span>编辑</span>
+          </Button>
+        </div>
+      )}
 
       {dialogOpen && (
         <StepEditDialog editingStepId={editingStepId} onClose={() => setDialogOpen(false)} />

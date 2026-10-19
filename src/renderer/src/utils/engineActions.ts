@@ -126,3 +126,15 @@ export function hasCardEngineActions(
     actions.activate.length > 0
   )
 }
+
+export function hasCardEngineActivate(
+  request: EngineRequest | null,
+  card: {
+    code: number
+    controller: 0 | 1
+    location: number
+    sequence: number
+  } | null
+): boolean {
+  return (deriveCardEngineActions(request, card)?.activate.length ?? 0) > 0
+}

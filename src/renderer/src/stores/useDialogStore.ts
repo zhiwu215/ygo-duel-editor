@@ -1,21 +1,23 @@
 import { create } from 'zustand'
 
-type DialogKind = 'confirm' | 'alert'
+type DialogKind = 'confirm' | 'alert' | 'prompt'
+type DialogValue = boolean | string | null
 
 interface DialogRequest {
   id: number
   kind: DialogKind
   title: string
   description?: string
+  placeholder?: string
   confirmText?: string
   destructive?: boolean
-  resolve: (value: boolean) => void
+  resolve: (value: DialogValue) => void
 }
 
 interface DialogState {
   requests: DialogRequest[]
   push: (request: DialogRequest) => void
-  settle: (id: number, value: boolean) => void
+  settle: (id: number, value: DialogValue) => void
 }
 
 export const useDialogStore = create<DialogState>((set, get) => ({
@@ -43,7 +45,7 @@ export function confirmDialog(options: ConfirmDialogOptions): Promise<boolean> {
       id: nextDialogId++,
       kind: 'confirm',
       ...options,
-      resolve
+      resolve: resolve as (value: DialogValue) => void
     })
   })
 }
@@ -59,7 +61,24 @@ export function alertDialog(message: string): Promise<boolean> {
       kind: 'alert',
       title,
       description,
-      resolve
+      resolve: resolve as (value: DialogValue) => void
+    })
+  })
+}
+
+interface PromptDialogOptions {
+  title: string
+  placeholder?: string
+  confirmText?: string
+}
+
+export function promptDialog(options: PromptDialogOptions): Promise<string | null> {
+  return new Promise((resolve) => {
+    useDialogStore.getState().push({
+      id: nextDialogId++,
+      kind: 'prompt',
+      ...options,
+      resolve: resolve as (value: DialogValue) => void
     })
   })
 }

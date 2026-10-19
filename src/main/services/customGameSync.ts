@@ -1,0 +1,63 @@
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'fs'
+import { dirname, extname, join } from 'path'
+import { CustomCardSyncResult } from '@shared/index'
+import { configService } from './configService'
+import { customCardService } from './customCardService'
+import { customCdbPath, getCustomScriptInfo } from './customCardLibrary'
+
+const GAME_CDB_NAME = 'custom_cards.cdb'
+
+function filesDiffer(source: string, target: string): boolean {
+  try {
+    if (statSync(source).size !== statSync(target).size) return true
+    return !readFileSync(target).equals(readFileSync(source))
+  } catch {
+    return true
+  }
+}
+
+function placeFile(source: string, target: string): boolean {
+  if (existsSync(target) && !filesDiffer(source, target)) return false
+  mkdirSync(dirname(target), { recursive: true })
+  copyFileSync(source, target)
+  return true
+}
+
+function gameImageName(code: number, source: string): string {
+  const ext = extname(source).toLocaleLowerCase()
+  return `${code}${ext === '.jpeg' ? '.jpg' : ext}`
+}
+
+export function syncCustomCardsToGame(): CustomCardSyncResult {
+  const gameDirectory = configService.get().gameDirectory
+  if (!gameDirectory) {
+    return { success: false, error: '未配置游戏目录', cdb: false, scripts: 0, pics: 0 }
+  }
+
+  const expansionsDir = join(gameDirectory, 'expansions')
+  const scriptDir = join(expansionsDir, 'script')
+  const picsDir = join(expansionsDir, 'pics')
+  const result: CustomCardSyncResult = { success: true, cdb: false, scripts: 0, pics: 0 }
+
+  try {
+    const sourceCdb = customCdbPath()
+    if (existsSync(sourceCdb)) {
+      result.cdb = placeFile(sourceCdb, join(expansionsDir, GAME_CDB_NAME))
+    }
+
+    for (const card of customCardService.list()) {
+      const script = getCustomScriptInfo(card.id)
+      if (script.exists && script.path) {
+        if (placeFile(script.path, join(scriptDir, script.fileName))) result.scripts++
+      }
+      const image = customCardService.findImagePath(card.id)
+      if (image) {
+        if (placeFile(image, join(picsDir, gameImageName(card.id, image)))) result.pics++
+      }
+    }
+    return result
+  } catch (err) {
+    console.error('[CustomGameSync] Failed to sync custom cards to game:', err)
+    return { success: false, error: '同步到游戏目录失败', cdb: false, scripts: 0, pics: 0 }
+  }
+}

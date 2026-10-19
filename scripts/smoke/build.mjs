@@ -45,68 +45,33 @@ const commonOptions = {
   logLevel: 'info'
 }
 
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/field-reader-main.ts')],
-  outfile: 'scripts/smoke/field-reader-main.bundle.cjs'
-})
+const entries = [
+  'field-reader-main',
+  'session-smoke',
+  'attack-smoke',
+  'atk-propagation-smoke',
+  'inject-smoke',
+  'renderer-inject-smoke',
+  'renderer-repos-smoke',
+  'hand-shuffle-smoke',
+  'policy-smoke',
+  'provenance-smoke',
+  'session-doc-smoke',
+  'yrp-export-smoke',
+  'replay-import-smoke'
+]
 
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/session-smoke.ts')],
-  outfile: 'scripts/smoke/session-smoke.bundle.cjs'
-})
-
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/attack-smoke.ts')],
-  outfile: 'scripts/smoke/attack-smoke.bundle.cjs'
-})
-
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/atk-propagation-smoke.ts')],
-  outfile: 'scripts/smoke/atk-propagation-smoke.bundle.cjs'
-})
-
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/inject-smoke.ts')],
-  outfile: 'scripts/smoke/inject-smoke.bundle.cjs'
-})
-
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/renderer-inject-smoke.ts')],
-  outfile: 'scripts/smoke/renderer-inject-smoke.bundle.cjs'
-})
-
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/renderer-repos-smoke.ts')],
-  outfile: 'scripts/smoke/renderer-repos-smoke.bundle.cjs'
-})
-
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/hand-shuffle-smoke.ts')],
-  outfile: 'scripts/smoke/hand-shuffle-smoke.bundle.cjs'
-})
-
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/policy-smoke.ts')],
-  outfile: 'scripts/smoke/policy-smoke.bundle.cjs'
-})
-
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/provenance-smoke.ts')],
-  outfile: 'scripts/smoke/provenance-smoke.bundle.cjs'
-})
-
-await esbuild.build({
-  ...commonOptions,
-  entryPoints: [path.join(root, 'scripts/smoke/session-doc-smoke.ts')],
-  outfile: 'scripts/smoke/session-doc-smoke.bundle.cjs'
-})
+let failed = 0
+for (const name of entries) {
+  try {
+    await esbuild.build({
+      ...commonOptions,
+      entryPoints: [path.join(root, `scripts/smoke/${name}.ts`)],
+      outfile: `scripts/smoke/${name}.bundle.cjs`
+    })
+  } catch (err) {
+    failed++
+    console.error(`[smoke-build] ${name} 构建失败: ${err.errors?.[0]?.text ?? err.message}`)
+  }
+}
+if (failed > 0) process.exitCode = 1

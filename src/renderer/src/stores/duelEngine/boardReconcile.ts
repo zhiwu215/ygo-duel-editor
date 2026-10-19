@@ -1,9 +1,23 @@
-import { CardLocation, DuelPhase, EngineBoardState, resolveEngineCardStats } from '@shared/index'
+import {
+  CardLocation,
+  CdbCard,
+  DuelPhase,
+  EngineBoardState,
+  ManualOp,
+  customCardToCdbCard,
+  resolveEngineCardStats
+} from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
-import { pauseAutoRecording, resumeAutoRecording } from '../duel/recordingGate'
+import { useCustomCardStore } from '../useCustomCardStore'
+import { findCapturedCardData } from '../useStagingStore'
+import {
+  isManualCapturePaused,
+  pauseManualCapture,
+  resumeManualCapture
+} from '../duel/manualCaptureGate'
 import { getEditorId, registerIdentity, toEditorToEngineMap } from './identityMap'
 
-function mapPhaseToDuelPhase(phase: number): DuelPhase {
+export function mapPhaseToDuelPhase(phase: number): DuelPhase {
   if (phase === 1) return 'DP'
   if (phase === 2) return 'SP'
   if (phase === 4) return 'M1'
@@ -17,12 +31,76 @@ export function applyEngineWrite(apply: () => void): void {
   const duelStore = useDuelStore.getState()
   const prevState = duelStore.state
   duelStore.pauseUndoTracking()
-  pauseAutoRecording()
+  pauseManualCapture()
   try {
     apply()
   } finally {
-    resumeAutoRecording()
+    resumeManualCapture()
     duelStore.resumeAndPushUndo(structuredClone(prevState))
+  }
+}
+
+function resolveManualOpCardData(code: number): CdbCard | undefined {
+  const onBoard = useDuelStore.getState().state.cards.find((c) => c.code === code && c.card)?.card
+  if (onBoard) return onBoard
+  const captured = findCapturedCardData(code)
+  if (captured) return captured
+  const custom = useCustomCardStore.getState().cards.find((c) => c.id === code)
+  return custom ? customCardToCdbCard(custom) : undefined
+}
+
+function applyManualOp(op: ManualOp): void {
+  const duelStore = useDuelStore.getState()
+  const cardExists = (instanceId: string): boolean =>
+    duelStore.state.cards.some((c) => c.instanceId === instanceId)
+
+  if (op.type === 'move') {
+    if (!cardExists(op.instanceId)) return
+    duelStore.moveCard(op.instanceId, op.toLocation, op.toSequence, op.toController, op.customPos)
+    return
+  }
+  if (op.type === 'position') {
+    if (!cardExists(op.instanceId)) return
+    duelStore.updateCardPosition(op.instanceId, op.position)
+    return
+  }
+  if (op.type === 'remove') {
+    if (!cardExists(op.instanceId)) return
+    duelStore.removeCard(op.instanceId)
+    return
+  }
+  if (op.type === 'add') {
+    const card = resolveManualOpCardData(op.code)
+    if (!card) {
+      console.warn(`[boardReconcile] 手动 add 记录找不到卡 ${op.code} 的卡面数据，已跳过。`)
+      return
+    }
+    duelStore.addCardToZone(
+      card,
+      op.controller,
+      op.location,
+      op.sequence,
+      op.position,
+      op.duelistId
+    )
+    return
+  }
+  duelStore.setPlayerLp(op.player, op.value)
+}
+
+function reapplyManualOps(): void {
+  const steps = useDuelStore.getState().state.steps || []
+  const pending = steps.flatMap((step) => step.manualOps ?? [])
+  if (pending.length === 0) return
+  if (isManualCapturePaused()) {
+    for (const op of pending) applyManualOp(op)
+    return
+  }
+  pauseManualCapture()
+  try {
+    for (const op of pending) applyManualOp(op)
+  } finally {
+    resumeManualCapture()
   }
 }
 
@@ -148,4 +226,6 @@ function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
     if (card.customAtk === stats.customAtk && card.customDef === stats.customDef) continue
     duelStore.setCardCustomStats(editorId, stats.customAtk, stats.customDef)
   }
+
+  reapplyManualOps()
 }

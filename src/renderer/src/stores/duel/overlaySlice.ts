@@ -1,15 +1,6 @@
 import type { StateCreator } from 'zustand'
-import {
-  CdbCard,
-  CardLocation,
-  CardPosition,
-  CardUtils,
-  FieldCard,
-  createLightweightSnapshot
-} from '@shared/index'
-import { resolveCardName } from '../../utils/cardNames'
+import { CdbCard, CardLocation, CardPosition, CardUtils, FieldCard } from '@shared/index'
 import type { DuelStore } from './types'
-import { isAutoRecordingPaused } from './recordingGate'
 
 export interface OverlaySlice {
   addOverlayMaterial: (targetInstanceId: string, matCode: number) => void
@@ -94,37 +85,10 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
         return c
       })
 
-      let nextSteps = prev.state.steps || []
-      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
-        const hostCard = prev.state.cards.find((c) => c.instanceId === targetInstanceId)
-        const pName = hostCard?.controller === 0 ? '我方' : '对方'
-        nextSteps = [
-          ...nextSteps,
-          {
-            id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            turn: prev.currentTurn,
-            turnPlayer: prev.activeTurnPlayer,
-            phase: prev.currentPhase,
-            actionPlayer: hostCard?.controller ?? 0,
-            actionType: 'XYZ_SUMMON',
-            instanceId: targetInstanceId,
-            cardCode: newCardData.id,
-            cardName: newCardData.name,
-            toLocation: CardLocation.MZONE,
-            toSequence: hostCard?.sequence ?? 0,
-            description: `${pName}以叠放怪兽为素材超量召唤【${newCardData.name}】！`,
-            boardAfter: createLightweightSnapshot(finalCards)
-          }
-        ]
-      }
-
       return {
         state: {
           ...prev.state,
-          cards: finalCards,
-          steps: nextSteps,
-          initialBoardSnapshot:
-            prev.state.initialBoardSnapshot || createLightweightSnapshot(prev.state.cards)
+          cards: finalCards
         },
 
         selectedCardId:
@@ -208,36 +172,10 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
         newCard
       ]
 
-      let nextSteps = prev.state.steps || []
-      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
-        const pName = host.controller === 0 ? '我方' : '对方'
-        const hostName = resolveCardName(host.code)
-        nextSteps = [
-          ...nextSteps,
-          {
-            id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            turn: prev.currentTurn,
-            turnPlayer: prev.activeTurnPlayer,
-            phase: prev.currentPhase,
-            actionPlayer: host.controller,
-            actionType: 'DETACH_MATERIAL',
-            instanceId: targetInstanceId,
-            cardCode: matCode,
-            toLocation: targetLocation,
-            toSequence: targetSeq,
-            description: `${pName}取除【${hostName}】的超量素材`,
-            boardAfter: createLightweightSnapshot(finalResultCards)
-          }
-        ]
-      }
-
       return {
         state: {
           ...prev.state,
-          cards: finalResultCards,
-          steps: nextSteps,
-          initialBoardSnapshot:
-            prev.state.initialBoardSnapshot || createLightweightSnapshot(prev.state.cards)
+          cards: finalResultCards
         }
       }
     })

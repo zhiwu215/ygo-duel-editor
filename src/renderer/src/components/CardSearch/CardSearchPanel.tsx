@@ -19,8 +19,9 @@ import {
 import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { useStagingStore } from '../../stores/useStagingStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { InjectCommand, CdbCard } from '@shared/index'
+import { InjectCommand, CdbCard, CardLocation } from '@shared/index'
 import { setCardDragImage } from '../../utils/cardImage'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
@@ -43,6 +44,15 @@ const INJECT_MENU_ITEMS: {
   { label: '加入额外卡组', to: 'extra', icon: Layers }
 ]
 
+const TARGET_PLACEMENT: Partial<Record<AddCardTarget, { location: number; top: boolean }>> = {
+  hand: { location: CardLocation.HAND, top: false },
+  'deck-top': { location: CardLocation.DECK, top: true },
+  'deck-bottom': { location: CardLocation.DECK, top: false },
+  'grave-top': { location: CardLocation.GRAVE, top: true },
+  removed: { location: CardLocation.REMOVED, top: false },
+  extra: { location: CardLocation.EXTRA, top: false }
+}
+
 export const CardSearchPanel: React.FC = () => {
   const {
     keyword,
@@ -64,6 +74,7 @@ export const CardSearchPanel: React.FC = () => {
   const { setHoveredCard } = useDuelStore()
   const { isFavorite, toggleFavorite } = useFavoritesStore()
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const stagingActive = useStagingStore((s) => s.session !== null)
   const [localKw, setLocalKw] = useState(keyword)
   const [injectMenu, setInjectMenu] = useState<{ card: CdbCard; x: number; y: number } | null>(null)
   const injectMenuRef = useRef<HTMLDivElement>(null)
@@ -112,6 +123,11 @@ export const CardSearchPanel: React.FC = () => {
 
   const injectCard = (card: CdbCard, to: AddCardTarget): void => {
     setInjectMenu(null)
+    const placement = TARGET_PLACEMENT[to]
+    if (stagingActive && placement) {
+      useDuelStore.getState().addCardToZone(card, 0, placement.location, placement.top ? 0 : 999)
+      return
+    }
     void useDuelEngineStore.getState().inject({ op: 'add-card', player: 0, code: card.id, to })
   }
 

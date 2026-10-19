@@ -15,7 +15,7 @@ export const TurnPhaseIndicator: React.FC = () => {
   const currentChain = useDuelStore((s) => s.currentChain)
   const activeTurnPlayer = useDuelStore((s) => s.activeTurnPlayer)
   const duelists = useDuelStore((s) => s.state.duelists)
-  const nextPhase = useDuelStore((s) => s.nextPhase)
+  const insertPhaseChange = useDuelStore((s) => s.insertPhaseChange)
   const resetChain = useDuelStore((s) => s.resetChain)
   const isSelfTurn = activeTurnPlayer === 0
   const turnLabel = resolveTeamLabel({ duelists }, activeTurnPlayer, currentTurn)
@@ -74,7 +74,7 @@ export const TurnPhaseIndicator: React.FC = () => {
             <Button
               variant="outline"
               size="icon-xs"
-              onClick={nextPhase}
+              onClick={insertPhaseChange}
               className="h-7 w-6 text-muted-foreground hover:text-foreground"
             >
               <ChevronRight className="w-3.5 h-3.5" />

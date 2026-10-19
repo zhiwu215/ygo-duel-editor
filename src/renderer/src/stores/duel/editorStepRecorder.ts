@@ -1,7 +1,12 @@
-import { CardLocation, DuelActionType, DuelStep, createLightweightSnapshot } from '@shared/index'
+import {
+  CardLocation,
+  DuelActionType,
+  DuelStep,
+  createLightweightSnapshot,
+  createStepId
+} from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
 import { isManualCapturePaused } from './manualCaptureGate'
-import { createStepId } from './stepsSlice'
 import { useDuelStore } from './index'
 
 export interface EditorStepInput {

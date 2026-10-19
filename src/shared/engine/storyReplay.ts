@@ -1,6 +1,6 @@
 import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
-import { DuelStep, LightweightCardSnapshot } from '../types/story'
+import { DuelPhase, DuelStep, LightweightCardSnapshot, ManualOp } from '../types/story'
 import { AgentStepProposal } from '../types/ipc'
 
 const STEP_TARGET: Partial<
@@ -137,4 +137,135 @@ export function replayStepsBoard(
     applyStepToBoard(board, step)
     return { ...step, boardAfter: cloneSnap(board) }
   })
+}
+
+interface ManualReplayState {
+  board: LightweightCardSnapshot[]
+  turn: number
+  phase: DuelPhase
+  turnPlayer: 0 | 1
+  lp: [number, number]
+}
+
+function applyManualOpToState(state: ManualReplayState, op: ManualOp): void {
+  const board = state.board
+  if (op.type === 'lp') {
+    state.lp[op.player] = Math.max(0, op.value)
+    return
+  }
+  if (op.type === 'add') {
+    board.push({
+      instanceId: op.instanceId ?? `replay_${op.code}_${board.length}`,
+      code: op.code,
+      controller: op.controller,
+      owner: op.controller,
+      location: op.location,
+      sequence: op.sequence,
+      position: op.position ?? CardPosition.FACEDOWN,
+      overlayMaterials: [],
+      duelistId: op.duelistId
+    })
+    return
+  }
+  const index = board.findIndex((c) => c.instanceId === op.instanceId)
+  if (index === -1) return
+  if (op.type === 'remove') {
+    board.splice(index, 1)
+    return
+  }
+  const card = board[index]
+  if (op.type === 'position') {
+    card.position = op.position
+    return
+  }
+  const rest = board.filter((_, i) => i !== index)
+  const toController = op.toController ?? card.controller
+  if (isPileZone(op.toLocation)) {
+    const pileSize = rest.filter(
+      (c) =>
+        c.controller === toController &&
+        c.location === op.toLocation &&
+        (c.duelistId ?? `duelist_${c.controller}`) === (card.duelistId ?? `duelist_${toController}`)
+    ).length
+    card.sequence = op.toSequence ?? pileSize
+  } else {
+    card.sequence = op.toSequence ?? card.sequence
+    for (let i = rest.length - 1; i >= 0; i--) {
+      const occupant = rest[i]
+      if (
+        occupant.controller === toController &&
+        occupant.location === op.toLocation &&
+        occupant.sequence === card.sequence
+      ) {
+        rest.splice(i, 1)
+      }
+    }
+  }
+  card.controller = toController
+  card.owner = toController
+  card.location = op.toLocation
+  if (op.customPos !== undefined) card.position = op.customPos
+  rest.push(card)
+  board.length = 0
+  board.push(...rest)
+}
+
+export function createStepId(): string {
+  return `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+}
+
+export function replayManualSteps(
+  initial: LightweightCardSnapshot[],
+  steps: DuelStep[],
+  startLp: [number, number],
+  startTurnPlayer: 0 | 1
+): { steps: DuelStep[]; lp: [number, number] } {
+  const state: ManualReplayState = {
+    board: cloneSnap(initial),
+    turn: 1,
+    phase: 'DP',
+    turnPlayer: startTurnPlayer,
+    lp: [startLp[0], startLp[1]]
+  }
+
+  const derived = steps.map((step) => {
+    const lpBefore: [number, number] = [state.lp[0], state.lp[1]]
+    for (const op of step.manualOps ?? []) applyManualOpToState(state, op)
+
+    if (step.actionType === 'TURN_CHANGE') {
+      state.turn += 1
+      state.phase = 'DP'
+      state.turnPlayer = (state.turnPlayer === 0 ? 1 : 0) as 0 | 1
+    } else if (step.actionType === 'PHASE_CHANGE' && step.phase) {
+      state.phase = step.phase
+    }
+
+    const lpChange = step.lpChange
+      ? (() => {
+          const player = step.lpChange.player
+          const delta = step.lpChange.newLp - step.lpChange.oldLp
+          const oldLp = lpBefore[player]
+          const newLp = Math.max(0, oldLp + delta)
+          state.lp[player] = newLp
+          return { player, oldLp, newLp }
+        })()
+      : (step.manualOps ?? []).some((op) => op.type === 'lp')
+        ? (() => {
+            const player = (step.manualOps ?? []).find((op) => op.type === 'lp')!.player
+            const newLp = state.lp[player]
+            return { player, oldLp: lpBefore[player], newLp }
+          })()
+        : undefined
+
+    return {
+      ...step,
+      turn: state.turn,
+      turnPlayer: state.turnPlayer,
+      phase: state.phase,
+      lpChange: lpChange ?? step.lpChange,
+      boardAfter: cloneSnap(state.board)
+    }
+  })
+
+  return { steps: derived, lp: [state.lp[0], state.lp[1]] }
 }

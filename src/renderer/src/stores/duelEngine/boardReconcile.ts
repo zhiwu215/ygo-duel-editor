@@ -81,7 +81,8 @@ function applyManualOp(op: ManualOp): void {
       op.location,
       op.sequence,
       op.position,
-      op.duelistId
+      op.duelistId,
+      op.instanceId
     )
     return
   }

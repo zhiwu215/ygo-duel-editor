@@ -155,6 +155,7 @@ export type ManualOp =
   | { type: 'remove'; instanceId: string }
   | {
       type: 'add'
+      instanceId?: string
       code: number
       controller: 0 | 1
       location: number

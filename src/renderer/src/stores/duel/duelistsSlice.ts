@@ -79,6 +79,9 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
 
             players: snap.players ?? prev.state.players,
             initialBoardSnapshot: snap.initialBoardSnapshot ?? prev.state.initialBoardSnapshot,
+            initialLp: snap.players
+              ? [snap.players[0]?.lp ?? 8000, snap.players[1]?.lp ?? 8000]
+              : prev.state.initialLp,
             turnPlayer: snap.turnPlayer,
             firstTurnAttack: snap.firstTurnAttack,
             steps: snap.steps,
@@ -103,6 +106,7 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
           ],
           steps: [],
           initialBoardSnapshot: undefined,
+          initialLp: undefined,
           turnPlayer: 0,
           firstTurnAttack: newConfig.mode === '1v1' ? prev.state.firstTurnAttack : false,
           scenarios: updatedScenarios

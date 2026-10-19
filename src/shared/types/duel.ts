@@ -66,6 +66,7 @@ export interface DuelPuzzleState {
   cards: FieldCard[]
   steps?: DuelStep[]
   initialBoardSnapshot?: LightweightCardSnapshot[]
+  initialLp?: [number, number]
   duelists?: Duelist[]
   matchConfig?: MatchConfig
   scenarios?: Record<string, DuelSceneSnapshot>

@@ -332,7 +332,8 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
           ...prev.state,
           cards: nextCards,
 
-          initialBoardSnapshot: createLightweightSnapshot(nextCards)
+          initialBoardSnapshot: createLightweightSnapshot(nextCards),
+          initialLp: [prev.state.players[0]?.lp ?? 8000, prev.state.players[1]?.lp ?? 8000]
         },
 
         selectedCardId: null,

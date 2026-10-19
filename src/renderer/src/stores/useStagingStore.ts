@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CdbCard, ManualOp, createLightweightSnapshot } from '@shared/index'
+import { CdbCard, DuelStep, ManualOp, createLightweightSnapshot, createStepId } from '@shared/index'
 import { isManualCapturePaused } from './duel/manualCaptureGate'
 import { useDuelStore } from './duel'
 import { useDuelEngineStore } from './duelEngine'
@@ -44,7 +44,8 @@ export const useStagingStore = create<StagingState>((set, get) => ({
     if (!session) return
     set({ session: null })
     const duel = useDuelStore.getState()
-    duel.addStep({
+    const step: DuelStep = {
+      id: createStepId(),
       turn: duel.currentTurn,
       turnPlayer: duel.activeTurnPlayer,
       phase: duel.currentPhase,
@@ -59,6 +60,15 @@ export const useStagingStore = create<StagingState>((set, get) => ({
       manual: true,
       manualOps: session.ops,
       afterActId: useDuelEngineStore.getState().currentStepId ?? undefined
-    })
+    }
+
+    const selected = duel.currentStepIndex
+    const total = (duel.state.steps || []).length
+    if (selected !== null && selected < total - 1) {
+      duel.insertStep(step)
+      duel.setCurrentStepIndex(selected + 1)
+    } else {
+      duel.addStep(step)
+    }
   }
 }))

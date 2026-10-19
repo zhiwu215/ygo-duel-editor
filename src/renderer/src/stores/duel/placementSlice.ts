@@ -181,9 +181,12 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
   get
 ) => ({
   addCardToZone: (card, controller, location, sequence, customPos, duelistId, engineInstanceId) => {
+    const placedInstanceId =
+      engineInstanceId ?? `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
     useStagingStore.getState().pushOp(
       {
         type: 'add',
+        instanceId: placedInstanceId,
         code: card.id,
         controller,
         location,
@@ -278,8 +281,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
           )
 
       const newCard: FieldCard = {
-        instanceId:
-          engineInstanceId ?? `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        instanceId: placedInstanceId,
         code: card.id,
         card,
         controller,

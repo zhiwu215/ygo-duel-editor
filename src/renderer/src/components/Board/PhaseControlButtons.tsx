@@ -30,7 +30,7 @@ export const PhaseStatusButton: React.FC = () => {
 
 export const PhaseMiddleButton: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
-  const setCurrentPhase = useDuelStore((s) => s.setCurrentPhase)
+  const insertPhaseJump = useDuelStore((s) => s.insertPhaseJump)
   const activeTurnPlayer = useDuelStore((s) => s.activeTurnPlayer)
   const executeDrawCard = useDuelStore((s) => s.executeDrawCard)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
@@ -62,7 +62,7 @@ export const PhaseMiddleButton: React.FC = () => {
         onClick={() => {
           if (isEngine && canEnterBp) {
             void useDuelEngineStore.getState().submitAnswer({ kind: 'idle', cmd: 'TO_BP' })
-          } else setCurrentPhase('BP')
+          } else insertPhaseJump('BP')
         }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
@@ -82,7 +82,7 @@ export const PhaseMiddleButton: React.FC = () => {
         onClick={() => {
           if (isEngine && canEnterM2) {
             void useDuelEngineStore.getState().submitAnswer({ kind: 'battle', cmd: 'TO_M2' })
-          } else setCurrentPhase('M2')
+          } else insertPhaseJump('M2')
         }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
@@ -99,8 +99,8 @@ export const PhaseMiddleButton: React.FC = () => {
 
 export const PhaseEpButton: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
-  const setCurrentPhase = useDuelStore((s) => s.setCurrentPhase)
-  const nextTurn = useDuelStore((s) => s.nextTurn)
+  const insertPhaseJump = useDuelStore((s) => s.insertPhaseJump)
+  const insertTurnChange = useDuelStore((s) => s.insertTurnChange)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const canEnterEp = canEp(pendingRequest)
@@ -110,7 +110,7 @@ export const PhaseEpButton: React.FC = () => {
     return (
       <button
         type="button"
-        onClick={() => setCurrentPhase('M1')}
+        onClick={() => insertPhaseJump('M1')}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
           'border-neutral-400 dark:border-neutral-500 bg-neutral-200/95 dark:bg-neutral-700/95 hover:bg-neutral-100 dark:hover:bg-neutral-600 active:bg-neutral-300 text-neutral-900 dark:text-neutral-100 shadow-xs'
@@ -135,7 +135,7 @@ export const PhaseEpButton: React.FC = () => {
                   ? { kind: 'battle', cmd: 'TO_EP' }
                   : { kind: 'idle', cmd: 'TO_EP' }
               )
-          } else setCurrentPhase('EP')
+          } else insertPhaseJump('EP')
         }}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-mono text-[11px] font-bold tracking-widest cursor-pointer transition-colors',
@@ -152,7 +152,7 @@ export const PhaseEpButton: React.FC = () => {
     return (
       <button
         type="button"
-        onClick={() => nextTurn()}
+        onClick={() => insertTurnChange()}
         className={cn(
           'w-[54px] h-[22px] rounded-xs border select-none flex items-center justify-center font-sans text-[10px] font-bold tracking-tight cursor-pointer transition-colors',
           'border-amber-400/80 dark:border-amber-500/80 bg-amber-100/90 dark:bg-amber-950/60 hover:bg-amber-200 dark:hover:bg-amber-900/80 text-amber-900 dark:text-amber-200 shadow-xs'

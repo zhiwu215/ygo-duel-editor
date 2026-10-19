@@ -4,9 +4,12 @@ import {
   CardPosition,
   DuelPhase,
   DuelStep,
+  DuelPuzzleState,
   FieldCard,
   LightweightCardSnapshot,
-  PlayerState
+  PlayerState,
+  createStepId,
+  replayManualSteps
 } from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
 import type { DuelStore } from './types'
@@ -30,16 +33,18 @@ export interface StepsSlice {
   setCurrentPhase: (phase: DuelPhase) => void
   setCurrentChain: (chain: number) => void
   resetChain: () => void
-  nextPhase: () => void
-  nextTurn: () => void
   setActiveTurnPlayer: (player: 0 | 1) => void
   setTurnPlayer: (player: 0 | 1) => void
+  insertPhaseJump: (target: DuelPhase) => void
 
   addStep: (step: Omit<DuelStep, 'id'>) => void
   insertStep: (step: DuelStep) => void
   updateStep: (stepId: string, patch: Partial<DuelStep>) => void
   deleteStep: (stepId: string) => void
   moveStep: (stepId: string, direction: 'up' | 'down') => void
+
+  insertPhaseChange: () => void
+  insertTurnChange: () => void
 
   previewStepBoard: (stepIndex: number | null) => void
   resetToOpeningBoard: () => void
@@ -95,9 +100,74 @@ function insertDeckTop(
   ]
 }
 
-export function createStepId(): string {
-  return `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+export { createStepId } from '@shared/index'
+
+interface DerivationSource {
+  state: DuelPuzzleState
+  currentTurn: number
+  currentPhase: DuelPhase
+  activeTurnPlayer: 0 | 1
 }
+
+interface DerivationPatch {
+  state: DuelPuzzleState
+  currentTurn: number
+  currentPhase: DuelPhase
+  activeTurnPlayer: 0 | 1
+}
+
+function derivePatch(next: DerivationSource): DerivationPatch | null {
+  const steps = next.state.steps || []
+  if (steps.length === 0) return null
+  const initial = next.state.initialBoardSnapshot
+  if (!initial || initial.length === 0) return null
+
+  const startLp: [number, number] = [
+    next.state.initialLp?.[0] ?? next.state.players[0]?.lp ?? 8000,
+    next.state.initialLp?.[1] ?? next.state.players[1]?.lp ?? 8000
+  ]
+  const derived = replayManualSteps(initial, steps, startLp, next.state.turnPlayer)
+
+  const players: [PlayerState, PlayerState] = [
+    { ...next.state.players[0], lp: derived.lp[0] },
+    { ...next.state.players[1], lp: derived.lp[1] }
+  ]
+  const tail = derived.steps[derived.steps.length - 1]
+
+  return {
+    state: { ...next.state, steps: derived.steps, players },
+    currentTurn: tail.turn,
+    currentPhase: tail.phase,
+    activeTurnPlayer: tail.turnPlayer
+  }
+}
+
+function withDerivation(nextState: DerivationSource): Partial<DuelStore> {
+  const patch = derivePatch(nextState)
+  if (!patch) {
+    return { state: nextState.state }
+  }
+  return patch
+}
+
+function refreshPreviewIfActive(get: () => DuelStore): void {
+  const index = get().currentStepIndex
+  if (index !== null) get().previewStepBoard(index)
+}
+
+function derivedPositionAt(
+  prev: DerivationSource,
+  index: number
+): { turn: number; phase: DuelPhase; turnPlayer: 0 | 1 } {
+  const steps = prev.state.steps || []
+  if (index <= 0 || steps.length === 0) {
+    return { turn: prev.currentTurn, phase: prev.currentPhase, turnPlayer: prev.activeTurnPlayer }
+  }
+  const anchor = steps[Math.min(index, steps.length) - 1]
+  return { turn: anchor.turn, phase: anchor.phase, turnPlayer: anchor.turnPlayer }
+}
+
+const PHASE_ORDER: DuelPhase[] = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP']
 
 export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (set, get) => ({
   activeRightTab: 'search',
@@ -125,46 +195,6 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   setCurrentPhase: (phase) => set({ currentPhase: phase }),
   setCurrentChain: (chain) => set({ currentChain: chain }),
   resetChain: () => set((prev) => (prev.currentChain === 0 ? prev : { currentChain: 0 })),
-  nextPhase: () =>
-    set((prev) => {
-      const phases: DuelPhase[] = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP']
-      const curIdx = phases.indexOf(prev.currentPhase)
-
-      if (curIdx < phases.length - 1) {
-        return {
-          currentPhase: phases[curIdx + 1],
-          currentChain: 0
-        }
-      }
-
-      const nextTurn = prev.currentTurn + 1
-      const nextActive = (prev.activeTurnPlayer === 0 ? 1 : 0) as 0 | 1
-      return {
-        currentTurn: nextTurn,
-        currentPhase: 'DP',
-        currentChain: 0,
-        activeTurnPlayer: nextActive,
-        state: {
-          ...prev.state,
-          turnPlayer: nextActive
-        }
-      }
-    }),
-  nextTurn: () =>
-    set((prev) => {
-      const nextTurn = prev.currentTurn + 1
-      const nextActive = (prev.activeTurnPlayer === 0 ? 1 : 0) as 0 | 1
-      return {
-        currentTurn: nextTurn,
-        currentPhase: 'DP',
-        currentChain: 0,
-        activeTurnPlayer: nextActive,
-        state: {
-          ...prev.state,
-          turnPlayer: nextActive
-        }
-      }
-    }),
   setActiveTurnPlayer: (player) =>
     set((prev) => ({
       activeTurnPlayer: player,
@@ -180,56 +210,72 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
       state: { ...prev.state, turnPlayer: player }
     })),
 
-  addStep: (stepData) =>
+  addStep: (stepData) => {
     set((prev) => {
       const newStep: DuelStep = {
         ...stepData,
         id: createStepId()
       }
       const existing = prev.state.steps || []
-      return {
+      const nextState: DerivationSource = {
+        ...prev,
         state: {
           ...prev.state,
           steps: [...existing, newStep]
         }
       }
-    }),
+      return withDerivation(nextState)
+    })
+    refreshPreviewIfActive(get)
+  },
 
-  insertStep: (step) =>
+  insertStep: (step) => {
     set((prev) => {
       const existing = prev.state.steps || []
       if (existing.some((s) => s.id === step.id)) return prev
-      return {
+      const nextState: DerivationSource = {
+        ...prev,
         state: {
           ...prev.state,
           steps: [...existing, step]
         }
       }
-    }),
+      return withDerivation(nextState)
+    })
+    refreshPreviewIfActive(get)
+  },
 
-  updateStep: (stepId, patch) =>
+  updateStep: (stepId, patch) => {
     set((prev) => {
       const existing = prev.state.steps || []
-      return {
+      const nextState: DerivationSource = {
+        ...prev,
         state: {
           ...prev.state,
           steps: existing.map((s) => (s.id === stepId ? { ...s, ...patch } : s))
         }
       }
-    }),
+      return withDerivation(nextState)
+    })
+    refreshPreviewIfActive(get)
+  },
 
-  deleteStep: (stepId) =>
+  deleteStep: (stepId) => {
     set((prev) => {
       const existing = prev.state.steps || []
-      return {
+      const nextState: DerivationSource = {
+        ...prev,
         state: {
           ...prev.state,
           steps: existing.filter((s) => s.id !== stepId)
         }
       }
-    }),
+      return withDerivation(nextState)
+    })
+    refreshPreviewIfActive(get)
+  },
 
-  moveStep: (stepId, direction) =>
+  moveStep: (stepId, direction) => {
     set((prev) => {
       const existing = [...(prev.state.steps || [])]
       const idx = existing.findIndex((s) => s.id === stepId)
@@ -243,13 +289,77 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         existing[idx + 1] = existing[idx]
         existing[idx] = temp
       }
-      return {
-        state: {
-          ...prev.state,
-          steps: existing
-        }
+      return withDerivation({ ...prev, state: { ...prev.state, steps: existing } })
+    })
+    refreshPreviewIfActive(get)
+  },
+
+  insertPhaseChange: () => {
+    if (useDuelEngineStore.getState().isInitialized) return
+    set((prev) => {
+      const steps = prev.state.steps || []
+      const insertIndex = prev.currentStepIndex === null ? steps.length : prev.currentStepIndex + 1
+      const pos = derivedPositionAt(prev, insertIndex)
+      const isTurnRoll = pos.phase === 'EP'
+      const marker: DuelStep = {
+        id: createStepId(),
+        turn: pos.turn,
+        turnPlayer: isTurnRoll ? ((pos.turnPlayer === 0 ? 1 : 0) as 0 | 1) : pos.turnPlayer,
+        phase: isTurnRoll ? 'DP' : (PHASE_ORDER[PHASE_ORDER.indexOf(pos.phase) + 1] ?? 'DP'),
+        actionPlayer: isTurnRoll ? ((pos.turnPlayer === 0 ? 1 : 0) as 0 | 1) : pos.turnPlayer,
+        actionType: isTurnRoll ? 'TURN_CHANGE' : 'PHASE_CHANGE',
+        description: isTurnRoll ? '回合结束，进入下一回合' : '阶段推进'
       }
-    }),
+      const nextSteps = [...steps]
+      nextSteps.splice(insertIndex, 0, marker)
+      return withDerivation({ ...prev, state: { ...prev.state, steps: nextSteps } })
+    })
+    refreshPreviewIfActive(get)
+  },
+
+  insertTurnChange: () => {
+    if (useDuelEngineStore.getState().isInitialized) return
+    set((prev) => {
+      const steps = prev.state.steps || []
+      const insertIndex = prev.currentStepIndex === null ? steps.length : prev.currentStepIndex + 1
+      const pos = derivedPositionAt(prev, insertIndex)
+      const marker: DuelStep = {
+        id: createStepId(),
+        turn: pos.turn,
+        turnPlayer: pos.turnPlayer,
+        phase: pos.phase,
+        actionPlayer: (pos.turnPlayer === 0 ? 1 : 0) as 0 | 1,
+        actionType: 'TURN_CHANGE',
+        description: '回合结束，进入下一回合'
+      }
+      const nextSteps = [...steps]
+      nextSteps.splice(insertIndex, 0, marker)
+      return withDerivation({ ...prev, state: { ...prev.state, steps: nextSteps } })
+    })
+    refreshPreviewIfActive(get)
+  },
+
+  insertPhaseJump: (target: DuelPhase) => {
+    if (useDuelEngineStore.getState().isInitialized) return
+    set((prev) => {
+      const steps = prev.state.steps || []
+      const insertIndex = prev.currentStepIndex === null ? steps.length : prev.currentStepIndex + 1
+      const pos = derivedPositionAt(prev, insertIndex)
+      const marker: DuelStep = {
+        id: createStepId(),
+        turn: pos.turn,
+        turnPlayer: pos.turnPlayer,
+        phase: target,
+        actionPlayer: pos.turnPlayer,
+        actionType: 'PHASE_CHANGE',
+        description: '阶段推进'
+      }
+      const nextSteps = [...steps]
+      nextSteps.splice(insertIndex, 0, marker)
+      return withDerivation({ ...prev, state: { ...prev.state, steps: nextSteps } })
+    })
+    refreshPreviewIfActive(get)
+  },
 
   previewStepBoard: (stepIndex) => {
     const engineRunning = useDuelEngineStore.getState().isInitialized

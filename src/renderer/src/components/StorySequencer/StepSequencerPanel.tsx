@@ -30,10 +30,10 @@ export const StepSequencerPanel: React.FC = () => {
     currentPhase,
     currentChain,
     activeTurnPlayer,
-    setCurrentPhase,
     resetChain,
-    nextPhase,
-    nextTurn,
+    insertPhaseChange,
+    insertTurnChange,
+    insertPhaseJump,
     setActiveTurnPlayer,
     openScreenplayWithStep
   } = useDuelStore()
@@ -191,7 +191,7 @@ export const StepSequencerPanel: React.FC = () => {
                         render={
                           <button
                             type="button"
-                            onClick={() => setCurrentPhase(p)}
+                            onClick={() => insertPhaseJump(p)}
                             className={cn(
                               'flex-1 text-[10px] font-extrabold py-0.5 rounded transition-all text-center cursor-pointer',
                               isActive
@@ -216,7 +216,7 @@ export const StepSequencerPanel: React.FC = () => {
                       <Button
                         size="xs"
                         variant="outline"
-                        onClick={nextPhase}
+                        onClick={insertPhaseChange}
                         className="h-6 px-1.5 text-[10px] font-bold gap-0.5 border-border"
                       >
                         <span>下阶段</span>
@@ -234,7 +234,7 @@ export const StepSequencerPanel: React.FC = () => {
                       <Button
                         size="xs"
                         variant="secondary"
-                        onClick={nextTurn}
+                        onClick={insertTurnChange}
                         className="h-6 px-1.5 text-[10px] font-bold text-foreground/90"
                       >
                         <span>下回合</span>

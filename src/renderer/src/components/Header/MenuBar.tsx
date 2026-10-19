@@ -151,7 +151,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                     if (item.separator) {
                       return <div key={`sep-${idx}`} className="h-px bg-border my-1" />
                     }
-                    const Icon = item.icon
                     return (
                       <button
                         key={item.label}
@@ -164,13 +163,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                         className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted text-left transition-colors disabled:opacity-40 disabled:pointer-events-none"
                       >
                         <div className="flex items-center gap-2">
-                          {item.checked !== undefined ? (
-                            <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
-                              {item.checked && <Check className="w-3.5 h-3.5 text-primary" />}
-                            </span>
-                          ) : (
-                            Icon && <Icon className="w-3.5 h-3.5 text-muted-foreground" />
-                          )}
+                          {item.checked && <Check className="w-3.5 h-3.5 text-primary" />}
                           <span>{item.label}</span>
                         </div>
                         {item.shortcut && (

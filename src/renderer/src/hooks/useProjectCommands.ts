@@ -72,7 +72,7 @@ export function useProjectCommands(): ProjectCommands {
     }
     const res = await window.api.exportLuaFile(state)
     if (res.success && res.filePath) {
-      void alertDialog(`Lua 决斗脚本导出成功！\n路径: ${res.filePath}`)
+      void alertDialog(`残局脚本导出成功！\n路径: ${res.filePath}`)
     } else if (res.error) {
       void alertDialog(`导出失败: ${res.error}`)
     }

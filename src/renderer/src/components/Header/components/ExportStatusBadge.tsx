@@ -40,8 +40,8 @@ export const ExportStatusBadge: React.FC = () => {
       />
       <TooltipContent>
         {canExport
-          ? '当前对阵符合 ocgcore 单机引擎规范，可正常导出 Lua 脚本'
-          : `当前对阵 (${t0}v${t1}) 仅用于剧情编排。因 ocgcore 单机引擎限制，仅 1v1 与 2v2 双打支持导出为可运行的 Lua 脚本。`}
+          ? '当前对阵符合 ocgcore 单机引擎规范，可正常导出残局脚本'
+          : `当前对阵 (${t0}v${t1}) 仅用于剧情编排。因 ocgcore 单机引擎限制，仅 1v1 与 2v2 双打支持导出为可运行的残局脚本。`}
       </TooltipContent>
     </Tooltip>
   )

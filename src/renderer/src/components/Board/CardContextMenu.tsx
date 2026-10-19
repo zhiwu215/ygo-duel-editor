@@ -19,16 +19,26 @@ import {
   type MenuItemConfig
 } from '../../utils/cardMenuItems'
 import { ZoneContextMenu } from './components/ZoneContextMenu'
-import { Ghost, Sliders, Zap, History, ArrowLeftRight, ListOrdered, Trash2 } from 'lucide-react'
+import {
+  Ghost,
+  Sliders,
+  Zap,
+  History,
+  ArrowLeftRight,
+  ListOrdered,
+  Trash2,
+  SquarePen
+} from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
+import { resolveDuelistDeck } from '../../utils/duelistNames'
 
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
-  const { removeCard, clearPile, state } = useDuelStore()
+  const { removeCard, clearPile, state, activeDuelistId } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
@@ -114,6 +124,10 @@ export const CardContextMenu: React.FC = () => {
   const isHand = card.location === CardLocation.HAND
   const isMonsterZone = card.location === CardLocation.MZONE
   const isSpellTrapZone = isSpellTrapLocation(card.location)
+  const deckDuelist =
+    card.location === CardLocation.DECK
+      ? resolveDuelistDeck(state.duelists, card.controller, activeDuelistId, card.duelistId)
+      : null
 
   const engineActions = isEngine && !stagingActive ? requestActions : null
 
@@ -193,16 +207,31 @@ export const CardContextMenu: React.FC = () => {
       {isPileZone && !isModalOpenForThisZone && (
         <>
           {card.location === CardLocation.DECK ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isEngine}
-              onClick={act(() => openDeckSwitcher(card.controller))}
-              className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
-            >
-              <ArrowLeftRight className="w-3.5 h-3.5" />
-              <span>切换卡组</span>
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isEngine}
+                onClick={act(() => openDeckSwitcher(card.controller))}
+                className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                <span>切换卡组</span>
+              </Button>
+              {deckDuelist && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={act(() => {
+                    if (deckDuelist) void window.api.openDeckEditor(deckDuelist.deckId)
+                  })}
+                  className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
+                >
+                  <SquarePen className="w-3.5 h-3.5" />
+                  <span>编辑卡组</span>
+                </Button>
+              )}
+            </>
           ) : (
             <Button
               variant="ghost"

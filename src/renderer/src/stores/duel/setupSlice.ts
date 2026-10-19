@@ -327,10 +327,19 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
 
       const nextCards = [...otherCards, ...newCards]
 
+      const nextDuelists = prev.state.duelists
+        ? prev.state.duelists.map((d) =>
+            d.team === player && (!ownerScope || d.id === ownerScope)
+              ? { ...d, deckId: deck.id }
+              : d
+          )
+        : prev.state.duelists
+
       return {
         state: {
           ...prev.state,
           cards: nextCards,
+          duelists: nextDuelists,
 
           initialBoardSnapshot: createLightweightSnapshot(nextCards),
           initialLp: [prev.state.players[0]?.lp ?? 8000, prev.state.players[1]?.lp ?? 8000]

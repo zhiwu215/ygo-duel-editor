@@ -23,6 +23,7 @@ export interface Duelist {
   lp: number
   isFirst?: boolean
   turnOrder?: number
+  deckId?: string
 }
 export type DuelType = 'full' | 'puzzle' | 'combo'
 type MatchMode = '1v1' | 'tag' | 'custom'

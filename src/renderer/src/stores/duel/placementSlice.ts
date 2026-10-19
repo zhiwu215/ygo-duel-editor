@@ -412,18 +412,27 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       staging.pushOp({ type: 'remove', instanceId: card.instanceId })
     }
     const removedIds = new Set(pileCards.map((c) => c.instanceId))
-    set((prev) => ({
-      state: {
-        ...prev.state,
-        cards: prev.state.cards.filter((c) => !removedIds.has(c.instanceId))
-      },
-      selectedCardId:
-        prev.selectedCardId && removedIds.has(prev.selectedCardId) ? null : prev.selectedCardId,
-      hoveredInstanceId:
-        prev.hoveredInstanceId && removedIds.has(prev.hoveredInstanceId)
-          ? null
-          : prev.hoveredInstanceId
-    }))
+    set((prev) => {
+      const duelists =
+        location === CardLocation.DECK
+          ? (prev.state.duelists || []).map((d) =>
+              d.team === controller ? { ...d, deckId: undefined } : d
+            )
+          : prev.state.duelists
+      return {
+        state: {
+          ...prev.state,
+          cards: prev.state.cards.filter((c) => !removedIds.has(c.instanceId)),
+          duelists
+        },
+        selectedCardId:
+          prev.selectedCardId && removedIds.has(prev.selectedCardId) ? null : prev.selectedCardId,
+        hoveredInstanceId:
+          prev.hoveredInstanceId && removedIds.has(prev.hoveredInstanceId)
+            ? null
+            : prev.hoveredInstanceId
+      }
+    })
     recordEditorStep({
       actionType: 'EVENT',
       controller,

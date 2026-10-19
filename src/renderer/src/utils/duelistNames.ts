@@ -22,6 +22,21 @@ export function resolveViewerDuelist(
   return teamDuelists.find((d) => d.id === activeDuelistId) || teamDuelists[0] || null
 }
 
+export function resolveDuelistDeck(
+  duelists: Duelist[] | undefined,
+  controller: 0 | 1,
+  activeDuelistId: string | null,
+  scopeDuelistId?: string
+): Duelist | null {
+  const teamDuelists = (duelists || []).filter((d) => d.team === controller)
+  const scope =
+    (scopeDuelistId ? teamDuelists.find((d) => d.id === scopeDuelistId) : undefined) ||
+    teamDuelists.find((d) => d.id === activeDuelistId) ||
+    teamDuelists[0] ||
+    null
+  return scope && scope.deckId ? scope : null
+}
+
 export function resolveTeamColorClass(team: 0 | 1): string {
   return team === 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'
 }

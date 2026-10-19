@@ -44,6 +44,7 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
         className="bg-transparent border-0 shadow-none p-0 max-w-none sm:max-w-none w-screen h-screen top-0 left-0 -translate-x-0 -translate-y-0 rounded-none overflow-hidden select-none flex items-center justify-center"
         onWheel={(e) => e.preventDefault()}
         onClick={(e) => {
+          e.stopPropagation()
           if (lastPanMovedRef.current) return
           if (e.target === e.currentTarget) onClose()
         }}

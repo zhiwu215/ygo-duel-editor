@@ -14,10 +14,8 @@ interface DeckCardItemProps {
   section: DeckSection
   index: number
   sortableId: string
-  isCover: boolean
   isFlash: boolean
-  onSelect: (card: CdbCard | null) => void
-  onHover: (code: number | null) => void
+  onSelect: (card: CdbCard) => void
   onRemove: (section: DeckSection, index: number) => void
 }
 
@@ -27,10 +25,8 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
   section,
   index,
   sortableId,
-  isCover,
   isFlash,
   onSelect,
-  onHover,
   onRemove
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -38,12 +34,6 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
     data: { source: 'deck', section, index, code } as DeckDragSourceData,
     transition: { duration: 160, easing: 'cubic-bezier(0.2, 0, 0, 1)' }
   })
-
-  const handleMouseEnter = (): void => {
-    if (card) {
-      onHover(code)
-    }
-  }
 
   const handleClick = (e: React.MouseEvent): void => {
     e.stopPropagation()
@@ -67,9 +57,7 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
             {...attributes}
             {...listeners}
             onClick={handleClick}
-            onMouseEnter={handleMouseEnter}
             onContextMenu={handleContextMenu}
-
             style={{
               transform: CSS.Transform.toString(transform),
               transition,
@@ -91,11 +79,6 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
               draggable={false}
               className="w-full h-full object-cover pointer-events-none"
             />
-            {isCover && (
-              <div className="absolute top-0 left-0 right-0 bg-purple-950/85 text-purple-300 text-[9px] font-bold py-px text-center pointer-events-none">
-                封面
-              </div>
-            )}
           </div>
         }
       />

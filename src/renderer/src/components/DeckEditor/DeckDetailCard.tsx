@@ -140,11 +140,6 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
                           <span>点击放大</span>
                         </div>
                       </div>
-                      {isCover && (
-                        <div className="absolute top-2 right-2 bg-purple-950/90 text-purple-300 border border-purple-500/50 text-[10px] font-bold px-1.5 py-0.5 rounded shadow">
-                          卡组封面
-                        </div>
-                      )}
                     </div>
                   }
                 />

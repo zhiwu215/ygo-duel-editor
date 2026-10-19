@@ -38,11 +38,9 @@ interface DeckGridProps {
   deck: DeckData
   stats: DeckStats
   cardDetails: Record<number, CdbCard>
-  coverCard: number | undefined
   isDragActive: boolean
   flash: DeckFlashTarget | null
-  onSelectCard: (card: CdbCard | null) => void
-  onHoverCard: (code: number | null) => void
+  onSelectCard: (card: CdbCard) => void
   onRemoveCard: (section: DeckSection, index: number) => void
 }
 
@@ -52,11 +50,9 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
   deck,
   stats,
   cardDetails,
-  coverCard,
   isDragActive,
   flash,
   onSelectCard,
-  onHoverCard,
   onRemoveCard
 }) => {
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -102,10 +98,8 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
                   card={cardDetails[code]}
                   section={section}
                   index={index}
-                  isCover={coverCard === code}
                   isFlash={flash?.section === section && flash?.index === index}
                   onSelect={onSelectCard}
-                  onHover={onHoverCard}
                   onRemove={onRemoveCard}
                 />
               ))}

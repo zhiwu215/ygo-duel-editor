@@ -4,6 +4,7 @@ import type { DeckEditorStore } from './types'
 
 export interface DeckLibrarySlice {
   viewMode: 'library' | 'editor'
+  returnToMain: boolean
   deckList: DeckData[]
   deckGroups: string[]
   selectedGroup: string | null
@@ -18,7 +19,7 @@ export interface DeckLibrarySlice {
   assignDeckGroup: (deckId: string, group: string) => Promise<boolean>
   setSelectedGroup: (group: string | null) => void
   setSearchKeyword: (keyword: string) => void
-  openDeck: (targetDeck: DeckData) => Promise<void>
+  openDeck: (targetDeck: DeckData, returnToMain?: boolean) => Promise<void>
   createNewDeck: () => void
   backToLibrary: () => Promise<void>
   saveCurrentDeckToLibrary: () => Promise<boolean>
@@ -34,6 +35,7 @@ export const createDeckLibrarySlice: StateCreator<DeckEditorStore, [], [], DeckL
   get
 ) => ({
   viewMode: 'library',
+  returnToMain: false,
   deckList: [],
   deckGroups: [],
   selectedGroup: null,
@@ -115,9 +117,9 @@ export const createDeckLibrarySlice: StateCreator<DeckEditorStore, [], [], DeckL
     set({ searchKeyword: keyword })
   },
 
-  openDeck: async (targetDeck): Promise<void> => {
+  openDeck: async (targetDeck, returnToMain): Promise<void> => {
     await get().loadDeck(targetDeck)
-    set({ viewMode: 'editor' })
+    set({ viewMode: 'editor', returnToMain: returnToMain ?? false })
   },
 
   createNewDeck: (): void => {
@@ -134,14 +136,14 @@ export const createDeckLibrarySlice: StateCreator<DeckEditorStore, [], [], DeckL
         side: []
       },
       selectedCard: null,
-      hoveredCardId: null,
       testHandCards: null,
-      viewMode: 'editor'
+      viewMode: 'editor',
+      returnToMain: false
     })
   },
 
   backToLibrary: async (): Promise<void> => {
-    set({ viewMode: 'library' })
+    set({ viewMode: 'library', returnToMain: false })
     await get().fetchDeckList()
   },
 

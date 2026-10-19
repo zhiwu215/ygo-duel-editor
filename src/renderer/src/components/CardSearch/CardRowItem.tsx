@@ -52,7 +52,7 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
       onDragStart={onDragStart ? (e) => onDragStart(e, card) : undefined}
       onContextMenu={onContextMenu ? (e) => onContextMenu(e, card) : undefined}
       onMouseEnter={onHover ? () => onHover(card) : undefined}
-      onClick={onRowClick ? () => onRowClick(card) : onHover ? () => onHover(card) : undefined}
+      onClick={onRowClick ? () => onRowClick(card) : undefined}
       onDoubleClick={onRowDoubleClick ? () => onRowDoubleClick(card) : undefined}
       className={cn(
         'flex items-center gap-2 px-2 py-1 rounded-md bg-card/60 hover:bg-muted/70 border border-border/40 hover:border-primary/40 transition-all group shadow-2xs',

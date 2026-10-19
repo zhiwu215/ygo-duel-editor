@@ -15,10 +15,8 @@ export interface DeckEditingSlice {
   deck: DeckData
   cardDetails: Record<number, CdbCard>
   selectedCard: CdbCard | null
-  hoveredCardId: number | null
 
   setSelectedCard: (card: CdbCard | null) => void
-  setHoveredCardId: (code: number | null) => void
   setDeckName: (name: string) => void
   setDeckDescription: (desc: string) => void
   setDeckTags: (tags: string[]) => void
@@ -59,14 +57,9 @@ export const createDeckEditingSlice: StateCreator<DeckEditorStore, [], [], DeckE
   deck: { ...INITIAL_DECK },
   cardDetails: {},
   selectedCard: null,
-  hoveredCardId: null,
 
   setSelectedCard: (card): void => {
     set({ selectedCard: card })
-  },
-
-  setHoveredCardId: (code): void => {
-    set({ hoveredCardId: code })
   },
 
   setDeckName: (name): void => {
@@ -121,8 +114,7 @@ export const createDeckEditingSlice: StateCreator<DeckEditorStore, [], [], DeckE
     set({
       deck: { ...deck, [section]: list },
       cardDetails: { ...cardDetails, [card.id]: card },
-      selectedCard: card,
-      hoveredCardId: null
+      selectedCard: card
     })
 
     return true
@@ -226,7 +218,6 @@ export const createDeckEditingSlice: StateCreator<DeckEditorStore, [], [], DeckE
       deck: newDeck,
       cardDetails: { ...prev.cardDetails, ...fetchedDetails },
       selectedCard: allCodes.length > 0 ? fetchedDetails[allCodes[0]] || null : null,
-      hoveredCardId: null,
       testHandCards: null
     }))
   },

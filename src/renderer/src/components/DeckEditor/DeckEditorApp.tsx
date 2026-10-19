@@ -28,10 +28,8 @@ export const DeckEditorApp: React.FC = () => {
     isLoadingLibrary,
     cardDetails,
     selectedCard,
-    hoveredCardId,
     testHandCards,
     setSelectedCard,
-    setHoveredCardId,
     setDeckGroup,
     setDeckCover,
     addCard,
@@ -48,6 +46,7 @@ export const DeckEditorApp: React.FC = () => {
     openDeck,
     fetchDeckList,
     backToLibrary,
+    returnToMain,
     getStats
   } = useDeckEditorStore()
 
@@ -69,21 +68,6 @@ export const DeckEditorApp: React.FC = () => {
 
   const exportDeckFile = useDeckFileExport()
 
-  const handleSelectCard = useCallback(
-    (card: CdbCard | null): void => {
-      setSelectedCard(card)
-      setHoveredCardId(null)
-    },
-    [setSelectedCard, setHoveredCardId]
-  )
-
-  const handleHoverCard = useCallback(
-    (code: number | null): void => {
-      setHoveredCardId(code)
-    },
-    [setHoveredCardId]
-  )
-
   const triggerFlash = useCallback((target: DeckFlashTarget): void => {
     setFlash(target)
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
@@ -104,12 +88,12 @@ export const DeckEditorApp: React.FC = () => {
   }, [viewMode, deckList.length, isLoadingLibrary, fetchDeckList])
 
   useEffect(() => {
-    const openDeckInEditor = (targetDeck: DeckData): void => {
-      void useDeckEditorStore.getState().openDeck(targetDeck)
+    const openDeckInEditor = (targetDeck: DeckData, returnToMain: boolean): void => {
+      void useDeckEditorStore.getState().openDeck(targetDeck, returnToMain)
     }
 
-    void window.api.consumePendingDeckToEdit().then((deck) => {
-      if (deck) openDeckInEditor(deck)
+    void window.api.consumePendingDeckToEdit().then(({ deck, returnToMain }) => {
+      if (deck) openDeckInEditor(deck, returnToMain)
     })
 
     return window.api.onOpenDeckInEditor(openDeckInEditor)
@@ -152,7 +136,7 @@ export const DeckEditorApp: React.FC = () => {
 
   const stats = getStats()
 
-  const detailCard = (hoveredCardId !== null ? cardDetails[hoveredCardId] : null) ?? selectedCard
+  const detailCard = selectedCard
   const detailCardInDeck =
     detailCard &&
     (deck.main.includes(detailCard.id) ||
@@ -210,6 +194,10 @@ export const DeckEditorApp: React.FC = () => {
 
   const handleLeaveEditor = async (): Promise<void> => {
     if (!(await confirmDiscard())) return
+    if (returnToMain) {
+      void window.api.windowClose()
+      return
+    }
     void backToLibrary()
   }
 
@@ -269,9 +257,7 @@ export const DeckEditorApp: React.FC = () => {
                   cardDetails={cardDetails}
                   isDragActive={activeDrag !== null}
                   flash={flash}
-                  coverCard={deck.coverCard}
-                  onSelectCard={handleSelectCard}
-                  onHoverCard={handleHoverCard}
+                  onSelectCard={setSelectedCard}
                   onRemoveCard={removeCard}
                 />
 
@@ -284,7 +270,7 @@ export const DeckEditorApp: React.FC = () => {
                 )}
               </main>
 
-              <DeckSearchPanel onSelectCard={handleSelectCard} onAddCard={handleAddCard} />
+              <DeckSearchPanel onSelectCard={setSelectedCard} onAddCard={handleAddCard} />
             </div>
           </div>
         </div>

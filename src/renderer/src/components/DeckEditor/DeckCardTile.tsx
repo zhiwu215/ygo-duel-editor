@@ -1,8 +1,9 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import React from 'react'
+import React, { useState } from 'react'
 import { DeckData, groupLeafName } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { CardImage } from '../ui/CardImage'
+import { CardImageViewer } from '../CardDetail/CardImageViewer'
 import { getDeckCoverCode } from '../../utils/deckLibraryView'
 import { Clock, Folder } from 'lucide-react'
 
@@ -15,6 +16,12 @@ export const DeckCardTile: React.FC<DeckCardTileProps> = ({ deck, onContextMenu 
   const { cardDetails, openDeck } = useDeckEditorStore()
   const coverCode = getDeckCoverCode(deck)
   const coverCard = coverCode ? cardDetails[coverCode] : undefined
+  const [showViewer, setShowViewer] = useState<boolean>(false)
+
+  const handleCoverClick = (e: React.MouseEvent): void => {
+    e.stopPropagation()
+    if (coverCode) setShowViewer(true)
+  }
 
   return (
     <div
@@ -28,7 +35,10 @@ export const DeckCardTile: React.FC<DeckCardTileProps> = ({ deck, onContextMenu 
       onContextMenu={(e) => onContextMenu(e, deck)}
       className="group relative flex gap-3 rounded-lg bg-card border border-border/70 hover:border-primary/60 transition-all duration-200 hover:shadow-md overflow-hidden cursor-pointer p-2.5"
     >
-      <div className="relative h-20 w-14 shrink-0 rounded-md bg-slate-950/80 overflow-hidden flex items-center justify-center">
+      <div
+        className="relative h-20 w-14 shrink-0 rounded-md bg-slate-950/80 overflow-hidden flex items-center justify-center cursor-zoom-in"
+        onClick={handleCoverClick}
+      >
         <CardImage
           code={coverCode}
           alt={deck.name}
@@ -48,6 +58,14 @@ export const DeckCardTile: React.FC<DeckCardTileProps> = ({ deck, onContextMenu 
           </Tooltip>
         )}
       </div>
+
+      {showViewer && coverCode && (
+        <CardImageViewer
+          cardCode={coverCode}
+          cardName={coverCard?.name ?? deck.name}
+          onClose={() => setShowViewer(false)}
+        />
+      )}
 
       <div className="flex flex-col min-w-0 flex-1">
         <Tooltip>

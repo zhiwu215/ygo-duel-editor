@@ -8,10 +8,11 @@ export interface EngineExportReplayParams {
 
 export interface EngineExportReplayResult {
   success: boolean
-  errorCode?: 'no-game-directory' | 'ygopro-not-found' | 'replay-failed' | 'no-actions'
+  errorCode?: 'no-game-directory' | 'game-not-found' | 'replay-failed' | 'no-actions'
   error?: string
   luaPath?: string
   yrpPath?: string
+  yrp3dPath?: string
   launched?: boolean
   warnings?: string[]
 }

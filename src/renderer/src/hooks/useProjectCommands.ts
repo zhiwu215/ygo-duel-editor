@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
+import { useConfigStore } from '../stores/useConfigStore'
 import { alertDialog, confirmDialog } from '../stores/useDialogStore'
 import { guardExportableMatch } from '../utils/matchExport'
 
@@ -88,19 +89,18 @@ export function useProjectCommands(): ProjectCommands {
     if (res.success) return
     if (res.errorCode === 'no-game-directory') {
       void confirmDialog({
-        title: '尚未设置 ygo 游戏目录',
-        description:
-          '使用 ygo 测试对局前，需要先在 设置 → 路径 中选择 ygopro.exe 所在的游戏根目录。',
+        title: '尚未设置游戏目录',
+        description: '测试对局前，需要先在 设置 → 路径 中选择游戏主目录 (ygopro 或 MDPro3)。',
         confirmText: '打开设置'
       }).then((ok) => {
         if (ok) void window.api.openSettingsWindow('paths')
       })
-    } else if (res.errorCode === 'ygopro-not-found') {
+    } else if (res.errorCode === 'game-not-found') {
       void alertDialog(
-        `未在游戏目录中找到 ygopro.exe\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
+        `未在游戏目录中找到游戏主程序 (ygopro.exe / MDPro3.exe)\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
       )
     } else if (res.error) {
-      void alertDialog(`启动 ygo 测试失败: ${res.error}`)
+      void alertDialog(`启动游戏测试失败: ${res.error}`)
     }
   }, [state])
 
@@ -133,25 +133,28 @@ export function useProjectCommands(): ProjectCommands {
       launch: true
     })
     if (res.success) {
-      void alertDialog(
-        `YRP 录像导出成功${res.launched ? '，已在 ygopro 中打开回放' : ''}\n\n录像: ${res.yrpPath}\n残局脚本: ${res.luaPath}\n\n之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。`
-      )
+      const gameType = useConfigStore.getState().config.gameType
+      const detail =
+        gameType === 'mdpro3'
+          ? `回放: ${res.yrp3dPath ?? ''}\n\n之后在 MDPro3 的「回放」界面也可以随时观看。`
+          : `录像: ${res.yrpPath ?? ''}\n残局脚本: ${res.luaPath ?? ''}\n\n之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。`
+      void alertDialog(`对局回放导出成功${res.launched ? '，已在游戏中打开回放' : ''}\n\n${detail}`)
       return
     }
     if (res.errorCode === 'no-game-directory') {
       void confirmDialog({
-        title: '尚未设置 ygo 游戏目录',
-        description: '导出 YRP 录像前，需要先在 设置 → 路径 中选择 ygopro.exe 所在的游戏根目录。',
+        title: '尚未设置游戏目录',
+        description: '导出对局回放前，需要先在 设置 → 路径 中选择游戏主目录 (ygopro 或 MDPro3)。',
         confirmText: '打开设置'
       }).then((ok) => {
         if (ok) void window.api.openSettingsWindow('paths')
       })
-    } else if (res.errorCode === 'ygopro-not-found') {
+    } else if (res.errorCode === 'game-not-found') {
       void alertDialog(
-        `未在游戏目录中找到 ygopro.exe\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
+        `未在游戏目录中找到游戏主程序 (ygopro.exe / MDPro3.exe)\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
       )
     } else if (res.error) {
-      void alertDialog(`导出 YRP 录像失败\n\n${res.error}`)
+      void alertDialog(`导出对局回放失败\n\n${res.error}`)
     }
   }, [])
 
@@ -160,7 +163,7 @@ export function useProjectCommands(): ProjectCommands {
     if (ok) return
     const error = useDuelEngineStore.getState().error
     if (error) {
-      void alertDialog(`导入 YRP 录像失败\n\n${error}`)
+      void alertDialog(`导入对局回放失败\n\n${error}`)
     }
   }, [])
 

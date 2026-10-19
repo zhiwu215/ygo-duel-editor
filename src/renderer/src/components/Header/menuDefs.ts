@@ -158,7 +158,7 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
       label: 'ygo',
       items: [
         {
-          label: '使用 ygo 测试该局',
+          label: '使用游戏测试该局',
           shortcut: 'Ctrl+T',
           action: actions.onTestInYgo
         },
@@ -173,11 +173,11 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           action: actions.onExportLua
         },
         {
-          label: '导入 YRP 录像',
+          label: '导入对局回放',
           action: actions.onImportReplay
         },
         {
-          label: '导出 YRP 录像',
+          label: '导出对局回放',
           action: actions.onExportYrp
         }
       ]

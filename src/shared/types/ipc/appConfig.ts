@@ -10,6 +10,8 @@ export interface DataDirectoryResult {
 export interface AppConfig {
   gameDirectory?: string
 
+  gameType?: 'ygopro' | 'mdpro3'
+
   cdbPath?: string
 
   extraCdbPaths?: string[]

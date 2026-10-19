@@ -12,7 +12,7 @@ export function registerProjectIpc(): void {
   })
 
   ipcMain.handle('file:test-in-ygo', (_, state: DuelPuzzleState) => {
-    return ygoproLauncher.testInYgo(state)
+    return ygoproLauncher.testInGame(state)
   })
 
   ipcMain.handle('file:import-lua', async () => {

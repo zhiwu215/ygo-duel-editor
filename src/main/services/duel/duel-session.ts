@@ -205,6 +205,7 @@ export class DuelSession {
     state.lastHintDesc = undefined
     state.replaying = false
     state.replay = null
+    state.recordingMessages = null
     state.provenance.clear()
     state.sequenceProvenance.clear()
     state.drawCounts = [0, 0]
@@ -359,14 +360,14 @@ export class DuelSession {
     const state = this.state
     await this.init()
 
-    const yrp = parseYrpReplay(bytes, fileName)
+    const { yrp, bytes: yrpBytes } = parseYrpReplay(bytes, fileName)
     const previous = this.captureSessionState()
 
     try {
       this.disposeDuel()
       state.timeline.clear()
       this.resetSessionState()
-      setupReplayDuel(state, yrp, bytes, fileName)
+      setupReplayDuel(state, yrp, yrpBytes, fileName)
       const warning = buildReplayTimeline(state, yrp)
       const currentStepId = state.timeline.getCurrentStep()?.node.id
       if (!currentStepId) {
@@ -623,6 +624,30 @@ export class DuelSession {
 
   getPendingRequest(): EngineRequest | null {
     return this.state.currentPendingRequest
+  }
+
+  recordMessageStream(): { messages: Uint8Array[]; responses: Uint8Array[] } {
+    const state = this.state
+    if (state.replay) {
+      throw new Error('回放模式为只读，无法导出 MDPro3 回放。')
+    }
+    const current = state.timeline.getCurrentStep()
+    if (!state.initParams || !current) {
+      throw new Error('引擎尚未启动，无法导出 MDPro3 回放。')
+    }
+
+    state.recordingMessages = []
+    let messages: Uint8Array[]
+    try {
+      this.replayTo(current.node.id)
+      messages = state.recordingMessages ?? []
+    } finally {
+      state.recordingMessages = null
+    }
+    if (messages.length === 0) {
+      throw new Error('没有录制到任何引擎消息，无法导出 MDPro3 回放。')
+    }
+    return { messages, responses: this.getAllTimelineResponses() }
   }
 
   getAllTimelineResponses(): Uint8Array[] {

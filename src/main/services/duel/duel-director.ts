@@ -97,6 +97,10 @@ export class DuelDirector {
     return duelSession.getAllTimelineResponses()
   }
 
+  recordMessageStream(): { messages: Uint8Array[]; responses: Uint8Array[] } {
+    return duelSession.recordMessageStream()
+  }
+
   exportSessionDoc(): EngineSessionDoc {
     return duelSession.exportSessionDoc()
   }

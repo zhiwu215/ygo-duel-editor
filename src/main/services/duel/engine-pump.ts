@@ -89,6 +89,13 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
     const manualQueries: unknown[] = []
 
     if (msgs.length > 0) {
+      if (state.recordingMessages) {
+        for (const msg of msgs) {
+          if (typeof (msg as { toPayload?: unknown }).toPayload === 'function') {
+            state.recordingMessages.push((msg as { toPayload(): Uint8Array }).toPayload())
+          }
+        }
+      }
       for (const msg of msgs) {
         state.fieldReader.applyMetaMessage(msg)
         if (msg instanceof YGOProMsgHint && msg.type === HINT_TYPE_SELECTMSG) {

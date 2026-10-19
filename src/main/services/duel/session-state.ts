@@ -27,6 +27,7 @@ export interface SessionState {
   timingPolicy: TimingPolicy
   replaying: boolean
   replay: ReplayPlayback | null
+  recordingMessages: Uint8Array[] | null
   provenance: Map<string, ProvenanceRecord>
   sequenceProvenance: Map<string, ProvenanceRecord>
   drawCounts: [number, number]
@@ -55,6 +56,7 @@ export function createSessionState(): SessionState {
     timingPolicy: { ...DEFAULT_TIMING_POLICY },
     replaying: false,
     replay: null,
+    recordingMessages: null,
     provenance: new Map(),
     sequenceProvenance: new Map(),
     drawCounts: [0, 0],

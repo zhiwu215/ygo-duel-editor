@@ -71,6 +71,9 @@ importers:
       ygopro-yrp-encode:
         specifier: 1.0.8
         version: 1.0.8
+      ygopro-yrp3d-encode:
+        specifier: ^1.0.1
+        version: 1.0.1
       zundo:
         specifier: ^2.3.0
         version: 2.3.0(zustand@5.0.15(@types/react@19.3.0)(react@19.3.0)(use-sync-external-store@1.7.0(react@19.3.0)))
@@ -5365,6 +5368,9 @@ packages:
 
   ygopro-yrp-encode@1.0.8:
     resolution: {integrity: sha512-m1OkByxrLOo++H36OSUNETGByvZw8wdF7M76VM8i+IjJpvYUVLxXKN4/sCViM/6+dkcdyVf4ljCo5XU+OFVlaQ==}
+
+  ygopro-yrp3d-encode@1.0.1:
+    resolution: {integrity: sha512-Ua43J0nqU0ezT6iiFZHS619vp3+vFunzgWpZ+4bDNMmlSTwns37UQ/Oy3PrQjj6M5fvcf+xnGpmZHhkBMCyjCA==}
 
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
@@ -11481,6 +11487,11 @@ snapshots:
     dependencies:
       '@cjser/lzma1': 0.3.0-cjser.2
       ygopro-deck-encode: 1.0.16
+
+  ygopro-yrp3d-encode@1.0.1:
+    dependencies:
+      ygopro-msg-encode: 1.3.0
+      ygopro-yrp-encode: 1.0.8
 
   yocto-queue@0.1.0: {}
 

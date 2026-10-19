@@ -90,7 +90,7 @@ export interface IpcApi {
     success: boolean
     exePath?: string
     scriptPath?: string
-    errorCode?: 'no-game-directory' | 'ygopro-not-found'
+    errorCode?: 'no-game-directory' | 'game-not-found'
     error?: string
   }>
   importLuaFile: () => Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }>

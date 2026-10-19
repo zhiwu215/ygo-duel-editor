@@ -15,9 +15,9 @@ export class YrpReplayFileService {
   public async loadYrpFile(window?: BrowserWindow): Promise<YrpFileLoadResult> {
     try {
       const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-        title: '导入 YRP 录像',
+        title: '导入 YRP 回放',
         filters: [
-          { name: 'YGOPro 录像', extensions: ['yrp'] },
+          { name: 'YGOPro 回放', extensions: ['yrp', 'yrp3d'] },
           { name: 'All Files', extensions: ['*'] }
         ],
         properties: ['openFile']

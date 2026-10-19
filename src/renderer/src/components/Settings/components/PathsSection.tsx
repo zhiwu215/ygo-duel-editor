@@ -18,8 +18,10 @@ export function PathsSection(): JSX.Element {
         title="YGO 主程序目录"
         description={
           config.gameDirectory
-            ? `${config.gameDirectory}${config.cdbPath ? ` (cards.cdb: ${config.cdbPath})` : ''}`
-            : '未设置 (指定后自动定位 cards.cdb 与本地卡图)'
+            ? `(${config.gameType === 'mdpro3' ? 'MDPro3' : 'YGOPro'}) ${config.gameDirectory}${
+                config.cdbPath ? ` (cards.cdb: ${config.cdbPath})` : ''
+              }`
+            : '未设置 (指定后自动识别游戏类型并读取 cards.cdb 与本地卡图)'
         }
       >
         <Button size="xs" variant="outline" onClick={() => void selectYgoDir()} className="gap-1">

@@ -1,4 +1,5 @@
 import { YGOProYrp, REPLAY_UNIFORM } from 'ygopro-yrp-encode'
+import { YGOProYrp3d } from 'ygopro-yrp3d-encode'
 import { createDuelFromYrp } from 'koishipro-core.js'
 import { existsSync } from 'fs'
 import { join } from 'path'
@@ -52,18 +53,39 @@ function assertSingleScriptAvailable(yrp: YGOProYrp, fileName: string): void {
   }
 }
 
-export function parseYrpReplay(bytes: Uint8Array, fileName: string): YGOProYrp {
+export interface ParsedYrpReplay {
+  yrp: YGOProYrp
+  bytes: Uint8Array
+}
+
+function isYrpMagic(bytes: Uint8Array): boolean {
+  const magic = String.fromCharCode(bytes[0] ?? 0, bytes[1] ?? 0, bytes[2] ?? 0, bytes[3] ?? 0)
+  return magic === 'yrp1' || magic === 'yrp2'
+}
+
+function unwrapYrp(bytes: Uint8Array, fileName: string): YGOProYrp {
+  if (isYrpMagic(bytes)) {
+    return new YGOProYrp().fromYrp(bytes)
+  }
+  const embedded = new YGOProYrp3d().fromYrp3d(bytes).extractYrp()
+  if (!embedded) {
+    throw new Error(`.yrp3d 回放包中没有内嵌标准 YRP 录像（${fileName}）。`)
+  }
+  return embedded
+}
+
+export function parseYrpReplay(bytes: Uint8Array, fileName: string): ParsedYrpReplay {
   let yrp: YGOProYrp
   try {
-    yrp = new YGOProYrp().fromYrp(bytes)
+    yrp = unwrapYrp(bytes, fileName)
   } catch (err) {
     throw new Error(
-      `无法解析 YRP 录像（${fileName}）：${err instanceof Error ? err.message : String(err)}`
+      `无法解析回放文件（${fileName}）：${err instanceof Error ? err.message : String(err)}`
     )
   }
   assertReplaySupported(yrp, fileName)
   assertSingleScriptAvailable(yrp, fileName)
-  return yrp
+  return { yrp, bytes: isYrpMagic(bytes) ? bytes : yrp.toYrp() }
 }
 
 export function setupReplayDuel(
@@ -110,7 +132,8 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
       state.duel!.setResponse(frame)
       advanceEngine(state)
       if (state.lastAdvanceRetried) {
-        warning = `引擎在第 ${i + 1} 步拒绝了回放数据（与当前规则引擎不同步），仅回放到第 ${i} 步。`
+        const frameHex = [...frame].map((v) => v.toString(16).padStart(2, '0')).join(' ')
+        warning = `回放第 ${i + 1}/${frames.length} 步被引擎拒绝：引擎正在等待"${askTitle}"（玩家 ${actingPlayer}）的响应，收到的帧 [${frameHex}] 与其不匹配，仅回放前 ${i} 步。录像可能由不同版本的引擎或卡脚本生成。`
         break
       }
       const after = state.fieldReader.readBoard(state.duel!)

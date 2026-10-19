@@ -27,6 +27,7 @@ function getAvailableScriptSources(): { zips: string[]; dirs: string[] } {
 
   const testZips = [
     config.gameDirectory ? path.join(config.gameDirectory, 'script.zip') : null,
+    config.gameDirectory ? path.join(config.gameDirectory, 'Data', 'script.zip') : null,
     config.gameDirectory ? path.join(config.gameDirectory, 'expansions', 'script.zip') : null
   ].filter(Boolean) as string[]
 

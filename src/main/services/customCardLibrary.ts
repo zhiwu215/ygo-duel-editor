@@ -1,7 +1,9 @@
-import Database from 'better-sqlite3'
 import { BrowserWindow, dialog, shell } from 'electron'
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
+import * as sqlJsNamespace from 'sql.js'
+import type { SqlJsStatic } from 'sql.js'
+import { CardDataEntry, YGOProCdb } from 'ygopro-cdb-encode'
 import { DirScriptReader } from 'koishipro-core.js'
 import {
   CustomCard,
@@ -18,22 +20,6 @@ const LIBRARY_DIR = 'custom'
 const CDB_FILE = 'cards.cdb'
 const SCRIPT_DIR = 'script'
 const SCRIPT_EXTENSION = '.lua'
-
-const DATAS_COLUMNS = [
-  'id',
-  'ot',
-  'alias',
-  'setcode',
-  'type',
-  'atk',
-  'def',
-  'level',
-  'race',
-  'attribute',
-  'category'
-]
-
-const TEXT_COLUMNS = ['id', 'name', 'desc', ...Array.from({ length: 16 }, (_, i) => `str${i + 1}`)]
 
 export function customLibraryDir(): string {
   return dataDirService.ensureDirectory(LIBRARY_DIR)
@@ -62,77 +48,97 @@ export function isCustomCdbPath(cdbPath: string): boolean {
   )
 }
 
-function createTables(db: Database.Database): void {
-  db.exec(
-    `CREATE TABLE IF NOT EXISTS datas (${DATAS_COLUMNS.map((c) => `${c} integer`).join(', ')})`
-  )
-  db.exec(`CREATE TABLE IF NOT EXISTS texts (${TEXT_COLUMNS.map((c) => `${c} text`).join(', ')})`)
+let sqlPromise: Promise<SqlJsStatic> | null = null
+
+function resolveInitSqlJs(): (config?: unknown) => Promise<SqlJsStatic> {
+  const ns = sqlJsNamespace as unknown as {
+    initSqlJs?: (config?: unknown) => Promise<SqlJsStatic>
+    default?: (config?: unknown) => Promise<SqlJsStatic>
+  }
+  const init = ns.initSqlJs ?? ns.default
+  if (!init) {
+    throw new Error('sql.js 模块加载失败：找不到初始化入口。')
+  }
+  return init
 }
 
-function writeCdb(cards: CustomCard[]): void {
+function loadSqlJs(): Promise<SqlJsStatic> {
+  const existing = sqlPromise
+  if (existing) return existing
+  const created = resolveInitSqlJs()()
+  sqlPromise = created
+  return created
+}
+
+function toCardEntry(card: CustomCard): CardDataEntry {
+  const cdbCard = customCardToCdbCard(card)
+  return new CardDataEntry().fromPartial({
+    code: cdbCard.id,
+    ot: cdbCard.ot,
+    alias: cdbCard.alias,
+    setcode: [],
+    type: cdbCard.type,
+    attack: cdbCard.atk,
+    defense: cdbCard.def,
+    level: cdbCard.level,
+    race: cdbCard.race,
+    attribute: cdbCard.attribute,
+    category: Number(cdbCard.category),
+    name: cdbCard.name,
+    desc: cdbCard.desc,
+    strings: []
+  })
+}
+
+async function writeCdb(cards: CustomCard[]): Promise<void> {
   const cdbPath = customCdbPath()
   mkdirSync(dirname(cdbPath), { recursive: true })
-  const db = new Database(cdbPath)
+  const SQL = await loadSqlJs()
+  const cdb = new YGOProCdb(SQL)
   try {
-    createTables(db)
-    const insertData = db.prepare(
-      `INSERT INTO datas (${DATAS_COLUMNS.join(', ')}) VALUES (${DATAS_COLUMNS.map(() => '?').join(', ')})`
-    )
-    const insertText = db.prepare('INSERT INTO texts (id, name, desc) VALUES (?, ?, ?)')
-    const rebuild = db.transaction((list: CustomCard[]) => {
-      db.prepare('DELETE FROM datas').run()
-      db.prepare('DELETE FROM texts').run()
-      for (const card of list) {
-        const cdbCard = customCardToCdbCard(card)
-        insertData.run(
-          cdbCard.id,
-          cdbCard.ot ?? 0,
-          cdbCard.alias ?? 0,
-          cdbCard.setcode ?? 0,
-          cdbCard.type ?? 0,
-          cdbCard.atk ?? 0,
-          cdbCard.def ?? 0,
-          cdbCard.level ?? 0,
-          cdbCard.race ?? 0,
-          cdbCard.attribute ?? 0,
-          cdbCard.category ?? 0
-        )
-        insertText.run(cdbCard.id, cdbCard.name ?? '', cdbCard.desc ?? '')
-      }
-    })
-    rebuild(cards)
+    for (const card of cards) cdb.addCard(toCardEntry(card))
+    writeFileSync(cdbPath, Buffer.from(cdb.export()))
   } finally {
-    db.close()
+    cdb.finalize()
   }
 }
 
+let writeQueue: Promise<void> = Promise.resolve()
+
 export function syncCustomCardLibrary(cards: CustomCard[]): void {
-  try {
-    writeCdb(cards)
-  } catch (err) {
-    console.error('[CustomCardLibrary] Failed to write custom cdb:', err)
-    return
+  writeQueue = writeQueue
+    .then(async () => {
+      try {
+        await writeCdb(cards)
+      } catch (err) {
+        console.error('[CustomCardLibrary] Failed to write custom cdb:', err)
+        return
+      }
+      try {
+        registerCustomCdb()
+      } catch (err) {
+        console.error('[CustomCardLibrary] Failed to register custom cdb:', err)
+      }
+    })
+    .catch(() => undefined)
+}
+
+function registerCustomCdb(): void {
+  const cdbPath = customCdbPath()
+  const cfg = configService.get()
+  const extras = (cfg.extraCdbPaths || []).filter((p) => !isCustomCdbPath(p))
+  const disabled = (cfg.disabledCdbPaths || []).filter((p) => !isCustomCdbPath(p))
+  const nextExtras = [...extras, cdbPath]
+
+  if (
+    nextExtras.length !== (cfg.extraCdbPaths || []).length ||
+    disabled.length !== (cfg.disabledCdbPaths || []).length
+  ) {
+    configService.save({ extraCdbPaths: nextExtras, disabledCdbPaths: disabled })
   }
 
-  try {
-    const cdbPath = customCdbPath()
-    const cfg = configService.get()
-    const extras = (cfg.extraCdbPaths || []).filter((p) => !isCustomCdbPath(p))
-    const disabled = (cfg.disabledCdbPaths || []).filter((p) => !isCustomCdbPath(p))
-    const nextExtras = [...extras, cdbPath]
-
-    if (
-      nextExtras.length !== (cfg.extraCdbPaths || []).length ||
-      disabled.length !== (cfg.disabledCdbPaths || []).length
-    ) {
-      configService.save({ extraCdbPaths: nextExtras, disabledCdbPaths: disabled })
-    }
-
-    cdbService.reloadAll(cfg.cdbPath, nextExtras)
-    broadcastToWindows('cdb:updated')
-  } catch (err) {
-    console.error('[CustomCardLibrary] Failed to register custom cdb:', err)
-  }
+  cdbService.reloadAll(cfg.cdbPath, nextExtras)
+  broadcastToWindows('cdb:updated')
 }
 
 export function isCustomCdbLoaded(): boolean {

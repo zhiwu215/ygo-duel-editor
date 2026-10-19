@@ -126,7 +126,6 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
   return (
     <>
       <header className="h-11 px-4 border-b border-border bg-card/80 backdrop-blur-md flex items-center gap-3 shrink-0 [-webkit-app-region:drag]">
-        <BookMarked className="w-4 h-4 text-primary shrink-0" />
         <span className="font-bold text-sm tracking-wide">卡牌图鉴</span>
         <div className="ml-auto flex items-center gap-1.5 [-webkit-app-region:no-drag]">
           <Tooltip>

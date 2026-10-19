@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { CardLocation } from '@shared/index'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { Button } from '../ui/button'
-import { BookOpen, Film, X, Copy, Check, FileText, Download, Layers } from 'lucide-react'
+import { Film, X, Copy, Check, FileText, Download, Layers } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { stepCardName } from '../../utils/cardNames'
@@ -97,9 +97,6 @@ export const DuelScreenplayModal: React.FC = () => {
       <div className="fixed inset-y-0 right-0 z-50 w-[min(880px,72vw)] max-w-full flex flex-col bg-card text-card-foreground border-l border-border/80 shadow-2xl overflow-hidden select-none animate-in fade-in duration-100">
         <div className="px-5 py-2.5 border-b border-border/70 bg-card flex flex-wrap items-center justify-between gap-x-3 gap-y-2 shrink-0">
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
-              <BookOpen className="w-4 h-4" />
-            </div>
             <h2 className="font-bold text-sm text-foreground tracking-wide">决斗台本</h2>
           </div>
 

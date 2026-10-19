@@ -40,7 +40,6 @@ export interface StepsSlice {
   updateStep: (stepId: string, patch: Partial<DuelStep>) => void
   deleteStep: (stepId: string) => void
   moveStep: (stepId: string, direction: 'up' | 'down') => void
-  clearSteps: () => void
 
   previewStepBoard: (stepIndex: number | null) => void
   resetToOpeningBoard: () => void
@@ -251,15 +250,6 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         }
       }
     }),
-
-  clearSteps: () =>
-    set((prev) => ({
-      state: {
-        ...prev.state,
-        steps: []
-      },
-      currentStepIndex: null
-    })),
 
   previewStepBoard: (stepIndex) => {
     const engineRunning = useDuelEngineStore.getState().isInitialized

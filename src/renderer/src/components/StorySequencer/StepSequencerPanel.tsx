@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { DuelStep, PHASE_NAMES } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { confirmDialog, alertDialog } from '../../stores/useDialogStore'
+import { alertDialog } from '../../stores/useDialogStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { Badge } from '../ui/badge'
@@ -19,8 +19,7 @@ import {
   LogOut,
   PencilLine,
   Plus,
-  RotateCcw,
-  Trash2
+  RotateCcw
 } from 'lucide-react'
 
 export const StepSequencerPanel: React.FC = () => {
@@ -36,8 +35,7 @@ export const StepSequencerPanel: React.FC = () => {
     nextPhase,
     nextTurn,
     setActiveTurnPlayer,
-    openScreenplayWithStep,
-    clearSteps
+    openScreenplayWithStep
   } = useDuelStore()
 
   const replayInfo = useDuelEngineStore((s) => s.replayInfo)
@@ -116,32 +114,6 @@ export const StepSequencerPanel: React.FC = () => {
               <Plus className="w-3.5 h-3.5" />
               <span>添加步骤</span>
             </Button>
-
-            {steps.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={() => {
-                        void confirmDialog({
-                          title: '清空步骤',
-                          description: '确定要清空全部编排动作步骤吗？此操作可使用 Ctrl+Z 撤销。'
-                        }).then((ok) => {
-                          if (ok) clearSteps()
-                        })
-                      }}
-
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  }
-                />
-                <TooltipContent>清空全部步骤</TooltipContent>
-              </Tooltip>
-            )}
           </div>
         )}
       </div>

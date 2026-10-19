@@ -81,7 +81,7 @@ export const DeckEditorToolbar: React.FC<DeckEditorToolbarProps> = ({
   onClear,
   onDelete
 }) => {
-  const { deck, deckGroups, drawTestHand, shuffleDeck, sortDeck, setDeckName, setDeckDescription } =
+  const { deck, deckGroups, returnToMain, drawTestHand, shuffleDeck, sortDeck, setDeckName, setDeckDescription } =
     useDeckEditorStore()
 
   return (
@@ -90,7 +90,7 @@ export const DeckEditorToolbar: React.FC<DeckEditorToolbarProps> = ({
         <button
           type="button"
           onClick={onLeaveEditor}
-          title="返回卡组总览库"
+          title={returnToMain ? '返回主界面' : '返回卡组总览库'}
           className="flex-1 min-h-0 rounded-md border border-border bg-muted/40 text-sm font-bold text-muted-foreground hover:bg-muted/80 hover:text-foreground transition-colors cursor-pointer"
         >
           退出编辑

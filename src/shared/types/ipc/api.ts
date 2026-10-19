@@ -210,8 +210,8 @@ export interface IpcApi {
   onCardImageUpdated: (callback: () => void) => () => void
 
   openDeckEditor: (deckId?: string, createNew?: boolean) => Promise<void>
-  consumePendingDeckToEdit: () => Promise<DeckData | null>
-  onOpenDeckInEditor: (callback: (deck: DeckData) => void) => () => void
+  consumePendingDeckToEdit: () => Promise<{ deck: DeckData | null; returnToMain: boolean }>
+  onOpenDeckInEditor: (callback: (deck: DeckData, returnToMain: boolean) => void) => () => void
 
   getDeckLibrary: () => Promise<DeckLibrary>
 

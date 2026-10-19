@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, shell } from 'electron'
+import { BrowserWindow, dialog, shell, type WebContents } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
@@ -30,6 +30,7 @@ const LEGACY_PRESET_DECK_IDS = new Set([
 export class DeckService {
   private deckWindow: BrowserWindow | null = null
   private pendingEditDeck: DeckData | null = null
+  private pendingReturnToMain = false
 
   private get libraryFilePath(): string {
     return dataDirService.resolve(LIBRARY_FILE)
@@ -191,7 +192,7 @@ export class DeckService {
       return null
     }
   }
-  public openDeckEditorWindow(deckId?: string, createNew?: boolean): void {
+  public openDeckEditorWindow(deckId?: string, createNew?: boolean, returnToMain?: boolean): void {
     const deck = deckId
       ? (this.getLibrary().decks.find((d) => d.id === deckId) ?? null)
       : createNew
@@ -212,11 +213,12 @@ export class DeckService {
       }
       this.deckWindow.show()
       this.deckWindow.focus()
-      if (deck) this.deckWindow.webContents.send('deck:open-in-editor', deck)
+      if (deck) this.deckWindow.webContents.send('deck:open-in-editor', deck, returnToMain ?? false)
       return
     }
 
     this.pendingEditDeck = deck
+    this.pendingReturnToMain = returnToMain ?? false
 
     this.deckWindow = new BrowserWindow({
       width: 1280,
@@ -241,6 +243,7 @@ export class DeckService {
     this.deckWindow.on('closed', () => {
       this.deckWindow = null
       this.pendingEditDeck = null
+      this.pendingReturnToMain = false
     })
 
     this.deckWindow.webContents.setWindowOpenHandler((details) => {
@@ -256,10 +259,16 @@ export class DeckService {
       })
     }
   }
-  public consumePendingDeckToEdit(): DeckData | null {
+  public consumePendingDeckToEdit(): { deck: DeckData | null; returnToMain: boolean } {
     const deck = this.pendingEditDeck
+    const returnToMain = this.pendingReturnToMain
     this.pendingEditDeck = null
-    return deck
+    this.pendingReturnToMain = false
+    return { deck, returnToMain }
+  }
+  public isDeckEditorSender(sender: WebContents): boolean {
+    const win = this.deckWindow
+    return !!win && !win.isDestroyed() && win.webContents === sender
   }
   public async saveDeckFile(
     deck: DeckData,

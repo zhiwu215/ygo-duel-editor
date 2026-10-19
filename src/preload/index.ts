@@ -195,7 +195,8 @@ const api: IpcApi = {
     ipcRenderer.invoke('window:open-deck-editor', deckId, createNew),
   consumePendingDeckToEdit: () => ipcRenderer.invoke('deck:consume-pending-edit'),
   onOpenDeckInEditor: (callback) => {
-    const handler = (_: unknown, deck: DeckData): void => callback(deck)
+    const handler = (_: unknown, deck: DeckData, returnToMain: boolean): void =>
+      callback(deck, returnToMain)
     ipcRenderer.on('deck:open-in-editor', handler)
     return () => {
       ipcRenderer.removeListener('deck:open-in-editor', handler)

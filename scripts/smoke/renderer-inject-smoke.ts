@@ -165,7 +165,7 @@ async function main(): Promise<void> {
   await cdbService.ready()
 
   useDuelStore.setState((prev) => ({ ...prev, state: buildPuzzle() }))
-  useDuelEngineStore.getState().stopEngine(false)
+  useDuelEngineStore.getState().stopEngine()
   await useDuelEngineStore.getState().startEngine()
   assert(useDuelEngineStore.getState().isInitialized, 'startEngine 后引擎应处于激活状态')
   assert(useDuelEngineStore.getState().error === null, 'startEngine 不应报错')

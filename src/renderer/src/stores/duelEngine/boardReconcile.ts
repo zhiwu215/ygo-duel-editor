@@ -1,5 +1,6 @@
 import { CardLocation, DuelPhase, EngineBoardState, resolveEngineCardStats } from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
+import { pauseAutoRecording, resumeAutoRecording } from '../duel/recordingGate'
 import { getEditorId, registerIdentity, toEditorToEngineMap } from './identityMap'
 
 function mapPhaseToDuelPhase(phase: number): DuelPhase {
@@ -16,9 +17,11 @@ export function applyEngineWrite(apply: () => void): void {
   const duelStore = useDuelStore.getState()
   const prevState = duelStore.state
   duelStore.pauseUndoTracking()
+  pauseAutoRecording()
   try {
     apply()
   } finally {
+    resumeAutoRecording()
     duelStore.resumeAndPushUndo(structuredClone(prevState))
   }
 }

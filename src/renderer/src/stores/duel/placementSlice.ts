@@ -12,6 +12,7 @@ import { alertDialog } from '../useDialogStore'
 import { resolveCardName } from '../../utils/cardNames'
 import { FIELD_ZONE_SEQ, isFieldSpellCard } from './setupSlice'
 import type { DuelStore } from './types'
+import { isAutoRecordingPaused } from './recordingGate'
 
 export type PendingPlacementMode = 'ACTIVATE' | 'SET' | 'SUMMON'
 
@@ -466,7 +467,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       const nextSteps = [...(prev.state.steps || [])]
       let nextChain = prev.currentChain
 
-      if (prev.isAutoRecording) {
+      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
         const lastStep = nextSteps[nextSteps.length - 1]
         const isJustDropped =
           lastStep &&

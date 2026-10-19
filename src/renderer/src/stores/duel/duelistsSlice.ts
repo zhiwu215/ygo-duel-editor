@@ -10,6 +10,7 @@ import {
 import { createLpFlash } from './lpSlice'
 import type { DuelStore } from './types'
 import { turnOrderOf } from '../../utils/duelistNames'
+import { isAutoRecordingPaused } from './recordingGate'
 
 export interface DuelistsSlice {
   expandedDuelistId: string | null
@@ -146,7 +147,7 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
       if (updatedLp !== undefined) {
         const oldLp = target ? target.lp : (players[targetTeam]?.lp ?? 8000)
         const diff = Math.abs(updatedLp - oldLp)
-        if (prev.isAutoRecording && diff > 0) {
+        if (prev.isAutoRecording && !isAutoRecordingPaused() && diff > 0) {
           const isDamage = updatedLp < oldLp
           const roleName = target?.name || (targetTeam === 0 ? '我方' : '对方')
           nextSteps = [

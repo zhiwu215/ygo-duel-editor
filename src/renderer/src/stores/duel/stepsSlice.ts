@@ -8,6 +8,7 @@ import {
 } from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
 import type { DuelStore } from './types'
+import { isAutoRecordingPaused } from './recordingGate'
 
 export interface StepsSlice {
   activeRightTab: 'search' | 'steps'
@@ -76,7 +77,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     set((prev) => {
       if (prev.currentChain === 0) return prev
       let nextSteps = prev.state.steps || []
-      if (prev.isAutoRecording) {
+      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
         nextSteps = [
           ...nextSteps,
           {
@@ -104,7 +105,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
 
       if (curIdx < phases.length - 1) {
         const targetPhase = phases[curIdx + 1]
-        if (prev.isAutoRecording) {
+        if (prev.isAutoRecording && !isAutoRecordingPaused()) {
           const phaseLabel =
             targetPhase === 'DP'
               ? '抽卡阶段'
@@ -140,7 +141,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         const nextTurn = prev.currentTurn + 1
         const nextActive = (prev.activeTurnPlayer === 0 ? 1 : 0) as 0 | 1
         const pName = nextActive === 0 ? '我方' : '对方'
-        if (prev.isAutoRecording) {
+        if (prev.isAutoRecording && !isAutoRecordingPaused()) {
           nextSteps = [
             ...nextSteps,
             {
@@ -174,7 +175,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
       const nextActive = (prev.activeTurnPlayer === 0 ? 1 : 0) as 0 | 1
       const pName = nextActive === 0 ? '我方' : '对方'
       let nextSteps = prev.state.steps || []
-      if (prev.isAutoRecording) {
+      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
         nextSteps = [
           ...nextSteps,
           {

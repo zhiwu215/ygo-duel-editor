@@ -9,6 +9,7 @@ import {
 } from '@shared/index'
 import { resolveCardName } from '../../utils/cardNames'
 import type { DuelStore } from './types'
+import { isAutoRecordingPaused } from './recordingGate'
 
 export interface OverlaySlice {
   addOverlayMaterial: (targetInstanceId: string, matCode: number) => void
@@ -94,7 +95,7 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
       })
 
       let nextSteps = prev.state.steps || []
-      if (prev.isAutoRecording) {
+      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
         const hostCard = prev.state.cards.find((c) => c.instanceId === targetInstanceId)
         const pName = hostCard?.controller === 0 ? '我方' : '对方'
         nextSteps = [
@@ -208,7 +209,7 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
       ]
 
       let nextSteps = prev.state.steps || []
-      if (prev.isAutoRecording) {
+      if (prev.isAutoRecording && !isAutoRecordingPaused()) {
         const pName = host.controller === 0 ? '我方' : '对方'
         const hostName = resolveCardName(host.code)
         nextSteps = [

@@ -63,14 +63,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
 
   const { canUndo, canRedo, undo, redo } = useEngineAwareUndoRedo()
 
-  const handleToggleEngine = useCallback((): void => {
-    if (isEngineActive) {
-      useDuelEngineStore.getState().stopEngine()
-    } else {
-      void useDuelEngineStore.getState().startEngine()
-    }
-  }, [isEngineActive])
-
   const handleResetDuel = useCallback((): void => {
     void confirmDialog({
       title: '清空重置局面',
@@ -113,7 +105,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     onExportSession,
     onImportSession,
     isEngineActive,
-    onToggleEngine: handleToggleEngine,
     canUndo,
     canRedo,
     onUndo: undo,

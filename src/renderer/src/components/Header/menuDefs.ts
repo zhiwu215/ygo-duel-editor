@@ -19,8 +19,7 @@ import {
   SquareStack,
   Library,
   Play,
-  Clapperboard,
-  ShieldCheck
+  Clapperboard
 } from 'lucide-react'
 
 interface MenuItemDef {
@@ -55,7 +54,6 @@ export interface MenuActions {
   onImportSession: () => void
 
   isEngineActive: boolean
-  onToggleEngine: () => void
 
   canUndo: boolean
   canRedo: boolean
@@ -115,11 +113,6 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           icon: Play,
           shortcut: 'Ctrl+T',
           action: actions.onTestInYgo
-        },
-        {
-          label: actions.isEngineActive ? '退出规则校验' : '启动规则校验 (ocgcore)',
-          icon: ShieldCheck,
-          action: actions.onToggleEngine
         },
         {
           label: '导入 Lua 脚本',

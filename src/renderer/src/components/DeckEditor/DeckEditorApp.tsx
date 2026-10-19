@@ -84,10 +84,6 @@ export const DeckEditorApp: React.FC = () => {
     [setHoveredCardId]
   )
 
-  const handleClearHover = useCallback((): void => {
-    setHoveredCardId(null)
-  }, [setHoveredCardId])
-
   const triggerFlash = useCallback((target: DeckFlashTarget): void => {
     setFlash(target)
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
@@ -157,6 +153,11 @@ export const DeckEditorApp: React.FC = () => {
   const stats = getStats()
 
   const detailCard = (hoveredCardId !== null ? cardDetails[hoveredCardId] : null) ?? selectedCard
+  const detailCardInDeck =
+    detailCard &&
+    (deck.main.includes(detailCard.id) ||
+      deck.extra.includes(detailCard.id) ||
+      deck.side.includes(detailCard.id))
 
   const browsedGroup = browsedCategory === NONE_GROUP_VALUE ? '' : browsedCategory
 
@@ -252,6 +253,11 @@ export const DeckEditorApp: React.FC = () => {
           <DeckDetailCard
             card={detailCard}
             isCover={detailCard ? deck.coverCard === detailCard.id : false}
+            onToggleCover={
+              detailCard && detailCardInDeck
+                ? () => setDeckCover(deck.coverCard === detailCard.id ? undefined : detailCard.id)
+                : undefined
+            }
           />
 
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -267,12 +273,6 @@ export const DeckEditorApp: React.FC = () => {
                   onSelectCard={handleSelectCard}
                   onHoverCard={handleHoverCard}
                   onRemoveCard={removeCard}
-                  onSetCover={(code) => {
-                    setDeckCover(code)
-                    setSelectedCard(cardDetails[code] ?? null)
-                    handleClearHover()
-                  }}
-                  onClearCover={() => setDeckCover(undefined)}
                 />
 
                 {rejectMessage && (

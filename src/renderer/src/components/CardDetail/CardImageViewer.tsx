@@ -1,20 +1,25 @@
 import React from 'react'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import { X, RotateCcw } from 'lucide-react'
+import { X, RotateCcw, ImageIcon, Check } from 'lucide-react'
 import { Dialog, DialogContent } from '../ui/dialog'
 import { CardImage } from '../ui/CardImage'
 import { useImagePanZoom } from '../../hooks/useImagePanZoom'
+import { cn } from '../../lib/utils'
 
 interface CardImageViewerProps {
   cardCode: number
   cardName: string
   onClose: () => void
+  isCover?: boolean
+  onToggleCover?: () => void
 }
 
 export const CardImageViewer: React.FC<CardImageViewerProps> = ({
   cardCode,
   cardName,
-  onClose
+  onClose,
+  isCover,
+  onToggleCover
 }) => {
   const {
     imageZoom,
@@ -58,6 +63,30 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
             </div>
           </div>
           <div className="flex flex-col items-center gap-2">
+            {onToggleCover && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={onToggleCover}
+                      className={cn(
+                        'h-8 px-3 rounded-full bg-black/50 hover:bg-black/80 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors border border-white/15 cursor-pointer',
+                        isCover ? 'text-emerald-400' : 'text-white/80 hover:text-white'
+                      )}
+                    >
+                      {isCover ? (
+                        <Check className="w-3.5 h-3.5" />
+                      ) : (
+                        <ImageIcon className="w-3.5 h-3.5" />
+                      )}
+                      <span>{isCover ? '取消卡组封面' : '设为卡组封面'}</span>
+                    </button>
+                  }
+                />
+                <TooltipContent>{isCover ? '取消卡组封面' : '设为卡组封面'}</TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger
                 render={

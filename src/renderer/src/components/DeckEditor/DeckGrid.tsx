@@ -1,14 +1,9 @@
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef } from 'react'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import { CdbCard, DeckData, DeckSection, DeckStats } from '@shared/index'
 import { DeckCardItem } from './DeckCardItem'
-import { resolveCardName } from '../../utils/cardNames'
 import { cn } from '../../lib/utils'
-import { Check, ImageIcon, Trash2 } from 'lucide-react'
-import { Button } from '../ui/button'
-import { Separator } from '../ui/separator'
-import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { useDeckGridLayout, ZONE_STACK_GAP } from '../../hooks/useDeckGridLayout'
 import { DeckZone, ZoneHeader, type TypeTally } from './DeckZoneHeader'
 import { DeckZoneFeedback } from './DeckZoneFeedback'
@@ -49,8 +44,6 @@ interface DeckGridProps {
   onSelectCard: (card: CdbCard | null) => void
   onHoverCard: (code: number | null) => void
   onRemoveCard: (section: DeckSection, index: number) => void
-  onSetCover: (code: number) => void
-  onClearCover: () => void
 }
 
 const ZONE_CLASS = 'flex flex-col gap-1.5'
@@ -64,21 +57,11 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
   flash,
   onSelectCard,
   onHoverCard,
-  onRemoveCard,
-  onSetCover,
-  onClearCover
+  onRemoveCard
 }) => {
-  const [menu, setMenu] = useState<{ code: number; x: number; y: number } | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const { gridStyle, cardHeight, gridWidth } = useDeckGridLayout(scrollRef)
-
-  const handleOpenMenu = useCallback((code: number, x: number, y: number): void => {
-    setMenu({ code, x, y })
-  }, [])
-  const handleClearMenu = useCallback((): void => setMenu(null), [])
-
-  useDismissOnOutside(null, Boolean(menu), handleClearMenu)
 
   const sortableCards = useMemo(
     () => ({
@@ -123,7 +106,7 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
                   isFlash={flash?.section === section && flash?.index === index}
                   onSelect={onSelectCard}
                   onHover={onHoverCard}
-                  onOpenMenu={handleOpenMenu}
+                  onRemove={onRemoveCard}
                 />
               ))}
             </div>
@@ -199,69 +182,6 @@ export const DeckGrid: React.FC<DeckGridProps> = ({
         </ScrollArea>
       </div>
       <DeckZoneFeedback cardDetails={cardDetails} isDragActive={isDragActive} />
-
-      {menu &&
-        (() => {
-          const located = (
-            [
-              ['main', deck.main],
-              ['extra', deck.extra],
-              ['side', deck.side]
-            ] as Array<[DeckSection, number[]]>
-          ).find(([, codes]) => codes.includes(menu.code))
-          if (!located) return null
-          const [section, codes] = located
-          const index = codes.indexOf(menu.code)
-          const card = cardDetails[menu.code]
-          return (
-            <div
-              style={{
-                left: Math.min(menu.x, window.innerWidth - 190),
-                top: Math.min(menu.y, window.innerHeight - 150)
-              }}
-              className="fixed z-[60] min-w-44 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44">
-                {card?.name || resolveCardName(menu.code)}
-              </div>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (coverCard === menu.code) onClearCover()
-                  else onSetCover(menu.code)
-                  setMenu(null)
-                }}
-                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
-              >
-                {coverCard === menu.code ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                ) : (
-                  <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                )}
-                <span>{coverCard === menu.code ? '取消卡组封面' : '设为卡组封面'}</span>
-              </Button>
-
-              <Separator className="my-1" />
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  onRemoveCard(section, index)
-                  setMenu(null)
-                }}
-                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>移出卡组</span>
-              </Button>
-            </div>
-          )
-        })()}
     </div>
   )
 }

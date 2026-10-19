@@ -19,9 +19,10 @@ import { CardImageViewer } from '../CardDetail/CardImageViewer'
 interface DeckDetailCardProps {
   card: CdbCard | null
   isCover?: boolean
+  onToggleCover?: () => void
 }
 
-export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover }) => {
+export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, onToggleCover }) => {
   const { openEdit, remove } = useCustomCardStore()
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
   const [copied, setCopied] = useState<boolean>(false)
@@ -207,6 +208,8 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover })
           cardCode={card.id}
           cardName={card.name}
           onClose={() => setShowImageModal(false)}
+          isCover={isCover}
+          onToggleCover={onToggleCover}
         />
       )}
     </>

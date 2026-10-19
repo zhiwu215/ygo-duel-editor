@@ -2,7 +2,7 @@ import React from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CdbCard, DeckSection } from '@shared/index'
 import { CardRowItem } from '../CardSearch/CardRowItem'
-import { DeckDragSourceData, deckDragGuard } from './deckDnd'
+import { DeckDragSourceData } from './deckDnd'
 import { cn } from '../../lib/utils'
 
 interface SearchCardItemProps {
@@ -11,7 +11,6 @@ interface SearchCardItemProps {
   onSelectCard: (card: CdbCard | null) => void
   onAddCard: (card: CdbCard, section?: DeckSection) => boolean
   onToggleFavorite: (code: number) => void
-  onOpenMenu: (card: CdbCard, x: number, y: number) => void
 }
 
 export const SearchCardItem: React.FC<SearchCardItemProps> = ({
@@ -19,22 +18,16 @@ export const SearchCardItem: React.FC<SearchCardItemProps> = ({
   fav,
   onSelectCard,
   onAddCard,
-  onToggleFavorite,
-  onOpenMenu
+  onToggleFavorite
 }) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `search:${card.id}`,
     data: { source: 'search', card } as DeckDragSourceData
   })
 
-  const handleClick = (): void => {
-    if (Date.now() - deckDragGuard.lastDragEndAt < 250) return
-    onAddCard(card)
-  }
-
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault()
-    onOpenMenu(card, e.clientX, e.clientY)
+    onAddCard(card)
   }
 
   return (
@@ -42,7 +35,6 @@ export const SearchCardItem: React.FC<SearchCardItemProps> = ({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      onClick={handleClick}
       onContextMenu={handleContextMenu}
       className={cn(isDragging && 'opacity-40')}
     >

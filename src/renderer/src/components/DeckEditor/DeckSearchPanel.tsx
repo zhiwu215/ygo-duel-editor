@@ -1,26 +1,22 @@
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useDndContext, useDroppable } from '@dnd-kit/core'
-import { canPlaceInSection, CdbCard, DeckSection } from '@shared/index'
+import { CdbCard, DeckSection } from '@shared/index'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
-import { Button } from '../ui/button'
-import { Search, Star, Layers, Loader2, Minus, Plus } from 'lucide-react'
+import { Search, Star, Layers, Loader2, Minus } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { SORT_OPTIONS } from '../CardSearch/sortOptions'
 import { cn } from '../../lib/utils'
-import { DeckDragSourceData, DeckDropTargetData, DECK_SECTION_NAMES } from './deckDnd'
+import { DeckDragSourceData, DeckDropTargetData } from './deckDnd'
 import { SearchCardItem } from './SearchCardItem'
 import { useFavoriteCards } from '../../hooks/useFavoriteCards'
 import { useInfiniteSentinel } from '../../hooks/useInfiniteSentinel'
-import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 
 interface DeckSearchPanelProps {
   onSelectCard: (card: CdbCard | null) => void
   onAddCard: (card: CdbCard, section?: DeckSection) => boolean
 }
-
-const ADD_SECTIONS: DeckSection[] = ['main', 'extra', 'side']
 
 const SearchPanelDropZone: React.FC<{ className?: string; children: React.ReactNode }> = ({
   className,
@@ -54,7 +50,6 @@ const DeckRemoveFeedback: React.FC = () => {
 
 export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, onAddCard }) => {
   const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search')
-  const [cardMenu, setCardMenu] = useState<{ card: CdbCard; x: number; y: number } | null>(null)
 
   const {
     results,
@@ -83,14 +78,6 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
   }, [search])
 
   useInfiniteSentinel(sentinelRef, activeTab === 'search' && hasMore, loadMore, results.length)
-
-  const closeCardMenu = useCallback((): void => setCardMenu(null), [])
-
-  useDismissOnOutside(null, Boolean(cardMenu), closeCardMenu)
-
-  const handleOpenMenu = useCallback((card: CdbCard, x: number, y: number): void => {
-    setCardMenu({ card, x, y })
-  }, [])
 
   const currentDisplayList = activeTab === 'search' ? results : favoriteCards
   const showEmptyState =
@@ -201,7 +188,6 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
                     onSelectCard={onSelectCard}
                     onAddCard={onAddCard}
                     onToggleFavorite={toggleFavorite}
-                    onOpenMenu={handleOpenMenu}
                   />
                 ))}
               </div>
@@ -220,42 +206,6 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
       </ScrollArea>
 
       <DeckRemoveFeedback />
-
-      {cardMenu && (
-        <div
-          style={{
-            left: Math.min(cardMenu.x, window.innerWidth - 190),
-            top: Math.min(cardMenu.y, window.innerHeight - 150)
-          }}
-          className="fixed z-[60] min-w-44 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44">
-            {cardMenu.card.name}
-          </div>
-
-          {ADD_SECTIONS.map((section) => {
-            const disabled = !canPlaceInSection(cardMenu.card.type, section)
-            return (
-              <Button
-                key={section}
-                variant="ghost"
-                size="sm"
-                disabled={disabled}
-                onClick={() => {
-                  onAddCard(cardMenu.card, section)
-                  setCardMenu(null)
-                }}
-                className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>加入{DECK_SECTION_NAMES[section]}</span>
-              </Button>
-            )
-          })}
-        </div>
-      )}
     </SearchPanelDropZone>
   )
 }

@@ -18,7 +18,7 @@ interface DeckCardItemProps {
   isFlash: boolean
   onSelect: (card: CdbCard | null) => void
   onHover: (code: number | null) => void
-  onOpenMenu: (code: number, x: number, y: number) => void
+  onRemove: (section: DeckSection, index: number) => void
 }
 
 const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
@@ -31,7 +31,7 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
   isFlash,
   onSelect,
   onHover,
-  onOpenMenu
+  onRemove
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortableId,
@@ -55,7 +55,7 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
   const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault()
     e.stopPropagation()
-    onOpenMenu(code, e.clientX, e.clientY)
+    onRemove(section, index)
   }
 
   return (
@@ -100,7 +100,7 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
         }
       />
       <TooltipContent>
-        {card ? `${card.name} (拖动调整，右键更多)` : `卡密: ${code} (拖动调整，右键更多)`}
+        {card ? `${card.name} (拖动调整，右键移出)` : `卡密: ${code} (拖动调整，右键移出)`}
       </TooltipContent>
     </Tooltip>
   )

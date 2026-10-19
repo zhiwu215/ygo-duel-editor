@@ -2,6 +2,7 @@ import {
   CardLocation,
   DuelActionType,
   DuelStep,
+  ManualOp,
   createLightweightSnapshot,
   createStepId
 } from '@shared/index'
@@ -14,6 +15,7 @@ export interface EditorStepInput {
   controller?: 0 | 1
   cardName?: string
   description: string
+  op?: ManualOp
 }
 
 export function recordEditorStep(input: EditorStepInput): void {
@@ -29,6 +31,7 @@ export function recordEditorStep(input: EditorStepInput): void {
     actionType: input.actionType,
     cardName: input.cardName,
     description: input.description,
+    manualOps: input.op ? [input.op] : undefined,
     boardAfter: createLightweightSnapshot(duel.state.cards)
   }
 

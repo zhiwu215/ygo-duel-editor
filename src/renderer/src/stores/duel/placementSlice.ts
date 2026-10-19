@@ -157,6 +157,7 @@ export interface PlacementSlice {
   ) => void
   moveCards: (moves: MoveCardParams[]) => void
   removeCard: (instanceId: string) => void
+  clearPile: (controller: 0 | 1, location: number) => void
   updateCardPosition: (instanceId: string, position: number) => void
 
   reorderPileCards: (
@@ -306,7 +307,17 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       actionType: 'PLACE',
       controller,
       cardName: card.name,
-      description: `将【${card.name}】放置到${LOCATION_NAMES[location] ?? '场上'}`
+      description: `将【${card.name}】放置到${LOCATION_NAMES[location] ?? '场上'}`,
+      op: {
+        type: 'add',
+        instanceId: placedInstanceId,
+        code: card.id,
+        controller,
+        location,
+        sequence,
+        position: customPos,
+        duelistId
+      }
     })
   },
 
@@ -333,7 +344,8 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         cardName: name,
         description: name
           ? `将【${name}】移至${LOCATION_NAMES[toLocation] ?? '区域'}`
-          : `移动卡片至${LOCATION_NAMES[toLocation] ?? '区域'}`
+          : `移动卡片至${LOCATION_NAMES[toLocation] ?? '区域'}`,
+        op: { type: 'move', instanceId, toLocation, toSequence, toController, customPos }
       })
     }
   },
@@ -372,7 +384,8 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         cardName: name,
         description: name
           ? `将【${name}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
-          : `移动卡片至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
+          : `移动卡片至${LOCATION_NAMES[m.toLocation] ?? '区域'}`,
+        op: { type: 'move', ...m }
       })
     }
   },
@@ -387,6 +400,35 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       selectedCardId: prev.selectedCardId === instanceId ? null : prev.selectedCardId,
       hoveredInstanceId: prev.hoveredInstanceId === instanceId ? null : prev.hoveredInstanceId
     }))
+  },
+
+  clearPile: (controller, location) => {
+    const pileCards = get().state.cards.filter(
+      (c) => c.controller === controller && c.location === location
+    )
+    if (pileCards.length === 0) return
+    const staging = useStagingStore.getState()
+    for (const card of pileCards) {
+      staging.pushOp({ type: 'remove', instanceId: card.instanceId })
+    }
+    const removedIds = new Set(pileCards.map((c) => c.instanceId))
+    set((prev) => ({
+      state: {
+        ...prev.state,
+        cards: prev.state.cards.filter((c) => !removedIds.has(c.instanceId))
+      },
+      selectedCardId:
+        prev.selectedCardId && removedIds.has(prev.selectedCardId) ? null : prev.selectedCardId,
+      hoveredInstanceId:
+        prev.hoveredInstanceId && removedIds.has(prev.hoveredInstanceId)
+          ? null
+          : prev.hoveredInstanceId
+    }))
+    recordEditorStep({
+      actionType: 'EVENT',
+      controller,
+      description: `清空${LOCATION_NAMES[location] ?? '卡堆'}（${pileCards.length} 张）`
+    })
   },
 
   updateCardPosition: (instanceId, position) => {
@@ -411,12 +453,30 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
     if (oldPos !== undefined && oldPos !== position) {
       const card = get().state.cards.find((c) => c.instanceId === instanceId)
       if (card) {
-        recordEditorStep({
-          actionType: 'CHANGE_POS',
-          controller: card.controller,
-          cardName: card.card?.name,
-          description: card.card?.name ? `【${card.card.name}】变更表示形式` : '变更表示形式'
-        })
+        const name = card.card?.name
+        const isSpellTrapZone =
+          card.location === CardLocation.SZONE ||
+          card.location === CardLocation.FZONE ||
+          card.location === CardLocation.PZONE
+        const isActivation =
+          isSpellTrapZone && oldPos === CardPosition.FACEDOWN && position === CardPosition.FACEUP
+        recordEditorStep(
+          isActivation
+            ? {
+                actionType: 'ACTIVATE',
+                controller: card.controller,
+                cardName: name,
+                description: name ? `发动【${name}】` : '发动魔法陷阱',
+                op: { type: 'position', instanceId, position }
+              }
+            : {
+                actionType: 'CHANGE_POS',
+                controller: card.controller,
+                cardName: name,
+                description: name ? `【${name}】变更表示形式` : '变更表示形式',
+                op: { type: 'position', instanceId, position }
+              }
+        )
       }
     }
   },

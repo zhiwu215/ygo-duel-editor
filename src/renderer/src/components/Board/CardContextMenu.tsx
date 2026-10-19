@@ -7,7 +7,7 @@ import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
 import { useStagingStore } from '../../stores/useStagingStore'
-import { CardLocation } from '@shared/index'
+import { CardLocation, LOCATION_NAMES } from '@shared/index'
 import { deriveCardEngineActions } from '../../utils/engineActions'
 import { resolveCardName } from '../../utils/cardNames'
 import {
@@ -28,7 +28,7 @@ export const CardContextMenu: React.FC = () => {
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
-  const { removeCard, state } = useDuelStore()
+  const { removeCard, clearPile, state } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
@@ -266,11 +266,19 @@ export const CardContextMenu: React.FC = () => {
         <Button
           variant="destructive"
           size="sm"
-          onClick={act(() => removeCard(card.instanceId))}
+          onClick={act(() =>
+            isPileZone ? clearPile(card.controller, card.location) : removeCard(card.instanceId)
+          )}
           className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal"
         >
           <Trash2 className="w-3.5 h-3.5" />
-          <span>{isHand ? '从手牌移除' : isPileZone ? '从卡堆移除' : '从场上移除'}</span>
+          <span>
+            {isHand
+              ? '从手牌移除'
+              : isPileZone
+                ? `清空${LOCATION_NAMES[card.location] ?? '卡堆'} (${pileCount})`
+                : '从场上移除'}
+          </span>
         </Button>
       )}
     </div>

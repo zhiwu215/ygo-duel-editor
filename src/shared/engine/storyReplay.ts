@@ -154,6 +154,7 @@ function applyManualOpToState(state: ManualReplayState, op: ManualOp): void {
     return
   }
   if (op.type === 'add') {
+    if (op.instanceId && board.some((c) => c.instanceId === op.instanceId)) return
     board.push({
       instanceId: op.instanceId ?? `replay_${op.code}_${board.length}`,
       code: op.code,

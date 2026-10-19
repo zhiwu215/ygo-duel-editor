@@ -1,4 +1,4 @@
-import { CardLocation, FieldCard } from '@shared/index'
+import { FieldCard } from '@shared/index'
 
 export function getPileTopCard(
   cards: FieldCard[],
@@ -13,17 +13,14 @@ export function getPileTopCard(
       c.location === location &&
       (ownerScope ? c.duelistId === ownerScope : true)
   )
-  if (location === CardLocation.DECK) {
-    return pile.reduce<FieldCard | undefined>(
-      (top, c) =>
-        top === undefined ||
-        (isEngineActive ? c.sequence > top.sequence : c.sequence < top.sequence)
-          ? c
-          : top,
-      undefined
-    )
-  }
-  return pile[pile.length - 1]
+  return pile.reduce<FieldCard | undefined>(
+    (top, c) =>
+      top === undefined ||
+      (isEngineActive ? c.sequence > top.sequence : c.sequence < top.sequence)
+        ? c
+        : top,
+    undefined
+  )
 }
 
 export function getPileCount(

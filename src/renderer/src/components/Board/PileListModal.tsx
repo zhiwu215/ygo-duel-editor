@@ -82,9 +82,7 @@ const PileListContent: React.FC = () => {
           (ownerScope ? c.duelistId === ownerScope : true)
       )
       .sort((a, b) =>
-        target.location === CardLocation.DECK && isEngineActive
-          ? b.sequence - a.sequence
-          : a.sequence - b.sequence
+        isEngineActive ? b.sequence - a.sequence : a.sequence - b.sequence
       )
   }, [state.cards, state.duelists, activeDuelistId, target, isEngineActive])
 

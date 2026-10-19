@@ -291,7 +291,7 @@ export const CardContextMenu: React.FC = () => {
         </>
       )}
 
-      {(!isEngine || stagingActive) && (
+      {(!isEngine || stagingActive) && !isModalOpenForThisZone && (
         <Button
           variant="destructive"
           size="sm"

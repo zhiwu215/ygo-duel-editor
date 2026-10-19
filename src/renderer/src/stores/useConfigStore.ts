@@ -15,7 +15,7 @@ interface ConfigStoreState {
   removeExtraCdb: (cdbPath: string) => Promise<void>
   setExtraCdbEnabled: (cdbPath: string, enabled: boolean) => Promise<void>
   selectProjectsDir: () => Promise<string | null>
-  setTheme: (theme: 'dark' | 'light') => Promise<void>
+  setTheme: (theme: ThemePreference) => Promise<void>
   toggleTheme: () => Promise<void>
 
   selectDataDir: (migrate: boolean) => Promise<boolean>
@@ -27,15 +27,24 @@ interface ConfigStoreState {
   setRuleCheckEnabled: (enabled: boolean) => Promise<void>
 }
 
+type ThemePreference = AppConfig['theme']
+
 let configUpdatedSubscribed = false
 
-function applyTheme(theme: 'dark' | 'light'): void {
-  document.documentElement.classList.toggle('dark', theme === 'dark')
+const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)')
+
+function resolveTheme(theme: ThemePreference): 'dark' | 'light' {
+  return theme === 'system' ? (systemDarkQuery.matches ? 'dark' : 'light') : theme
+}
+
+function applyTheme(theme: ThemePreference): void {
+  document.documentElement.classList.toggle('dark', resolveTheme(theme) === 'dark')
+  systemDarkQuery.onchange = theme === 'system' ? () => applyTheme('system') : null
 }
 
 export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   config: {
-    theme: 'light'
+    theme: 'system'
   },
   isLoaded: false,
   dbReady: null,
@@ -61,7 +70,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     }
     try {
       const cfg = await window.api.getConfig()
-      const theme = cfg.theme || 'light'
+      const theme = cfg.theme || 'system'
       applyTheme(theme)
       set({ config: { ...cfg, theme }, isLoaded: true })
       await get().refreshCdbStatus()
@@ -71,15 +80,14 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     }
   },
 
-  setTheme: async (theme: 'dark' | 'light') => {
+  setTheme: async (theme: ThemePreference) => {
     applyTheme(theme)
     set((state) => ({ config: { ...state.config, theme } }))
     await window.api.saveConfig({ theme })
   },
 
   toggleTheme: async () => {
-    const currentTheme = get().config.theme || 'light'
-    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark'
+    const nextTheme = resolveTheme(get().config.theme || 'system') === 'dark' ? 'light' : 'dark'
     await get().setTheme(nextTheme)
   },
 

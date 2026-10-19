@@ -16,7 +16,7 @@ export interface AppConfig {
 
   disabledCdbPaths?: string[]
 
-  theme: 'dark' | 'light'
+  theme: 'dark' | 'light' | 'system'
 
   favorites?: number[]
 

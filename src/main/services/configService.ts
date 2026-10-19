@@ -7,7 +7,7 @@ import { broadcastToWindows } from './broadcast'
 export class ConfigService {
   private configPath: string
   private config: AppConfig = {
-    theme: 'light'
+    theme: 'system'
   }
 
   constructor() {

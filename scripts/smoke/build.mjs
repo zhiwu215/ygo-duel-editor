@@ -58,7 +58,10 @@ const entries = [
   'provenance-smoke',
   'session-doc-smoke',
   'yrp-export-smoke',
-  'replay-import-smoke'
+  'replay-import-smoke',
+  'hand-idle-smoke',
+  'hand-menu-smoke',
+  'deck-dup-smoke'
 ]
 
 let failed = 0

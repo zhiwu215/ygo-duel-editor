@@ -74,6 +74,28 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
     if (card.location === CardLocation.FZONE) takenSzone.add(FIELD_ZONE_SEQUENCE)
   }
 
+  const seeds: { key: string; code: number; instanceId: string }[] = []
+  const createEngineCard = (
+    puzzleCard: (typeof fieldCards)[number],
+    location: number,
+    sequence: number,
+    position: number
+  ): void => {
+    state.duel!.newCard({
+      code: puzzleCard.code,
+      owner: puzzleCard.owner ?? puzzleCard.controller,
+      player: puzzleCard.controller,
+      location,
+      sequence,
+      position
+    })
+    seeds.push({
+      key: `${puzzleCard.controller}:${location}:${sequence}`,
+      code: puzzleCard.code,
+      instanceId: puzzleCard.instanceId
+    })
+  }
+
   for (const card of fieldCards) {
     if (card.location === CardLocation.DECK || card.location === CardLocation.EXTRA) {
       continue
@@ -85,14 +107,7 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
         continue
       }
       takenSzone.add(seq)
-      newEngineCard(state, {
-        code: card.code,
-        owner: card.owner ?? card.controller,
-        player: card.controller,
-        location: CardLocation.SZONE,
-        sequence: seq,
-        position: OcgcoreScriptConstants.POS_FACEUP
-      })
+      createEngineCard(card, CardLocation.SZONE, seq, OcgcoreScriptConstants.POS_FACEUP)
       continue
     }
     const isFieldZone = card.location === CardLocation.FZONE
@@ -102,14 +117,12 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
         : isFieldZone
           ? FIELD_ZONE_SEQUENCE
           : card.sequence
-    newEngineCard(state, {
-      code: card.code,
-      owner: card.owner ?? card.controller,
-      player: card.controller,
-      location: isFieldZone ? CardLocation.SZONE : card.location,
+    createEngineCard(
+      card,
+      isFieldZone ? CardLocation.SZONE : card.location,
       sequence,
-      position: card.position
-    })
+      card.position
+    )
   }
 
   for (const location of [CardLocation.DECK, CardLocation.EXTRA]) {
@@ -118,14 +131,12 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
       .sort((a, b) => a.controller - b.controller || a.sequence - b.sequence)
     const pileIndex: [number, number] = [0, 0]
     for (const card of pile) {
-      newEngineCard(state, {
-        code: card.code,
-        owner: card.owner ?? card.controller,
-        player: card.controller,
-        location: card.location,
-        sequence: pileIndex[card.controller]++,
-        position: OcgcoreScriptConstants.POS_FACEDOWN_DEFENSE
-      })
+      createEngineCard(
+        card,
+        card.location,
+        pileIndex[card.controller]++,
+        OcgcoreScriptConstants.POS_FACEDOWN_DEFENSE
+      )
     }
   }
 
@@ -139,6 +150,7 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
     puzzleState.masterRule,
     Boolean(puzzleState.firstTurnAttack)
   )
+  state.fieldReader.seedIdentity(seeds)
   state.duel!.startDuel({ rule, flags })
   state.accumulatedLogs.push(`决斗开始！(MR${puzzleState.masterRule})`)
   if (unsupportedPendulum > 0) {

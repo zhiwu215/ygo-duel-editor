@@ -84,6 +84,14 @@ export class FieldReader {
       if (Number.isFinite(seq) && seq > this.idCounter) this.idCounter = seq
     }
   }
+
+  seedIdentity(entries: { key: string; code: number; instanceId: string }[]): void {
+    for (const entry of entries) {
+      this.identity.set(entry.key, { code: entry.code, instanceId: entry.instanceId })
+      const seq = Number(entry.instanceId.replace('card-', ''))
+      if (Number.isFinite(seq) && seq > this.idCounter) this.idCounter = seq
+    }
+  }
   readBoard(duel: OcgcoreDuel): EngineBoardState {
     let fieldInfo: ReturnType<OcgcoreDuel['queryFieldInfo']> | null = null
     try {

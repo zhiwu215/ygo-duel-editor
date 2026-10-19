@@ -20,6 +20,7 @@ interface CdbCardLike {
   name?: string
 }
 
+
 const cdbPath = process.env.YGO_SMOKE_CDB || 'E:/MyCardLibrary/ygopro/cards.cdb'
 
 let db: ReturnType<Awaited<typeof initSqlJs>>['Database'] extends infer T ? T : never
@@ -32,7 +33,7 @@ async function loadCdb(): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db = new (SQL as any).Database(fs.readFileSync(cdbPath))
   const stmt = db.prepare(
-    'SELECT id, ot, alias, setcode, type, atk, def, level, race, attribute, category FROM datas'
+    'SELECT d.id AS id, d.ot AS ot, d.alias AS alias, d.setcode AS setcode, d.type AS type, d.atk AS atk, d.def AS def, d.level AS level, d.race AS race, d.attribute AS attribute, d.category AS category, t.name AS name FROM datas d LEFT JOIN texts t ON t.id = d.id'
   )
   stmt.bind()
   while (stmt.step()) {
@@ -50,7 +51,8 @@ async function loadCdb(): Promise<void> {
         level: Number(row.level ?? 0),
         race: Number(row.race ?? 0),
         attribute: Number(row.attribute ?? 0),
-        category: Number(row.category ?? 0)
+        category: Number(row.category ?? 0),
+        name: row.name == null ? undefined : String(row.name)
       })
     }
   }

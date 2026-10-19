@@ -52,6 +52,8 @@
 | better-sqlite3    | 同步式 SQLite 客户端                       | https://github.com/WiseLibs/better-sqlite3          |
 | koishipro-core.js | YGOPro 决斗核心（ocgcore）的 WASM 封装     | https://github.com/purerosefallen/koishipro-core.js |
 | ygopro-msg-encode | YGOPro 决斗协议编解码库                    | https://github.com/purerosefallen/ygopro-msg-encode |
+| ygopro-yrp-encode | YGOPro 对局录像（YRP）文件编解码库         | https://www.npmjs.com/package/ygopro-yrp-encode     |
+| @cjser/lzma1      | 纯 JS 的 LZMA 压缩/解压（YRP 文件体压缩）  | https://www.npmjs.com/package/@cjser/lzma1          |
 | framer-motion     | React 动画库                               | https://motion.dev/                                 |
 | @dnd-kit          | React 拖拽交互套件                         | https://dndkit.com/                                 |
 | react-markdown    | Markdown 渲染组件（配合 remark-gfm）       | https://github.com/remarkjs/react-markdown          |

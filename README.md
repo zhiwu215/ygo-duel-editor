@@ -1,19 +1,5 @@
 # ygo决斗编辑器（YGO Duel Editor）
 
-> 注意：
->
-> 目前项目还没有发布正式版，所以会有很多问题，比如：AI功能没有完善、ui显示会有问题、ocg校验不够适配等
->
-> 所以现在只能作为一个拖动卡片布置到场上的编辑器
->
-> ***
->
-> 2026/10/13
->
-> 目前这个项目非常不完善
->
-> 这个ocgcore核心的部分，目前使用ocgcore-wasm，本项目未来要重构，现在作者暂停更新
-
 ## 使用场景
 
 - 残局布置
@@ -52,23 +38,23 @@
 
 ## 技术栈
 
-| 技术 | 说明 | 官网 |
-| --- | --- | --- |
-| Electron 39 | 跨平台桌面应用框架 | https://www.electronjs.org/ |
-| electron-vite 5 | Electron 项目的 Vite 集成与构建工具 | https://electron-vite.org/ |
-| React 19 | UI 框架 | https://react.dev/ |
-| TypeScript 5 | JavaScript 的类型化超集 | https://www.typescriptlang.org/ |
-| TailwindCSS 4 | 原子化 CSS 框架 | https://tailwindcss.com/ |
-| shadcn/ui | 无样式可复制组件库 | https://ui.shadcn.com/                     |
-| Zustand 5 | 轻量级状态管理 | https://zustand-demo.pmnd.rs/ |
-| zundo | Zustand 的撤销/重做中间件 | https://github.com/charkour/zundo |
-| better-sqlite3 | 同步式 SQLite 客户端 | https://github.com/WiseLibs/better-sqlite3 |
-| ocgcore-wasm | ocgcore 决斗引擎的 WebAssembly 移植 | https://github.com/n1xx1/ocgcore-wasm |
+| 技术              | 说明                                      | 官网                                                |
+| ----------------- | ----------------------------------------- | --------------------------------------------------- |
+| Electron 39       | 跨平台桌面应用框架                        | https://www.electronjs.org/                         |
+| electron-vite 5   | Electron 项目的 Vite 集成与构建工具       | https://electron-vite.org/                          |
+| React 19          | UI 框架                                   | https://react.dev/                                  |
+| TypeScript 5      | JavaScript 的类型化超集                   | https://www.typescriptlang.org/                     |
+| TailwindCSS 4     | 原子化 CSS 框架                           | https://tailwindcss.com/                            |
+| shadcn/ui         | 无样式可复制组件库                        | https://ui.shadcn.com/                              |
+| Zustand 5         | 轻量级状态管理                            | https://zustand-demo.pmnd.rs/                       |
+| zundo             | Zustand 的撤销/重做中间件                 | https://github.com/charkour/zundo                   |
+| better-sqlite3    | 同步式 SQLite 客户端                      | https://github.com/WiseLibs/better-sqlite3          |
+| ocgcore-wasm      | ocgcore 决斗引擎的 WebAssembly 移植       | https://github.com/n1xx1/ocgcore-wasm               |
 | ygopro-yrp-encode | YGOPro 录像(.yrp)编码库，用于导出对局回放 | https://github.com/purerosefallen/ygopro-yrp-encode |
-| @dnd-kit | React 拖拽交互套件 | https://dndkit.com/ |
-| Lucide React | 简洁的开源图标库 | https://lucide.dev/ |
-| electron-builder | Electron 应用打包工具 | https://www.electron.build/ |
-| Pi Coding Agent | Pi Agent 的 SDK | https://pi.dev/docs/latest/sdk |
+| @dnd-kit          | React 拖拽交互套件                        | https://dndkit.com/                                 |
+| Lucide React      | 简洁的开源图标库                          | https://lucide.dev/                                 |
+| electron-builder  | Electron 应用打包工具                     | https://www.electron.build/                         |
+| Pi Coding Agent   | Pi Agent 的 SDK                           | https://pi.dev/docs/latest/sdk                      |
 
 ## 开发
 

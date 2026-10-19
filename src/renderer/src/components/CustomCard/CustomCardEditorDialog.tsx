@@ -105,14 +105,14 @@ const CustomCardEditorBody: React.FC = () => {
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? closeEditor() : undefined)}>
-      <DialogContent className="sm:max-w-3xl max-h-[88vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto gap-3">
         <DialogHeader>
           <DialogTitle>{editingId !== null ? '编辑自建卡' : '新建自建卡'}</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-[170px_1fr] gap-4">
+        <div className="grid grid-cols-[140px_1fr] gap-4">
           <div className="flex flex-col gap-1.5 items-center">
-            <div className="aspect-[59/86] w-[170px] rounded-lg overflow-hidden border border-border/80 bg-black/40 shadow-md">
+            <div className="aspect-[59/86] w-[140px] rounded-lg overflow-hidden border border-border/80 bg-black/40 shadow-md">
               <img
                 src={previewSrc}
                 alt={form.name || '自建卡'}
@@ -182,7 +182,7 @@ const CustomCardEditorBody: React.FC = () => {
             <Textarea
               value={form.desc}
               onChange={(e) => setForm((f) => ({ ...f, desc: e.target.value }))}
-              className="min-h-20 text-xs resize-none"
+              className="min-h-14 text-xs resize-none"
             />
           </div>
 

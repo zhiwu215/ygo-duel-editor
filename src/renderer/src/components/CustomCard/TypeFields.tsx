@@ -54,17 +54,17 @@ export const TypeFields: React.FC<TypeFieldsProps> = ({
   return (
     <>
       <div className="flex flex-col gap-1">
-        <Label className="text-[11px] text-muted-foreground">卡名</Label>
+        <div className="flex items-center justify-between">
+          <Label className="text-[11px] text-muted-foreground">卡名</Label>
+          <span className="text-[11px] text-muted-foreground">
+            卡密 <span className="font-mono text-foreground/80">{editingId ?? '保存后自动生成'}</span>
+          </span>
+        </div>
         <Input
           value={form.name}
           onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          className="h-8 text-xs"
+          className="h-7 text-xs"
         />
-      </div>
-
-      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-        <span>卡密</span>
-        <span className="font-mono text-foreground/80">{editingId ?? '保存后自动生成'}</span>
       </div>
 
       <div className="flex flex-col gap-1">

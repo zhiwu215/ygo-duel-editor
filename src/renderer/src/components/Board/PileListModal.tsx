@@ -255,7 +255,6 @@ const PileListContent: React.FC = () => {
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
           <div className="flex items-center gap-2">
-            <IconComponent className="w-4 h-4 text-blue-500" />
             <h2 className="font-bold text-sm tracking-tight flex items-center gap-1.5">
               <span>{title}</span>
               <Badge variant="secondary" className="font-mono text-xs px-1.5 py-0 h-5">
@@ -441,17 +440,8 @@ const PileListContent: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
-          <span className="text-[11px] text-muted-foreground">
-            按住拖拽卡片调整顺序（拖拽中可用滚轮上下滚动） · 右键卡片可移动至其他区域
-          </span>
-          <Button
-            size="sm"
-            onClick={() => {
-              closePile()
-            }}
-            className="px-5 h-7 text-xs"
-          >
+        <div className="flex items-center justify-end px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
+          <Button size="sm" onClick={closePile} className="px-5 h-7 text-xs">
             确定
           </Button>
         </div>

@@ -23,7 +23,7 @@ interface CdbCardLike {
 const cdbPath = process.env.YGO_SMOKE_CDB || 'E:/MyCardLibrary/ygopro/cards.cdb'
 
 let db: ReturnType<Awaited<typeof initSqlJs>>['Database'] extends infer T ? T : never
-let cardCache = new Map<number, CdbCardLike>()
+const cardCache = new Map<number, CdbCardLike>()
 
 async function loadCdb(): Promise<void> {
   const SQL = await initSqlJs({
@@ -31,7 +31,9 @@ async function loadCdb(): Promise<void> {
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db = new (SQL as any).Database(fs.readFileSync(cdbPath))
-  const stmt = db.prepare('SELECT id, ot, alias, setcode, type, atk, def, level, race, attribute, category FROM datas')
+  const stmt = db.prepare(
+    'SELECT id, ot, alias, setcode, type, atk, def, level, race, attribute, category FROM datas'
+  )
   stmt.bind()
   while (stmt.step()) {
     const row = stmt.getAsObject() as Record<string, unknown>

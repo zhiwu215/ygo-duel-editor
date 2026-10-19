@@ -1,16 +1,16 @@
 export type MasterRule = 2 | 3 | 4 | 5
 
-export const YGOPRO_MASTER_RULES: readonly MasterRule[] = [3, 4, 5]
+const YGOPRO_MASTER_RULES: readonly MasterRule[] = [3, 4, 5]
 export const SELECTABLE_MASTER_RULES: readonly MasterRule[] = [2, ...YGOPRO_MASTER_RULES]
 
-export interface MasterRuleInfo {
+interface MasterRuleInfo {
   rule: MasterRule
   name: string
-  hasEMZ: boolean // 是否拥有 2 个额外怪兽区 (Extra Monster Zones)
-  hasIndependentPZones: boolean // 是否拥有独立的左右灵摆区 (MR3)
-  pendulumInSZone: boolean // 灵摆区是否合并在魔陷区 0 和 4 号位 (MR4, MR5)
-  mainMonsterZoneCount: number // 主怪兽区格子数 (通常为 5)
-  spellTrapZoneCount: number // 魔陷区格子数 (通常为 5)
+  hasEMZ: boolean
+  hasIndependentPZones: boolean
+  pendulumInSZone: boolean
+  mainMonsterZoneCount: number
+  spellTrapZoneCount: number
 }
 
 export const MASTER_RULES: Record<MasterRule, MasterRuleInfo> = {

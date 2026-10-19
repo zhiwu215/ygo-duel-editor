@@ -1,12 +1,7 @@
-/**
- * 同人剧情决斗台本 Markdown 剧本文档生成器
- * 平台无关 (@shared)，两进程共享纯函数
- * 将可视化的决斗编排与推演步骤一键导出为标准的同人小说 / 决斗台本 Markdown 文档
- */
 import { DuelPuzzleState } from '../types/duel'
 import { PHASE_SHORT_NAMES, ACTION_TYPE_NAMES } from '../types/story'
 
-export interface ScreenplayOptions {
+interface ScreenplayOptions {
   includeInnerThoughts?: boolean
   includeTechnicalNotes?: boolean
   player0Name?: string
@@ -21,8 +16,6 @@ export function generateScreenplayMarkdown(
   const p1Name = options?.player1Name || state.duelists?.find((d) => d.team === 1)?.name || '对方'
 
   const lines: string[] = []
-
-  // 1. 大标题与元信息
   const title = state.title?.trim() || '未命名决斗剧情'
   lines.push(`# 《${title}》—— 决斗剧本台本`)
   lines.push('')
@@ -31,8 +24,6 @@ export function generateScreenplayMarkdown(
     lines.push(`> **剧情背景 / 前情提要**：${state.hint.trim()}`)
     lines.push('')
   }
-
-  // 2. 决斗对阵概览
   lines.push('### 【对局设定】')
   lines.push(`- **先攻方**：${state.turnPlayer === 0 ? p0Name : p1Name}`)
   lines.push(`- **${p0Name}**：初始生命值 ${state.players[0]?.lp || 8000} 点`)
@@ -41,8 +32,6 @@ export function generateScreenplayMarkdown(
   lines.push('')
   lines.push('---')
   lines.push('')
-
-  // 3. 步骤与回合章节推演
   const steps = state.steps || []
   if (steps.length === 0) {
     lines.push('*（暂未记录推演步骤，可在决斗编排器中添加回合与战术动作）*')
@@ -55,8 +44,6 @@ export function generateScreenplayMarkdown(
 
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i]
-
-    // 检查是否换回合
     if (step.turn !== currentTurn) {
       currentTurn = step.turn
       currentPhase = ''
@@ -64,8 +51,6 @@ export function generateScreenplayMarkdown(
       lines.push(`## 第 ${currentTurn} 回合 —— ${turnHolder} 的回合`)
       lines.push('')
     }
-
-    // 检查是否换阶段
     if (step.phase !== currentPhase) {
       currentPhase = step.phase
       const phaseName = PHASE_SHORT_NAMES[step.phase] || step.phase
@@ -75,8 +60,6 @@ export function generateScreenplayMarkdown(
 
     const actionActor = step.actionPlayer === 0 ? p0Name : p1Name
     const actionName = ACTION_TYPE_NAMES[step.actionType] || step.actionType
-
-    // 角色对白 (若是剧情台词)
     if (step.speaker && step.dialogue) {
       lines.push(`> **${step.speaker}**：「${step.dialogue}」`)
       lines.push('')
@@ -84,14 +67,10 @@ export function generateScreenplayMarkdown(
       lines.push(`> **${actionActor}**：「${step.dialogue}」`)
       lines.push('')
     }
-
-    // 内心独白 (可选)
     if (step.innerThoughts && options?.includeInnerThoughts !== false) {
       lines.push(`*（${step.innerThoughts}）*`)
       lines.push('')
     }
-
-    // 动作记录与卡片操作
     if (step.actionType !== 'DIALOGUE') {
       const cardStr = step.cardName
         ? `【${step.cardName}】${step.cardCode ? `(${step.cardCode})` : ''}`
@@ -109,13 +88,9 @@ export function generateScreenplayMarkdown(
         lines.push(`  - *选择对象*：${step.targetCardName}`)
       }
     }
-
-    // 转写来源原文摘句（AI 从小说转写时保留，供读者核对）
     if (step.sourceQuote) {
       lines.push(`  - *原文*：「${step.sourceQuote}」`)
     }
-
-    // 生命值变动广播
     if (step.lpChange) {
       const targetName = step.lpChange.player === 0 ? p0Name : p1Name
       const diff = step.lpChange.newLp - step.lpChange.oldLp

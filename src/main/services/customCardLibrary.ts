@@ -12,6 +12,7 @@ import {
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 import { dataDirService } from './dataDirService'
+import { broadcastToWindows } from './broadcast'
 
 const LIBRARY_DIR = 'custom'
 const CDB_FILE = 'cards.cdb'
@@ -105,12 +106,6 @@ function writeCdb(cards: CustomCard[]): void {
   }
 }
 
-function notifyCdbUpdated(): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send('cdb:updated')
-  }
-}
-
 export function syncCustomCardLibrary(cards: CustomCard[]): void {
   try {
     writeCdb(cards)
@@ -134,7 +129,7 @@ export function syncCustomCardLibrary(cards: CustomCard[]): void {
     }
 
     cdbService.reloadAll(cfg.cdbPath, nextExtras)
-    notifyCdbUpdated()
+    broadcastToWindows('cdb:updated')
   } catch (err) {
     console.error('[CustomCardLibrary] Failed to register custom cdb:', err)
   }

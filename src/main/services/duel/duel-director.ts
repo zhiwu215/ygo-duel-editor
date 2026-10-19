@@ -8,6 +8,7 @@ import {
   EngineCardRef,
   EngineProvenance,
   EngineRequest,
+  EngineSubmitAnswerResult,
   Answer,
   EngineInjectResult,
   InjectCommand,
@@ -15,8 +16,8 @@ import {
   EngineSessionDoc,
   EngineSessionImportPayload
 } from '@shared/index'
-import { getOcgcoreEngine, isEngineReady } from './ocgcore-engine'
-import { duelSession, SubmitAnswerResult } from './duel-session'
+import { getOcgcoreEngine } from './ocgcore-engine'
+import { duelSession } from './duel-session'
 
 export class DuelDirector {
   private static instance: DuelDirector
@@ -26,10 +27,6 @@ export class DuelDirector {
       DuelDirector.instance = new DuelDirector()
     }
     return DuelDirector.instance
-  }
-
-  isReady(): boolean {
-    return isEngineReady()
   }
 
   getVersion(): string {
@@ -56,7 +53,7 @@ export class DuelDirector {
     return duelSession.startDuel(params)
   }
 
-  submitAnswer(answer: Answer): SubmitAnswerResult {
+  submitAnswer(answer: Answer): EngineSubmitAnswerResult {
     return duelSession.submitAnswer(answer)
   }
 
@@ -77,10 +74,6 @@ export class DuelDirector {
 
   getTimeline(): EngineTimelineNode[] {
     return duelSession.getTimeline()
-  }
-
-  getBoardState(): EngineBoardState {
-    return duelSession.getBoardState()
   }
 
   getPendingRequest(): EngineRequest | null {

@@ -2,7 +2,7 @@ import { CardLocation } from '../constants/locations'
 import { CardUtils } from '../types/card'
 import type { EngineCard } from '../types/duelEngine'
 
-export interface EngineCardStats {
+interface EngineCardStats {
   customAtk?: number
   customDef?: number
 }

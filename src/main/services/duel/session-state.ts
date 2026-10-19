@@ -1,0 +1,62 @@
+import type { OcgcoreDuel, OcgcoreWrapper } from 'koishipro-core.js'
+import type { EngineDuelInitParams, EngineRequest, EngineStepEvent } from '@shared/index'
+import { DEFAULT_TIMING_POLICY, type TimingPolicy } from '@shared/engine/protocol'
+import type { DuelOperation } from '@shared/engine/session-doc'
+import type { ProvenanceRecord } from './provenance-tracker'
+import type { DrawEvent } from './engine-pump'
+import { FieldReader } from './field-reader'
+import { EngineTimelineManager } from './timeline-manager'
+
+export interface SessionState {
+  ocgcore: OcgcoreWrapper | null
+  duel: OcgcoreDuel | null
+  ownedWrapper: OcgcoreWrapper | null
+  fieldReader: FieldReader
+  timeline: EngineTimelineManager
+  currentPendingMsg: unknown
+  currentPendingRequest: EngineRequest | null
+  requestSeq: number
+  lastHintDesc: number | undefined
+  accumulatedLogs: string[]
+  accumulatedEvents: EngineStepEvent[]
+  lastAdvanceRetried: boolean
+  seed: number[]
+  initParams: EngineDuelInitParams | null
+  ops: DuelOperation[]
+  timingPolicy: TimingPolicy
+  replaying: boolean
+  provenance: Map<string, ProvenanceRecord>
+  sequenceProvenance: Map<string, ProvenanceRecord>
+  drawCounts: [number, number]
+  deckDirty: [boolean, boolean]
+  lastDrawEvents: DrawEvent[]
+  lastDeckShuffles: (0 | 1)[]
+}
+
+export function createSessionState(): SessionState {
+  return {
+    ocgcore: null,
+    duel: null,
+    ownedWrapper: null,
+    fieldReader: new FieldReader(),
+    timeline: new EngineTimelineManager(),
+    currentPendingMsg: null,
+    currentPendingRequest: null,
+    requestSeq: 1,
+    lastHintDesc: undefined,
+    accumulatedLogs: [],
+    accumulatedEvents: [],
+    lastAdvanceRetried: false,
+    seed: [],
+    initParams: null,
+    ops: [],
+    timingPolicy: { ...DEFAULT_TIMING_POLICY },
+    replaying: false,
+    provenance: new Map(),
+    sequenceProvenance: new Map(),
+    drawCounts: [0, 0],
+    deckDirty: [false, false],
+    lastDrawEvents: [],
+    lastDeckShuffles: []
+  }
+}

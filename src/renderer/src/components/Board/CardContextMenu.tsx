@@ -6,43 +6,26 @@ import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
-import { CardPosition, CardLocation, CardType, EngineCardRef, Answer } from '@shared/index'
+import { CardLocation } from '@shared/index'
 import { deriveCardEngineActions } from '../../utils/engineActions'
 import { resolveCardName } from '../../utils/cardNames'
 import {
-  Swords,
-  Shield,
-  Eye,
-  EyeOff,
-  Trash2,
-  Layers,
-  Ghost,
-  ArrowDownToLine,
-  Ban,
-  RotateCw,
-  ArrowLeftRight,
-  ListOrdered,
-  Sliders,
-  Zap,
-  Sparkles,
-  History
-} from 'lucide-react'
+  buildDeckPileItems,
+  buildDuelActionItems,
+  buildEngineEditItems,
+  buildHandItems,
+  buildMonsterItems,
+  buildMoveItems,
+  buildSpellTrapItems,
+  isPileLocation,
+  isSpellTrapLocation,
+  type CardMenuItemContext,
+  type MenuItemConfig
+} from '../../utils/cardMenuItems'
+import { ZoneContextMenu } from './components/ZoneContextMenu'
+import { Ghost, Sliders, Zap, History, ArrowLeftRight, ListOrdered, Trash2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
-
-interface MenuItemConfig {
-  icon: React.ReactNode
-  label: string
-  action: () => void
-  variant?: 'default' | 'destructive'
-}
-
-const LOCATION_LABELS: Record<number, string> = {
-  [CardLocation.EXTRA]: '额外卡组',
-  [CardLocation.DECK]: '主卡组',
-  [CardLocation.GRAVE]: '墓地',
-  [CardLocation.REMOVED]: '除外区'
-}
 
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
@@ -59,7 +42,6 @@ export const CardContextMenu: React.FC = () => {
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
 
-  // 引擎激活时菜单动作来自 pendingRequest（与 CardCommandMenu 同源同提交方式）
   const menuCard = menu?.kind === 'card' ? menu.card : null
   const requestActions = React.useMemo(
     () => deriveCardEngineActions(pendingRequest, menuCard),
@@ -110,301 +92,64 @@ export const CardContextMenu: React.FC = () => {
 
   if (!menu) return null
 
-  // 封装"执行操作并关闭菜单"的通用回调
   const act = (fn: () => void) => (): void => {
     fn()
     closeMenu()
   }
 
-  // —— 区域级菜单 ——
-  // 右键一个**空**的堆叠格（典型场景：尚未载入卡组的主卡组格，此时没有任何卡片可依附），
-  // 只提供区域级操作。
   if (menu.kind === 'zone') {
-    const { controller, location } = menu
     return (
-      <div
-        ref={menuRef}
-        style={{ left: menuPos.x, top: menuPos.y }}
-        className="fixed z-[60] min-w-48 max-w-56 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-52">
-          {controller === 0 ? '我方' : '对方'}
-          {LOCATION_LABELS[location] || '区域'}
-        </div>
-
-        {location === CardLocation.DECK && (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={isEngine}
-            onClick={act(() => openDeckSwitcher(controller))}
-            className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
-          >
-            <ArrowLeftRight className="w-3.5 h-3.5" />
-            <span>切换卡组</span>
-          </Button>
-        )}
-      </div>
+      <ZoneContextMenu
+        menuRef={menuRef}
+        menuPos={menuPos}
+        controller={menu.controller}
+        location={menu.location}
+        isEngine={isEngine}
+        onSwitchDeck={act(() => openDeckSwitcher(menu.controller))}
+      />
     )
   }
 
   const { card, x, y } = menu
-  /** 是否处于堆叠型区域（主卡组、额外卡组、墓地、除外区） */
-  const isPileZone =
-    card.location === CardLocation.EXTRA ||
-    card.location === CardLocation.DECK ||
-    card.location === CardLocation.GRAVE ||
-    card.location === CardLocation.REMOVED
+  const isPileZone = isPileLocation(card.location)
   const pileCount = state.cards.filter(
     (c) => c.controller === card.controller && c.location === card.location
   ).length
-  /** 是否为手牌 */
   const isHand = card.location === CardLocation.HAND
   const isMonsterZone = card.location === CardLocation.MZONE
-  const isSpellTrapZone =
-    card.location === CardLocation.SZONE ||
-    card.location === CardLocation.FZONE ||
-    card.location === CardLocation.PZONE
-
-  const setPos = (pos: number): (() => void) => act(() => updateCardPosition(card.instanceId, pos))
-  const moveTo = (loc: number, ctrl?: 0 | 1): (() => void) =>
-    act(() => moveCard(card.instanceId, loc, 0, ctrl))
+  const isSpellTrapZone = isSpellTrapLocation(card.location)
 
   const engineActions = isEngine ? requestActions : null
 
-  const duelActionItems: MenuItemConfig[] = []
-  if (engineActions) {
-    const addItem = (icon: React.ReactNode, label: string, answer: Answer): void => {
-      duelActionItems.push({
-        icon,
-        label,
-        action: act(() => {
-          void useDuelEngineStore.getState().submitAnswer(answer)
-        })
-      })
-    }
-    const zapIcon = <Zap className="w-3.5 h-3.5 text-amber-500" />
-    const summonIcon = <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-    const attackIcon = <Swords className="w-3.5 h-3.5 text-rose-500" />
-    const chainIcon = <Layers className="w-3.5 h-3.5 text-teal-400" />
-    const setIcon = <RotateCw className="w-3.5 h-3.5 text-emerald-400" />
-
-    if (engineActions.summon) {
-      addItem(summonIcon, '召唤', { kind: 'idle', cmd: 'SUMMON', card: engineActions.summon })
-    }
-    if (engineActions.spSummon) {
-      addItem(summonIcon, '特殊召唤', {
-        kind: 'idle',
-        cmd: 'SPSUMMON',
-        card: engineActions.spSummon
-      })
-    }
-    const setCard = engineActions.sset ?? engineActions.mset
-    if (setCard) {
-      addItem(setIcon, '盖放', {
-        kind: 'idle',
-        cmd: engineActions.sset ? 'SSET' : 'MSET',
-        card: setCard
-      })
-    }
-    engineActions.activate.forEach((cardReq, index) => {
-      const suffix = engineActions.activate.length > 1 ? `（效果 ${index + 1}）` : ''
-      addItem(
-        zapIcon,
-        `发动 [${resolveCardName(cardReq.code)}]${suffix}`,
-        engineActions.requestKind === 'battle'
-          ? { kind: 'battle', cmd: 'ACTIVATE', card: cardReq }
-          : { kind: 'idle', cmd: 'ACTIVATE', card: cardReq }
-      )
-    })
-    if (engineActions.repos) {
-      const reposLabel =
-        card.position === CardPosition.FACEDOWN_DEFENSE
-          ? '反转召唤'
-          : card.position === CardPosition.FACEUP_ATTACK
-            ? '转为守备'
-            : '转为攻击'
-      addItem(setIcon, reposLabel, { kind: 'idle', cmd: 'REPOS', card: engineActions.repos })
-    }
-    if (engineActions.attack) {
-      addItem(attackIcon, '攻击', { kind: 'battle', cmd: 'ATTACK', card: engineActions.attack })
-    }
-    if (engineActions.chain) {
-      addItem(chainIcon, '发动连锁', { kind: 'chain', card: engineActions.chain })
+  const ctx: CardMenuItemContext = {
+    card,
+    isEngine,
+    engineActions,
+    act,
+    updateCardPosition,
+    moveCard,
+    executeSendToGrave,
+    executeBanishCard,
+    removeCard,
+    submitAnswer: (answer) => {
+      void useDuelEngineStore.getState().submitAnswer(answer)
+    },
+    openProvenance: (target) => {
+      void openProvenance(target)
+    },
+    openReplace,
+    removeEngineCard: (ref) => {
+      void useDuelEngineStore.getState().removeCard(ref)
     }
   }
 
-  const engineEditItems: MenuItemConfig[] = isEngine
-    ? (() => {
-        const ref: EngineCardRef = {
-          controller: card.controller,
-          location: card.location,
-          sequence: card.sequence,
-          instanceId: card.instanceId
-        }
-        const target = {
-          ref,
-          name: resolveCardName(card.code),
-          code: card.code
-        }
-        return [
-          {
-            icon: <History className="w-3.5 h-3.5 text-sky-400" />,
-            label: '查看来源',
-            action: act(() => {
-              void openProvenance(target)
-            })
-          },
-          {
-            icon: <ArrowLeftRight className="w-3.5 h-3.5 text-blue-400" />,
-            label: '替换为…',
-            action: act(() => openReplace(target))
-          },
-          {
-            icon: <Trash2 className="w-3.5 h-3.5" />,
-            label: '从对局中移除（剧情）',
-            variant: 'destructive',
-            action: act(() => {
-              void useDuelEngineStore.getState().removeCard(ref)
-            })
-          }
-        ]
-      })()
-    : []
-
-  const handItems: MenuItemConfig[] =
-    !isEngine && isHand
-      ? [
-          {
-            icon: <Eye className="w-3.5 h-3.5 text-muted-foreground" />,
-            label: '表侧表示 (公开手牌)',
-            action: setPos(CardPosition.FACEUP)
-          },
-          {
-            icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
-            label: '里侧表示 (未公开手牌)',
-            action: setPos(CardPosition.FACEDOWN)
-          },
-          {
-            icon: <ArrowLeftRight className="w-3.5 h-3.5 text-muted-foreground" />,
-            label: `转移至${card.controller === 0 ? '对方手牌' : '我方手牌'}`,
-            action: moveTo(CardLocation.HAND, card.controller === 0 ? 1 : 0)
-          }
-        ]
-      : []
-
-  const monsterItems: MenuItemConfig[] =
-    !isEngine && isMonsterZone
-      ? [
-          {
-            icon: <Swords className="w-3.5 h-3.5 text-muted-foreground" />,
-            label: '表侧攻击表示',
-            action: setPos(CardPosition.FACEUP_ATTACK)
-          },
-          {
-            icon: <Shield className="w-3.5 h-3.5 text-muted-foreground" />,
-            label: '表侧守备表示',
-            action: setPos(CardPosition.FACEUP_DEFENSE)
-          },
-          {
-            icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
-            label: '里侧守备表示',
-            action: setPos(CardPosition.FACEDOWN_DEFENSE)
-          }
-        ]
-      : []
-
-  const hasOverlayMaterials =
-    isMonsterZone && !!(card.overlayMaterials && card.overlayMaterials.length > 0)
-
-  const spellTrapItems: MenuItemConfig[] =
-    !isEngine && isSpellTrapZone
-      ? [
-          {
-            icon: <Swords className="w-3.5 h-3.5 text-muted-foreground" />,
-            label: '表侧表示',
-            action: setPos(CardPosition.FACEUP_ATTACK)
-          },
-          {
-            icon: <RotateCw className="w-3.5 h-3.5 text-muted-foreground" />,
-            label: '里侧盖放',
-            action: setPos(CardPosition.FACEDOWN)
-          }
-        ]
-      : []
-
-  const isDeckPile = card.location === CardLocation.EXTRA || card.location === CardLocation.DECK
-  const deckPileItems: MenuItemConfig[] = isDeckPile
-    ? [
-        {
-          icon: <Eye className="w-3.5 h-3.5 text-muted-foreground" />,
-          label: '表侧表示',
-          action: setPos(CardPosition.FACEUP)
-        },
-        {
-          icon: <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />,
-          label: '里侧表示',
-          action: setPos(CardPosition.FACEDOWN)
-        }
-      ]
-    : []
-
-  // 判断是否为额外怪兽 (融合/同调/超量/连接)
-  const isExtraMonster = card.card
-    ? !!(card.card.type & (CardType.FUSION | CardType.SYNCHRO | CardType.XYZ | CardType.LINK))
-    : false
-  const isPendulum = card.card ? !!(card.card.type & CardType.PENDULUM) : false
-
-  const moveItems: MenuItemConfig[] = !isEngine
-    ? [
-        ...(card.location !== CardLocation.HAND
-          ? [
-              {
-                icon: <Layers className="w-3.5 h-3.5 text-muted-foreground" />,
-                label: '移至手牌',
-                action: moveTo(CardLocation.HAND)
-              }
-            ]
-          : []),
-        ...(card.location !== CardLocation.GRAVE
-          ? [
-              {
-                icon: <ArrowDownToLine className="w-3.5 h-3.5 text-muted-foreground" />,
-                label: '送去墓地',
-                action: act(() => executeSendToGrave(card.instanceId))
-              }
-            ]
-          : []),
-        ...(card.location !== CardLocation.REMOVED
-          ? [
-              {
-                icon: <Ban className="w-3.5 h-3.5 text-muted-foreground" />,
-                label: '除外',
-                action: act(() => executeBanishCard(card.instanceId))
-              }
-            ]
-          : []),
-        ...((!card.card || !isExtraMonster || isPendulum) && card.location !== CardLocation.DECK
-          ? [
-              {
-                icon: <Layers className="w-3.5 h-3.5 text-muted-foreground" />,
-                label: '回到主卡组',
-                action: moveTo(CardLocation.DECK)
-              }
-            ]
-          : []),
-        ...((!card.card || isExtraMonster || isPendulum) && card.location !== CardLocation.EXTRA
-          ? [
-              {
-                icon: <Layers className="w-3.5 h-3.5 text-muted-foreground" />,
-                label: '回到额外卡组',
-                action: moveTo(CardLocation.EXTRA)
-              }
-            ]
-          : [])
-      ]
-    : []
+  const duelActionItems = buildDuelActionItems(ctx)
+  const engineEditItems = buildEngineEditItems(ctx)
+  const handItems = buildHandItems(ctx)
+  const monsterItems = buildMonsterItems(ctx)
+  const spellTrapItems = buildSpellTrapItems(ctx)
+  const deckPileItems = buildDeckPileItems(ctx)
+  const moveItems = buildMoveItems(ctx)
 
   const renderGroup = (items: MenuItemConfig[]): React.JSX.Element[] =>
     items.map((item, idx) => (
@@ -415,7 +160,7 @@ export const CardContextMenu: React.FC = () => {
         onClick={item.action}
         className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal"
       >
-        {item.icon}
+        <item.icon className={item.iconClassName} />
         <span>{item.label}</span>
       </Button>
     ))
@@ -461,7 +206,6 @@ export const CardContextMenu: React.FC = () => {
       {isPileZone && !isModalOpenForThisZone && (
         <>
           {card.location === CardLocation.DECK ? (
-            // 主卡组：不提供「查看列表」（双击卡组格即可展开列表），只提供切换卡组
             <Button
               variant="ghost"
               size="sm"
@@ -501,25 +245,27 @@ export const CardContextMenu: React.FC = () => {
         </>
       )}
 
-      {hasOverlayMaterials && !isEngine && (
-        <>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={act(() => openOverlayList(card.instanceId))}
-            className="w-full justify-between h-7 px-2 text-xs font-normal text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Ghost className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span>拔除素材</span>
-            </div>
-            <span className="font-mono text-[10px] text-muted-foreground/80">
-              {card.overlayMaterials!.length}张
-            </span>
-          </Button>
-          <Separator className="my-1" />
-        </>
-      )}
+      {isMonsterZone &&
+        !isEngine &&
+        !!(card.overlayMaterials && card.overlayMaterials.length > 0) && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={act(() => openOverlayList(card.instanceId))}
+              className="w-full justify-between h-7 px-2 text-xs font-normal text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Ghost className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>拔除素材</span>
+              </div>
+              <span className="font-mono text-[10px] text-muted-foreground/80">
+                {card.overlayMaterials!.length}张
+              </span>
+            </Button>
+            <Separator className="my-1" />
+          </>
+        )}
 
       {spellTrapItems.length > 0 && (
         <>
@@ -528,7 +274,6 @@ export const CardContextMenu: React.FC = () => {
         </>
       )}
 
-      {/* 场上卡片快捷微调面板 */}
       {(isMonsterZone || isSpellTrapZone) && (
         <>
           <Button

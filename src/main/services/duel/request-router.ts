@@ -20,20 +20,12 @@ import {
   YGOProMsgAnnounceNumber,
   YGOProMsgAnnounceCard
 } from 'ygopro-msg-encode'
-import {
-  EngineRequest,
-  RequestCard,
-  RequestData,
-  RequestPlace
-} from '@shared/engine/protocol'
+import { EngineRequest, RequestCard, RequestData, RequestPlace } from '@shared/engine/protocol'
 import { getEffectDescText, getSystemDescText } from './strings-service'
 
-/** 请求路由器输入上下文 */
 export interface RouteContext {
-  /** 唯一请求 id（answer 时间线节点用它做 id） */
   id: string
   seq: number
-  /** 请求前最近一条 HINT_SELECTMSG 的 desc */
   descHint?: number
 }
 
@@ -63,10 +55,6 @@ function toRequestCard(info: {
   }
 }
 
-/**
- * 把引擎的"索求输入"消息路由为纯数据 EngineRequest。
- * 非请求消息返回 null。
- */
 export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | null {
   let player: 0 | 1
   let kind: RequestData['kind']
@@ -110,7 +98,7 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
     identifier = YGOProMsgSelectCard.identifier
     title =
       ctx.descHint !== undefined
-        ? getSystemDescText(ctx.descHint, '') ?? `Player ${player} 请选择卡片`
+        ? (getSystemDescText(ctx.descHint, '') ?? `Player ${player} 请选择卡片`)
         : `Player ${player} 请选择卡片`
     subtitle = msg.min === msg.max ? `请选择 ${msg.min} 张` : `请选择 ${msg.min}~${msg.max} 张`
     data = {

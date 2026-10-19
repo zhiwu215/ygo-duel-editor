@@ -1,7 +1,7 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React from 'react'
 import { CdbCard } from '@shared/index'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { CardImage } from '../ui/CardImage'
 import { resolveCardName } from '../../utils/cardNames'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -60,13 +60,10 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
                 className="flex flex-col gap-1.5 items-center group"
               >
                 <div className="aspect-[59/86] w-full rounded-lg overflow-hidden border border-border shadow-md bg-background group-hover:scale-105 transition-transform duration-150">
-                  <img
-                    src={getCardImageUrl(code)}
+                  <CardImage
+                    code={code}
                     alt={card?.name || resolveCardName(code)}
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      ;(e.currentTarget as HTMLImageElement).src = UNKNOWN_CARD_IMAGE
-                    }}
                   />
                 </div>
                 <Tooltip>

@@ -1,14 +1,4 @@
-/**
- * S3 · 选卡底部条 / unselect 弹窗（取代 UnselectCardPanel）。
- *
- * 呈现规则完全由 deriveSelection 决定：
- *   - point 模式：底部操作条（进度 + 已选卡名 + 取消/确认/完成），点卡选择交给 CardItem
- *   - modal 模式：card/tribute/sum 让位给 DuelRequestModals 的弹窗；
- *     unselect 因弹窗不在分发层内，这里保留原「卡图列表弹窗」（逐张提交）
- */
 import React, { useMemo } from 'react'
-import { FieldCard } from '@shared/index'
-import type { EngineRequest, RequestCard } from '@shared/engine/protocol'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useSelectionStore } from '../../stores/useSelectionStore'
@@ -16,122 +6,13 @@ import {
   cancelSelection,
   deriveSelection,
   requestCardKey,
-  submitSelection,
-  type DerivedSelection
+  submitSelection
 } from '../../utils/duelSelection'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
-import { findCardName, resolveCardName } from '../../utils/cardNames'
+import { findCardName } from '../../utils/cardNames'
+import { UnselectCardModal } from './request-modals/UnselectCardModal'
+import { requestCardName } from '../../utils/duelSelection'
 import { Button } from '../ui/button'
 import { Check, X } from 'lucide-react'
-
-function requestCardName(cards: FieldCard[], requestCard: RequestCard): string {
-  const exact = cards.find(
-    (card) =>
-      card.controller === requestCard.controller &&
-      card.location === requestCard.location &&
-      card.sequence === requestCard.sequence
-  )
-  return exact?.card?.name || resolveCardName(requestCard.code)
-}
-
-// ------------------------------------------------------------------ unselect 弹窗（含牌堆候选）
-
-const UnselectCardModal: React.FC<{
-  request: EngineRequest
-  derived: DerivedSelection
-  loading: boolean
-  cards: FieldCard[]
-}> = ({ request, derived, loading, cards }) => (
-  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 backdrop-blur-[1px]">
-    <div className="w-[420px] max-w-[92vw] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-      <div className="border-b border-border/70 bg-muted/40 px-4 py-2.5">
-        <h2 className="text-sm font-bold text-foreground">{request.title}</h2>
-        <span className="text-[11px] text-muted-foreground">
-          {derived.canFinish ? '逐张点击选择，完成后点「完成」' : '请选择一张卡'}
-        </span>
-      </div>
-
-      <div className="flex max-h-[50vh] flex-col gap-1.5 overflow-y-auto p-3">
-        {derived.candidates.map((card, index) => (
-          <button
-            key={`sel-${index}-${requestCardKey(card)}`}
-            type="button"
-            disabled={loading}
-            onClick={() => submitSelection(derived, [card])}
-            className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/70 bg-background/60 p-1.5 text-left transition-colors hover:border-primary/60 hover:bg-muted/40"
-          >
-            <img
-              src={getCardImageUrl(card.code, true)}
-              alt={requestCardName(cards, card)}
-              className="h-11 w-8 shrink-0 rounded-sm border border-border/60 object-cover"
-              onError={(e) => {
-                if (e.currentTarget.src !== UNKNOWN_CARD_IMAGE) {
-                  e.currentTarget.src = UNKNOWN_CARD_IMAGE
-                }
-              }}
-            />
-            <span className="truncate text-xs font-semibold text-foreground">
-              {requestCardName(cards, card)}
-            </span>
-          </button>
-        ))}
-
-        {derived.selected.length > 0 && (
-          <>
-            <div className="mt-1.5 text-[10px] font-bold text-muted-foreground/80">
-              已选（点击可取消选择）
-            </div>
-            {derived.selected.map((card, index) => (
-              <button
-                key={`unsel-${index}-${requestCardKey(card)}`}
-                type="button"
-                disabled={loading}
-                onClick={() => submitSelection(derived, [card])}
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-primary/40 bg-primary/10 p-1.5 text-left transition-colors hover:bg-primary/15"
-              >
-                <img
-                  src={getCardImageUrl(card.code, true)}
-                  alt={requestCardName(cards, card)}
-                  className="h-11 w-8 shrink-0 rounded-sm border border-border/60 object-cover"
-                  onError={(e) => {
-                    if (e.currentTarget.src !== UNKNOWN_CARD_IMAGE) {
-                      e.currentTarget.src = UNKNOWN_CARD_IMAGE
-                    }
-                  }}
-                />
-                <span className="truncate text-xs font-semibold text-foreground">
-                  {requestCardName(cards, card)}
-                </span>
-              </button>
-            ))}
-          </>
-        )}
-      </div>
-
-      <div className="flex items-center justify-end gap-2 border-t border-border/70 bg-muted/30 px-3 py-2">
-        {derived.canCancel && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            onClick={() => cancelSelection(derived)}
-          >
-            <X />
-            取消
-          </Button>
-        )}
-        {derived.canFinish && (
-          <Button size="sm" disabled={loading} onClick={() => submitSelection(derived, [])}>
-            <Check />
-            完成
-          </Button>
-        )}
-      </div>
-    </div>
-  </div>
-)
-
-// ------------------------------------------------------------------ 底部操作条
 
 export const DuelSelectionBar: React.FC = () => {
   const request = useDuelEngineStore((s) => s.pendingRequest)
@@ -150,7 +31,6 @@ export const DuelSelectionBar: React.FC = () => {
   }
 
   const isUnselect = derived.kind === 'unselect'
-  // S4：攻击目标选择（descHint 549）——点一只对方怪兽即确定目标，取消 = 撤销攻击宣言
   const isAttackTarget = derived.attackTarget === true
   const isSingleAttackTarget = isAttackTarget && derived.min === 1 && derived.max === 1
   const attackerName = lastAttacker ? findCardName(lastAttacker.code) : null

@@ -6,25 +6,19 @@ import {
   CARD_POOL_SPRITE_HEIGHT
 } from '@shared/index'
 import cardPoolSprite from '../../assets/textures/ot.png'
-import { cn } from '../../lib/utils'
 
 const SPRITE_TOTAL_HEIGHT = CARD_POOL_SPRITE_HEIGHT * 10
 
 interface CardPoolBadgesProps {
   pools: string[] | undefined
-  /** 额外角标（如 OCG / TCG 独有），由调用方按当前筛选决定是否传入 */
   extraBadges?: string[]
   width?: number
-  className?: string
-  align?: 'center' | 'start' | 'end'
 }
 
 export const CardPoolBadges: React.FC<CardPoolBadgesProps> = ({
   pools,
   extraBadges,
-  width = 32,
-  className,
-  align = 'center'
+  width = 32
 }) => {
   const ids = [...(pools ?? []), ...(extraBadges ?? [])]
   const visible = ids.filter((id) => cardPoolSpriteY(id) !== null)
@@ -34,15 +28,7 @@ export const CardPoolBadges: React.FC<CardPoolBadgesProps> = ({
   const height = CARD_POOL_SPRITE_HEIGHT * scale
 
   return (
-    <span
-      className={cn(
-        'absolute inset-x-0 bottom-0 flex gap-px',
-        align === 'center' && 'justify-center',
-        align === 'start' && 'justify-start',
-        align === 'end' && 'justify-end',
-        className
-      )}
-    >
+    <span className="absolute inset-x-0 bottom-0 flex gap-px">
       {visible.map((id) => (
         <span
           key={id}

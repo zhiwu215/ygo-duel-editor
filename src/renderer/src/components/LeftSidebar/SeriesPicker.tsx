@@ -1,8 +1,9 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Inbox, Library, Plus } from 'lucide-react'
+import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { cn } from '../../lib/utils'
 
 const PANEL_WIDTH = 208
@@ -17,11 +18,6 @@ interface SeriesPickerProps {
   onClose: () => void
 }
 
-/**
- * 把某个对局归入作品分类的浮层
- *
- * 侧栏是 overflow 滚动容器，浮层用 portal + fixed 挂到 body，避免被裁切。
- */
 export const SeriesPicker: React.FC<SeriesPickerProps> = ({
   anchor,
   seriesList,
@@ -44,20 +40,7 @@ export const SeriesPicker: React.FC<SeriesPickerProps> = ({
     setPos({ left, top })
   }, [anchor])
 
-  useEffect(() => {
-    const handlePointerDown = (e: MouseEvent): void => {
-      if (!panelRef.current?.contains(e.target as Node)) onClose()
-    }
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('mousedown', handlePointerDown)
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('mousedown', handlePointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [onClose])
+  useDismissOnOutside(panelRef, true, onClose, { resize: false })
 
   const submitCreate = async (): Promise<void> => {
     if (busy) return

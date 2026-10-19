@@ -23,8 +23,7 @@ import type { EngineRequest, Answer } from '@shared/engine/protocol'
 const GAME_DIR = process.env.YGO_SMOKE_GAMEDIR || 'E:/MyCardLibrary/ygopro'
 
 const TEST_DECK = [
-  89631139, 89631139, 89631139, 14558127, 23434538,
-  70342110, 70342110, 66518841, 66518841, 97997309
+  89631139, 89631139, 89631139, 14558127, 23434538, 70342110, 70342110, 66518841, 66518841, 97997309
 ]
 
 const TYPE_PENDULUM = 0x1000000
@@ -43,15 +42,17 @@ async function main(): Promise<void> {
   const { createOcgcoreWrapper } = await import('koishipro-core.js')
   // DirScriptReader 的 ESM 构建有 node 兼容 bug（loadNodeModule），这里用等效的纯 fs 实现
   // 引擎传来的路径形如 "./script/constant.lua" 或 "c89631139.lua"
-  const DirScriptReader = (scriptRoot: string) => (scriptPath: string): Uint8Array | null => {
-    if (process.env.YGO_SMOKE_DEBUG) console.log(`[dbg] readScript: ${scriptPath}`)
-    const normalized = scriptPath.replace(/^\.\//, '').replace(/^script\//, '')
-    try {
-      return new Uint8Array(fs.readFileSync(path.join(scriptRoot, normalized)))
-    } catch {
-      return null
+  const DirScriptReader =
+    (scriptRoot: string) =>
+    (scriptPath: string): Uint8Array | null => {
+      if (process.env.YGO_SMOKE_DEBUG) console.log(`[dbg] readScript: ${scriptPath}`)
+      const normalized = scriptPath.replace(/^\.\//, '').replace(/^script\//, '')
+      try {
+        return new Uint8Array(fs.readFileSync(path.join(scriptRoot, normalized)))
+      } catch {
+        return null
+      }
     }
-  }
   const ygopro = await import('ygopro-msg-encode')
   const { routeRequest } = await import('../../src/main/services/duel/request-router')
   const { encodeAnswer } = await import('../../src/main/services/duel/answer-encoder')
@@ -107,16 +108,16 @@ async function main(): Promise<void> {
       if (++loops > 5000) throw new Error('process loop overflow')
       const res = duel.process()
       if (process.env.YGO_SMOKE_DEBUG) {
-        console.log(`[dbg] process: status=${res.status} msgs=${(res.messages ?? []).length} raw=${res.length}`)
+        console.log(
+          `[dbg] process: status=${res.status} msgs=${(res.messages ?? []).length} raw=${res.length}`
+        )
       }
       for (const msg of res.messages ?? []) {
         reader.applyMetaMessage(msg)
         if (process.env.YGO_SMOKE_DEBUG) {
           const ctor = (msg as { constructor?: { name?: string } }).constructor
           const sameChain = ygopro.YGOProMsgSelectChain
-          console.log(
-            `[dbg]   msg: ${ctor?.name} ctorMatch=${ctor === sameChain}`
-          )
+          console.log(`[dbg]   msg: ${ctor?.name} ctorMatch=${ctor === sameChain}`)
         }
         if (msg instanceof ygopro.YGOProMsgHint && msg.type === 3) descHint = msg.desc
         if (
@@ -150,23 +151,45 @@ async function main(): Promise<void> {
     grouped1.set(k, (grouped1.get(k) ?? 0) + 1)
   }
   console.log('[smoke] 开局场地分布:', Object.fromEntries(grouped1))
-  console.log('[smoke] LP:', board1.players.map((p) => p.lp), '回合:', board1.turn, '阶段:', board1.phaseName)
+  console.log(
+    '[smoke] LP:',
+    board1.players.map((p) => p.lp),
+    '回合:',
+    board1.turn,
+    '阶段:',
+    board1.phaseName
+  )
   if ((grouped1.get('P0.hand') ?? 0) !== 5 || (grouped1.get('P1.hand') ?? 0) !== 5) {
     throw new Error(`开局手牌数不对: P0=${grouped1.get('P0.hand')} P1=${grouped1.get('P1.hand')}`)
   }
 
   // --- 注入实验 ---
   const pendulumCards = cdbService.findCardsByType(TYPE_PENDULUM, 2)
-  console.log('[smoke] 挑选灵摆卡:', pendulumCards.map((c) => `${c.id}(lv=${c.level})`))
+  console.log(
+    '[smoke] 挑选灵摆卡:',
+    pendulumCards.map((c) => `${c.id}(lv=${c.level})`)
+  )
   const injectExperiments: { name: string; card: Parameters<typeof duel.newCard>[0] }[] = [
     ...pendulumCards.map((c, i) => ({
       name: `szone#${i * 4} pendulum`,
       card: { code: c.id, owner: 0, player: 0, location: 0x08, sequence: i * 4, position: 0x5 }
     })),
-    { name: 'szone#1 faceup-spell', card: { code: TEST_DECK[3], owner: 0, player: 0, location: 0x08, sequence: 1, position: 0x5 } },
-    { name: 'mzone#0 faceup-attack', card: { code: 89631139, owner: 0, player: 0, location: 0x04, sequence: 0, position: 0x5 } },
-    { name: 'grave#0', card: { code: TEST_DECK[4], owner: 0, player: 0, location: 0x10, sequence: 0, position: 0x1 } },
-    { name: 'deck-top', card: { code: TEST_DECK[5], owner: 0, player: 0, location: 0x01, sequence: 0, position: 0x1 } }
+    {
+      name: 'szone#1 faceup-spell',
+      card: { code: TEST_DECK[3], owner: 0, player: 0, location: 0x08, sequence: 1, position: 0x5 }
+    },
+    {
+      name: 'mzone#0 faceup-attack',
+      card: { code: 89631139, owner: 0, player: 0, location: 0x04, sequence: 0, position: 0x5 }
+    },
+    {
+      name: 'grave#0',
+      card: { code: TEST_DECK[4], owner: 0, player: 0, location: 0x10, sequence: 0, position: 0x1 }
+    },
+    {
+      name: 'deck-top',
+      card: { code: TEST_DECK[5], owner: 0, player: 0, location: 0x01, sequence: 0, position: 0x1 }
+    }
   ]
   const injectionResults: Record<string, boolean> = {}
   for (const exp of injectExperiments) {
@@ -184,7 +207,14 @@ async function main(): Promise<void> {
       grave: duel.queryFieldCount({ player: 0, location: 0x10 })
     }
     const delta =
-      after.deck - before.deck + after.mzone - before.mzone + after.szone - before.szone + after.grave - before.grave
+      after.deck -
+      before.deck +
+      after.mzone -
+      before.mzone +
+      after.szone -
+      before.szone +
+      after.grave -
+      before.grave
     injectionResults[exp.name] = delta > 0
     console.log(`[smoke] 注入 ${exp.name}: ${delta > 0 ? '成功' : '失败(静默拒绝)'} delta=${delta}`)
   }
@@ -193,27 +223,36 @@ async function main(): Promise<void> {
   const pendulumInSzone = board2.allCards.filter(
     (c) => c.location === CardLocation.SZONE && pendulumCards.some((p) => p.id === c.code)
   )
-  console.log('[smoke] 灵摆卡在 szone 读取:', pendulumInSzone.map((c) => `${c.code}@seq${c.sequence}`))
+  console.log(
+    '[smoke] 灵摆卡在 szone 读取:',
+    pendulumInSzone.map((c) => `${c.code}@seq${c.sequence}`)
+  )
   if (pendulumCards.length > 0 && pendulumInSzone.length < pendulumCards.length) {
-    throw new Error(`注入的灵摆卡没有被全量查询读到：期望${pendulumCards.length}，实际${pendulumInSzone.length}`)
+    throw new Error(
+      `注入的灵摆卡没有被全量查询读到：期望${pendulumCards.length}，实际${pendulumInSzone.length}`
+    )
   }
 
   // --- instanceId 连续性 ---
   const idMap1 = new Map(
-    board1.allCards.map((c) => [`${c.controller}:${c.location}:${c.sequence}:${c.code}`, c.instanceId])
+    board1.allCards.map((c) => [
+      `${c.controller}:${c.location}:${c.sequence}:${c.code}`,
+      c.instanceId
+    ])
   )
   for (const [key, id] of idMap1) {
     const cur = board2.allCards.find(
       (c) => `${c.controller}:${c.location}:${c.sequence}:${c.code}` === key
     )
-    if (cur && cur.instanceId !== id) throw new Error(`instanceId 漂移: ${key} ${id} -> ${cur.instanceId}`)
+    if (cur && cur.instanceId !== id)
+      throw new Error(`instanceId 漂移: ${key} ${id} -> ${cur.instanceId}`)
   }
   console.log('[smoke] instanceId 连续性: OK')
 
   // --- 问答模型：程序化对局 ---
   const seenKinds = new Set<string>()
   let requestCount = 0
-  let retryCount = 0
+  const retryCount = 0
 
   for (let step = 0; step < 60 && !duel.ended && pendingMsg; step++) {
     const request = routeRequest(pendingMsg, { id: `req-${step}`, seq: step, descHint })
@@ -228,11 +267,25 @@ async function main(): Promise<void> {
     duel.setResponse(encodeAnswer(pendingMsg, answer))
     advanceToWait()
   }
-  console.log('[smoke] 问答模型: 路由', requestCount, '条, RETRY', retryCount, '次, kinds:', [...seenKinds].join(', '))
+  console.log(
+    '[smoke] 问答模型: 路由',
+    requestCount,
+    '条, RETRY',
+    retryCount,
+    '次, kinds:',
+    [...seenKinds].join(', ')
+  )
   console.log('[smoke] 对局结束?', duel.ended ? '是' : '否（步数上限或无请求）')
 
   const finalBoard = reader.readBoard(duel)
-  console.log('[smoke] 终局: 回合', finalBoard.turn, '玩家', finalBoard.turnPlayer, '阶段', finalBoard.phaseName)
+  console.log(
+    '[smoke] 终局: 回合',
+    finalBoard.turn,
+    '玩家',
+    finalBoard.turnPlayer,
+    '阶段',
+    finalBoard.phaseName
+  )
 
   console.log('[smoke] ALL CHECKS PASSED')
   duel.endDuel()

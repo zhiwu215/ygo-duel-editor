@@ -17,6 +17,7 @@ import {
 import icon from '../../../resources/icon.png?asset'
 import { configService } from './configService'
 import { dataDirService } from './dataDirService'
+import { broadcastToWindows } from './broadcast'
 
 const LIBRARY_FILE = 'ygo_duel_editor_decks.json'
 
@@ -33,22 +34,12 @@ export class DeckService {
   private get libraryFilePath(): string {
     return dataDirService.resolve(LIBRARY_FILE)
   }
-
-  /**
-   * 读取完整卡组库（分组 + 卡组），并清除旧版本注入的示例卡组
-   *
-   * 分组是独立实体：允许存在「一个卡组都没有」的分组，用户才能预建分类。
-   */
   public getLibrary(): DeckLibrary {
     try {
       if (!existsSync(this.libraryFilePath)) return { groups: [], decks: [] }
 
       const raw = readFileSync(this.libraryFilePath, 'utf-8')
       const parsed = JSON.parse(raw) as DeckLibrary | DeckData[]
-
-      // 分组成为独立实体后，文件结构从 DeckData[] 变成 DeckLibrary。
-      // 这里做一次性就地升级而不是让用户丢卡组：旧结构是纯数组，
-      // 包一层并把已有的 group 字段回填进分组列表即可。
       if (Array.isArray(parsed)) {
         const groups = Array.from(
           new Set(parsed.map((d) => d.group?.trim()).filter((g): g is string => Boolean(g)))
@@ -76,17 +67,8 @@ export class DeckService {
     }
     return { groups: [], decks: [] }
   }
-
-  /** 覆写整个卡组库文件 */
   private writeLibrary(library: DeckLibrary): void {
     writeFileSync(this.libraryFilePath, JSON.stringify(library, null, 2), 'utf-8')
-  }
-
-  /**
-   * 读取所有已保存的卡组列表（不含分组）
-   */
-  public getDeckList(): DeckData[] {
-    return this.getLibrary().decks
   }
 
   public createGroup(name: string, parent?: string | null): boolean {
@@ -138,10 +120,6 @@ export class DeckService {
     this.writeLibrary(library)
     return true
   }
-
-  /**
-   * 把卡组移动到指定分组（传空串表示移回未分组）
-   */
   public assignDeckToGroup(deckId: string, group: string): boolean {
     const library = this.getLibrary()
     const index = library.decks.findIndex((d) => d.id === deckId)
@@ -181,10 +159,6 @@ export class DeckService {
       return { success: false, deck }
     }
   }
-
-  /**
-   * 从本地卡组库删除卡组
-   */
   public deleteDeckFromLibrary(id: string): boolean {
     try {
       const library = this.getLibrary()
@@ -196,10 +170,6 @@ export class DeckService {
       return false
     }
   }
-
-  /**
-   * 克隆已有卡组为副本并入库
-   */
   public duplicateDeckInLibrary(id: string): DeckData | null {
     try {
       const library = this.getLibrary()
@@ -221,13 +191,6 @@ export class DeckService {
       return null
     }
   }
-
-  /**
-   * 打开或聚焦卡组编辑器独立窗口。
-   *
-   * 传入 deckId 时直接进入该卡组的编辑台：窗口已存在就即时推送，
-   * 尚未创建则先暂存，等渲染层挂载后自行取走（见 consumePendingDeckToEdit）。
-   */
   public openDeckEditorWindow(deckId?: string): void {
     const deck = deckId ? (this.getLibrary().decks.find((d) => d.id === deckId) ?? null) : null
 
@@ -250,8 +213,6 @@ export class DeckService {
       minHeight: 560,
       show: false,
       autoHideMenuBar: true,
-      // 与主窗口 / 设置窗一致：无边框，标题栏由渲染层自绘
-      // (卡组库 header 与编辑台工具栏兼作标题栏，见 WindowControls.tsx)
       frame: false,
       title: '卡组编辑器 - YGO Duel Editor',
       icon,
@@ -283,19 +244,11 @@ export class DeckService {
       })
     }
   }
-
-  /**
-   * 取走并清空「卡组编辑器待打开卡组」，供新建的编辑器窗口在挂载后消费一次
-   */
   public consumePendingDeckToEdit(): DeckData | null {
     const deck = this.pendingEditDeck
     this.pendingEditDeck = null
     return deck
   }
-
-  /**
-   * 保存卡组为标准 .ydk 格式
-   */
   public async saveDeckFile(
     deck: DeckData,
     window?: BrowserWindow
@@ -325,10 +278,6 @@ export class DeckService {
       return { success: false, error: err instanceof Error ? err.message : '保存卡组失败' }
     }
   }
-
-  /**
-   * 选择并读取外部标准 .ydk 文件
-   */
   public async loadDeckFile(
     window?: BrowserWindow
   ): Promise<{ success: boolean; deck?: DeckData; filePath?: string; error?: string }> {
@@ -363,18 +312,10 @@ export class DeckService {
       return { success: false, error: err instanceof Error ? err.message : '读取卡组失败' }
     }
   }
-
-  /**
-   * 获取用户收藏夹卡密列表
-   */
   public getFavorites(): number[] {
     const cfg = configService.get()
     return cfg.favorites || []
   }
-
-  /**
-   * 切换卡片收藏状态并向所有窗口广播
-   */
   public toggleFavorite(code: number): { isFavorite: boolean; favorites: number[] } {
     const current = this.getFavorites()
     const set = new Set(current)
@@ -391,13 +332,7 @@ export class DeckService {
     const nextFavorites = Array.from(set)
     configService.save({ favorites: nextFavorites })
 
-    // 向所有窗口广播收藏变更事件
-    const windows = BrowserWindow.getAllWindows()
-    for (const win of windows) {
-      if (!win.isDestroyed()) {
-        win.webContents.send('favorites:changed', nextFavorites)
-      }
-    }
+    broadcastToWindows('favorites:changed', nextFavorites)
 
     return { isFavorite, favorites: nextFavorites }
   }

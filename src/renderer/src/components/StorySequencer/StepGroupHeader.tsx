@@ -1,7 +1,7 @@
 import React from 'react'
 import { ACTION_TYPE_COLORS, ACTION_TYPE_NAMES, DuelActionType } from '@shared/index'
 import { ArrowRight, ChevronRight, Layers, Link2, Repeat, Swords } from 'lucide-react'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { CardImage } from '../ui/CardImage'
 import { cn } from '../../lib/utils'
 
 export type StepGroupKind = 'chain' | 'attack' | 'repeat'
@@ -32,14 +32,7 @@ const CardThumb: React.FC<{ code?: number; name: string }> = ({ code, name }) =>
 
   return (
     <div className="w-7 h-10 rounded overflow-hidden border border-border/80 bg-black/60 shrink-0 shadow-sm">
-      <img
-        src={getCardImageUrl(code, true)}
-        alt={name}
-        className="w-full h-full object-cover"
-        onError={(e) => {
-          e.currentTarget.src = UNKNOWN_CARD_IMAGE
-        }}
-      />
+      <CardImage code={code} small alt={name} className="w-full h-full object-cover" />
     </div>
   )
 }

@@ -15,14 +15,10 @@ interface SeriesNameDialogProps {
   placeholder?: string
   confirmLabel: string
   initialValue?: string
-  /** 返回错误文案表示失败，返回 null 表示成功 */
   onConfirm: (name: string) => Promise<string | null>
   onClose: () => void
 }
 
-/**
- * 作品分类命名对话框（新建 / 重命名共用）
- */
 export const SeriesNameDialog: React.FC<SeriesNameDialogProps> = ({
   title,
   placeholder,

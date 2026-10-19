@@ -1,16 +1,16 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { CardLocation, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
-import { fetchCardDataByCodes } from '../../utils/cardData'
+import { useCardDataMap } from '../../hooks/useCardDataMap'
 import { resolveCardName } from '../../utils/cardNames'
 import { Layers, Ghost, Ban, X, Trash2, Search, ArrowUpCircle, ArrowDownToLine } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { CardImage } from '../ui/CardImage'
 
 export const OverlayListModal: React.FC = () => {
   const { hostInstanceId, closeOverlayList } = useOverlayListStore()
@@ -26,13 +26,11 @@ export const OverlayListModal: React.FC = () => {
   } = useDuelStore()
 
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [cardDataMap, setCardDataMap] = useState<Record<number, CdbCard>>({})
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const pendingCodesRef = useRef<Set<number>>(new Set())
-  const unknownCodesRef = useRef<Set<number>>(new Set())
-
   const hostCard = hostInstanceId ? state.cards.find((c) => c.instanceId === hostInstanceId) : null
+  const materials = useMemo(() => hostCard?.overlayMaterials || [], [hostCard?.overlayMaterials])
+  const cardDataMap = useCardDataMap(materials)
 
   useEffect(() => {
     return () => {
@@ -40,46 +38,8 @@ export const OverlayListModal: React.FC = () => {
     }
   }, [setHoveredInstanceId])
 
-  useEffect(() => {
-    const materials = hostCard?.overlayMaterials
-    if (!materials?.length) return
-    const missingCodes = materials.filter(
-      (code) =>
-        !cardDataMap[code] &&
-        !pendingCodesRef.current.has(code) &&
-        !unknownCodesRef.current.has(code)
-    )
-    if (missingCodes.length === 0) return
-    for (const code of missingCodes) pendingCodesRef.current.add(code)
-
-    fetchCardDataByCodes(missingCodes)
-      .then((map) => {
-        for (const code of missingCodes) {
-          pendingCodesRef.current.delete(code)
-          if (!map[code]) unknownCodesRef.current.add(code)
-        }
-        setCardDataMap((prev) => {
-          const next = { ...prev }
-          let changed = false
-          for (const code of missingCodes) {
-            const cardData = map[code]
-            if (cardData && !next[code]) {
-              next[code] = cardData
-              changed = true
-            }
-          }
-          return changed ? next : prev
-        })
-      })
-      .catch((err) => {
-        for (const code of missingCodes) pendingCodesRef.current.delete(code)
-        void err
-      })
-  }, [hostCard?.overlayMaterials, cardDataMap])
-
   if (!hostInstanceId || !hostCard) return null
 
-  const materials = hostCard.overlayMaterials || []
   const hostName = cardDataMap[hostCard.code]?.name || resolveCardName(hostCard.code)
 
   const filteredMaterials = materials
@@ -230,16 +190,11 @@ export const OverlayListModal: React.FC = () => {
                           }}
                           className="relative w-[110px] h-[160px] rounded overflow-hidden shadow border border-border bg-black/40 cursor-pointer group/img hover:ring-2 hover:ring-amber-500/80 hover:scale-[1.02] transition-all"
                         >
-                          <img
-                            src={getCardImageUrl(item.code, true)}
+                          <CardImage
+                            code={item.code}
+                            small
                             alt={item.name}
                             className="w-full h-full object-cover select-none"
-                            onError={(e) => {
-                              const target = e.currentTarget
-                              if (target.src !== UNKNOWN_CARD_IMAGE) {
-                                target.src = UNKNOWN_CARD_IMAGE
-                              }
-                            }}
                           />
                           {!isEngineActive && (
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity backdrop-blur-[1px]">

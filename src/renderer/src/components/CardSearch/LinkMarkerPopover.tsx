@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { cn } from '../../lib/utils'
+import { usePopoverDismiss } from './usePopoverDismiss'
 
 interface LinkMarkerPopoverProps {
   value: number
@@ -22,23 +23,7 @@ export const LinkMarkerPopover: React.FC<LinkMarkerPopoverProps> = ({
   const rootRef = useRef<HTMLDivElement>(null)
   const [pressed, setPressed] = useState<boolean[]>(() => ORDER.map((m) => (value & m) !== 0))
 
-  useEffect(() => {
-    const onDown = (e: MouseEvent): void => {
-      const target = e.target as Node
-      if (rootRef.current?.contains(target)) return
-      if (anchorRef.current?.contains(target)) return
-      onClose()
-    }
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('mousedown', onDown)
-    window.addEventListener('keydown', onKey)
-    return () => {
-      window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [onClose, anchorRef])
+  usePopoverDismiss(rootRef, anchorRef, onClose)
 
   const confirm = (): void => {
     let mask = 0

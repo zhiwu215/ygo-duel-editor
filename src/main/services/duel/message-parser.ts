@@ -21,12 +21,6 @@ import {
   YGOProMsgRockPaperScissors
 } from 'ygopro-msg-encode'
 
-/**
- * 判断消息是否为玩家交互询问。
- *
- * 交互内容本身由 request-router 转成 EngineRequest（纯数据），这里只负责在
- * advanceEngine 中识别「引擎正在等待作答」的时点。
- */
 export function isInteractiveQuery(msg: unknown): boolean {
   return (
     msg instanceof YGOProMsgSelectIdleCmd ||

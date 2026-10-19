@@ -3,8 +3,6 @@ import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 
 import { resolveCounterName } from '../constants/counters'
-
-// 辅助：获取位置常量名
 function getLocationConstName(loc: number): string {
   switch (loc) {
     case CardLocation.DECK:
@@ -29,8 +27,6 @@ function getLocationConstName(loc: number): string {
       return 'LOCATION_MZONE'
   }
 }
-
-// 辅助：获取表示形式常量名
 function getPositionConstName(pos: number): string {
   switch (pos) {
     case CardPosition.FACEUP_ATTACK:
@@ -49,15 +45,10 @@ function getPositionConstName(pos: number): string {
       return 'POS_FACEUP_ATTACK'
   }
 }
-
-/**
- * 将 DuelPuzzleState 格式化输出为符合 ocgcore 标准的 Lua 脚本
- */
 export function generateLuaScript(
   state: DuelPuzzleState,
   options?: { forReplay?: boolean }
 ): string {
-  // 校验当前对局是否符合 ocgcore 导出范围 (1v1 或 2v2)
   const team0Count =
     state.matchConfig?.team0Count ?? (state.duelists?.filter((d) => d.team === 0).length || 1)
   const team1Count =
@@ -79,8 +70,6 @@ export function generateLuaScript(
 
   const duelistsTeam0 = state.duelists?.filter((d) => d.team === 0) || []
   const duelistsTeam1 = state.duelists?.filter((d) => d.team === 1) || []
-
-  // 1. 头部注释
   lines.push('-- ==============================================================')
   lines.push(`-- 决斗标题: ${state.title || '未命名对局'}`)
   if (state.duelType) {
@@ -99,8 +88,6 @@ export function generateLuaScript(
   lines.push(`-- 导出工具: YGO Duel Editor`)
   lines.push('-- ==============================================================')
   lines.push('')
-
-  // 2. 初始化环境
   const flags: string[] = []
   if (state.firstTurnAttack) flags.push('DUEL_ATTACK_FIRST_TURN')
   if (isTag) flags.push('DUEL_TAG_MODE')
@@ -109,8 +96,6 @@ export function generateLuaScript(
   lines.push(`-- 1. 初始化规则环境`)
   lines.push(`Debug.ReloadFieldBegin(${flagStr}, ${state.masterRule})`)
   lines.push('')
-
-  // 3. 玩家信息设置
   const lp0 = state.matchConfig?.sharedLp
     ? state.players[0].lp
     : (duelistsTeam0[0]?.lp ?? state.players[0].lp)
@@ -126,8 +111,6 @@ export function generateLuaScript(
     `Debug.SetPlayerInfo(1, ${lp1}, ${state.players[1].startHand}, ${state.players[1].maxHand})`
   )
   lines.push('')
-
-  // 4. 卡片摆放分组
   lines.push(`-- 3. 卡片摆放`)
 
   const players: (0 | 1)[] = [0, 1]
@@ -161,13 +144,10 @@ export function generateLuaScript(
         const locName = getLocationConstName(card.location)
         const posName = getPositionConstName(card.position)
         const cardNameComment = card.card?.name ? ` -- ${card.card.name}` : ''
-
-        // 在 2v2 Tag 模式下，手牌区分 Player 0/2 与 Player 1/3
         let targetController = card.controller
         if (isTag && card.location === CardLocation.HAND) {
           const teamDuelists = p === 0 ? duelistsTeam0 : duelistsTeam1
           if (teamDuelists.length >= 2 && card.duelistId === teamDuelists[1].id) {
-            // 队友手牌: Team 0 的队友为 Player 2，Team 1 的队友为 Player 3
             targetController = (p === 0 ? 2 : 3) as 0 | 1
           } else {
             targetController = p
@@ -194,8 +174,6 @@ export function generateLuaScript(
             `Debug.AddCard(${card.code}, ${card.owner}, ${targetController}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
           )
         }
-
-        // 超量素材 (XYZ Materials)
         if (card.overlayMaterials && card.overlayMaterials.length > 0) {
           for (const matCode of card.overlayMaterials) {
             lines.push(
@@ -207,8 +185,6 @@ export function generateLuaScript(
       lines.push('')
     }
   }
-
-  // 5. 结束初始化
   lines.push(`-- 4. 结束初始化与启动残局判定`)
   lines.push(`Debug.ReloadFieldEnd()`)
   if (options?.forReplay) {
@@ -227,8 +203,6 @@ export function generateLuaScript(
   } else {
     lines.push(`aux.BeginPuzzle()`)
   }
-
-  // 6. 过关提示
   if (state.hint && state.hint.trim().length > 0) {
     lines.push(`Debug.ShowHint("${state.hint.replace(/"/g, '\\"')}")`)
   }

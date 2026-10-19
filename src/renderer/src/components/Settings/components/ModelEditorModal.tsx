@@ -3,6 +3,8 @@ import { ScrollArea } from '../../ui/scroll-area'
 import React, { useState } from 'react'
 import { Check, ChevronRight, Loader2, Lock, X } from 'lucide-react'
 import { AgentProviderConfig, AgentProviderModelConfig, cleanAgentApiKey } from '@shared/index'
+import { useAgentModelFetch } from '../../../hooks/useAgentModelFetch'
+import { buildAgentModelFormModel } from '../../../utils/agentModelForm'
 import { Button } from '../../ui/button'
 import { Switch } from '../../ui/switch'
 import { HelpTip } from './HelpTip'
@@ -106,13 +108,15 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
   const [detectNote, setDetectNote] = useState('')
   const [error, setError] = useState('')
 
+  const { supported, fetchModels } = useAgentModelFetch()
+
   const detectModel = async (): Promise<void> => {
     const id = idValue.trim()
-    if (!smart || !id || !provider.baseUrl.trim() || !window.api?.agentFetchModels) return
+    if (!smart || !id || !provider.baseUrl.trim() || !supported) return
     setDetecting(true)
     setDetectNote('')
     try {
-      const res = await window.api.agentFetchModels({
+      const res = await fetchModels({
         baseUrl: provider.baseUrl,
         apiKey: cleanAgentApiKey(provider.apiKey)
       })
@@ -145,38 +149,25 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
   }
 
   const handleSubmit = (): void => {
-    const id = idValue.trim()
-    if (!id) {
-      setError('请填写模型 ID')
+    const result = buildAgentModelFormModel(
+      {
+        id: idValue,
+        name: nameValue,
+        contextWindow: contextValue,
+        maxTokens: maxTokensValue,
+        supportsReasoning: reasoning,
+        supportsVision: vision,
+        supportsStructuredOutput: structuredOutput,
+        supportsMidConversationSystem: midConversationSystem
+      },
+      existingIds,
+      initial?.enabled
+    )
+    if (!result.ok) {
+      setError(result.error)
       return
     }
-    if (existingIds.includes(id)) {
-      setError(`模型「${id}」已存在`)
-      return
-    }
-    const contextWindow = contextValue.trim() ? Number(contextValue) : undefined
-    if (contextWindow !== undefined && (!Number.isFinite(contextWindow) || contextWindow <= 0)) {
-      setError('上下文窗口需填写正整数')
-      return
-    }
-    const maxTokens = maxTokensValue.trim() ? Number(maxTokensValue) : undefined
-    if (maxTokens !== undefined && (!Number.isFinite(maxTokens) || maxTokens <= 0)) {
-      setError('最大输出 Token 需填写正整数')
-      return
-    }
-    onSubmit({
-      id,
-      name: nameValue.trim() || undefined,
-      contextWindow,
-      maxTokens,
-      supportsReasoning: reasoning,
-      supportsVision: vision,
-      supportsStructuredOutput: structuredOutput,
-      supportsMidConversationSystem: midConversationSystem,
-      enabled: initial?.enabled ?? true,
-
-      custom: true
-    })
+    onSubmit(result.model)
   }
 
   return (

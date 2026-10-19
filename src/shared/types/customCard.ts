@@ -30,15 +30,6 @@ export interface CustomCardInput {
 export const CUSTOM_CARD_ID_MIN = 900000000
 export const CUSTOM_CARD_ID_MAX = 999999999
 
-export function isCustomCardId(id: number | undefined | null): boolean {
-  return (
-    typeof id === 'number' &&
-    Number.isFinite(id) &&
-    id >= CUSTOM_CARD_ID_MIN &&
-    id <= CUSTOM_CARD_ID_MAX
-  )
-}
-
 export function customCardToCdbCard(card: CustomCard): CdbCard {
   const isLink = (card.type & CardType.LINK) !== 0
   return {

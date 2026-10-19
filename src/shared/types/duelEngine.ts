@@ -46,8 +46,6 @@ export interface EngineBoardState {
   players: [EnginePlayerState, EnginePlayerState]
   allCards: EngineCard[]
 }
-
-/** 步骤内引擎发生、需要 UI 呈现的事件（如手牌切洗） */
 export type EngineStepEvent = { kind: 'shuffle-hand'; player: 0 | 1 }
 
 export interface EngineTimelineNode {
@@ -59,7 +57,6 @@ export interface EngineTimelineNode {
   logs: string[]
   events: EngineStepEvent[]
   boardState: EngineBoardState
-  /** 该步骤完成后等待作答的请求（与 pendingRequest 语义一致；无询问时为 null） */
   pendingRequest: EngineRequest | null
   opIndex: number
   createdAt: number

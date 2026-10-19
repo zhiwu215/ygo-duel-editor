@@ -9,6 +9,7 @@ import {
 } from '@shared/index'
 import { createLpFlash } from './lpSlice'
 import type { DuelStore } from './types'
+import { turnOrderOf } from '../../utils/duelistNames'
 
 export interface DuelistsSlice {
   expandedDuelistId: string | null
@@ -201,14 +202,12 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
       const target = rawDuelists.find((d) => d.id === duelistId)
       if (!target) return prev
 
-      const currentTargetOrder = target.turnOrder ?? (target.isFirst ? 1 : 2)
+      const currentTargetOrder = turnOrderOf(target)
       if (currentTargetOrder === newOrder) return prev
 
       const duelists = rawDuelists.map((d) => ({ ...d }))
       const targetInList = duelists.find((d) => d.id === duelistId)!
-      const otherInList = duelists.find(
-        (d) => d.id !== duelistId && (d.turnOrder ?? (d.isFirst ? 1 : 2)) === newOrder
-      )
+      const otherInList = duelists.find((d) => d.id !== duelistId && turnOrderOf(d) === newOrder)
 
       targetInList.turnOrder = newOrder
       if (otherInList) {

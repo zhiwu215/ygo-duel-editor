@@ -6,10 +6,10 @@ import {
   CardUtils,
   resolveCounterName,
   RACE_NAMES,
-  ATTRIBUTE_NAMES,
-  isInfiniteVal
+  ATTRIBUTE_NAMES
 } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
+import { getEffectiveStats } from '../../../utils/cardStats'
 import { resolveCardName } from '../../../utils/cardNames'
 import { cn } from '../../../lib/utils'
 
@@ -70,20 +70,11 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
   const isMonster = cdb ? CardUtils.isMonster(cdb.type) : card.location === CardLocation.MZONE
   const cardName = resolveCardName(card.code)
 
-  const origAtk = cdb?.atk ?? 0
-  const origDef = cdb?.def ?? 0
-  const customAtk = card.customAtk
-  const customDef = card.customDef
-  const hasCustomAtk = customAtk !== undefined
-  const hasCustomDef = customDef !== undefined
-  const isAtkInf = isInfiniteVal(customAtk)
-  const isDefInf = isInfiniteVal(customDef)
-  const effectiveAtk = customAtk ?? origAtk
-  const effectiveDef = customDef ?? origDef
-  const atkDiff = hasCustomAtk && origAtk >= 0 ? (isAtkInf ? Infinity : customAtk - origAtk) : 0
-  const defDiff = hasCustomDef && origDef >= 0 ? (isDefInf ? Infinity : customDef - origDef) : 0
+  const stats = getEffectiveStats(card)
+  const isAtkInf = stats.isAtkInf
+  const isDefInf = stats.isDefInf
 
-  const star = cdb ? CardUtils.getStarLevel(cdb.level, cdb.type) : 0
+  const star = cdb ? CardUtils.getStarLevel(cdb.level) : 0
   const isLink = cdb ? CardUtils.isLink(cdb.type) : false
   const race = cdb ? RACE_NAMES[cdb.race] || '' : ''
   const attr = cdb ? ATTRIBUTE_NAMES[cdb.attribute] || '' : ''
@@ -127,16 +118,16 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
         <div className="flex flex-col gap-1 rounded bg-white/5 px-1 py-1">
           <StatLine
             label="ATK"
-            value={effectiveAtk}
-            diff={atkDiff}
+            value={stats.atk}
+            diff={stats.atkDiff}
             infinite={isAtkInf}
             emphasized={!isDefense}
           />
           {!isLink && (
             <StatLine
               label="DEF"
-              value={effectiveDef}
-              diff={defDiff}
+              value={stats.def}
+              diff={stats.defDiff}
               infinite={isDefInf}
               emphasized={isDefense}
             />

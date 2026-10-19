@@ -2,7 +2,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useState } from 'react'
 import { CdbCard, CardUtils } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { CardImage } from '../ui/CardImage'
 import {
   formatCardTypeLine,
   formatCardStatsLine,
@@ -34,11 +35,6 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover })
 
   const handleImageLoaded = (): void => {
     setDisplay((s) => (s.loaded ? s : { ...s, loaded: true }))
-  }
-
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>): void => {
-    e.currentTarget.src = UNKNOWN_CARD_IMAGE
-    handleImageLoaded()
   }
 
   const typeLine = card ? formatCardTypeLine(card) : ''
@@ -126,13 +122,12 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover })
                           onError={() => setDisplay((s) => ({ ...s, prevUrl: null }))}
                         />
                       )}
-                      <img
+                      <CardImage
                         key={display.url}
-                        src={display.url}
+                        code={card.id}
                         alt={card.name || '卡背'}
                         draggable={false}
                         onLoad={handleImageLoaded}
-                        onError={handleImageError}
                         className={cn(
                           'w-[200px] h-[291px] object-cover transition-[transform,opacity] duration-200 group-hover:scale-[1.02]',
                           !display.loaded && 'opacity-0'

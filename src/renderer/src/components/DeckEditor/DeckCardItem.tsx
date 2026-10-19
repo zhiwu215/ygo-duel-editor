@@ -3,7 +3,7 @@ import React from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { CdbCard, DeckSection } from '@shared/index'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { CardImage } from '../ui/CardImage'
 import { resolveCardName } from '../../utils/cardNames'
 import { cn } from '../../lib/utils'
 import { DeckDragSourceData } from './deckDnd'
@@ -15,7 +15,6 @@ interface DeckCardItemProps {
   index: number
   sortableId: string
   isCover: boolean
-  /** 刚被加入 / 移动到此位置的卡片，短暂高亮一次作为落位反馈 */
   isFlash: boolean
   onSelect: (card: CdbCard | null) => void
   onHover: (code: number | null) => void
@@ -39,9 +38,7 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
     data: { source: 'deck', section, index, code } as DeckDragSourceData,
     transition: { duration: 160, easing: 'cubic-bezier(0.2, 0, 0, 1)' }
   })
-  const imageUrl = getCardImageUrl(code, true)
 
-  /** 对齐 YGOPro：hovered_code 只在新卡进入时更新，移开鼠标保留上一张，左侧详情不回退不闪烁 */
   const handleMouseEnter = (): void => {
     if (card) {
       onHover(code)
@@ -86,15 +83,13 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
               isFlash && 'ring-2 ring-primary shadow-md shadow-primary/30'
             )}
           >
-            <img
-              src={imageUrl}
+            <CardImage
+              code={code}
+              small
               alt={card?.name || resolveCardName(code)}
               loading="lazy"
               draggable={false}
               className="w-full h-full object-cover pointer-events-none"
-              onError={(e) => {
-                ;(e.currentTarget as HTMLImageElement).src = UNKNOWN_CARD_IMAGE
-              }}
             />
             {isCover && (
               <div className="absolute top-0 left-0 right-0 bg-purple-950/85 text-purple-300 text-[9px] font-bold py-px text-center pointer-events-none">

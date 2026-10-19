@@ -1,8 +1,8 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import React, { useEffect } from 'react'
+import React, { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
-import { getCardImageUrl, getCardBack } from '../../utils/cardImage'
+import { setCardDragImage } from '../../utils/cardImage'
 import { resolveCardName } from '../../utils/cardNames'
 import { getFallbackActions, type CardActionOptions } from '../../utils/ruleCheck'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -11,16 +11,20 @@ import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { CardHudOverlay } from './components/CardHudOverlay'
 import { CardFieldStats } from './components/CardFieldStats'
+import { OverlayMaterialStack } from './components/OverlayMaterialStack'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useSelectionStore } from '../../stores/useSelectionStore'
 import { hasCardEngineActions } from '../../utils/engineActions'
 import {
-  deriveSelection,
-  isSameRequestCard,
-  requestCardKey,
-  submitSelection
+  resolveCardSelectionMatch,
+  resolveCardRole,
+  type CardSelectionMatch
 } from '../../utils/duelSelection'
+import { useCardPointerActions } from '../../hooks/useCardPointerActions'
+import { useFieldCardCdb } from '../../hooks/useFieldCardCdb'
+import { CardImage } from '../ui/CardImage'
+import { getCardBack } from '../../utils/cardImage'
 import { cn } from '../../lib/utils'
 
 export const HAND_REORDER_DRAG_TYPE = 'application/x-ygo-hand-reorder'
@@ -31,24 +35,14 @@ interface CardItemProps {
 }
 
 export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) => {
-  const {
-    selectedCardId,
-    activeStatPopoverCardId,
-    statPopoverPosition,
-    setSelectedCardId,
-    openStatPopover,
-    closeStatPopover,
-    setHoveredCard,
-    setHoveredInstanceId
-  } = useDuelStore()
+  const { selectedCardId, setSelectedCardId, setHoveredCard, setHoveredInstanceId } = useDuelStore()
   const tacticalView = useDuelStore((s) => s.tacticalView)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const selectedKeys = useSelectionStore((s) => s.selectedKeys)
   const pendingPlacement = useDuelStore((s) => s.pendingPlacement)
 
-  // R2：引擎请求下该卡是否有合法动作（发光提示）
-  const hasRequestActions = React.useMemo(
+  const hasRequestActions = useMemo(
     () => hasCardEngineActions(pendingRequest, card),
     [pendingRequest, card]
   )
@@ -65,9 +59,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         s.controller === card.controller
     )
 
-  // 引擎激活时，菜单动作完全来自 pendingRequest（CardCommandMenu 内推导）；
-  // 这里只负责「该卡此刻有没有合法请求动作」的发光与菜单开启判断，本地自由模式动作不参与。
-  const availableActions = React.useMemo<CardActionOptions>(() => {
+  const availableActions = useMemo<CardActionOptions>(() => {
     if (!isEngineActive) {
       return getFallbackActions(card)
     }
@@ -86,47 +78,37 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     }
   }, [card, isEngineActive, hasRequestActions])
 
-  // S3（neos 模式）：card / tribute / sum / unselect 的点选模式——候选卡高亮，点击选择/取消。
-  // 已选状态：unselect 由引擎随请求累计回传（unselectable）；其余 kind 在 useSelectionStore 维护。
-  const selectionMatch = React.useMemo(() => {
-    const derived = deriveSelection(pendingRequest)
-    if (!derived || derived.mode !== 'point') return null
-    const pool =
-      derived.kind === 'unselect'
-        ? [...derived.candidates, ...derived.selected]
-        : derived.candidates
-    const requestCard = pool.find((c) => isSameRequestCard(c, card))
-    if (!requestCard) return null
-    const chosen =
-      derived.kind === 'unselect'
-        ? derived.selected.some((c) => isSameRequestCard(c, requestCard))
-        : selectedKeys.includes(requestCardKey(requestCard))
-    return { derived, requestCard, chosen }
-  }, [pendingRequest, card, selectedKeys])
+  const selectionMatch = useMemo<CardSelectionMatch | null>(
+    () => resolveCardSelectionMatch(pendingRequest, card, selectedKeys),
+    [pendingRequest, card, selectedKeys]
+  )
 
-  const role = React.useMemo((): 'none' | 'source' | 'chosen' | 'legal' | 'dim' | 'target' => {
-    if (pendingPlacement) {
-      if (isPlacementSource) return 'source'
-      if (isPlacementDisplaceTarget) return 'legal'
-      return 'dim'
-    }
-    // S3（neos 模式）：选卡询问点选模式下，候选卡高亮（legal）、已选卡标记（chosen）
-    // S4：攻击目标选择（descHint 549）的候选卡用红色目标高亮（target）
-    if (selectionMatch) {
-      if (selectionMatch.derived.attackTarget) return 'target'
-      return selectionMatch.chosen ? 'chosen' : 'legal'
-    }
-    return 'none'
-  }, [pendingPlacement, isPlacementSource, isPlacementDisplaceTarget, selectionMatch])
+  const role = useMemo(
+    () =>
+      resolveCardRole(
+        pendingPlacement !== null,
+        isPlacementSource,
+        isPlacementDisplaceTarget,
+        selectionMatch
+      ),
+    [pendingPlacement, isPlacementSource, isPlacementDisplaceTarget, selectionMatch]
+  )
+
+  const handleCardClick = useCardPointerActions({
+    card,
+    role,
+    selectionMatch,
+    isPlacementSource,
+    isPlacementDisplaceTarget,
+    availableActions
+  })
+
+  useFieldCardCdb(card)
 
   const { openMenu } = useContextMenuStore()
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openPile = usePileListStore((s) => s.openPile)
-  const {
-    card: menuCard,
-    openMenu: openCommandMenu,
-    closeMenu: closeCommandMenu
-  } = useCardCommandMenuStore()
+  const { closeMenu: closeCommandMenu } = useCardCommandMenuStore()
 
   const isSelected = selectedCardId === card.instanceId
   const isDefense =
@@ -134,50 +116,25 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const isFacedown =
     card.position === CardPosition.FACEDOWN || card.position === CardPosition.FACEDOWN_DEFENSE
 
-  // 检查是否为超量怪兽与素材数量
   const isXyzMonster = card.card ? CardUtils.isXyz(card.card.type) : false
   const materialCount = card.overlayMaterials?.length || 0
   const isMonsterZone = card.location === CardLocation.MZONE
-  // 超量怪兽在怪兽区哪怕素材为 0 也显示徽标；非超量怪兽若叠放了素材也显示
   const showOverlayBadge = isMonsterZone && (isXyzMonster || materialCount > 0)
 
-  // 是否为怪兽卡
   const isMonster = card.card
     ? CardUtils.isMonster(card.card.type)
     : card.location === CardLocation.MZONE
 
-  // 是否挂载了指示物
   const hasCounters = !!(card.counters && Object.values(card.counters).some((v) => v > 0))
 
-  // 场上交互区域判定 (怪兽区、魔陷区、场地、灵摆区)
   const isFieldZone =
     card.location === CardLocation.MZONE ||
     card.location === CardLocation.SZONE ||
     card.location === CardLocation.FZONE ||
     card.location === CardLocation.PZONE
 
-  // 战术全息透视浮层 (Tab 键激活)：
-  // 1. 场上所有怪兽卡默认全部展示实战数据 (卡名、攻守、星阶/种族/属性、指示物)
-  // 2. 魔法陷阱卡平时不展示，仅当真正挂载了指示物时才亮起展示指示物数据
   const showHud = tacticalView && isFieldZone && (isMonster || hasCounters)
   const showFieldStats = isMonster && card.location === CardLocation.MZONE
-
-  // 若卡片缺少 CDB 详情数据，自动补全缓存以准确识别超量类型
-  useEffect(() => {
-    if (!card.card && card.code) {
-      window.api
-        .getCardsByIds([card.code])
-        .then((map) => {
-          const cardData = map[card.code]
-          if (cardData) {
-            useDuelStore.getState().setCardData(card.instanceId, cardData)
-          }
-        })
-        .catch((err) => {
-          void err
-        })
-    }
-  }, [card.instanceId, card.code, card.card])
 
   const isHand = card.location === CardLocation.HAND
   const isPileZone =
@@ -186,23 +143,11 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     card.location === CardLocation.GRAVE ||
     card.location === CardLocation.REMOVED
   const isDeckPile = card.location === CardLocation.DECK || card.location === CardLocation.EXTRA
-  // 编排者全知视角：里侧卡片一律渲染清晰卡面 + 暗化蒙版 (而非模糊或纯卡背)，
-  // 编排时需要直接看清卡图，卡背会挡住信息。
-  // - 主卡组 / 额外卡组：同属「里侧备着」语义，都用与盖放一致的暗化卡面；
-  // - 但都**不打「盖放」角标** —— 那是场上盖放的专属标记，卡组打上会被读成一张被盖放的卡。
-  //   （卡组被效果翻成表侧时 position 变表侧，暗化自然消失，角标语义不会被占用）
   const isPileFacedown = isFacedown && isDeckPile
   const isSetOnField = isFacedown && !isDeckPile && !isHand
-  /** 暗化蒙版：场上盖放 + 主卡组/额外卡组里侧 */
   const showFacedownVeil = isSetOnField || isPileFacedown
-  // 手牌一律正常显示卡面；position === FACEUP(0x5) 表示公开手牌，用角标提示。
-  // 直接读引擎同步进 FieldCard.position 的值，不做本地推导（避免 engine/编辑器不同步时贴错卡）。
   const isPublicHand = isHand && card.position === CardPosition.FACEUP
 
-  // 外层格子尺寸 104x104 (正方形) 或 74x104 (竖长格)
-  // 当正方形格横置 (isDefense) 时，卡片视觉为 104x71.3，纵向居中 (top 留白约 16.3px)
-  // 当正方形格竖置 (!isDefense) 时，卡片视觉为 71.3x104，横向居中 (left 留白约 16.3px)
-  // 角标统一在外层无旋转容器中定位，永不被卡牌自身的 overflow-hidden 裁切，文字永远水平正立
   const badgePos = squareCell
     ? isDefense
       ? { top: 18, left: 3 }
@@ -225,8 +170,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         }
         if (card.location === CardLocation.HAND) {
           e.dataTransfer.setData(HAND_REORDER_DRAG_TYPE, card.instanceId)
-          const rect = e.currentTarget.getBoundingClientRect()
-          e.dataTransfer.setDragImage(e.currentTarget, e.clientX - rect.left, e.clientY - rect.top)
+          setCardDragImage(e.dataTransfer, e.currentTarget)
         }
         e.dataTransfer.setData('text/instanceId', card.instanceId)
         if (card.card) {
@@ -234,60 +178,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         }
         e.dataTransfer.effectAllowed = 'copyMove'
       }}
-      onClick={(e) => {
-        e.stopPropagation()
-        if (role === 'dim') return
-        // S3（neos 模式）：选卡询问点选模式——点击卡 = 选择/取消；单选(min=max=1)点击即提交
-        if (selectionMatch) {
-          closeCommandMenu()
-          const derived = selectionMatch.derived
-          if (derived.kind === 'unselect') {
-            // unselect 是逐张语义：点可选卡 = 选择，点已选卡 = 取消（各提交一张）
-            submitSelection(derived, [selectionMatch.requestCard])
-            return
-          }
-          if (derived.min === 1 && derived.max === 1) {
-            submitSelection(derived, [selectionMatch.requestCard])
-            return
-          }
-          useSelectionStore.getState().toggle(selectionMatch.requestCard)
-          return
-        }
-        if (isPlacementSource) {
-          useDuelStore.getState().cancelPlacement()
-          return
-        }
-        if (isPlacementDisplaceTarget) {
-          useDuelStore.getState().commitPlacement({
-            location: card.location,
-            sequence: card.sequence,
-            controller: card.controller
-          })
-          return
-        }
-        setSelectedCardId(card.instanceId)
-        if (card.card) setHoveredCard(card.card)
-        if (e.shiftKey) {
-          closeCommandMenu()
-          if (activeStatPopoverCardId === card.instanceId) {
-            closeStatPopover()
-          } else {
-            const rect = e.currentTarget.getBoundingClientRect()
-            const isRight = rect.right > window.innerWidth - 270
-            const defaultX = isRight ? Math.max(16, rect.left - 248 - 12) : rect.right + 12
-            const defaultY = Math.max(16, Math.min(rect.top - 20, window.innerHeight - 380))
-            openStatPopover(card.instanceId, statPopoverPosition || { x: defaultX, y: defaultY })
-          }
-        } else if (availableActions.hasAnyAction) {
-          if (menuCard?.instanceId === card.instanceId) {
-            closeCommandMenu()
-          } else {
-            openCommandMenu(card, availableActions, e.currentTarget.getBoundingClientRect())
-          }
-        } else {
-          closeCommandMenu()
-        }
-      }}
+      onClick={handleCardClick}
       onDoubleClick={(e) => {
         e.stopPropagation()
         closeCommandMenu()
@@ -328,51 +219,11 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     >
       <div
         className={`relative ${
-          // 正方形格: 卡面按卡牌比例 (59:86) 缩放为 71×104，横置时仅旋转 90° 不再缩放；
-          // 竖长格 (手牌/牌堆): 卡面完整填充
           squareCell ? 'w-[68.6%] h-full' : isDefense ? 'w-[68.6%] h-[71%]' : 'w-full h-full'
         }`}
       >
-        {/* 超量素材叠放层 (超量素材不具有表示形式，始终保持纵向正立，不随怪兽守备表示横置而旋转！) */}
-        {card.location === CardLocation.MZONE &&
-          card.overlayMaterials &&
-          card.overlayMaterials.length > 0 &&
-          card.overlayMaterials.map((matCode, idx) => {
-            const count = card.overlayMaterials.length
-            // 距离顶层怪兽最近的素材 (idx = count - 1) 偏移 1 个 step，更底层的依次向左多偏移 1 个 step
-            const depth = count - 1 - idx
-            // 阶梯式向左错位露出卡边与边角，每层错开 4.5px (超出 3 层时微调步长避免溢出格子)
-            const step = count > 3 ? 14 / count : 4.5
-            const xOffset = -((depth + 1) * step)
+        <OverlayMaterialStack card={card} />
 
-            return (
-              <div
-                key={`oru_${matCode}_${idx}`}
-                className="absolute inset-0 rounded overflow-hidden shadow-sm border border-neutral-900/60 pointer-events-none select-none bg-black/40"
-                style={{
-                  transform: `translateX(${xOffset}px)`,
-                  zIndex: idx + 1
-                }}
-              >
-                <img
-                  src={getCardImageUrl(matCode, true)}
-                  alt={`ORU-${matCode}`}
-                  className="w-full h-full object-cover select-none pointer-events-none"
-                  onError={(e) => {
-                    const target = e.currentTarget
-                    const cardBack = getCardBack(card.controller)
-                    if (target.src !== cardBack) {
-                      target.src = cardBack
-                    }
-                  }}
-                />
-                {/* 底部素材微弱暗色，烘托立体叠放层次 */}
-                <div className="absolute inset-0 bg-black/10 pointer-events-none" />
-              </div>
-            )
-          })}
-
-        {/* 顶层主怪兽卡片 (仅主怪兽随守备表示旋转 90 度，底层素材保持正立) */}
         <motion.div
           initial={false}
           animate={{
@@ -399,17 +250,12 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           style={{ zIndex: (card.overlayMaterials?.length || 0) + 2 }}
         >
           <div className="absolute inset-0 rounded overflow-hidden">
-            <img
-              src={getCardImageUrl(card.code, true)}
+            <CardImage
+              code={card.code}
+              small
               alt={resolveCardName(card.code)}
+              fallback={getCardBack(card.controller)}
               className="w-full h-full object-cover select-none pointer-events-none"
-              onError={(e) => {
-                const target = e.currentTarget
-                const cardBack = getCardBack(card.controller)
-                if (target.src !== cardBack) {
-                  target.src = cardBack
-                }
-              }}
             />
             {showFacedownVeil && (
               <div className="absolute inset-0 bg-black/30 border border-amber-400/50 rounded pointer-events-none" />
@@ -418,7 +264,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         </motion.div>
       </div>
 
-      {/* 状态徽标 (盖放/公开) - 位于外层无旋转容器，平滑跟随卡牌旋转并保持水平正立，不被裁切 */}
       {(isSetOnField || isPublicHand) && (
         <motion.div
           initial={false}
@@ -433,7 +278,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         </motion.div>
       )}
 
-      {/* 额外卡组表侧表示角标 */}
       {card.location === CardLocation.EXTRA && !isFacedown && (
         <motion.div
           initial={false}
@@ -447,7 +291,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         </motion.div>
       )}
 
-      {/* 超量素材叠放标识 (外层无旋转容器，横置自适应右下角，超量怪兽即使 0 素材也显示 0) */}
       {showOverlayBadge && (
         <Tooltip>
           <TooltipTrigger

@@ -29,7 +29,6 @@ const DUEL_TYPE_OPTIONS: DuelTypeOption[] = [
   { value: 'combo', label: 'Combo' }
 ]
 
-/** 下拉项不允许空值，未归类用哨兵值代替 */
 const UNFILED_VALUE = '__unfiled__'
 
 export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClose }) => {

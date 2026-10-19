@@ -1,10 +1,15 @@
 import { create } from 'zustand'
 import { temporal } from 'zundo'
-import { createBoardSlice } from './boardSlice'
+import { createCardStatsSlice } from './cardStatsSlice'
 import { createDuelistsSlice } from './duelistsSlice'
+import { createExecutionsSlice } from './executionsSlice'
 import { createLpSlice } from './lpSlice'
+import { createOverlaySlice } from './overlaySlice'
+import { createPlacementSlice } from './placementSlice'
 import { createPreviewSlice } from './previewSlice'
 import { createSessionSlice } from './sessionSlice'
+import { createSetupSlice } from './setupSlice'
+import { createStateBaseSlice } from './stateBaseSlice'
 import { createStepsSlice } from './stepsSlice'
 import { createUiSlice } from './uiSlice'
 import { createUndoSlice } from './undoSlice'
@@ -13,7 +18,12 @@ import type { DuelStore } from './types'
 export const useDuelStore = create<DuelStore>()(
   temporal(
     (...a) => ({
-      ...createBoardSlice(...a),
+      ...createStateBaseSlice(...a),
+      ...createPlacementSlice(...a),
+      ...createExecutionsSlice(...a),
+      ...createOverlaySlice(...a),
+      ...createCardStatsSlice(...a),
+      ...createSetupSlice(...a),
       ...createDuelistsSlice(...a),
       ...createLpSlice(...a),
       ...createPreviewSlice(...a),
@@ -36,6 +46,6 @@ export type {
   PendingPlacement,
   PendingPlacementMode,
   PendingPlacementSlot
-} from './boardSlice'
+} from './placementSlice'
 export type { LpFlash } from './lpSlice'
 export type { PreviewReturn } from './previewSlice'

@@ -101,7 +101,3 @@ export async function getOcgcoreEngine(): Promise<OcgcoreWrapper> {
 
   return ocgcoreInstance
 }
-
-export function isEngineReady(): boolean {
-  return ocgcoreInstance !== null
-}

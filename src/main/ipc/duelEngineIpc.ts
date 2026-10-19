@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { duelDirector } from '../services/duel/duel-director'
-import { fileService } from '../services/fileService'
+import { sessionDocFileService } from '../services/sessionDocFileService'
 import {
   EngineDuelInitParams,
   EngineCardRef,
@@ -61,10 +61,6 @@ export function registerDuelEngineIpc(): void {
     return duelDirector.getTimeline()
   })
 
-  ipcMain.handle('duel-engine:get-board-state', () => {
-    return duelDirector.getBoardState()
-  })
-
   ipcMain.handle('duel-engine:get-pending-request', () => {
     return duelDirector.getPendingRequest()
   })
@@ -96,46 +92,40 @@ export function registerDuelEngineIpc(): void {
     }
   })
 
-  ipcMain.handle(
-    'duel-engine:export-session',
-    async (): Promise<EngineSessionFileResult> => {
-      try {
-        return await fileService.exportSessionDocFile(duelDirector.exportSessionDoc())
-      } catch (err: unknown) {
-        console.error('[duelEngineIpc] Error in duel-engine:export-session:', err)
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : '导出对局剧本失败'
-        }
+  ipcMain.handle('duel-engine:export-session', async (): Promise<EngineSessionFileResult> => {
+    try {
+      return await sessionDocFileService.exportSessionDocFile(duelDirector.exportSessionDoc())
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:export-session:', err)
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : '导出对局剧本失败'
       }
     }
-  )
+  })
 
-  ipcMain.handle(
-    'duel-engine:import-session',
-    async (): Promise<EngineSessionImportResult> => {
-      const loaded = await fileService.loadSessionDocFile()
-      if (!loaded.success || !loaded.doc) {
-        return { success: false, canceled: loaded.canceled, error: loaded.error }
+  ipcMain.handle('duel-engine:import-session', async (): Promise<EngineSessionImportResult> => {
+    const loaded = await sessionDocFileService.loadSessionDocFile()
+    if (!loaded.success || !loaded.doc) {
+      return { success: false, canceled: loaded.canceled, error: loaded.error }
+    }
+    try {
+      const imported = await duelDirector.importSessionDoc(loaded.doc)
+      return {
+        success: true,
+        filePath: loaded.filePath,
+        boardState: imported.boardState,
+        pendingRequest: imported.pendingRequest,
+        timeline: imported.timeline,
+        currentStepId: imported.currentStepId,
+        timingPolicy: loaded.doc.timingPolicy
       }
-      try {
-        const imported = await duelDirector.importSessionDoc(loaded.doc)
-        return {
-          success: true,
-          filePath: loaded.filePath,
-          boardState: imported.boardState,
-          pendingRequest: imported.pendingRequest,
-          timeline: imported.timeline,
-          currentStepId: imported.currentStepId,
-          timingPolicy: loaded.doc.timingPolicy
-        }
-      } catch (err: unknown) {
-        console.error('[duelEngineIpc] Error in duel-engine:import-session:', err)
-        return {
-          success: false,
-          error: err instanceof Error ? err.message : '导入对局剧本失败'
-        }
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:import-session:', err)
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : '导入对局剧本失败'
       }
     }
-  )
+  })
 }

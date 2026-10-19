@@ -1,26 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { FieldCard, CardPosition, CardLocation, Answer, RequestCard } from '@shared/index'
-import { CardActionOptions } from '../../utils/ruleCheck'
+import { CardLocation, Answer } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { deriveCardEngineActions } from '../../utils/engineActions'
-import { resolveCardName } from '../../utils/cardNames'
+import { buildCardEngineActionMap, reposActionLabel } from '../../utils/cardMenuActions'
 import { cn } from '../../lib/utils'
 
-interface CardCommandMenuProps {
-  card?: FieldCard
-  actions?: CardActionOptions
-  onClose?: () => void
-  anchorRect?: DOMRect | null
-}
-
-export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
+export const CardCommandMenu: React.FC = () => {
   const store = useCardCommandMenuStore()
-  const card = props.card ?? store.card
-  const actions = props.actions ?? store.actions
-  const anchorRect = props.anchorRect ?? store.anchorRect
-  const onClose = props.onClose ?? store.closeMenu
+  const card = store.card
+  const actions = store.actions
+  const anchorRect = store.anchorRect
+  const onClose = store.closeMenu
 
   const [showOptions, setShowOptions] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -55,12 +47,15 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
 
-  // 引擎激活时，动作完全来自 pendingRequest 请求清单（合法才显示）
   const requestActions = React.useMemo(
-    () => deriveCardEngineActions(pendingRequest, card ?? null),
+    () => deriveCardEngineActions(pendingRequest, card),
     [pendingRequest, card]
   )
-  const useRequestActions = Boolean(isEngine && requestActions)
+  const actionMap = React.useMemo(
+    () => (requestActions ? buildCardEngineActionMap(requestActions, card?.position) : null),
+    [requestActions, card]
+  )
+  const useRequestActions = Boolean(isEngine && actionMap)
 
   if (!card || !actions || !anchorRect) return null
 
@@ -70,8 +65,8 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
   }
 
   const handleSummon = (): void => {
-    if (useRequestActions && requestActions?.summon) {
-      submitAnswer({ kind: 'idle', cmd: 'SUMMON', card: requestActions.summon })
+    if (useRequestActions && actionMap?.summon) {
+      submitAnswer(actionMap.summon.answer)
     } else if (!isEngine) {
       executeNormalSummon(card.instanceId)
     }
@@ -79,31 +74,22 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
   }
 
   const handleSpSummon = (): void => {
-    if (useRequestActions && requestActions?.spSummon) {
-      submitAnswer({ kind: 'idle', cmd: 'SPSUMMON', card: requestActions.spSummon })
+    if (useRequestActions && actionMap?.spSummon) {
+      submitAnswer(actionMap.spSummon.answer)
     } else if (!isEngine) {
       executeSpecialSummon(card.instanceId)
     }
     onClose()
   }
 
-  /** 发动答案按请求来源编码（战斗阶段的 ACTIVATE 必须用 battle 答案） */
-  const submitActivate = (cardReq: RequestCard): void => {
-    if (requestActions?.requestKind === 'battle') {
-      submitAnswer({ kind: 'battle', cmd: 'ACTIVATE', card: cardReq })
-    } else {
-      submitAnswer({ kind: 'idle', cmd: 'ACTIVATE', card: cardReq })
-    }
-  }
-
   const handleActivate = (): void => {
-    if (useRequestActions && requestActions) {
-      if (requestActions.activate.length > 1) {
+    if (useRequestActions && actionMap) {
+      if (actionMap.activate.length > 1) {
         setShowOptions(true)
         return
       }
-      if (requestActions.activate.length === 1) {
-        submitActivate(requestActions.activate[0])
+      if (actionMap.activate.length === 1) {
+        submitAnswer(actionMap.activate[0].answer)
         return
       }
     }
@@ -118,12 +104,9 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
   }
 
   const handleSet = (): void => {
-    if (useRequestActions) {
-      const setCard = requestActions?.sset ?? requestActions?.mset
-      if (setCard) {
-        submitAnswer({ kind: 'idle', cmd: requestActions?.sset ? 'SSET' : 'MSET', card: setCard })
-        return
-      }
+    if (useRequestActions && actionMap?.set) {
+      submitAnswer(actionMap.set.answer)
+      return
     }
     if (!isEngine) {
       executeSetCard(card.instanceId)
@@ -132,8 +115,8 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
   }
 
   const handleRepos = (): void => {
-    if (useRequestActions && requestActions?.repos) {
-      submitAnswer({ kind: 'idle', cmd: 'REPOS', card: requestActions.repos })
+    if (useRequestActions && actionMap?.repos) {
+      submitAnswer(actionMap.repos.answer)
     } else if (!isEngine) {
       void executeReposCard(card.instanceId)
     }
@@ -141,8 +124,8 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
   }
 
   const handleAttack = (): void => {
-    if (useRequestActions && requestActions?.attack) {
-      submitAnswer({ kind: 'battle', cmd: 'ATTACK', card: requestActions.attack })
+    if (useRequestActions && actionMap?.attack) {
+      submitAnswer(actionMap.attack.answer)
     } else if (!isEngine) {
       executeAttackCard(card.instanceId)
     }
@@ -150,37 +133,26 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
   }
 
   const handleChain = (): void => {
-    if (useRequestActions && requestActions?.chain) {
-      submitAnswer({ kind: 'chain', card: requestActions.chain })
+    if (useRequestActions && actionMap?.chain) {
+      submitAnswer(actionMap.chain.answer)
     }
   }
 
-  const reposLabel =
-    card.position === CardPosition.FACEDOWN_DEFENSE
-      ? '反转召唤'
-      : card.position === CardPosition.FACEUP_ATTACK
-        ? '转为守备'
-        : '转为攻击'
+  const reposLabel = reposActionLabel(card.position)
 
-  // S4：战斗请求携带 directAttackable 时在菜单上提示可直攻（真正的直攻/目标分支由引擎 yesno 询问决定）
   const attackLabel =
     useRequestActions && requestActions?.attack?.directAttackable ? '攻击（可直攻）' : '攻击'
 
-  /** 请求模式下多效果列表的标签（效果全文由确认弹窗展示；R7 换 strings 表） */
-  const getActivateLabel = (code: number, idx: number): string =>
-    `发动 [${resolveCardName(code)}]（效果 ${idx + 1}）`
-
   const buttonCount = useRequestActions
-    ? (requestActions?.summon ? 1 : 0) +
-      (requestActions?.spSummon ? 1 : 0) +
-      (requestActions?.sset || requestActions?.mset ? 1 : 0) +
-      (requestActions?.repos ? 1 : 0) +
-      (requestActions?.attack ? 1 : 0) +
-      (requestActions?.activate.length ? 1 : 0) +
-      (requestActions?.chain ? 1 : 0)
+    ? (actionMap?.summon ? 1 : 0) +
+      (actionMap?.spSummon ? 1 : 0) +
+      (actionMap?.set ? 1 : 0) +
+      (actionMap?.repos ? 1 : 0) +
+      (actionMap?.attack ? 1 : 0) +
+      (actionMap?.activate.length ? 1 : 0) +
+      (actionMap?.chain ? 1 : 0)
     : !isEngine
-      ? // 非引擎（自由编排）模式：沿用本地规则推导的动作
-        (actions.canActivate ? 1 : 0) +
+      ? (actions.canActivate ? 1 : 0) +
         (actions.canSummon ? 1 : 0) +
         (actions.canSpSummon ? 1 : 0) +
         (actions.canMonsterSet || actions.canSpellSet ? 1 : 0) +
@@ -189,9 +161,9 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
       : 0
 
   const activateOptionList: { id: string; label: string }[] =
-    requestActions?.activate.map((c, i) => ({
+    actionMap?.activate.map((spec, i) => ({
       id: `req-act-${i}`,
-      label: getActivateLabel(c.code, i)
+      label: spec.label
     })) ?? []
 
   if (buttonCount === 0 && !showOptions) return null
@@ -236,8 +208,8 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
               key={opt.id}
               type="button"
               onClick={() => {
-                const cardReq = requestActions?.activate[index]
-                if (cardReq) submitActivate(cardReq)
+                const spec = actionMap?.activate[index]
+                if (spec) submitAnswer(spec.answer)
               }}
               className="w-full px-2 py-1.5 text-left text-xs font-medium rounded hover:bg-neutral-800 active:bg-neutral-700 text-neutral-200 truncate cursor-pointer transition-colors"
             >
@@ -256,32 +228,32 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
         <>
           {useRequestActions ? (
             <>
-              {requestActions?.activate.length ? (
+              {actionMap?.activate.length ? (
                 <button type="button" onClick={handleActivate} className={buttonClass}>
                   发动
                 </button>
               ) : null}
-              {requestActions?.summon ? (
+              {actionMap?.summon ? (
                 <button type="button" onClick={handleSummon} className={buttonClass}>
                   召唤
                 </button>
               ) : null}
-              {requestActions?.spSummon ? (
+              {actionMap?.spSummon ? (
                 <button type="button" onClick={handleSpSummon} className={buttonClass}>
                   特殊召唤
                 </button>
               ) : null}
-              {requestActions?.sset || requestActions?.mset ? (
+              {actionMap?.set ? (
                 <button type="button" onClick={handleSet} className={buttonClass}>
                   盖放
                 </button>
               ) : null}
-              {requestActions?.repos ? (
+              {actionMap?.repos ? (
                 <button type="button" onClick={handleRepos} className={buttonClass}>
                   {reposLabel}
                 </button>
               ) : null}
-              {requestActions?.attack ? (
+              {actionMap?.attack ? (
                 <button
                   type="button"
                   onClick={handleAttack}
@@ -290,7 +262,7 @@ export const CardCommandMenu: React.FC<CardCommandMenuProps> = (props) => {
                   {attackLabel}
                 </button>
               ) : null}
-              {requestActions?.chain ? (
+              {actionMap?.chain ? (
                 <button
                   type="button"
                   onClick={handleChain}

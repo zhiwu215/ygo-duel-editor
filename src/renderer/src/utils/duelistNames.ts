@@ -1,7 +1,25 @@
 import { Duelist, DuelPuzzleState } from '@shared/index'
 
-function turnOrderOf(duelist: Duelist): number {
+export function turnOrderOf(duelist: Duelist): number {
   return duelist.turnOrder ?? (duelist.isFirst ? 1 : 2)
+}
+
+export function resolveOwnerScope(
+  duelists: Duelist[] | undefined,
+  controller: 0 | 1,
+  activeDuelistId: string | null
+): string | null {
+  const match = (duelists || []).find((d) => d.id === activeDuelistId && d.team === controller)
+  return match ? activeDuelistId : null
+}
+
+export function resolveViewerDuelist(
+  duelists: Duelist[] | undefined,
+  controller: 0 | 1,
+  activeDuelistId: string | null
+): Duelist | null {
+  const teamDuelists = (duelists || []).filter((d) => d.team === controller)
+  return teamDuelists.find((d) => d.id === activeDuelistId) || teamDuelists[0] || null
 }
 
 export function resolveTeamColorClass(team: 0 | 1): string {

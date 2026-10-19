@@ -1,20 +1,10 @@
 import { CardData } from 'ygopro-msg-encode'
 import { CardType, CdbCard } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
+import { splitSetcode } from '../../db/setcode'
 
 const CARD_ARTWORK_VERSIONS_OFFSET = 20
 const RULE_CODE_EXCEPTION = 5405695
-
-function splitSetcode(value: number | bigint): number[] {
-  let raw = BigInt.asUintN(64, typeof value === 'bigint' ? value : BigInt(Math.trunc(value)))
-  const setcodes: number[] = []
-  while (raw !== 0n && setcodes.length < 4) {
-    const chunk = Number(raw & 0xffffn)
-    if (chunk !== 0) setcodes.push(chunk)
-    raw >>= 16n
-  }
-  return setcodes
-}
 
 function isAlternative(code: number, alias: number): boolean {
   return (

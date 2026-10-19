@@ -4,17 +4,9 @@ import { is } from '@electron-toolkit/utils'
 import { SettingsSectionId } from '@shared/index'
 import icon from '../../../resources/icon.png?asset'
 
-/**
- * 全局设置独立窗口服务 (VSCode / OpenCode 风格)
- *
- * 为什么用独立窗口：设置页汇聚外观、路径与 AI 提供商等全部入口，
- * 内嵌在主界面会与决斗工作区争抢空间；与卡组编辑器窗口复用同一渲染 bundle，
- * 以 hash 路由 `#settings` 区分页面 (见 renderer App.tsx)。
- */
 class SettingsWindowService {
   private settingsWindow: BrowserWindow | null = null
 
-  /** 打开或聚焦设置独立窗口，并定位到指定分区 */
   public openSettingsWindow(section: SettingsSectionId = 'appearance'): void {
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       if (this.settingsWindow.isMinimized()) {
@@ -33,7 +25,6 @@ class SettingsWindowService {
       minHeight: 560,
       show: false,
       autoHideMenuBar: true,
-      // 参考设置子窗口形态：完全无边框，仅右上角自绘关闭按钮 (见 SettingsApp.tsx)，拖拽区也在渲染层
       frame: false,
       title: '设置 - YGO Duel Editor',
       icon,

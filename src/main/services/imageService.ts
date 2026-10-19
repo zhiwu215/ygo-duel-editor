@@ -5,9 +5,6 @@ import { cdbService } from '../db/cdbService'
 import { customCardService } from './customCardService'
 
 export class ImageService {
-  /**
-   * 根据选中的 cdb 路径或目录推断游戏根目录
-   */
   public detectGameDirectory(targetPath: string): string | null {
     if (!targetPath) return null
 
@@ -17,18 +14,15 @@ export class ImageService {
         dir = dirname(targetPath)
       }
 
-      // 1. 检查当前目录是否含有 pics 文件夹
       if (existsSync(join(dir, 'pics'))) {
         return dir
       }
 
-      // 2. 检查父目录（例如 cards.cdb 放在 expansions/ 或 data/ 目录中的情况）
       const parentDir = dirname(dir)
       if (parentDir && parentDir !== dir && existsSync(join(parentDir, 'pics'))) {
         return parentDir
       }
 
-      // 3. 检查当前目录是否含有 ygopro.exe / EDOPro.exe / cards.cdb
       if (
         existsSync(join(dir, 'cards.cdb')) ||
         existsSync(join(dir, 'ygopro.exe')) ||
@@ -43,9 +37,6 @@ export class ImageService {
     return null
   }
 
-  /**
-   * 收集指定目录下所有的 pics 文件夹 (含 expansions/pics)
-   */
   private collectPicsDirs(baseDir: string | undefined, out: string[]): void {
     if (!baseDir) return
     const p1 = join(baseDir, 'pics')
@@ -54,9 +45,6 @@ export class ImageService {
     if (existsSync(p2) && !out.includes(p2)) out.push(p2)
   }
 
-  /**
-   * 从 cdb 路径向上逐级探测卡图目录 (动漫卡库常位于 config/languages/Chs 之类的深层位置)
-   */
   public detectPicsDirsFromCdb(cdbPath: string): string[] {
     const dirs: string[] = []
     let dir = dirname(cdbPath)
@@ -69,24 +57,18 @@ export class ImageService {
     return dirs
   }
 
-  /**
-   * 获取所有可用的卡图搜索目录 (支持 pics 和 expansions/pics)
-   */
   public getPicsDirectories(): string[] {
     const cfg = configService.get()
     const dirs: string[] = []
 
-    // 1. 用户配置的游戏根目录
     this.collectPicsDirs(cfg.gameDirectory, dirs)
 
-    // 2. 当前加载的 cards.cdb 所在目录及其父目录
     if (cfg.cdbPath) {
       const cdbDir = dirname(cfg.cdbPath)
       this.collectPicsDirs(cdbDir, dirs)
       this.collectPicsDirs(dirname(cdbDir), dirs)
     }
 
-    // 3. 附加卡库路径向上自动探测 (动漫卡库常位于 config/languages/Chs 之类的深层位置)
     const disabled = cfg.disabledCdbPaths || []
     const activeExtras = (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
     for (const extraPath of activeExtras) {
@@ -98,11 +80,6 @@ export class ImageService {
     return dirs
   }
 
-  /**
-   * 查找指定卡密的本地图片绝对路径
-   * @param code 卡片密码
-   * @param small 是否需要缩略图 (优先寻找 thumbnail/ 子目录)
-   */
   public findCardImagePath(code: number, small = false): string | null {
     if (!code || code <= 0) return null
 
@@ -134,18 +111,15 @@ export class ImageService {
       return null
     }
 
-    // 0. 用户手动选定的卡图变体优先
     const overrideId = configService.get().cardImageOverrides?.[String(code)]
     if (overrideId && overrideId > 0 && overrideId !== code) {
       const overridePath = findForCode(overrideId)
       if (overridePath) return overridePath
     }
 
-    // 1. 优先按卡片本尊密码查找
     const directPath = findForCode(code)
     if (directPath) return directPath
 
-    // 2. 若未找到，尝试通过 alias (同画/异画别名卡密) 查找
     const aliasId =
       cdbService.getCardById(code)?.alias ?? configService.get().cardImageOverrides?.[String(code)]
     if (aliasId && aliasId > 0 && aliasId !== code) {

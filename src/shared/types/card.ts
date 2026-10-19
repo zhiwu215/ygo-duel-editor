@@ -1,139 +1,29 @@
-/**
- * CDB 数据库卡片完整数据结构
- */
 export interface CdbCard {
-  id: number // 卡密 / 密码 (Primary Key)
-  ot: number // 赛区 / 卡池位掩码（见 AVAIL_* 常量）
-  alias: number // 同名卡别名卡密 (若有)
-  setcode: bigint | number // 系列字段代码
-  type: number // 种类掩码 (Monster/Spell/Trap/Fusion/Link等)
-  atk: number // 攻击力 (-2 代表 ?, 负数表示未知)
-  def: number // 守备力 (Link怪兽无防，通常为 0 或 -2)
-  level: number // 等级/阶级/连接值 (含左/右灵摆刻度掩码)
-  race: number // 种族掩码 (战士/魔法师/龙族等)
-  attribute: number // 属性掩码 (光/暗/地/水/炎/风/神)
-  category: bigint | number // 效果分类
-  name: string // 卡名
-  desc: string // 效果说明文本
-  strings?: string[] // str1 ~ str16 效果提示字符串
-  setnames?: string[] // 系列字段名称列表 (如 ['朱罗纪'], ['禁忌的'])
-  pools?: string[] // 所属附加库卡池 id 列表（按卡片 ot 的扩展池位推导）
-  markers?: number // 连接标记（箭头）位掩码，仅 Link 怪兽有意义
-  limit?: 1 | 2 | 3 // 禁限等级，来自 lflists
-  isCustom?: boolean // 自建卡（存于 userData，不属于任何卡库）
+  id: number
+  ot: number
+  alias: number
+  setcode: bigint | number
+  type: number
+  atk: number
+  def: number
+  level: number
+  race: number
+  attribute: number
+  category: bigint | number
+  name: string
+  desc: string
+  strings?: string[]
+  setnames?: string[]
+  pools?: string[]
+  markers?: number
+  limit?: 1 | 2 | 3
+  isCustom?: boolean
 }
-
-/**
- * 连接标记（灵摆/连接怪兽的箭头方向）。
- * 卡库中没有独立的 link_marker 列，方向存放在 def 字段里（仅 Link 怪兽），
- * 比特顺序与 YGOPro 的 FormatLinkMarker 一致：位0=↖位1=↑ 位2=↗ 位3=← 位4=→ 位5=↙ 位6=↓ 位7=↘
- */
-export const LINK_MARKERS: Array<{ mask: number; label: string }> = [
-  { mask: 0x01, label: '↖' },
-  { mask: 0x02, label: '↑' },
-  { mask: 0x04, label: '↗' },
-  { mask: 0x08, label: '←' },
-  { mask: 0x10, label: '→' },
-  { mask: 0x20, label: '↙' },
-  { mask: 0x40, label: '↓' },
-  { mask: 0x80, label: '↘' }
-]
-
-export interface LimitMark {
-  id: 1 | 2 | 3
-  label: string
-  spriteX: number
-  spriteY: number
-}
-
-export const LIMIT_MARKS: LimitMark[] = [
-  { id: 1, label: '禁止', spriteX: 0, spriteY: 0 },
-  { id: 2, label: '限制', spriteX: 64, spriteY: 0 },
-  { id: 3, label: '准限制', spriteX: 0, spriteY: 64 }
-]
-
-export interface CardPoolOption {
-  id: string
-  label: string
-  spriteY: number | null
-  /** 附加库卡池对应的 ot 位 */
-  otMask?: number
-}
-
-/**
- * ot 位：1=OCG、2=TCG、4=动漫/漫画、8=旧文本版、16=卡片力量(VG)、512=超速。
- * 后四项是 EDOPro 中文改版的扩展位，标准 YGOPro 只认前两项。
- */
-export const AVAIL_OCG = 0x1
-export const AVAIL_TCG = 0x2
-export const AVAIL_ANIME = 0x4
-export const AVAIL_PRE_ERRATA = 0x8
-export const AVAIL_VG = 0x10
-export const AVAIL_RUSH = 0x200
-
-export const CARD_POOLS: CardPoolOption[] = [
-  { id: 'none', label: '无', spriteY: null },
-  { id: 'anime', label: '动漫/漫画', spriteY: 192, otMask: AVAIL_ANIME },
-  { id: 'rush', label: '超速（Rush）', spriteY: 576, otMask: AVAIL_RUSH },
-  { id: 'tf', label: '卡片力量（TF）', spriteY: 320, otMask: AVAIL_VG }
-]
-
-/**
- * OCG / TCG 独有角标：ot.png 第 1、2 行（spriteY 0 / 64）。
- * 仅当卡片 ot 只含单一赛区位（独有）时显示，与 YGOPro 的 showAvail 判定一致。
- */
-export const OT_POOLS: CardPoolOption[] = [
-  { id: 'ocg', label: 'OCG 独有', spriteY: 0 },
-  { id: 'tcg', label: 'TCG 独有', spriteY: 64 }
-]
-
-/** 全部可渲染角标的定义（附加库卡池 + OCG/TCG 独有） */
-const ALL_POOL_OPTIONS: CardPoolOption[] = [...CARD_POOLS, ...OT_POOLS]
-
-export const CARD_POOL_SPRITE_WIDTH = 128
-export const CARD_POOL_SPRITE_HEIGHT = 64
-
-/** 附加库卡池的 ot 位掩码表 */
-export const CARD_POOL_OT_MASKS: Array<{ id: string; mask: number }> = CARD_POOLS.filter(
-  (pool): pool is CardPoolOption & { otMask: number } => pool.otMask !== undefined
-).map((pool) => ({ id: pool.id, mask: pool.otMask }))
-
-export function cardPoolOtMask(id: string | undefined): number | undefined {
-  return CARD_POOL_OT_MASKS.find((pool) => pool.id === id)?.mask
-}
-
-export function cardPoolLabel(id: string): string {
-  return ALL_POOL_OPTIONS.find((p) => p.id === id)?.label ?? ''
-}
-
-export function cardPoolSpriteY(id: string): number | null {
-  return ALL_POOL_OPTIONS.find((p) => p.id === id)?.spriteY ?? null
-}
-
-/** 返回卡片需要显示的独有角标 id 列表（只含单一赛区位时才有值） */
-export function otBadgeIds(ot: number): string[] {
-  const hasOcg = (ot & AVAIL_OCG) !== 0
-  const hasTcg = (ot & AVAIL_TCG) !== 0
-  if (hasOcg && !hasTcg) return ['ocg']
-  if (hasTcg && !hasOcg) return ['tcg']
-  return []
-}
-
-/** 按 ot 位推导卡片所属的附加库卡池 id 列表（可命中多个） */
-export function cardPoolIdsFromOt(ot: number): string[] {
-  return CARD_POOL_OT_MASKS.filter((pool) => (ot & pool.mask) !== 0).map((pool) => pool.id)
-}
-
-/**
- * 卡片种类标志位
- */
 export const CardType = {
   MONSTER: 0x1,
-  /** 魔法卡 */
   SPELL: 0x2,
   TRAP: 0x4,
   NORMAL: 0x10,
-  /** 陷阱怪兽附加类型位 */
   TRAP_MONSTER: 0x100,
   SPIRIT: 0x200,
   UNION: 0x400,
@@ -156,10 +46,6 @@ export const CardType = {
   SPECIAL_SUMMON: 0x2000000,
   LINK: 0x4000000
 } as const
-
-/**
- * 属性标志位
- */
 export const CardAttribute = {
   EARTH: 0x01,
   WATER: 0x02,
@@ -179,10 +65,6 @@ export const ATTRIBUTE_NAMES: Record<number, string> = {
   [CardAttribute.DARK]: '暗',
   [CardAttribute.DIVINE]: '神'
 }
-
-/**
- * 种族标志位
- */
 export const CardRace = {
   WARRIOR: 0x1,
   SPELLCASTER: 0x2,
@@ -240,10 +122,6 @@ export const RACE_NAMES: Record<number, string> = {
   [CardRace.CYBERSE]: '电子界',
   [CardRace.ILLUSION]: '幻想魔'
 }
-
-/**
- * 卡片辅助解析方法
- */
 export const CardUtils = {
   isMonster: (type: number) => (type & CardType.MONSTER) !== 0,
   isSpell: (type: number) => (type & CardType.SPELL) !== 0,
@@ -255,23 +133,12 @@ export const CardUtils = {
   isPendulum: (type: number) => (type & CardType.PENDULUM) !== 0,
   isFusion: (type: number) => (type & CardType.FUSION) !== 0,
   isSynchro: (type: number) => (type & CardType.SYNCHRO) !== 0,
-
-  // 获取星级 / Rank / Link 数量 (提取低 16 位)
-  getStarLevel: (level: number, type: number) => {
-    if (CardUtils.isLink(type)) {
-      return level & 0xff // Link 值
-    }
-    return level & 0xff // Level / Rank
-  },
-
-  // 获取左右灵摆刻度
+  getStarLevel: (level: number) => level & 0xff,
   getPendulumScales: (level: number) => {
     const lscale = (level >> 24) & 0xff
     const rscale = (level >> 16) & 0xff
     return { lscale, rscale }
   },
-
-  // 获取卡片简明分类标签
   getCardTypeLabel: (type: number): string => {
     if (CardUtils.isMonster(type)) {
       if (type & CardType.LINK) return '连接'

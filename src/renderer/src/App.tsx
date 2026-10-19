@@ -15,6 +15,15 @@ import { useDuelEngineStore } from './stores/useDuelEngineStore'
 import { useDeckEditorStore } from './stores/useDeckEditorStore'
 import { useCustomCardStore } from './stores/useCustomCardStore'
 
+function AppModals(): React.JSX.Element {
+  return (
+    <>
+      <CustomCardEditorDialog />
+      <CdbSetupModal />
+    </>
+  )
+}
+
 export function App(): React.JSX.Element {
   const { loadConfig, isLoaded } = useConfigStore()
   const loadTimingPolicy = useDuelEngineStore((s) => s.loadTimingPolicy)
@@ -51,8 +60,7 @@ export function App(): React.JSX.Element {
     return (
       <>
         <CardNoteApp />
-        <CustomCardEditorDialog />
-        <CdbSetupModal />
+        <AppModals />
       </>
     )
   }
@@ -61,8 +69,7 @@ export function App(): React.JSX.Element {
     return (
       <>
         <DeckEditorApp />
-        <CustomCardEditorDialog />
-        <CdbSetupModal />
+        <AppModals />
       </>
     )
   }
@@ -71,7 +78,6 @@ export function App(): React.JSX.Element {
     <div className="flex flex-col h-screen w-screen bg-background text-foreground overflow-hidden">
       <Header />
 
-      {/* 主内容行：左栏 + 棋盘 + 固定右栏（各列常驻，无浮层） */}
       <div className="flex-1 flex overflow-hidden">
         <LeftSidebar />
 
@@ -82,9 +88,7 @@ export function App(): React.JSX.Element {
 
       <DuelScreenplayModal />
 
-      <CustomCardEditorDialog />
-
-      <CdbSetupModal />
+      <AppModals />
     </div>
   )
 }

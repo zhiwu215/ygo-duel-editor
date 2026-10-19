@@ -1,20 +1,14 @@
 import React, { useEffect, useMemo } from 'react'
-import { CardLocation, CardPosition } from '@shared/index'
+import { CardLocation } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { getFallbackActions } from '../../utils/ruleCheck'
 import { resolveCardName } from '../../utils/cardNames'
+import { reposActionLabel } from '../../utils/cardMenuActions'
 import { Sparkles, MapPin, X, Crosshair, ArrowDownToLine, Ban, EyeOff, Zap } from 'lucide-react'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
 
-/**
- * 底部动作条（自由编排模式）。
- *
- * 引擎激活时：idle/battle 的动作由 CardCommandMenu（pendingRequest 数据源）承担，
- * 选卡询问由 DuelSelectionBar 承担，这里只在自由编排模式下提供本地语义动作
- * （召唤/特召/盖放/发动/改变形式/攻击/送墓/除外）与「发动/盖放」待放落点提示。
- */
 export const ActionIntentBar: React.FC = () => {
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
@@ -48,7 +42,6 @@ export const ActionIntentBar: React.FC = () => {
     ? cards.find((c) => c.instanceId === selectedCardId)
     : undefined
 
-  // 选卡询问（card/tribute/sum/unselect）由 DuelSelectionBar + CardItem 点选接管，动作条让位
   const selectionRequestActive =
     pendingRequest?.data.kind === 'card' ||
     pendingRequest?.data.kind === 'tribute' ||
@@ -96,12 +89,7 @@ export const ActionIntentBar: React.FC = () => {
     if (selectedCard) executeAttackCard(selectedCard.instanceId)
   }
 
-  const reposLabel =
-    selectedCard?.position === CardPosition.FACEDOWN_DEFENSE
-      ? '反转召唤'
-      : selectedCard?.position === CardPosition.FACEUP_ATTACK
-        ? '转为守备'
-        : '转为攻击'
+  const reposLabel = reposActionLabel(selectedCard?.position)
 
   return (
     <div

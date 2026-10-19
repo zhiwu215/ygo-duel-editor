@@ -1,6 +1,12 @@
 import { OcgcoreDuel } from 'koishipro-core.js'
 import type { CardQuery } from 'ygopro-msg-encode'
-import { EngineBoardState, EngineCard, EnginePlayerState, CardLocation, CardPosition } from '@shared/index'
+import {
+  EngineBoardState,
+  EngineCard,
+  EnginePlayerState,
+  CardLocation,
+  CardPosition
+} from '@shared/index'
 import { cdbService } from '../../db/cdbService'
 
 const PHASE_NAMES: Record<number, string> = {
@@ -19,8 +25,6 @@ const PHASE_NAMES: Record<number, string> = {
 const MZONE_SIZE = 7
 const SZONE_SIZE = 6
 const PZONE_SIZE = 2
-
-/** 全量查询 flag（引擎客户端通用"查全部"掩码） */
 const QUERY_FLAG_ALL = 0xefffff
 
 const QUERY_ZONES = [
@@ -34,16 +38,8 @@ const QUERY_ZONES = [
   CardLocation.FZONE,
   CardLocation.PZONE
 ] as number[]
-
-/**
- * 全量查询式场地读取器（R1 重构）。
- *
- * 不再听消息记账（旧 BoardTracker），每次直接向引擎查询全部区域的真实状态，
- * 引擎是唯一真相。instanceId 通过"位置精确匹配 + 同 code 移动匹配"保持跨查询连续。
- */
 export class FieldReader {
   private idCounter = 0
-  /** 上一轮 每张卡的 key → 身份（用于 instanceId 连续性） */
   private identity = new Map<string, { code: number; instanceId: string }>()
   private lastState: EngineBoardState | null = null
   private maxLp: [number, number] = [8000, 8000]
@@ -60,8 +56,6 @@ export class FieldReader {
   get currentMeta(): { turn: number; turnPlayer: 0 | 1; phase: number } {
     return { ...this.meta }
   }
-
-  /** 从引擎消息流中追踪回合/阶段（这两个标量不参与场地查询，消息驱动即可） */
   applyMetaMessage(msg: unknown): void {
     if (typeof msg !== 'object' || msg === null) return
     const m = msg as { constructor?: { name?: string }; player?: unknown; phase?: unknown }
@@ -72,31 +66,6 @@ export class FieldReader {
     } else if (name === 'YGOProMsgNewPhase' && typeof m.phase === 'number') {
       this.meta.phase = m.phase
     }
-  }
-
-  /** 在最近一次快照中查找卡（供 request-router 解析 instanceId） */
-  findCard(
-    controller: number,
-    location: number,
-    sequence: number,
-    code?: number
-  ): { instanceId: string; card?: EngineCard } | undefined {
-    const state = this.lastState
-    if (!state) return undefined
-    const found = state.allCards.find(
-      (c) =>
-        c.controller === controller &&
-        c.location === location &&
-        c.sequence === sequence &&
-        (code === undefined || c.code === code)
-    )
-    if (!found && code !== undefined) {
-      // 兜底：位置对不上时按 code 找（引擎消息里的 sequence 可能滞后一帧）
-      const byCode = state.allCards.find((c) => c.code === code)
-      if (byCode) return { instanceId: byCode.instanceId, card: byCode }
-      return undefined
-    }
-    return found ? { instanceId: found.instanceId, card: found } : undefined
   }
 
   getState(): EngineBoardState {
@@ -115,8 +84,6 @@ export class FieldReader {
       if (Number.isFinite(seq) && seq > this.idCounter) this.idCounter = seq
     }
   }
-
-  /** 全量查询引擎，生成新的场地快照 */
   readBoard(duel: OcgcoreDuel): EngineBoardState {
     let fieldInfo: ReturnType<OcgcoreDuel['queryFieldInfo']> | null = null
     try {
@@ -124,12 +91,7 @@ export class FieldReader {
     } catch (err) {
       console.warn('[field-reader] queryFieldInfo failed:', err)
     }
-
-    // 1) 查询所有区域
-    const queried = new Map<
-      number,
-      { location: number; cards: CardQuery[] }[]
-    >()
+    const queried = new Map<number, { location: number; cards: CardQuery[] }[]>()
     for (const player of [0, 1] as const) {
       const zones: { location: number; cards: CardQuery[] }[] = []
       for (const location of QUERY_ZONES) {
@@ -137,8 +99,6 @@ export class FieldReader {
       }
       queried.set(player, zones)
     }
-
-    // 2) 转换为 EngineCard 并维持 instanceId 连续
     const nextIdentity = new Map<string, { code: number; instanceId: string }>()
     const claimedPrev = new Set<string>()
     const allCards: EngineCard[] = []
@@ -158,15 +118,11 @@ export class FieldReader {
           const code = q.code ?? 0
           if (code <= 0) continue
           const key = `${controller}:${location}:${sequence}`
-          // 牌堆区（卡组/额外/墓地/除外）没有"表示形式"概念，
-          // 强制中性里侧值，避免前端误判守备表示而横置
           const isPile =
             location === CardLocation.DECK ||
             location === CardLocation.EXTRA ||
             location === CardLocation.GRAVE ||
             location === CardLocation.REMOVED
-          // 引擎“展示”（POS_REVEAL）经 CardQuery 解出为 q.reveal；
-          // 手牌被展示时映射为 FACEUP，供前端渲染“公开”角标（其余区域不受影响）
           const position = isPile
             ? CardPosition.FACEDOWN
             : location === CardLocation.HAND && q.reveal
@@ -195,8 +151,6 @@ export class FieldReader {
         }
       }
     }
-
-    // 2a) 位置精确匹配
     for (const raw of raws) {
       const prev = this.identity.get(raw.key)
       if (prev && prev.code === raw.card.code && !claimedPrev.has(prev.instanceId)) {
@@ -205,7 +159,6 @@ export class FieldReader {
         raw.exactMatched = true
       }
     }
-    // 2b) 同 code 移动匹配（优先同区域，其次任意）
     const unmatchedPrev = [...this.identity.entries()].filter(
       ([, v]) => !claimedPrev.has(v.instanceId)
     )
@@ -226,7 +179,6 @@ export class FieldReader {
         unmatchedPrev.splice(pick, 1)
       }
     }
-    // 2c) 其余视为新卡
     for (const raw of raws) {
       if (!raw.card.instanceId) {
         raw.card.instanceId = this.allocateId()
@@ -235,8 +187,6 @@ export class FieldReader {
       allCards.push(raw.card)
     }
     this.identity = nextIdentity
-
-    // 3) 组装玩家状态
     const players = [0, 1].map((player): EnginePlayerState => {
       const fp = fieldInfo?.field?.players?.[player]
       const cards = allCards.filter((c) => c.controller === player)
@@ -259,10 +209,18 @@ export class FieldReader {
         player: player as 0 | 1,
         lp: Number(fp?.lp ?? 0),
         maxLp: this.maxLp[player],
-        deckCount: Number(fp?.deckCount ?? cards.filter((c) => c.location === CardLocation.DECK).length),
-        extraCount: Number(fp?.extraCount ?? cards.filter((c) => c.location === CardLocation.EXTRA).length),
-        graveCount: Number(fp?.graveCount ?? cards.filter((c) => c.location === CardLocation.GRAVE).length),
-        removedCount: Number(fp?.removedCount ?? cards.filter((c) => c.location === CardLocation.REMOVED).length),
+        deckCount: Number(
+          fp?.deckCount ?? cards.filter((c) => c.location === CardLocation.DECK).length
+        ),
+        extraCount: Number(
+          fp?.extraCount ?? cards.filter((c) => c.location === CardLocation.EXTRA).length
+        ),
+        graveCount: Number(
+          fp?.graveCount ?? cards.filter((c) => c.location === CardLocation.GRAVE).length
+        ),
+        removedCount: Number(
+          fp?.removedCount ?? cards.filter((c) => c.location === CardLocation.REMOVED).length
+        ),
         hand: cards.filter((c) => c.location === CardLocation.HAND),
         deck: cards.filter((c) => c.location === CardLocation.DECK),
         extra: cards.filter((c) => c.location === CardLocation.EXTRA),
@@ -298,7 +256,10 @@ export class FieldReader {
       })
       return res?.cards ?? []
     } catch (err) {
-      console.warn(`[field-reader] queryFieldCard(player=${player}, location=${location}) failed:`, err)
+      console.warn(
+        `[field-reader] queryFieldCard(player=${player}, location=${location}) failed:`,
+        err
+      )
       return []
     }
   }

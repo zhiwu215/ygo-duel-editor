@@ -58,10 +58,7 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
 
   resetDuel: () =>
     set((prev) => {
-      const baseState = createInitialDuelState(
-        prev.state.masterRule,
-        prev.state.duelType || 'full'
-      )
+      const baseState = createInitialDuelState(prev.state.masterRule, prev.state.duelType || 'full')
       if (prev.state.matchConfig) {
         baseState.matchConfig = prev.state.matchConfig
         baseState.duelists = createDefaultDuelists(

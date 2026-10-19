@@ -1,7 +1,3 @@
-/**
- * 游戏王 ocgcore 标准指示物代码与名称映射 (源自 strings.conf)
- */
-
 export interface CounterDefinition {
   id: number
   hex: string
@@ -125,41 +121,19 @@ export const COUNTER_DEFINITIONS: CounterDefinition[] = [
   { id: 120, hex: '0x78', name: '万倍指示物' }
 ]
 
-export const COUNTER_MAP: Record<number, string> = Object.fromEntries(
+const COUNTER_MAP: Record<number, string> = Object.fromEntries(
   COUNTER_DEFINITIONS.map((c) => [c.id, c.name])
 )
-
-/** 常用高频指示物代码 (优先展示在选择器顶层) */
-export const COMMON_COUNTER_IDS = [
-  0x1, // 魔力指示物
-  0x1041, // 捕食指示物
-  0x1002, // 楔指示物 (黑羽/疾风)
-  0x3, // 武士道指示物 (六武众)
-  0x1009, // 毒指示物 (蛇毒)
-  0x100e, // A指示物 (外星人)
-  0x1015, // 冰指示物 (冰结界)
-  0x1019, // 雾指示物 (云魔物)
-  0x1b, // 时计指示物 (钟楼)
-  0x104c, // 信号指示物 (超重/加速同调)
-  0x1055, // 歪曲指示物
-  0x1001 // 通用指示物
-]
-
-/** 自定义指示物 (动漫卡等无官方代码者) 的 ID 起始值，远高于标准段避免冲突 */
 export const CUSTOM_COUNTER_ID_BASE = 0x1000000
-
-/** 为新的自定义指示物分配一个未占用的 ID (从基址起递增) */
 export function allocateCustomCounterId(existing: Record<number, string>): number {
   let id = CUSTOM_COUNTER_ID_BASE
   while (existing[id] !== undefined) id += 1
   return id
 }
 
-export function getCounterName(id: number): string {
+function getCounterName(id: number): string {
   return COUNTER_MAP[id] || `指示物(0x${id.toString(16)})`
 }
-
-/** 获取指示物显示名：优先查自定义注册表，再回退到标准表 */
 export function resolveCounterName(id: number, custom?: Record<number, string>): string {
   const customName = custom?.[id]?.trim()
   if (customName) return customName

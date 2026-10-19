@@ -1,9 +1,4 @@
-import {
-  EngineTimelineNode,
-  EngineBoardState,
-  EngineRequest,
-  EngineStepEvent
-} from '@shared/index'
+import { EngineTimelineNode, EngineBoardState, EngineRequest, EngineStepEvent } from '@shared/index'
 
 export interface EngineStepRecord {
   node: EngineTimelineNode
@@ -27,9 +22,7 @@ export class EngineTimelineManager {
       this.steps.set(node.id, { node: structuredClone(node) })
       if (node.parentId === null) this.rootStepId = node.id
     }
-    this.currentStepId = this.steps.has(currentStepId)
-      ? currentStepId
-      : this.rootStepId
+    this.currentStepId = this.steps.has(currentStepId) ? currentStepId : this.rootStepId
   }
 
   addStep(

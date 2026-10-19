@@ -3,16 +3,18 @@ import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Check, Loader2, Minus, Save, Search } from 'lucide-react'
 import { TextChapter, TextMeta } from '@shared/index'
+import { countWords } from '@shared/engine/textSplitter'
 import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { cn } from '../../lib/utils'
+import { toggleRangeSelect } from '../../utils/rangeSelect'
+import { buildChapterHandoffPrompt } from '../../utils/agentHandoffPrompt'
 
 interface ChapterReaderProps {
   text: TextMeta
   onBack: () => Promise<void>
   onTextUpdated: () => Promise<void>
-  onDeleted: () => Promise<void>
   flash: (msg: string) => void
 }
 
@@ -86,26 +88,15 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   }, [chapters, search])
 
   const toggle = (id: string, shiftKey: boolean): void => {
-    setPicked((prev) => {
-      const next = new Set(prev)
-      if (shiftKey && anchor) {
-        const list = filtered.map((c) => c.id)
-        const a = list.indexOf(anchor)
-        const b = list.indexOf(id)
-        if (a >= 0 && b >= 0) {
-          const [lo, hi] = a < b ? [a, b] : [b, a]
-          const allOn = list.slice(lo, hi + 1).every((x) => next.has(x))
-          for (let i = lo; i <= hi; i++) {
-            if (allOn) next.delete(list[i])
-            else next.add(list[i])
-          }
-          return next
-        }
-      }
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+    setPicked((prev) =>
+      toggleRangeSelect(
+        prev,
+        id,
+        anchor,
+        shiftKey,
+        filtered.map((c) => c.id)
+      )
+    )
     if (!shiftKey) setAnchor(id)
   }
 
@@ -137,15 +128,12 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     const label = names.length === 1 ? names[0] : `${names[0]} 等 ${names.length} 章`
 
     const res = await window.api.agentHandoff({
-      prompt: `请根据《${text.title}》的「${label}」编排一场决斗剧情（共 ${list.length} 章、约 ${total.toLocaleString()} 字）。
-
-要求：
-- 先判断原文里哪几段适合改写成决斗，只编排这些段落；
-- 把角色与冲突改写为决斗双方的动作与台词，按回合与阶段拆分为可执行步骤；
-- 保留原文关键设定与人物性格，不要照抄原文叙述句式；
-- 同时给出开局盘面（双方 LP、场上卡片与表示形式、手牌），以便直接摆到决斗场上。
-
-已附加这 ${list.length} 章原文，请先用 read_text_source 通读后再动笔。`,
+      prompt: buildChapterHandoffPrompt({
+        title: text.title,
+        label,
+        chapterCount: list.length,
+        total
+      }),
       textSource: {
         textId: text.id,
         chapterId: list[0].id,
@@ -392,13 +380,4 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
       </div>
     </div>
   )
-}
-
-function countWords(text: string): number {
-  const cjk = text.match(/[\u4e00-\u9fff\u3040-\u30ff]/g)?.length ?? 0
-  const rest = text
-    .replace(/[\u4e00-\u9fff\u3040-\u30ff]/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean).length
-  return cjk + rest
 }

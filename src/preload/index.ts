@@ -85,8 +85,6 @@ const api: IpcApi = {
   reorderCardNotes: (cardCode: number, kind: CardNoteKind, labels: string[]) =>
     ipcRenderer.invoke('note:reorder', cardCode, kind, labels),
 
-  testRunOcgcore: () => ipcRenderer.invoke('ocgcore:test-run'),
-
   duelExportReplay: (params: EngineExportReplayParams): Promise<EngineExportReplayResult> =>
     ipcRenderer.invoke('duel:export-replay', params),
 
@@ -99,7 +97,6 @@ const api: IpcApi = {
   duelEngineGetPendingRequest: () => ipcRenderer.invoke('duel-engine:get-pending-request'),
   duelEngineJumpToStep: (stepId) => ipcRenderer.invoke('duel-engine:jump-to-step', stepId),
   duelEngineGetTimeline: () => ipcRenderer.invoke('duel-engine:get-timeline'),
-  duelEngineGetBoardState: () => ipcRenderer.invoke('duel-engine:get-board-state'),
   duelEngineGetProvenance: (ref) => ipcRenderer.invoke('duel-engine:provenance', ref),
   duelEngineReplaceCard: (ref, newCode) =>
     ipcRenderer.invoke('duel-engine:replace-card', ref, newCode),
@@ -123,7 +120,6 @@ const api: IpcApi = {
   openProjectsDirectory: () => ipcRenderer.invoke('file:open-projects-dir'),
   selectProjectsDirectory: () => ipcRenderer.invoke('file:select-projects-dir'),
 
-  getDataDirectory: () => ipcRenderer.invoke('data:get-dir'),
   getDefaultDataDirectory: () => ipcRenderer.invoke('data:get-default-dir'),
   openDataDirectory: () => ipcRenderer.invoke('data:open-dir'),
   selectDataDirectory: (migrate: boolean) => ipcRenderer.invoke('data:select-dir', migrate),
@@ -156,9 +152,6 @@ const api: IpcApi = {
     }
   },
 
-  getCardImagePath: (code: number, small?: boolean) =>
-    ipcRenderer.invoke('image:get-path', code, small),
-
   openDeckEditor: (deckId?: string) => ipcRenderer.invoke('window:open-deck-editor', deckId),
   consumePendingDeckToEdit: () => ipcRenderer.invoke('deck:consume-pending-edit'),
   onOpenDeckInEditor: (callback) => {
@@ -168,8 +161,6 @@ const api: IpcApi = {
       ipcRenderer.removeListener('deck:open-in-editor', handler)
     }
   },
-  getDeckList: () => ipcRenderer.invoke('deck:get-list'),
-
   getDeckLibrary: () => ipcRenderer.invoke('deck:get-library'),
   createDeckGroup: (name, parent) => ipcRenderer.invoke('deck:create-group', name, parent ?? null),
   renameDeckGroup: (oldName, newName) => ipcRenderer.invoke('deck:rename-group', oldName, newName),

@@ -52,10 +52,6 @@ const HAND_RESULT_MAP: Record<string, HandResult> = {
   paper: HandResult.PAPER
 }
 
-/**
- * Answer（语义对象）→ 引擎响应字节。
- * "取消/放弃"一律走消息自带的 defaultResponse()，不手拼字节。
- */
 export function encodeAnswer(msg: unknown, answer: Answer): Uint8Array {
   if (msg instanceof YGOProMsgSelectIdleCmd) {
     const a = assertIdle(answer)
@@ -63,7 +59,7 @@ export function encodeAnswer(msg: unknown, answer: Answer): Uint8Array {
     if (type === undefined) throw new Error(`未知的 idle 命令: ${a.cmd}`)
     if (
       (type === IdleCmdType.TO_BP || type === IdleCmdType.TO_EP || type === IdleCmdType.SHUFFLE) ===
-      false &&
+        false &&
       !a.card
     ) {
       throw new Error('idle 卡片操作需要指定 card。')
@@ -75,10 +71,7 @@ export function encodeAnswer(msg: unknown, answer: Answer): Uint8Array {
     const a = assertBattle(answer)
     const type = BATTLE_CMD_MAP[a.cmd]
     if (type === undefined) throw new Error(`未知的 battle 命令: ${a.cmd}`)
-    if (
-      (type === BattleCmdType.TO_M2 || type === BattleCmdType.TO_EP) === false &&
-      !a.card
-    ) {
+    if ((type === BattleCmdType.TO_M2 || type === BattleCmdType.TO_EP) === false && !a.card) {
       throw new Error('battle 卡片操作需要指定 card。')
     }
     return msg.prepareResponse(type, a.card)
@@ -104,7 +97,9 @@ export function encodeAnswer(msg: unknown, answer: Answer): Uint8Array {
 
   if (msg instanceof YGOProMsgSelectPlace || msg instanceof YGOProMsgSelectDisField) {
     const a = assertPlace(answer)
-    return msg.prepareResponse(a.places.map((p) => ({ player: p.controller, location: p.location, sequence: p.sequence })))
+    return msg.prepareResponse(
+      a.places.map((p) => ({ player: p.controller, location: p.location, sequence: p.sequence }))
+    )
   }
 
   if (msg instanceof YGOProMsgSelectPosition) {
@@ -126,7 +121,6 @@ export function encodeAnswer(msg: unknown, answer: Answer): Uint8Array {
     const a = assertKind(answer, 'counter')
     return msg.prepareResponse(
       a.counters.map((c) => {
-        // 用候选索引回答案，避免同名卡/多卡场景下按字段反查产生歧义。
         const index = msg.cards.findIndex(
           (card) =>
             card.code === c.card.code &&
@@ -184,11 +178,14 @@ export function encodeAnswer(msg: unknown, answer: Answer): Uint8Array {
   throw new Error(`不支持的引擎询问类型: ${msgName}`)
 }
 
-/** 生成 answer 的一行日志文案 */
 export function describeAnswer(msg: unknown, answer: Answer): string {
   const cardName = (code?: number): string =>
     code === undefined ? '' : cdbService.getCardById(code)?.name || String(code)
-  const a = answer as Answer & { cmd?: string; card?: { code: number }; cards?: { code: number }[] | null }
+  const a = answer as Answer & {
+    cmd?: string
+    card?: { code: number }
+    cards?: { code: number }[] | null
+  }
 
   switch (a.kind) {
     case 'idle':
@@ -255,8 +252,6 @@ function playerOf(msg: unknown): number {
   const p = (msg as { player?: number }).player
   return p === 1 ? 1 : 0
 }
-
-// ------------------------------------------------------------ 断言辅助
 
 function assertIdle(answer: Answer): Extract<Answer, { kind: 'idle' }> {
   if (answer.kind !== 'idle') throw new Error('idle 请求需要 idle 答案。')

@@ -2,7 +2,6 @@ import React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Shuffle } from 'lucide-react'
 
-/** 手牌切洗期间的浮层标签：让玩家明确知道「手牌被引擎洗过了」而不是界面出错 */
 export const HandShuffleOverlay: React.FC<{ active: boolean }> = ({ active }) => (
   <AnimatePresence>
     {active && (

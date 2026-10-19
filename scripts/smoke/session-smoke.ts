@@ -5,7 +5,7 @@
  * 请求 → 自动答题 → 引擎推进 → 无 RETRY / 无空 pending / 场地状态正确
  */
 import { duelSession } from '../../src/main/services/duel/duel-session'
-import { normalizeDuelState, Duelist, FieldCard } from '@shared/index'
+import { normalizeDuelState, Duelist, DuelPuzzleState, FieldCard } from '@shared/index'
 import type { EngineRequest, Answer } from '@shared/engine/protocol'
 
 let fieldId = 0
@@ -28,7 +28,7 @@ function makeCard(
   }
 }
 
-function buildPuzzle() {
+function buildPuzzle(): DuelPuzzleState {
   const cards: FieldCard[] = [
     // 我方卡组
     makeCard(89631139, 0, 0x01, 0, 0xa),
@@ -68,7 +68,10 @@ function buildPuzzle() {
   })
 }
 
-function autoAnswer(request: EngineRequest, state: { idleCount: number; unselectPicked: boolean }): Answer {
+function autoAnswer(
+  request: EngineRequest,
+  state: { idleCount: number; unselectPicked: boolean }
+): Answer {
   const d = request.data
   switch (d.kind) {
     case 'rps':

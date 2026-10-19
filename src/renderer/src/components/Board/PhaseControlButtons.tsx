@@ -2,6 +2,7 @@ import React from 'react'
 import { DuelPhase } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { canBp, canM2, canEp } from '../../utils/phaseFlow'
 import { cn } from '../../lib/utils'
 
 const PHASE_LABELS: Record<DuelPhase, string> = {
@@ -34,10 +35,8 @@ export const PhaseMiddleButton: React.FC = () => {
   const executeDrawCard = useDuelStore((s) => s.executeDrawCard)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
-  // R2：阶段入口由引擎请求数据决定（合法才显示）
-  const canBp = pendingRequest !== null && pendingRequest.data.kind === 'idle' && pendingRequest.data.canBp
-  const canM2 =
-    pendingRequest !== null && pendingRequest.data.kind === 'battle' && pendingRequest.data.canM2
+  const canEnterBp = canBp(pendingRequest)
+  const canEnterM2 = canM2(pendingRequest)
 
   if (currentPhase === 'DP') {
     if (isEngine) return null
@@ -56,12 +55,12 @@ export const PhaseMiddleButton: React.FC = () => {
   }
 
   if (currentPhase === 'M1') {
-    if (isEngine && !canBp) return null
+    if (isEngine && !canEnterBp) return null
     return (
       <button
         type="button"
         onClick={() => {
-          if (isEngine && canBp) {
+          if (isEngine && canEnterBp) {
             void useDuelEngineStore.getState().submitAnswer({ kind: 'idle', cmd: 'TO_BP' })
           } else setCurrentPhase('BP')
         }}
@@ -76,12 +75,12 @@ export const PhaseMiddleButton: React.FC = () => {
   }
 
   if (currentPhase === 'BP') {
-    if (isEngine && !canM2) return null
+    if (isEngine && !canEnterM2) return null
     return (
       <button
         type="button"
         onClick={() => {
-          if (isEngine && canM2) {
+          if (isEngine && canEnterM2) {
             void useDuelEngineStore.getState().submitAnswer({ kind: 'battle', cmd: 'TO_M2' })
           } else setCurrentPhase('M2')
         }}
@@ -104,10 +103,7 @@ export const PhaseEpButton: React.FC = () => {
   const nextTurn = useDuelStore((s) => s.nextTurn)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
-  const canEp =
-    pendingRequest !== null &&
-    ((pendingRequest.data.kind === 'idle' && pendingRequest.data.canEp) ||
-      (pendingRequest.data.kind === 'battle' && pendingRequest.data.canEp))
+  const canEnterEp = canEp(pendingRequest)
 
   if (currentPhase === 'DP' || currentPhase === 'SP') {
     if (isEngine) return null
@@ -126,12 +122,12 @@ export const PhaseEpButton: React.FC = () => {
   }
 
   if (currentPhase === 'M1' || currentPhase === 'BP' || currentPhase === 'M2') {
-    if (isEngine && !canEp) return null
+    if (isEngine && !canEnterEp) return null
     return (
       <button
         type="button"
         onClick={() => {
-          if (isEngine && canEp) {
+          if (isEngine && canEnterEp) {
             void useDuelEngineStore
               .getState()
               .submitAnswer(

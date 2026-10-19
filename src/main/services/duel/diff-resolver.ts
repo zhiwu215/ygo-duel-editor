@@ -1,26 +1,9 @@
 import {
   EngineBoardState,
   EngineCard,
-  EngineDiffMovedCard,
-  EngineDiffAddedCard,
-  EngineDiffRemovedCard,
-  EngineDiffPositionChange,
-  EngineDiffLpChange,
-  EngineDiffCounterChange,
   EngineDiffOverlayChange,
   EngineDiffResult
 } from '@shared/index'
-
-export type {
-  EngineDiffMovedCard,
-  EngineDiffAddedCard,
-  EngineDiffRemovedCard,
-  EngineDiffPositionChange,
-  EngineDiffLpChange,
-  EngineDiffCounterChange,
-  EngineDiffOverlayChange,
-  EngineDiffResult
-}
 
 function collectFieldCards(state: EngineBoardState): EngineCard[] {
   const list: EngineCard[] = []

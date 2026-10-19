@@ -25,6 +25,7 @@ import { setCardDragImage } from '../../utils/cardImage'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { cn } from '../../lib/utils'
+import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { CardRowItem } from './CardRowItem'
 
 type AddCardTarget = Extract<InjectCommand, { op: 'add-card' }>['to']
@@ -70,25 +71,7 @@ export const CardSearchPanel: React.FC = () => {
 
   const closeInjectMenu = (): void => setInjectMenu(null)
 
-  useEffect(() => {
-    if (!injectMenu) return
-    const handlePointerDown = (e: MouseEvent): void => {
-      if (injectMenuRef.current && !injectMenuRef.current.contains(e.target as Node)) {
-        setInjectMenu(null)
-      }
-    }
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setInjectMenu(null)
-    }
-    window.addEventListener('mousedown', handlePointerDown)
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('resize', closeInjectMenu)
-    return () => {
-      window.removeEventListener('mousedown', handlePointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('resize', closeInjectMenu)
-    }
-  }, [injectMenu])
+  useDismissOnOutside(injectMenuRef, injectMenu !== null, closeInjectMenu)
 
   useEffect(() => {
     search({ limit: 40 })

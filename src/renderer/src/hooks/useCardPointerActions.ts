@@ -1,9 +1,10 @@
 import React from 'react'
-import { FieldCard } from '@shared/index'
+import { CardLocation, FieldCard, isCustomCardCode } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useCardCommandMenuStore } from '../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { useStagingStore } from '../stores/useStagingStore'
+import { useDropHintStore } from '../stores/useDropHintStore'
 import { useSelectionStore } from '../stores/useSelectionStore'
 import {
   submitSelection,
@@ -11,7 +12,6 @@ import {
   type CardSelectionRole
 } from '../utils/duelSelection'
 import { hasCardEngineActions, hasCardEngineActivate } from '../utils/engineActions'
-import { isCustomCardCode } from '@shared/index'
 
 interface CardPointerActionsInput {
   card: FieldCard
@@ -33,6 +33,9 @@ export function useCardPointerActions({
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
+  const hintZone = useDropHintStore((s) => s.zone)
+  const showHint = useDropHintStore((s) => s.show)
+  const closeHint = useDropHintStore((s) => s.close)
   const {
     card: menuCard,
     openMenu: openCommandMenu,
@@ -88,6 +91,36 @@ export function useCardPointerActions({
       }
     } else {
       closeCommandMenu()
+      if (isEngineActive && !stagingActive) {
+        closeHint()
+        return
+      }
+      const loc = card.location
+      const canHint =
+        loc === CardLocation.MZONE ||
+        loc === CardLocation.SZONE ||
+        loc === CardLocation.EXTRA ||
+        loc === CardLocation.DECK ||
+        loc === CardLocation.HAND
+      if (!canHint) {
+        closeHint()
+        return
+      }
+      const zone = {
+        controller: card.controller,
+        location: loc,
+        sequence: loc === CardLocation.DECK || loc === CardLocation.EXTRA ? 0 : card.sequence
+      }
+      if (
+        hintZone &&
+        hintZone.controller === zone.controller &&
+        hintZone.location === zone.location &&
+        hintZone.sequence === zone.sequence
+      ) {
+        closeHint()
+      } else {
+        showHint(zone)
+      }
     }
   }
 }

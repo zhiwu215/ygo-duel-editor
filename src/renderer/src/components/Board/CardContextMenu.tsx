@@ -11,12 +11,8 @@ import { CardLocation } from '@shared/index'
 import { deriveCardEngineActions } from '../../utils/engineActions'
 import { resolveCardName } from '../../utils/cardNames'
 import {
-  buildDeckPileItems,
   buildDuelActionItems,
   buildEngineEditItems,
-  buildHandItems,
-  buildMonsterItems,
-  buildSpellTrapItems,
   isPileLocation,
   isSpellTrapLocation,
   type CardMenuItemContext,
@@ -32,7 +28,7 @@ export const CardContextMenu: React.FC = () => {
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
-  const { updateCardPosition, removeCard, state } = useDuelStore()
+  const { removeCard, state } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
@@ -127,7 +123,6 @@ export const CardContextMenu: React.FC = () => {
     stagingActive,
     engineActions,
     act,
-    updateCardPosition,
     submitAnswer: (answer) => {
       void useDuelEngineStore.getState().submitAnswer(answer)
     },
@@ -142,10 +137,6 @@ export const CardContextMenu: React.FC = () => {
 
   const duelActionItems = buildDuelActionItems(ctx)
   const engineEditItems = buildEngineEditItems(ctx)
-  const handItems = buildHandItems(ctx)
-  const monsterItems = buildMonsterItems(ctx)
-  const spellTrapItems = buildSpellTrapItems(ctx)
-  const deckPileItems = buildDeckPileItems(ctx)
 
   const renderGroup = (items: MenuItemConfig[]): React.JSX.Element[] =>
     items.map((item, idx) => (
@@ -227,20 +218,6 @@ export const CardContextMenu: React.FC = () => {
         </>
       )}
 
-      {handItems.length > 0 && (
-        <>
-          {renderGroup(handItems)}
-          <Separator className="my-1" />
-        </>
-      )}
-
-      {monsterItems.length > 0 && (
-        <>
-          {renderGroup(monsterItems)}
-          <Separator className="my-1" />
-        </>
-      )}
-
       {isMonsterZone &&
         !isEngine &&
         !!(card.overlayMaterials && card.overlayMaterials.length > 0) && (
@@ -263,13 +240,6 @@ export const CardContextMenu: React.FC = () => {
           </>
         )}
 
-      {spellTrapItems.length > 0 && (
-        <>
-          {renderGroup(spellTrapItems)}
-          <Separator className="my-1" />
-        </>
-      )}
-
       {(isMonsterZone || isSpellTrapZone) && (
         <>
           <Button
@@ -288,13 +258,6 @@ export const CardContextMenu: React.FC = () => {
             <Sliders className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             <span>攻守与指示物 (Shift+点击)</span>
           </Button>
-          <Separator className="my-1" />
-        </>
-      )}
-
-      {deckPileItems.length > 0 && (
-        <>
-          {renderGroup(deckPileItems)}
           <Separator className="my-1" />
         </>
       )}

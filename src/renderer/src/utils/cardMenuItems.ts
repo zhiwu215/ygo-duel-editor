@@ -1,13 +1,10 @@
-import { Answer, CardLocation, CardPosition, EngineCardRef, FieldCard } from '@shared/index'
+import { Answer, CardLocation, EngineCardRef, FieldCard } from '@shared/index'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowLeftRight,
-  Eye,
-  EyeOff,
   History,
   Layers,
   RotateCw,
-  Shield,
   Sparkles,
   Swords,
   Trash2,
@@ -37,7 +34,6 @@ export interface CardMenuItemContext {
   stagingActive: boolean
   engineActions: CardEngineActions | null
   act: (fn: () => void) => () => void
-  updateCardPosition: (instanceId: string, position: number) => void
   submitAnswer: (answer: Answer) => void
   openProvenance: (target: CardMenuEditTarget) => void
   openReplace: (target: CardMenuEditTarget) => void
@@ -149,104 +145,6 @@ export function buildEngineEditItems(ctx: CardMenuItemContext): MenuItemConfig[]
       action: ctx.act(() => {
         void ctx.removeEngineCard(ref)
       })
-    }
-  ]
-}
-
-const canEditLocally = (ctx: CardMenuItemContext): boolean => !ctx.isEngine || ctx.stagingActive
-
-export function buildHandItems(ctx: CardMenuItemContext): MenuItemConfig[] {
-  if (!canEditLocally(ctx) || ctx.card.location !== CardLocation.HAND) return []
-
-  const setPos = (pos: number): (() => void) =>
-    ctx.act(() => ctx.updateCardPosition(ctx.card.instanceId, pos))
-
-  return [
-    {
-      icon: Eye,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: '表侧表示 (公开手牌)',
-      action: setPos(CardPosition.FACEUP)
-    },
-    {
-      icon: EyeOff,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: '里侧表示 (未公开手牌)',
-      action: setPos(CardPosition.FACEDOWN)
-    }
-  ]
-}
-
-export function buildMonsterItems(ctx: CardMenuItemContext): MenuItemConfig[] {
-  if (!canEditLocally(ctx) || ctx.card.location !== CardLocation.MZONE) return []
-
-  const setPos = (pos: number): (() => void) =>
-    ctx.act(() => ctx.updateCardPosition(ctx.card.instanceId, pos))
-
-  return [
-    {
-      icon: Swords,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: '表侧攻击表示',
-      action: setPos(CardPosition.FACEUP_ATTACK)
-    },
-    {
-      icon: Shield,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: '表侧守备表示',
-      action: setPos(CardPosition.FACEUP_DEFENSE)
-    },
-    {
-      icon: EyeOff,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: '里侧守备表示',
-      action: setPos(CardPosition.FACEDOWN_DEFENSE)
-    }
-  ]
-}
-
-export function buildSpellTrapItems(ctx: CardMenuItemContext): MenuItemConfig[] {
-  if (!canEditLocally(ctx) || !isSpellTrapLocation(ctx.card.location)) return []
-
-  const setPos = (pos: number): (() => void) =>
-    ctx.act(() => ctx.updateCardPosition(ctx.card.instanceId, pos))
-
-  return [
-    {
-      icon: Swords,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: '表侧表示',
-      action: setPos(CardPosition.FACEUP_ATTACK)
-    },
-    {
-      icon: RotateCw,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: '里侧盖放',
-      action: setPos(CardPosition.FACEDOWN)
-    }
-  ]
-}
-
-export function buildDeckPileItems(ctx: CardMenuItemContext): MenuItemConfig[] {
-  if (ctx.card.location !== CardLocation.EXTRA && ctx.card.location !== CardLocation.DECK) {
-    return []
-  }
-
-  const setPos = (pos: number): (() => void) =>
-    ctx.act(() => ctx.updateCardPosition(ctx.card.instanceId, pos))
-
-  return [
-    {
-      icon: Eye,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: '表侧表示',
-      action: setPos(CardPosition.FACEUP)
-    },
-    {
-      icon: EyeOff,
-      iconClassName: 'w-3.5 h-3.5 text-muted-foreground',
-      label: '里侧表示',
-      action: setPos(CardPosition.FACEDOWN)
     }
   ]
 }

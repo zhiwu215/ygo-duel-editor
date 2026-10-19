@@ -96,6 +96,10 @@ function insertDeckTop(
   ]
 }
 
+export function createStepId(): string {
+  return `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+}
+
 export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (set, get) => ({
   activeRightTab: 'search',
   currentStepIndex: null,
@@ -181,7 +185,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     set((prev) => {
       const newStep: DuelStep = {
         ...stepData,
-        id: `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+        id: createStepId()
       }
       const existing = prev.state.steps || []
       return {

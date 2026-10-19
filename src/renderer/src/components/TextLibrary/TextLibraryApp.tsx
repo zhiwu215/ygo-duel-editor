@@ -57,7 +57,7 @@ export const TextLibraryApp: React.FC = () => {
             <span className="font-bold text-sm">文本素材库</span>
           </div>
           <div className="flex-1" />
-          <div className="[-webkit-app-region:no-drag] flex items-center gap-2 -mr-3">
+          <div className="[-webkit-app-region:no-drag] flex items-center gap-2 -mr-4">
             <Tooltip>
               <TooltipTrigger
                 render={

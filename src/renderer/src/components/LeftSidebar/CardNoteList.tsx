@@ -194,7 +194,7 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
               </button>
             </PopoverContent>
           </Popover>
-          <WindowControls />
+          <WindowControls className="-mr-4" />
         </div>
       </header>
 

@@ -180,7 +180,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             </div>
           </div>
           <div className="flex-1" />
-          <div className="[-webkit-app-region:no-drag] flex items-center gap-2 -mr-3">
+          <div className="[-webkit-app-region:no-drag] flex items-center gap-2 -mr-4">
             {dirty && (
               <span className="text-[10px] text-amber-600 dark:text-amber-400">未保存</span>
             )}

@@ -1,16 +1,15 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import { useEffect, useState, type JSX } from 'react'
-import { X, Palette, FolderOpen, Plug, MessageSquareText, Swords } from 'lucide-react'
+import { Palette, FolderOpen, Plug, MessageSquareText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useAgentStore } from '../../stores/useAgentStore'
+import { WindowControls } from '../ui/window-controls'
 import { AgentSettingsContent } from './AgentSettingsContent'
 import { SettingsSectionId } from '@shared/index'
 import { AppearanceSection } from './components/AppearanceSection'
 import { DataDirectorySection } from './components/DataDirectorySection'
 import { PathsSection } from './components/PathsSection'
-import { DuelSection } from './components/DuelSection'
 import { ExtraCdbSection } from './components/ExtraCdbSection'
 import { cn } from '../../lib/utils'
 
@@ -41,12 +40,6 @@ const NAV_GROUPS: SettingsNavGroup[] = [
         label: '路径与目录',
         icon: FolderOpen,
         description: 'YGO 主程序目录与决斗档案保存位置'
-      },
-      {
-        id: 'duel',
-        label: '对局',
-        icon: Swords,
-        description: '规则校验 (ocgcore 引擎过滤操作)'
       }
     ]
   },
@@ -98,21 +91,10 @@ export function SettingsApp(): JSX.Element {
   return (
     <div className="relative h-screen w-screen flex bg-background text-foreground overflow-hidden select-none">
       <div className="absolute top-0 left-0 right-16 h-10 z-50 [-webkit-app-region:drag]" />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type="button"
-              onClick={() => window.close()}
-              aria-label="关闭设置"
-              className="absolute top-2 right-2 z-50 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          }
-        />
-        <TooltipContent>关闭</TooltipContent>
-      </Tooltip>
+      <WindowControls
+        actions={['close']}
+        className="absolute top-0.5 right-0 z-50"
+      />
 
       <aside className="w-56 shrink-0 border-r border-border bg-muted/30 flex flex-col p-3">
         <div className="text-sm font-bold px-2">偏好设置</div>
@@ -177,8 +159,6 @@ export function SettingsApp(): JSX.Element {
               <PathsSection />
               <ExtraCdbSection />
             </div>
-          ) : section === 'duel' ? (
-            <DuelSection />
           ) : (
             <AgentSettingsContent section={section} />
           )}

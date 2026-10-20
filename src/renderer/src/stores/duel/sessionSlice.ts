@@ -9,6 +9,7 @@ import {
   createInitialDuelState,
   normalizeDuelState
 } from '@shared/index'
+import { isDuelStarted } from '../../utils/duelStart'
 import type { DuelStore } from './types'
 
 export interface SessionSlice {
@@ -40,6 +41,7 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
       currentPhase: 'DP',
       currentChain: 0,
       activeTurnPlayer: normalized.turnPlayer ?? 0,
+      duelStarted: isDuelStarted(normalized),
       selectedCardId: null,
       expandedDuelistId: null,
       hoveredCard: null
@@ -51,6 +53,7 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
     set(() => ({
       state: normalizeDuelState(newState),
       currentProjectPath: null,
+      duelStarted: isDuelStarted(newState),
       selectedCardId: null,
       expandedDuelistId: null
     })),
@@ -68,6 +71,7 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
       return {
         state: baseState,
         currentProjectPath: null,
+        duelStarted: false,
         selectedCardId: null,
         activeStatPopoverCardId: null,
         statPopoverPosition: null,

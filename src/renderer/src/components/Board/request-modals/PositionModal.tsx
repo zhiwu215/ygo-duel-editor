@@ -38,7 +38,6 @@ export const PositionModal: React.FC<{ data: DataOf<'position'> }> = ({ data }) 
               type="button"
               disabled={loading}
               aria-label={label}
-              title={label}
               onClick={() => submitAnswer({ kind: 'position', position })}
               className="flex h-[176px] w-[176px] items-center justify-center rounded-md border border-border/70 bg-background/60 transition-colors hover:border-foreground/40 hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-60"
             >

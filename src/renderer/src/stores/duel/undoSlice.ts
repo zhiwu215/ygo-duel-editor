@@ -10,7 +10,7 @@ export interface UndoSlice {
   clearUndoHistory: () => void
 }
 
-type TemporalApi = StoreApi<TemporalState<{ state: DuelPuzzleState }>>
+type TemporalApi = StoreApi<TemporalState<{ state: DuelPuzzleState; duelStarted: boolean }>>
 
 function temporalOf(store: unknown): TemporalApi {
   return (store as { temporal: TemporalApi }).temporal
@@ -29,12 +29,15 @@ export const createUndoSlice: StateCreator<DuelStore, [], [], UndoSlice> = (_set
     const handleSet = (
       temporal as unknown as {
         _handleSet: (
-          pastState: { state: DuelPuzzleState },
+          pastState: { state: DuelPuzzleState; duelStarted: boolean },
           replace: undefined,
-          currentState: { state: DuelPuzzleState }
+          currentState: { state: DuelPuzzleState; duelStarted: boolean }
         ) => void
       }
     )._handleSet
-    handleSet({ state: snapshot }, undefined, { state: get().state })
+    handleSet({ state: snapshot, duelStarted: get().duelStarted }, undefined, {
+      state: get().state,
+      duelStarted: get().duelStarted
+    })
   }
 })

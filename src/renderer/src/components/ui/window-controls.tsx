@@ -24,7 +24,6 @@ export const WindowControls: React.FC<{
         <button
           type="button"
           onClick={() => void window.api.windowMinimize()}
-          title="最小化"
           className={cn(
             btnSize,
             'flex items-center justify-center text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors [-webkit-app-region:no-drag]'
@@ -38,7 +37,6 @@ export const WindowControls: React.FC<{
         <button
           type="button"
           onClick={() => void window.api.windowToggleMaximize()}
-          title={isMaximized ? '向下还原' : '最大化'}
           className={cn(
             btnSize,
             'flex items-center justify-center rounded-md text-muted-foreground/80 hover:bg-muted hover:text-foreground transition-colors [-webkit-app-region:no-drag]'
@@ -62,7 +60,6 @@ export const WindowControls: React.FC<{
         <button
           type="button"
           onClick={() => void window.api.windowClose()}
-          title="关闭"
           className={cn(
             btnSize,
             'rounded-md flex items-center justify-center text-muted-foreground/80 hover:bg-destructive/10 hover:text-destructive transition-colors [-webkit-app-region:no-drag]'

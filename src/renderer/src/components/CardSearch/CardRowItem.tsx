@@ -80,7 +80,6 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
                 backgroundSize: `${LIMIT_SPRITE_SIZE * 2 * LIMIT_SPRITE_SCALE * 0.7}px ${LIMIT_SPRITE_SIZE * 2 * LIMIT_SPRITE_SCALE * 0.7}px`,
                 backgroundPosition: `-${mark.spriteX * LIMIT_SPRITE_SCALE * 0.7}px -${mark.spriteY * LIMIT_SPRITE_SCALE * 0.7}px`
               }}
-              title={mark.label}
             />
           )
         })()}

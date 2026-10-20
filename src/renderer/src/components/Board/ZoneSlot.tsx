@@ -370,23 +370,6 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       } ${
         heldCardInstanceId ? 'cursor-pointer hover:ring-2 hover:ring-primary/70' : ''
       } ${className}`}
-      title={
-        isTokenDropTarget
-          ? `点击放下「${pendingToken.name}」`
-          : heldCardInstanceId
-            ? '点击将手上的卡片放到这里'
-            : location === CardLocation.DECK
-              ? isEngineActive
-                ? '双击展开卡组列表'
-                : '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
-              : card &&
-                  ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
-                    (card.overlayMaterials && card.overlayMaterials.length > 0))
-                ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
-                : isPileZone && count !== undefined && count > 0
-                  ? '双击直接查看列表'
-                  : undefined
-      }
     >
       {count !== undefined && count > 0 && (
         <button
@@ -404,13 +387,6 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
               ? 'hover:bg-blue-600 hover:scale-110 cursor-pointer pointer-events-auto'
               : 'pointer-events-none'
           )}
-          title={
-            isPileZone
-              ? location === CardLocation.DECK
-                ? '点击展开卡组列表 (或双击格子)'
-                : '点击查看列表 (或双击格子)'
-              : undefined
-          }
         >
           {count}
         </button>

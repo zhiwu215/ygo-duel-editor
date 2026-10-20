@@ -3,7 +3,6 @@ import { cn } from '../../lib/utils'
 
 interface FilterFieldProps {
   label: string
-  tooltip?: string
   disabled?: boolean
   labelClassName?: string
   className?: string
@@ -12,7 +11,6 @@ interface FilterFieldProps {
 
 export const FilterField: React.FC<FilterFieldProps> = ({
   label,
-  tooltip,
   disabled,
   labelClassName,
   className,
@@ -31,7 +29,7 @@ export const FilterField: React.FC<FilterFieldProps> = ({
   )
   return (
     <div className={cn('flex min-w-0 items-center gap-1', className)}>
-      {tooltip ? labelNode : labelNode}
+      {labelNode}
       {children}
     </div>
   )

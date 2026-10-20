@@ -63,10 +63,7 @@ export function SortableNoteRow({
           </span>
         ) : kind === 'chant' ? (
           item.source ? (
-            <span
-              title={`借鉴条目，出自：${item.source}`}
-              className="shrink-0 max-w-40 truncate text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25"
-            >
+            <span className="shrink-0 max-w-40 truncate text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25">
               {`借鉴：${item.source}`}
             </span>
           ) : (

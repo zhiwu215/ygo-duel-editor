@@ -1,6 +1,6 @@
 import React from 'react'
 import { Check } from 'lucide-react'
-import { CdbCard, LOCATION_NAMES } from '@shared/index'
+import { CdbCard } from '@shared/index'
 import type { RequestCard } from '@shared/engine/protocol'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../../utils/cardImage'
 import { cn } from '../../../lib/utils'
@@ -24,13 +24,11 @@ export const RequestCardTile: React.FC<RequestCardTileProps> = ({
   onClick
 }) => {
   const name = cardNameOf(meta, card.code)
-  const locationName = LOCATION_NAMES[card.location]
   return (
     <button
       type="button"
       disabled={disabled}
       aria-pressed={selected}
-      title={locationName ? `${name} · ${locationName}` : name}
       onClick={onClick}
       className={cn(
         'group relative w-[86px] shrink-0 overflow-hidden rounded-sm bg-black/30 transition-shadow',

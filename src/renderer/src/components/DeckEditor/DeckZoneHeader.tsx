@@ -26,7 +26,7 @@ export interface TypeTally {
 }
 
 const TypeTallyBadge: React.FC<{ tally: TypeTally }> = ({ tally }) => (
-  <span className="flex items-center gap-1 shrink-0" title={`${tally.label} ${tally.count} 张`}>
+  <span className="flex items-center gap-1 shrink-0">
     <img src={tally.sprite} alt={tally.label} className="h-4 w-auto opacity-90" draggable={false} />
     <span className="text-[11px] font-mono text-muted-foreground tabular-nums">{tally.count}</span>
   </span>

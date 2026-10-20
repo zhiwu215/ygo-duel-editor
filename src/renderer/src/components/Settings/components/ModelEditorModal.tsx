@@ -6,7 +6,6 @@ import { useAgentModelFetch } from '../../../hooks/useAgentModelFetch'
 import { buildAgentModelFormModel } from '../../../utils/agentModelForm'
 import { Button } from '../../ui/button'
 import { Switch } from '../../ui/switch'
-import { HelpTip } from './HelpTip'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog'
 import { cn } from '../../../lib/utils'
 
@@ -25,11 +24,10 @@ interface ModelEditorModalProps {
 const FIELD_INPUT_CLASS =
   'w-full px-2.5 py-1.5 rounded-lg border border-border bg-background text-[11px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25'
 
-function GroupLabel({ label, help }: { label: string; help: string }): React.JSX.Element {
+function GroupLabel({ label }: { label: string }): React.JSX.Element {
   return (
     <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
       <span>{label}</span>
-      <HelpTip text={help} />
     </div>
   )
 }
@@ -190,7 +188,6 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
 
         <div className="flex items-center gap-1.5 px-5 pt-3">
           <span className="text-[11px] font-medium">智能配置</span>
-          <HelpTip text="开启后，填好模型 ID 会自动从厂商接口读取该模型的上下文窗口与能力；识别不到时可手动填写" />
           <Switch
             checked={smart}
             onCheckedChange={setSmart}
@@ -222,7 +219,6 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
             <div>
               <span className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 模型名称
-                <HelpTip text="仅用于界面展示，留空时显示模型 ID" />
               </span>
               <input
                 type="text"
@@ -239,7 +235,6 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
             <div>
               <span className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 上下文窗口
-                <HelpTip text="模型单次能处理的最大 token 数，影响上下文自动压缩阈值" />
               </span>
               <input
                 type="text"
@@ -254,7 +249,6 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
             <div>
               <span className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 最大输出 Token
-                <HelpTip text="该模型单次回复的上限，留空则使用「对话设置」里的全局上限" />
               </span>
               <input
                 type="text"
@@ -282,10 +276,7 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
               {advancedOpen && (
                 <div className="mt-2 space-y-4 pl-5">
                   <div>
-                    <GroupLabel
-                      label="输入类型"
-                      help="该模型能接收的内容类型。文本是所有模型都支持的；图片需要模型本身具备视觉能力"
-                    />
+                    <GroupLabel label="输入类型" />
                     <div className="flex flex-wrap gap-2">
                       <OptionChip label="文本" selected locked />
                       <OptionChip
@@ -297,10 +288,7 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
                   </div>
 
                   <div>
-                    <GroupLabel
-                      label="模型能力"
-                      help="直接写进底层引擎的兼容性声明。只有确认模型确实支持时才开启，否则可能导致工具调用异常"
-                    />
+                    <GroupLabel label="模型能力" />
                     <div className="flex flex-wrap gap-2">
                       <OptionChip
                         label="结构化输出"
@@ -316,10 +304,7 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
                   </div>
 
                   <div>
-                    <GroupLabel
-                      label="推理"
-                      help="开启后该模型会出现在「对话设置」的可推理模型里，并在模型列表打「推理」标记"
-                    />
+                    <GroupLabel label="推理" />
                     <div className="flex flex-wrap gap-2">
                       <OptionChip
                         label="支持推理 / 思考链"

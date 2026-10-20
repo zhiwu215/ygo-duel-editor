@@ -7,7 +7,6 @@ import { FilterField } from './FilterField'
 
 interface NumericRowProps {
   label: string
-  tooltip?: string
   op: NumericCompareOp
   value: number | undefined
   allowUnknown?: boolean
@@ -19,7 +18,6 @@ interface NumericRowProps {
 
 export const NumericRow: React.FC<NumericRowProps> = ({
   label,
-  tooltip,
   op,
   value,
   allowUnknown = false,
@@ -30,7 +28,7 @@ export const NumericRow: React.FC<NumericRowProps> = ({
 }) => {
   const [draft, setDraft] = React.useState<string | null>(null)
   return (
-    <FilterField label={label} tooltip={tooltip} disabled={disabled} className={className}>
+    <FilterField label={label} disabled={disabled} className={className}>
       <Input
         type="text"
         inputMode="numeric"

@@ -207,7 +207,6 @@ const CustomCardEditorBody: React.FC = () => {
             size="sm"
             onClick={() => void handleSave()}
             disabled={saving || (isLink && form.markers === 0)}
-            title={isLink && form.markers === 0 ? '连接怪兽需要至少一个箭头' : undefined}
           >
             <Save className="w-3.5 h-3.5" />
             <span>保存</span>

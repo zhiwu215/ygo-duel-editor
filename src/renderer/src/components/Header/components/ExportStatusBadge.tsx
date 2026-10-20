@@ -11,7 +11,7 @@ export const ExportStatusBadge: React.FC = () => {
   return (
     <div
       className={cn(
-        'flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border select-none transition-colors cursor-help',
+        'flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border select-none transition-colors',
         canExport
           ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
           : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'

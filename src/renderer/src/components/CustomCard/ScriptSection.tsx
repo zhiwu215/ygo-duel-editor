@@ -94,7 +94,6 @@ export const ScriptSection: React.FC<ScriptSectionProps> = ({
             size="xs"
             className="gap-1"
             disabled={!gameDirectory || syncing}
-            title={gameDirectory ? undefined : '未配置游戏目录，请先到 设置→路径 配置'}
             onClick={() => void handleSync()}
           >
             <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />

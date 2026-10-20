@@ -106,7 +106,7 @@ export type TimingPolicy = {
 }
 
 export const DEFAULT_TIMING_POLICY: TimingPolicy = {
-  chain: 'ignore',
+  chain: 'smart',
   effectYn: 'ask'
 }
 

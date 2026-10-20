@@ -49,7 +49,8 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       for (const step of replaySteps) recordEngineStep(step.actId!, step)
       useDuelStore.setState((prev) => ({
         ...prev,
-        state: { ...prev.state, steps: replaySteps }
+        state: { ...prev.state, steps: replaySteps },
+        duelStarted: true
       }))
       const initialNode = timeline[0]
       set({
@@ -113,6 +114,7 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       currentStepId: null
     })
     useDuelStore.getState().loadState(puzzle)
+    useDuelStore.setState({ duelStarted: true })
     return true
   }
 })

@@ -1,10 +1,5 @@
 import React from 'react'
-import {
-  cardPoolLabel,
-  cardPoolSpriteY,
-  CARD_POOL_SPRITE_WIDTH,
-  CARD_POOL_SPRITE_HEIGHT
-} from '@shared/index'
+import { cardPoolSpriteY, CARD_POOL_SPRITE_WIDTH, CARD_POOL_SPRITE_HEIGHT } from '@shared/index'
 import cardPoolSprite from '../../assets/textures/ot.png'
 
 const SPRITE_TOTAL_HEIGHT = CARD_POOL_SPRITE_HEIGHT * 10
@@ -40,7 +35,6 @@ export const CardPoolBadges: React.FC<CardPoolBadgesProps> = ({
             backgroundSize: `${CARD_POOL_SPRITE_WIDTH * scale}px ${SPRITE_TOTAL_HEIGHT * scale}px`,
             backgroundPosition: `0 -${(cardPoolSpriteY(id) as number) * scale}px`
           }}
-          title={cardPoolLabel(id)}
         />
       ))}
     </span>

@@ -81,6 +81,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       })
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(timeline)
+      useDuelStore.setState({ duelStarted: true })
     } catch (err) {
       console.error('[useDuelEngineStore] startEngine failed:', err)
       set({
@@ -236,6 +237,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       })
       syncJumpToStepWrapped(boardState)
       restoreEngineSteps(timeline)
+      useDuelStore.setState({ duelStarted: true })
       return true
     } catch (err) {
       console.error('[useDuelEngineStore] importSession failed:', err)

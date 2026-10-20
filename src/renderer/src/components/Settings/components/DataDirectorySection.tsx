@@ -45,13 +45,7 @@ export function DataDirectorySection(): JSX.Element {
         }
       >
         <div className="flex items-center gap-1.5">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => void openDataDir()}
-            className="gap-1"
-            title="在文件管理器中打开当前数据目录"
-          >
+          <Button size="xs" variant="outline" onClick={() => void openDataDir()} className="gap-1">
             <FolderOpen className="w-3.5 h-3.5" />
             <span>打开</span>
           </Button>

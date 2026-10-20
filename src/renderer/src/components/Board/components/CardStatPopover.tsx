@@ -35,9 +35,8 @@ const StatCalculatorRow: React.FC<{
   isModified: boolean
   isInf: boolean
   diff: number
-  inputTitle: string
   onCommit: (val: number | undefined) => void
-}> = ({ label, icon, value, origVal, isModified, isInf, diff, inputTitle, onCommit }) => (
+}> = ({ label, icon, value, origVal, isModified, isInf, diff, onCommit }) => (
   <div className="relative flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/30 border border-border/50">
     <div className="flex items-center gap-1.5 min-w-0 mr-2">
       {icon}
@@ -57,12 +56,10 @@ const StatCalculatorRow: React.FC<{
     </div>
     <div className="flex items-center gap-1.5 relative shrink-0">
       <CalculatorInput
-        label={label}
         unit={label}
         value={value}
         origVal={origVal}
         isModified={isModified}
-        inputTitle={inputTitle}
         onCommit={onCommit}
       />
     </div>
@@ -190,20 +187,16 @@ export const CardStatPopover: React.FC = () => {
       <div
         onMouseDown={handleHeaderMouseDown}
         className="flex items-center justify-between border-b border-border/60 pb-1.5 cursor-grab active:cursor-grabbing group/header"
-        title="按住鼠标左键可随意拖动此面板位置"
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <GripHorizontal className="w-3.5 h-3.5 text-muted-foreground/60 group-hover/header:text-primary transition-colors shrink-0" />
           <Swords className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-          <span className="font-bold text-xs truncate" title={cardName}>
-            {cardName}
-          </span>
+          <span className="font-bold text-xs truncate">{cardName}</span>
         </div>
         <Button
           variant="ghost"
           size="icon-xs"
           onClick={() => closeStatPopover()}
-          title="关闭 (Esc)"
           className="h-5 w-5 text-muted-foreground hover:text-foreground shrink-0"
         >
           <X className="w-3.5 h-3.5" />
@@ -220,7 +213,6 @@ export const CardStatPopover: React.FC = () => {
             isModified={card.customAtk !== undefined}
             isInf={stats.isAtkInf}
             diff={stats.atkDiff}
-            inputTitle={`点击修改ATK：当前为 ${stats.isAtkInf ? '无限' : stats.atk}。直接输入数值或四则运算 (如 +500, /2, *2, inf, 无限)`}
             onCommit={(val) =>
               setCardCustomStats(
                 card.instanceId,
@@ -239,7 +231,6 @@ export const CardStatPopover: React.FC = () => {
               isModified={card.customDef !== undefined}
               isInf={stats.isDefInf}
               diff={stats.defDiff}
-              inputTitle={`点击修改DEF：当前为 ${stats.isDefInf ? '无限' : stats.def}。直接输入数值或四则运算 (如 +500, /2, *2, inf, 无限)`}
               onCommit={(val) =>
                 setCardCustomStats(
                   card.instanceId,
@@ -266,10 +257,7 @@ export const CardStatPopover: React.FC = () => {
                 key={item.id}
                 className="flex items-center justify-between p-1 rounded bg-muted/40 border border-border/50"
               >
-                <span
-                  className="font-semibold text-xs text-foreground truncate max-w-[110px]"
-                  title={item.name}
-                >
+                <span className="font-semibold text-xs text-foreground truncate max-w-[110px]">
                   {item.name}
                 </span>
 
@@ -278,7 +266,6 @@ export const CardStatPopover: React.FC = () => {
                     variant="outline"
                     size="icon-xs"
                     onClick={() => setCardCounter(card.instanceId, item.id, item.count - 1)}
-                    title="-1 指示物"
                     className="h-5 w-5"
                   >
                     <Minus className="w-2.5 h-2.5" />
@@ -292,7 +279,6 @@ export const CardStatPopover: React.FC = () => {
                     variant="outline"
                     size="icon-xs"
                     onClick={() => setCardCounter(card.instanceId, item.id, item.count + 1)}
-                    title="+1 指示物"
                     className="h-5 w-5"
                   >
                     <Plus className="w-2.5 h-2.5" />
@@ -302,7 +288,6 @@ export const CardStatPopover: React.FC = () => {
                     variant="ghost"
                     size="icon-xs"
                     onClick={() => removeCardCounter(card.instanceId, item.id)}
-                    title="移除该指示物"
                     className="h-5 w-5 text-muted-foreground hover:text-destructive ml-0.5"
                   >
                     <Trash2 className="w-2.5 h-2.5" />
@@ -358,9 +343,6 @@ export const CardStatPopover: React.FC = () => {
               }
             }}
             className="h-6 px-2 text-[11px] font-semibold gap-1 shrink-0"
-            title={
-              selectedCounterId === null ? '暂无待添加指示物，请用右侧按钮自定义' : '添加该指示物'
-            }
           >
             <Plus className="w-3 h-3" />
             <span>添加</span>
@@ -371,7 +353,6 @@ export const CardStatPopover: React.FC = () => {
             size="icon-xs"
             onClick={() => setShowCustomInput((v) => !v)}
             className="h-6 w-6 shrink-0"
-            title="自定义指示物（动漫卡等无官方代码者）"
           >
             <Pencil className="w-3 h-3" />
           </Button>

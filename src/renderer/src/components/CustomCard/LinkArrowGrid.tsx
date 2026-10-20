@@ -31,7 +31,6 @@ export const LinkArrowGrid: React.FC<LinkArrowGridProps> = ({
               type="button"
               onClick={onClear}
               disabled={markers === 0}
-              title="清空已选箭头"
               className={cn(
                 'w-8 h-8 rounded border text-[10px] font-semibold transition-colors',
                 markers === 0

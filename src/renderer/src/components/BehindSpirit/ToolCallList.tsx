@@ -139,20 +139,7 @@ function formatParams(params: Record<string, unknown>): string | null {
   }
 }
 
-function StatusWord({
-  status,
-  tooltip
-}: {
-  status: ToolStatus
-  tooltip?: string | undefined
-}): JSX.Element {
-  if (status === 'failed' && tooltip) {
-    return (
-      <span className="shrink-0 cursor-help whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2">
-        {STATUS_TEXT[status]}
-      </span>
-    )
-  }
+function StatusWord({ status }: { status: ToolStatus }): JSX.Element {
   if (status === 'running') {
     return (
       <span className="animated-gradient-text shrink-0 whitespace-nowrap">
@@ -204,7 +191,7 @@ function ToolCallRow({
         ) : (
           <span className="min-w-0 flex-1" />
         )}
-        <StatusWord status={status} tooltip={call.resultSummary} />
+        <StatusWord status={status} />
         {canToggle && (
           <ChevronRight
             className={cn(

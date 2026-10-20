@@ -33,11 +33,9 @@ const OP_BUTTONS: {
 ]
 
 export interface CalculatorInputProps {
-  label?: string
   unit: string
   value: number
   displayValue?: number
-  inputTitle: string
   origVal?: number
   isModified?: boolean
   size?: 'default' | 'sm'
@@ -48,11 +46,9 @@ export interface CalculatorInputProps {
 }
 
 export const CalculatorInput: React.FC<CalculatorInputProps> = ({
-  label,
   unit,
   value,
   displayValue = value,
-  inputTitle,
   origVal,
   isModified,
   size = 'default',
@@ -67,7 +63,6 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
   const isCommittingRef = useRef(false)
 
   const isCompact = density === 'compact'
-  const withTooltips = isCompact
   const isInf = isInfiniteVal(value)
   const shownValue = isFocused ? text : isInf ? '无限' : String(displayValue)
   const parseResult = parseLpExpression(shownValue, value)
@@ -139,7 +134,6 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
           handleCancel()
         }
       }}
-      title={withTooltips ? undefined : inputTitle}
       className={cn(
         isCompact
           ? size === 'sm'
@@ -158,8 +152,6 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
       )}
     />
   )
-
-  const inputElement = withTooltips ? inputNode : inputNode
 
   const opPanel = isFocused ? (
     <div
@@ -207,7 +199,6 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
                     }
                   }, 0)
                 }}
-                title={withTooltips ? undefined : `切换为 ${btn.label} 模式`}
                 className={cn(
                   isCompact
                     ? 'py-0.5 text-[10px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap'
@@ -220,7 +211,7 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
                 {btn.label}
               </button>
             )
-            return withTooltips ? buttonNode : buttonNode
+            return buttonNode
           })}
         </div>
       </div>
@@ -232,18 +223,14 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
             : 'flex items-center justify-between text-xs font-mono px-2 py-1.5 rounded bg-muted/60 border border-border/40'
         }
       >
-        {withTooltips ? (
-          <span className="text-muted-foreground truncate max-w-[120px]">
-            {parseResult.formula}
-          </span>
-        ) : (
-          <span
-            className="text-muted-foreground truncate max-w-[125px]"
-            title={parseResult.formula}
-          >
-            {parseResult.formula}
-          </span>
-        )}
+        <span
+          className={cn(
+            'text-muted-foreground truncate',
+            isCompact ? 'max-w-[120px]' : 'max-w-[125px]'
+          )}
+        >
+          {parseResult.formula}
+        </span>
         <span
           className={cn(
             'font-bold shrink-0 ml-1.5',
@@ -303,13 +290,12 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
           variant="ghost"
           size="icon-xs"
           onClick={() => commitValue(undefined)}
-          title={`恢复原本${label} (${origVal === -2 ? '?' : origVal})`}
           className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
         >
           <RotateCcw className="w-3.5 h-3.5" />
         </Button>
       )}
-      {inputElement}
+      {inputNode}
       {opPanel}
     </>
   )

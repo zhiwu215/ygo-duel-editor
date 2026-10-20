@@ -345,7 +345,6 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
   const levelField = (
     <NumericRow
       label="星数："
-      tooltip="等级 / 阶级 / 连接"
       op={levelOp}
       value={level !== 0 ? level : undefined}
       onChange={(val, op) => setFilters({ level: val ?? 0, levelOp: op })}
@@ -358,7 +357,6 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
   const scaleField = (
     <NumericRow
       label="刻度："
-      tooltip="灵摆刻度（左侧）"
       op={scaleOp}
       value={scale}
       onChange={(val, op) => setFilters({ scale: val, scaleOp: op })}

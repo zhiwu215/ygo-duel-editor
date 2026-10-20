@@ -11,6 +11,7 @@ export const PhaseBanner: React.FC = () => {
   const currentTurn = useDuelStore((s) => s.currentTurn)
   const activeTurnPlayer = useDuelStore((s) => s.activeTurnPlayer)
   const currentPhase = useDuelStore((s) => s.currentPhase)
+  const duelStarted = useDuelStore((s) => s.duelStarted)
   const duelists = useDuelStore((s) => s.state.duelists)
   const [visible, setVisible] = useState(false)
   const signatureRef = useRef(`${currentTurn}|${activeTurnPlayer}|${currentPhase}`)
@@ -23,6 +24,8 @@ export const PhaseBanner: React.FC = () => {
     const timer = setTimeout(() => setVisible(false), BANNER_DURATION)
     return () => clearTimeout(timer)
   }, [currentTurn, activeTurnPlayer, currentPhase])
+
+  if (!duelStarted) return null
 
   const isSelfTurn = activeTurnPlayer === 0
   const turnLabel = resolveTeamLabel({ duelists }, activeTurnPlayer, currentTurn)

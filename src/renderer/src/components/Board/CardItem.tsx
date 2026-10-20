@@ -175,13 +175,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         if (card.card) setHoveredCard(card.card)
         openMenu(card, e.clientX, e.clientY)
       }}
-      title={
-        showOverlayBadge
-          ? `双击查看超量素材列表 (当前 ${materialCount} 张)`
-          : isPileZone
-            ? '双击查看卡片列表'
-            : undefined
-      }
       className={cn(
         'w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none',
         role === 'dim' && 'opacity-25',

@@ -1,5 +1,4 @@
 import React from 'react'
-import { isInfiniteVal } from '@shared/index'
 import { CalculatorInput } from './CalculatorInput'
 import { useAnimatedNumber } from '../../../hooks/useAnimatedNumber'
 import { cn } from '../../../lib/utils'
@@ -49,7 +48,6 @@ export const LpInput: React.FC<LpInputProps> = ({
         displayValue={animatedLp}
         size={size}
         popoverPlacement={placement}
-        inputTitle={`${label ?? '生命值'}：${isInfiniteVal(lp) ? '无限' : `${lp} LP`}。点击直接改写，或选择加减乘除四则运算与无限`}
         onCommit={(val) => {
           if (val !== undefined && val !== lp) onLpChange(val)
         }}

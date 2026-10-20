@@ -62,8 +62,7 @@ function moveCardInBoard(
     ...card,
     location: toZone,
     position:
-      toPosition ??
-      (card.location === toZone ? card.position : defaultPositionForLocation(toZone))
+      toPosition ?? (card.location === toZone ? card.position : defaultPositionForLocation(toZone))
   }
   if (isPileZone(toZone)) {
     const pileSize = rest.filter(
@@ -238,11 +237,12 @@ export function replayManualSteps(
   steps: DuelStep[],
   startLp: [number, number],
   startTurnPlayer: 0 | 1,
-  startPhase: DuelPhase = 'DP'
+  startPhase: DuelPhase = 'DP',
+  startTurn = 1
 ): { steps: DuelStep[]; lp: [number, number] } {
   const state: ManualReplayState = {
     board: cloneSnap(initial),
-    turn: 1,
+    turn: startTurn,
     phase: startPhase,
     turnPlayer: startTurnPlayer,
     lp: [startLp[0], startLp[1]]
@@ -250,7 +250,12 @@ export function replayManualSteps(
 
   const derived = steps.map((step) => {
     const lpBefore: [number, number] = [state.lp[0], state.lp[1]]
-    for (const op of step.manualOps ?? []) applyManualOpToState(state, op)
+    const ops = step.manualOps
+    if (ops && ops.length > 0) {
+      for (const op of ops) applyManualOpToState(state, op)
+    } else {
+      applyStepToBoard(state.board, step)
+    }
 
     if (step.actionType === 'TURN_CHANGE') {
       state.turn += 1

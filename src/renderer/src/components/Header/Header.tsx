@@ -9,6 +9,7 @@ import { Separator } from '../ui/separator'
 import { WindowControls } from '../ui/window-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { ShieldCheck, Square, Play } from 'lucide-react'
+import { ChainModeToggle } from '../Board/ChainModeToggle'
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
 import { TurnPhaseIndicator } from './components/TurnPhaseIndicator'
@@ -22,6 +23,7 @@ export const Header: React.FC = () => {
   const isEngineLoading = useDuelEngineStore((s) => s.loading)
   const startEngine = useDuelEngineStore((s) => s.startEngine)
   const stopEngine = useDuelEngineStore((s) => s.stopEngine)
+  const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const { state, setMasterRule, setTitle } = useDuelStore()
 
   const {
@@ -148,6 +150,12 @@ export const Header: React.FC = () => {
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>规则校验中</span>
               </span>
+              {!replayInfo && (
+                <>
+                  <Separator orientation="vertical" className="h-4" />
+                  <ChainModeToggle />
+                </>
+              )}
               <Button
                 variant="outline"
                 size="xs"

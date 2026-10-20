@@ -43,7 +43,6 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
     <div
       role="button"
       tabIndex={0}
-      title={summary.expanded ? '收起分组' : '展开分组'}
       onClick={summary.onToggle}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -79,12 +78,7 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
               <span>连锁 #{summary.chainNumber ?? 1}</span>
             </span>
             <span className="text-[10px] text-muted-foreground/50 shrink-0">·</span>
-            <span
-              className="text-[11px] font-semibold text-foreground truncate"
-              title={chainNames.join(' → ')}
-            >
-              {chainText}
-            </span>
+            <span className="text-[11px] font-semibold text-foreground truncate">{chainText}</span>
           </>
         ) : (
           <>

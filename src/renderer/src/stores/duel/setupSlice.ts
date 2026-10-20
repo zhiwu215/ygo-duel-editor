@@ -18,6 +18,7 @@ import {
   replayStepsBoard
 } from '@shared/index'
 import { fetchCardDataByCodes } from '../../utils/cardData'
+import { isDuelStarted } from '../../utils/duelStart'
 import type { DuelStore } from './types'
 
 export const FIELD_ZONE_SEQ = 5
@@ -239,6 +240,7 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
         currentTurn: 1,
         currentPhase: 'DP',
         currentChain: 0,
+        duelStarted: isDuelStarted({ cards: layout.cards, steps: stepsWithBoard }),
         activeTurnPlayer: turnPlayer
       }
     }),

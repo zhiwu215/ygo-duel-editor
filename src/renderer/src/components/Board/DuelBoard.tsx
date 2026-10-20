@@ -7,8 +7,8 @@ import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
 import { BoardSector } from './BoardSector'
 import { DuelBoardOverlays } from './DuelBoardOverlays'
-import { ChainModeToggle } from './ChainModeToggle'
 import { PhaseStatusButton, PhaseMiddleButton, PhaseEpButton } from './PhaseControlButtons'
+import { DuelStartButton } from './DuelStartButton'
 import { useBoardAutoScale } from '../../hooks/useBoardAutoScale'
 import { getPileTopCard, getPileCount } from '../../utils/duelBoardQuery'
 import { resolveOwnerScope } from '../../utils/duelistNames'
@@ -16,9 +16,12 @@ import { resolveOwnerScope } from '../../utils/duelistNames'
 export const DuelBoard: React.FC = () => {
   const state = useDuelStore((s) => s.state)
   const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
+  const duelStarted = useDuelStore((s) => s.duelStarted)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
-  const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const ruleInfo = MASTER_RULES[state.masterRule]
+
+  const showPhaseControls = duelStarted || isEngineActive
+  const middleSlot = duelStarted || isEngineActive ? <PhaseMiddleButton /> : <DuelStartButton />
 
   const { viewportRef, wrapperRef, boardRef, scale, naturalW } = useBoardAutoScale()
 
@@ -137,9 +140,11 @@ export const DuelBoard: React.FC = () => {
 
               {ruleInfo.hasEMZ ? (
                 <div className="flex items-center gap-2 px-2.5 my-0.5">
-                  <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
-                    <PhaseStatusButton />
-                  </div>
+                  {showPhaseControls && (
+                    <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
+                      <PhaseStatusButton />
+                    </div>
+                  )}
                   <ZoneSlot
                     label="EX 怪兽 1"
                     controller={0}
@@ -149,7 +154,7 @@ export const DuelBoard: React.FC = () => {
                     colorVariant="emz"
                   />
                   <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
-                    <PhaseMiddleButton />
+                    {middleSlot}
                   </div>
                   <ZoneSlot
                     label="EX 怪兽 2"
@@ -159,22 +164,28 @@ export const DuelBoard: React.FC = () => {
                     card={getCard(0, CardLocation.MZONE, 6) || getCard(1, CardLocation.MZONE, 6)}
                     colorVariant="emz"
                   />
-                  <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
-                    <PhaseEpButton />
-                  </div>
+                  {showPhaseControls && (
+                    <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
+                      <PhaseEpButton />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center gap-2 px-2.5 my-0.5 w-[512px] h-[92px] justify-between px-6 shrink-0 relative">
                   <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-border dark:bg-white/15" />
+                  {showPhaseControls && (
+                    <div className="relative z-10 w-[92px] flex items-center justify-center">
+                      <PhaseStatusButton />
+                    </div>
+                  )}
                   <div className="relative z-10 w-[92px] flex items-center justify-center">
-                    <PhaseStatusButton />
+                    {middleSlot}
                   </div>
-                  <div className="relative z-10 w-[92px] flex items-center justify-center">
-                    <PhaseMiddleButton />
-                  </div>
-                  <div className="relative z-10 w-[92px] flex items-center justify-center">
-                    <PhaseEpButton />
-                  </div>
+                  {showPhaseControls && (
+                    <div className="relative z-10 w-[92px] flex items-center justify-center">
+                      <PhaseEpButton />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -205,12 +216,6 @@ export const DuelBoard: React.FC = () => {
           <HandTray controller={0} />
         </div>
       </div>
-
-      {isEngineActive && !replayInfo && (
-        <div className="relative z-20 flex shrink-0 items-center justify-end gap-2 border-t border-border/60 bg-card/50 px-3 py-1">
-          <ChainModeToggle />
-        </div>
-      )}
 
       <DuelBoardOverlays />
     </div>

@@ -57,7 +57,6 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ appVersion, onClose })
                   target="_blank"
                   rel="noreferrer"
                   className="text-blue-600 dark:text-blue-400 hover:underline truncate"
-                  title={text ?? undefined}
                 >
                   {text}
                 </a>

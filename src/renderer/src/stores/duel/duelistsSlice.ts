@@ -10,6 +10,7 @@ import { createLpFlash } from './lpSlice'
 import { useStagingStore } from '../useStagingStore'
 import type { DuelStore } from './types'
 import { turnOrderOf } from '../../utils/duelistNames'
+import { isDuelStarted } from '../../utils/duelStart'
 
 export interface DuelistsSlice {
   expandedDuelistId: string | null
@@ -88,6 +89,7 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
             scenarios: updatedScenarios
           },
           ...resetRuntime,
+          duelStarted: isDuelStarted({ cards: snap.cards, steps: snap.steps }),
           activeTurnPlayer: snap.turnPlayer
         }
       }
@@ -111,7 +113,8 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
           firstTurnAttack: newConfig.mode === '1v1' ? prev.state.firstTurnAttack : false,
           scenarios: updatedScenarios
         },
-        ...resetRuntime
+        ...resetRuntime,
+        duelStarted: false
       }
     }),
 

@@ -24,6 +24,7 @@ export interface StepsSlice {
   currentPhase: DuelPhase
   currentChain: number
   activeTurnPlayer: 0 | 1
+  duelStarted: boolean
 
   setActiveRightTab: (tab: 'search' | 'steps') => void
   setCurrentStepIndex: (index: number | null) => void
@@ -36,6 +37,7 @@ export interface StepsSlice {
   resetChain: () => void
   setActiveTurnPlayer: (player: 0 | 1) => void
   setTurnPlayer: (player: 0 | 1) => void
+  setDuelStarted: (started: boolean) => void
   insertPhaseJump: (target: DuelPhase) => void
 
   addStep: (step: Omit<DuelStep, 'id'>) => void
@@ -117,20 +119,27 @@ interface DerivationPatch {
   activeTurnPlayer: 0 | 1
 }
 
+function openingPhaseOf(steps: DuelStep[]): DuelPhase {
+  const first = steps[0]
+  const isMarker = first.actionType === 'PHASE_CHANGE' || first.actionType === 'TURN_CHANGE'
+  return isMarker ? 'DP' : first.phase
+}
+
+function initialLpOf(next: DerivationSource): [number, number] {
+  return [
+    next.state.initialLp?.[0] ?? next.state.players[0]?.lp ?? 8000,
+    next.state.initialLp?.[1] ?? next.state.players[1]?.lp ?? 8000
+  ]
+}
+
 function derivePatch(next: DerivationSource): DerivationPatch | null {
   const steps = next.state.steps || []
   if (steps.length === 0) return null
   const initial = next.state.initialBoardSnapshot
   const hasInitial = Boolean(initial && initial.length > 0)
 
-  const first = steps[0]
-  const isFirstMarker = first.actionType === 'PHASE_CHANGE' || first.actionType === 'TURN_CHANGE'
-  const startPhase: DuelPhase = isFirstMarker ? 'DP' : first.phase
-
-  const startLp: [number, number] = [
-    next.state.initialLp?.[0] ?? next.state.players[0]?.lp ?? 8000,
-    next.state.initialLp?.[1] ?? next.state.players[1]?.lp ?? 8000
-  ]
+  const startPhase: DuelPhase = openingPhaseOf(steps)
+  const startLp = initialLpOf(next)
   const derived = replayManualSteps(
     hasInitial && initial ? initial : [],
     steps,
@@ -159,6 +168,99 @@ function derivePatch(next: DerivationSource): DerivationPatch | null {
             { ...next.state.players[1], lp: derived.lp[1] }
           ]
         : next.state.players
+    },
+    currentTurn: tail.turn,
+    currentPhase: tail.phase,
+    activeTurnPlayer: tail.turnPlayer
+  }
+}
+
+function anchorLpAt(steps: DuelStep[], from: number, finalLp: [number, number]): [number, number] {
+  const lp: [number, number] = [finalLp[0], finalLp[1]]
+  for (let i = steps.length - 1; i >= from; i--) {
+    const lpChange = steps[i].lpChange
+    if (lpChange) {
+      lp[lpChange.player] = lpChange.oldLp
+      continue
+    }
+    const lpOp = steps[i].manualOps?.find((op) => op.type === 'lp')
+    if (lpOp) lp[lpOp.player] = lpOp.value
+  }
+  return lp
+}
+
+function deriveDeletionPatch(prev: DerivationSource, deletedIdx: number): DerivationPatch | null {
+  const steps = prev.state.steps || []
+  if (steps.length === 0) return null
+  const anchorIdx = deletedIdx - 1
+  const anchor = anchorIdx >= 0 ? steps[anchorIdx] : undefined
+  const initial = prev.state.initialBoardSnapshot
+  const hasInitial = Boolean(initial && initial.length > 0)
+
+  let board: LightweightCardSnapshot[]
+  let suffixFrom: number
+  let startLp: [number, number]
+  let startTurn = 1
+  let startTurnPlayer: 0 | 1 = prev.state.turnPlayer
+  let startPhase: DuelPhase
+
+  if (anchor?.boardAfter && anchor.boardAfter.length > 0) {
+    board = anchor.boardAfter
+    suffixFrom = anchorIdx + 1
+    startTurn = anchor.turn
+    startPhase = anchor.phase
+    startTurnPlayer = anchor.turnPlayer
+    startLp = anchorLpAt(steps, suffixFrom, [
+      prev.state.players[0]?.lp ?? 8000,
+      prev.state.players[1]?.lp ?? 8000
+    ])
+  } else if (hasInitial && initial) {
+    board = initial
+    suffixFrom = 0
+    startPhase = openingPhaseOf(steps)
+    startLp = initialLpOf(prev)
+  } else {
+    const fallback = replayManualSteps(
+      [],
+      steps,
+      initialLpOf(prev),
+      prev.state.turnPlayer,
+      openingPhaseOf(steps)
+    )
+    const mergedSteps = steps.map((s, i) => {
+      const d = fallback.steps[i]
+      return s.turn === d.turn && s.turnPlayer === d.turnPlayer && s.phase === d.phase
+        ? s
+        : { ...s, turn: d.turn, turnPlayer: d.turnPlayer, phase: d.phase }
+    })
+    const tail = fallback.steps[steps.length - 1]
+    return {
+      state: { ...prev.state, steps: mergedSteps },
+      currentTurn: tail.turn,
+      currentPhase: tail.phase,
+      activeTurnPlayer: tail.turnPlayer
+    }
+  }
+
+  const derived = replayManualSteps(
+    board,
+    steps.slice(suffixFrom),
+    startLp,
+    startTurnPlayer,
+    startPhase,
+    startTurn
+  )
+  const mergedSteps = [...steps.slice(0, suffixFrom), ...derived.steps]
+  const tail = derived.steps[derived.steps.length - 1] ?? steps[anchorIdx]
+
+  return {
+    state: {
+      ...prev.state,
+      steps: mergedSteps,
+      players: [
+        { ...prev.state.players[0], lp: derived.lp[0] },
+        { ...prev.state.players[1], lp: derived.lp[1] }
+      ]
     },
     currentTurn: tail.turn,
     currentPhase: tail.phase,
@@ -226,6 +328,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   currentPhase: 'DP',
   currentChain: 0,
   activeTurnPlayer: 0,
+  duelStarted: false,
 
   setActiveRightTab: (tab) => set({ activeRightTab: tab }),
   setCurrentStepIndex: (index) => set({ currentStepIndex: index }),
@@ -256,6 +359,8 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
       activeTurnPlayer: player,
       state: { ...prev.state, turnPlayer: player }
     })),
+
+  setDuelStarted: (started) => set({ duelStarted: started }),
 
   addStep: (stepData) => {
     set((prev) => {
@@ -310,18 +415,38 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   },
 
   deleteStep: (stepId) => {
+    const prevSteps = get().state.steps || []
+    const deletedIdx = prevSteps.findIndex((s) => s.id === stepId)
+    if (deletedIdx === -1) return
+    const prevPlayhead = get().currentStepIndex
+    const engineActive = useDuelEngineStore.getState().isInitialized
     set((prev) => {
-      const existing = prev.state.steps || []
-      const nextState: DerivationSource = {
-        ...prev,
-        state: {
-          ...prev.state,
-          steps: existing.filter((s) => s.id !== stepId)
-        }
-      }
-      return withDerivation(nextState)
+      const remaining = (prev.state.steps || []).filter((s) => s.id !== stepId)
+      const source: DerivationSource = { ...prev, state: { ...prev.state, steps: remaining } }
+      if (engineActive) return { state: source.state }
+      return deriveDeletionPatch(source, deletedIdx) ?? { state: source.state }
     })
-    refreshPreviewIfActive(get)
+    if (engineActive) {
+      if (prevPlayhead !== null) get().previewStepBoard(prevPlayhead)
+      return
+    }
+    const remaining = get().state.steps || []
+    if (remaining.length === 0) {
+      get().previewStepBoard(null)
+      set((prev) =>
+        prev.currentTurn === 1 && prev.currentPhase === 'DP' && prev.currentChain === 0
+          ? prev
+          : { currentTurn: 1, currentPhase: 'DP', currentChain: 0 }
+      )
+      return
+    }
+    const target =
+      prevPlayhead === null
+        ? remaining.length - 1
+        : deletedIdx < prevPlayhead
+          ? Math.max(0, prevPlayhead - 1)
+          : Math.min(prevPlayhead, remaining.length - 1)
+    get().previewStepBoard(target)
   },
 
   moveStep: (stepId, direction) => {
@@ -489,6 +614,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         currentTurn: 1,
         currentPhase: 'DP',
         currentChain: 0,
+        duelStarted: false,
         activeTurnPlayer: firstPlayer,
         state: { ...prev.state, steps: [], cards: finalCards, turnPlayer: firstPlayer }
       }

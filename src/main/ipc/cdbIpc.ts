@@ -23,7 +23,7 @@ export const enabledExtraPaths = (): string[] => {
 
 export function registerCdbIpc(): void {
   ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
-    const favorites = params.onlyFavorites ? (configService.get().favorites || []) : undefined
+    const favorites = params.onlyFavorites ? configService.get().favorites || [] : undefined
     const offset = params.offset || 0
     const custom = customCardService.searchRows(params, offset + (params.limit || 50), favorites)
     return cdbService.search(params, favorites, custom)

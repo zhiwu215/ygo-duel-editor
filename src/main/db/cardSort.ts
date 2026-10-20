@@ -21,7 +21,10 @@ export interface CardSortRow extends CdbCard {
 
 type SortKeyField = Exclude<keyof CardSortRow, keyof CdbCard>
 
-const STEPS_BY_SORT_FIELD: Record<'atk' | 'def' | 'name' | 'level', Array<[SortKeyField, 'key' | 'group']>> = {
+const STEPS_BY_SORT_FIELD: Record<
+  'atk' | 'def' | 'name' | 'level',
+  Array<[SortKeyField, 'key' | 'group']>
+> = {
   atk: [
     ['atkKey', 'key'],
     ['defKey', 'key'],
@@ -50,7 +53,10 @@ export function sortCards(rows: CardSortRow[], params: CardSearchParams): CdbCar
   return [...rows].sort((a, b) => {
     if (a.relKey !== b.relKey) return a.relKey - b.relKey
     if (params.sortField === 'name') {
-      const cmp = Buffer.compare(Buffer.from(a.name ?? '', 'utf8'), Buffer.from(b.name ?? '', 'utf8'))
+      const cmp = Buffer.compare(
+        Buffer.from(a.name ?? '', 'utf8'),
+        Buffer.from(b.name ?? '', 'utf8')
+      )
       if (cmp !== 0) return cmp * dir
       return (a.id ?? 0) - (b.id ?? 0)
     }
@@ -70,7 +76,14 @@ export function sortCards(rows: CardSortRow[], params: CardSearchParams): CdbCar
   })
 }
 
-const SORT_KEY_FIELDS: SortKeyField[] = ['relKey', 'typeKey', 'subKey', 'levelKey', 'atkKey', 'defKey']
+const SORT_KEY_FIELDS: SortKeyField[] = [
+  'relKey',
+  'typeKey',
+  'subKey',
+  'levelKey',
+  'atkKey',
+  'defKey'
+]
 
 export function stripSortKeys(card: CdbCard): void {
   for (const field of SORT_KEY_FIELDS) delete (card as CardSortRow)[field]

@@ -12,9 +12,7 @@ export function buildSearchParams(
     searchDesc:
       customParams.searchDesc !== undefined ? customParams.searchDesc : filters.searchDesc,
     onlyFavorites:
-      customParams.onlyFavorites !== undefined
-        ? customParams.onlyFavorites
-        : filters.onlyFavorites,
+      customParams.onlyFavorites !== undefined ? customParams.onlyFavorites : filters.onlyFavorites,
     type: customParams.type !== undefined ? customParams.type : filters.type,
     subType: customParams.subType !== undefined ? customParams.subType : filters.subType,
     attribute: customParams.attribute !== undefined ? customParams.attribute : filters.attribute,

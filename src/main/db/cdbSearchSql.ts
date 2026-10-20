@@ -221,8 +221,7 @@ export function buildSearchSql(
 
   const orderDir = params.sortOrder === 'ASC' ? 'ASC' : 'DESC'
   const groupDir = orderDir === 'ASC' ? 'DESC' : 'ASC'
-  const relCase =
-    exactKeyword.length > 0 ? `CASE WHEN ${nameExpr} = ? THEN 0 ELSE 1 END` : '0'
+  const relCase = exactKeyword.length > 0 ? `CASE WHEN ${nameExpr} = ? THEN 0 ELSE 1 END` : '0'
   if (exactKeyword.length > 0) relevanceArgs.push(exactKeyword)
   const subtypeSql =
     `CASE WHEN (d.type & 7) = 1 THEN` +

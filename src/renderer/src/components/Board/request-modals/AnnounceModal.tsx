@@ -71,7 +71,11 @@ export const AnnounceModal: React.FC<{ request: EngineRequest; data: DataOf<'ann
       subtitle={request.subtitle}
       width={data.announceType === 'card' ? 'max-w-2xl' : 'max-w-lg'}
       footer={
-        <Button size="sm" disabled={loading || !canConfirm} onClick={() => submitAnswer({ kind: 'announce', value: announceValue })}>
+        <Button
+          size="sm"
+          disabled={loading || !canConfirm}
+          onClick={() => submitAnswer({ kind: 'announce', value: announceValue })}
+        >
           {confirmLabel}
         </Button>
       }

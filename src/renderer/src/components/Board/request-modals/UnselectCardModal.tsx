@@ -24,7 +24,12 @@ export const UnselectCardModal: React.FC<{
     footer={
       <>
         {derived.canCancel && (
-          <Button variant="outline" size="sm" disabled={loading} onClick={() => cancelSelection(derived)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={() => cancelSelection(derived)}
+          >
             取消
           </Button>
         )}

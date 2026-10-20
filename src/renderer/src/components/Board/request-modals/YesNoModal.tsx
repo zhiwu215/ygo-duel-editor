@@ -10,8 +10,7 @@ const DIRECT_ATTACK_YESNO_DESC = 31
 
 const PROMPT_TITLE = '请选择'
 
-const DIRECT_ATTACK_HINT =
-  '对方场上存在怪兽：直接攻击玩家，或选择一只怪兽作为攻击对象。'
+const DIRECT_ATTACK_HINT = '对方场上存在怪兽：直接攻击玩家，或选择一只怪兽作为攻击对象。'
 
 export const YesNoModal: React.FC<{ request: EngineRequest; data: DataOf<'yesno'> }> = ({
   request,
@@ -36,7 +35,11 @@ export const YesNoModal: React.FC<{ request: EngineRequest; data: DataOf<'yesno'
               <Crosshair />
               选择攻击对象
             </Button>
-            <Button size="sm" disabled={loading} onClick={() => submitAnswer({ kind: 'yesno', yes: true })}>
+            <Button
+              size="sm"
+              disabled={loading}
+              onClick={() => submitAnswer({ kind: 'yesno', yes: true })}
+            >
               <Swords />
               直接攻击
             </Button>
@@ -51,7 +54,11 @@ export const YesNoModal: React.FC<{ request: EngineRequest; data: DataOf<'yesno'
             >
               否
             </Button>
-            <Button size="sm" disabled={loading} onClick={() => submitAnswer({ kind: 'yesno', yes: true })}>
+            <Button
+              size="sm"
+              disabled={loading}
+              onClick={() => submitAnswer({ kind: 'yesno', yes: true })}
+            >
               是
             </Button>
           </>

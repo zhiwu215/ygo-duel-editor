@@ -74,8 +74,10 @@ export function buildSearchSql(
     baseWhere += ' AND d.id NOT IN (SELECT id FROM __covered)'
   }
   const args: (string | number)[] = []
+  // 排序对齐 ygopro DeckBuilder::SortList：仅卡名与搜索词完全相等时置顶，
+  // 其余结果（含仅描述/系列匹配）同档，只按用户所选排序规则排
+  const exactKeyword = (params.keyword ?? '').trim()
   const relevanceArgs: (string | number)[] = []
-  const relevanceTokens: string[] = []
 
   const getSetcodeClause = (codes: number[]): string => {
     const exactCodes = [...new Set(codes)]
@@ -97,7 +99,6 @@ export function buildSearchSql(
     if (/^\d+$/.test(keyword)) {
       baseWhere += ` AND (d.id = ? OR ${nameExpr} LIKE ?)`
       args.push(parseInt(keyword, 10), `%${keyword}%`)
-      relevanceTokens.push(keyword)
     } else {
       for (const token of parseSearchTokens(keyword)) {
         const clauses: string[] = []
@@ -116,16 +117,10 @@ export function buildSearchSql(
           else if (token.mode === 'set') clauses.push('0=1')
         }
         if (clauses.length === 0) continue
-        if (!token.excluded) relevanceTokens.push(token.text)
         const match = `(${clauses.join(' OR ')})`
         baseWhere += token.excluded ? ` AND NOT ${match}` : ` AND ${match}`
       }
     }
-  }
-
-  if (params.code !== undefined && params.code > 0) {
-    baseWhere += ' AND d.id = ?'
-    args.push(params.code)
   }
 
   if (params.type !== undefined && params.type !== 0) {
@@ -226,16 +221,9 @@ export function buildSearchSql(
 
   const orderDir = params.sortOrder === 'ASC' ? 'ASC' : 'DESC'
   const groupDir = orderDir === 'ASC' ? 'DESC' : 'ASC'
-  const relExprs = relevanceTokens.map((text) => {
-    relevanceArgs.push(text, `${text}%`, `%${text}%`)
-    return `CASE WHEN ${nameExpr} = ? THEN 0 WHEN ${nameExpr} LIKE ? THEN 1 WHEN ${nameExpr} LIKE ? THEN 2 ELSE 3 END`
-  })
   const relCase =
-    relExprs.length === 0
-      ? '0'
-      : relExprs.length === 1
-        ? relExprs[0]
-        : `MAX(${relExprs.join(', ')})`
+    exactKeyword.length > 0 ? `CASE WHEN ${nameExpr} = ? THEN 0 ELSE 1 END` : '0'
+  if (exactKeyword.length > 0) relevanceArgs.push(exactKeyword)
   const subtypeSql =
     `CASE WHEN (d.type & 7) = 1 THEN` +
     ` CASE WHEN (d.type & 0x48020c0) != 0 THEN (d.type & 0x48020c1) ELSE (d.type & 0x31) END` +

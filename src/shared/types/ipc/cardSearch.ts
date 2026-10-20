@@ -27,8 +27,6 @@ export interface CardSearchParams {
 
   levelOp?: NumericCompareOp
 
-  code?: number
-
   markers?: number
 
   limitFilter?: LimitFilter

@@ -140,9 +140,13 @@ export class CdbService {
     return this.connections.list().length > 0
   }
 
-  public search(params: CardSearchParams, favorites?: number[]): CardSearchResult {
+  public search(
+    params: CardSearchParams,
+    favorites?: number[],
+    extra?: { rows: CardSortRow[]; total: number }
+  ): CardSearchResult {
     const connections = this.connections.searchableList()
-    if (connections.length === 0) return { cards: [], total: 0 }
+    if (connections.length === 0 && (extra?.rows.length ?? 0) === 0) return { cards: [], total: 0 }
 
     if (params.onlyFavorites && (!favorites || favorites.length === 0)) {
       return { cards: [], total: 0 }
@@ -153,7 +157,7 @@ export class CdbService {
     const perDbLimit = offset + limit
 
     let total = 0
-    const collected: CdbCard[] = []
+    const collected: CardSortRow[] = []
     const seen = new Set<number>()
 
     for (const conn of connections) {
@@ -162,11 +166,17 @@ export class CdbService {
       for (const card of result.cards) {
         if (seen.has(card.id)) continue
         seen.add(card.id)
-        collected.push(card)
+        collected.push(card as CardSortRow)
       }
     }
 
-    const page = sortCards(collected as CardSortRow[], params).slice(offset, offset + limit)
+    for (const row of extra?.rows ?? []) {
+      if (seen.has(row.id)) continue
+      seen.add(row.id)
+      collected.push(row)
+    }
+
+    const page = sortCards(collected, params).slice(offset, offset + limit)
     for (const card of page) stripSortKeys(card)
 
     for (const card of collected) {
@@ -182,7 +192,7 @@ export class CdbService {
     }
     this.applyCardPools(collected)
 
-    return { cards: page, total }
+    return { cards: page, total: total + (extra?.total ?? 0) }
   }
 
   private searchOne(

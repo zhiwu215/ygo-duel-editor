@@ -29,7 +29,6 @@ export interface CardSearchFilters {
   atkOp: NumericCompareOp
   def: number | undefined
   defOp: NumericCompareOp
-  code: number | undefined
   sortField: 'atk' | 'def' | 'level' | 'name'
   sortOrder: 'ASC' | 'DESC'
 }
@@ -54,7 +53,6 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
   atkOp: 'eq',
   def: undefined,
   defOp: 'eq',
-  code: undefined,
   sortField: 'level',
   sortOrder: 'DESC'
 }
@@ -73,7 +71,6 @@ export function countActiveFilters(filters: CardSearchFilters): number {
   if (filters.limitFilter !== 0) count++
   if (filters.atk !== undefined || filters.atkOp === 'unknown') count++
   if (filters.def !== undefined || filters.defOp === 'unknown') count++
-  if (filters.code !== undefined) count++
   if (!filters.searchDesc) count++
   if (filters.onlyFavorites) count++
   if (filters.sortField !== 'level') count++

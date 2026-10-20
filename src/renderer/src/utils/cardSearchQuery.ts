@@ -35,7 +35,6 @@ export function buildSearchParams(
     atkOp: customParams.atkOp !== undefined ? customParams.atkOp : filters.atkOp,
     def: customParams.def !== undefined ? customParams.def : filters.def,
     defOp: customParams.defOp !== undefined ? customParams.defOp : filters.defOp,
-    code: customParams.code !== undefined ? customParams.code : filters.code,
     sortField: customParams.sortField !== undefined ? customParams.sortField : filters.sortField,
     sortOrder: customParams.sortOrder !== undefined ? customParams.sortOrder : filters.sortOrder,
     limit: customParams.limit || PAGE_SIZE,

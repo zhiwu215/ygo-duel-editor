@@ -1,7 +1,7 @@
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React from 'react'
-import { SlidersHorizontal, RotateCcw, CheckSquare, Square, Search } from 'lucide-react'
+import { SlidersHorizontal, RotateCcw, CheckSquare, Square } from 'lucide-react'
 import {
   CardType,
   CardAttribute,
@@ -14,7 +14,6 @@ import {
 } from '@shared/index'
 import { CardSearchFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { Button } from '../ui/button'
-import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { LinkMarkerPopover } from './LinkMarkerPopover'
 import { EffectCategoryPopover } from './EffectCategoryPopover'
@@ -89,7 +88,6 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     atkOp,
     def,
     defOp,
-    code,
     searchDesc,
     onlyFavorites,
     sortField,
@@ -459,24 +457,6 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     </FilterField>
   )
 
-  const codeField = (
-    <FilterField label="卡密">
-      <div className="relative min-w-0 flex-1">
-        <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
-        <Input
-          type="number"
-          placeholder="8 位数字"
-          value={code !== undefined ? code : ''}
-          onChange={(e) => {
-            const val = e.target.value.trim()
-            setFilters({ code: val === '' ? undefined : parseInt(val, 10) })
-          }}
-          className="h-7 w-full pl-7 text-xs font-mono"
-        />
-      </div>
-    </FilterField>
-  )
-
   const searchDescToggle = (
     <button
       type="button"
@@ -572,18 +552,16 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
           {mainTypeField}
 
           <div className="grid grid-cols-2 gap-1.5">
-            {limitField}
+            <div className="col-span-2">{limitField}</div>
+            {raceField}
             {attributeField}
             {atkField}
-            {raceField}
             {defField}
             {levelField}
             {scaleField}
           </div>
 
           {effectField}
-
-          {codeField}
 
           {markerField}
 

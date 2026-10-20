@@ -75,3 +75,22 @@ const SORT_KEY_FIELDS: SortKeyField[] = ['relKey', 'typeKey', 'subKey', 'levelKe
 export function stripSortKeys(card: CdbCard): void {
   for (const field of SORT_KEY_FIELDS) delete (card as CardSortRow)[field]
 }
+
+// 自定义卡不经 SQL、无排序键，此公式为 cdbSearchSql 键表达式的 JS 镜像；
+// relKey 同 SortList 规则：仅卡名与搜索词完全相等置顶
+export function computeCustomCardKeys(card: CdbCard, keyword: string): CardSortRow {
+  const isMonster = (card.type & 7) === 1
+  return {
+    ...card,
+    relKey: keyword.length > 0 && card.name === keyword ? 0 : 1,
+    typeKey: card.type & 7,
+    subKey: isMonster
+      ? (card.type & 0x48020c0) !== 0
+        ? card.type & 0x48020c1
+        : card.type & 0x31
+      : card.type & 4294967288,
+    levelKey: isMonster ? card.level & 255 : 0,
+    atkKey: isMonster ? card.atk : 0,
+    defKey: isMonster ? card.def : 0
+  }
+}

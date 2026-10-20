@@ -3,7 +3,6 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import {
   CardSearchParams,
-  CardSearchResult,
   CustomCard,
   CustomCardInput,
   CustomCardPickImageResult,
@@ -14,6 +13,7 @@ import {
   CUSTOM_CARD_ID_MIN
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
+import type { CardSortRow } from '../db/cardSort'
 import { dataDirService } from './dataDirService'
 import {
   applyCustomCardImage,
@@ -22,7 +22,7 @@ import {
   pickCustomCardImage,
   removeCustomCardImages
 } from './customCardImage'
-import { mergeCardsByIds, mergeSearchResults, searchCustomCards } from './customCardSearch'
+import { mergeCardsByIds, searchCustomCardRows } from './customCardSearch'
 import {
   getCustomScriptInfo,
   importCustomScript,
@@ -183,29 +183,13 @@ export class CustomCardService {
     return removeCustomScript(code)
   }
 
-  public search(
+  public searchRows(
     params: CardSearchParams,
     fetchLimit: number,
     favorites?: number[]
-  ): CardSearchResult {
+  ): { rows: CardSortRow[]; total: number } {
     this.ensureLoaded()
-    return searchCustomCards(this.cards, params, fetchLimit, favorites)
-  }
-
-  public mergeSearchResults(
-    cdbResult: CardSearchResult,
-    params: CardSearchParams,
-    favorites?: number[]
-  ): CardSearchResult {
-    return mergeSearchResults(
-      cdbResult,
-      params,
-      () => {
-        this.ensureLoaded()
-        return this.cards
-      },
-      favorites
-    )
+    return searchCustomCardRows(this.cards, params, fetchLimit, favorites)
   }
 
   public mergeCardsByIds(map: Record<number, CdbCard>, ids: number[]): Record<number, CdbCard> {

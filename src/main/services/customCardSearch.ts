@@ -1,29 +1,13 @@
 import {
   CardSearchParams,
-  CardSearchResult,
   CardType,
   CustomCard,
   CdbCard,
   customCardToCdbCard
 } from '@shared/index'
 import { parseSearchTokens } from '../db/searchTokens'
+import { computeCustomCardKeys, type CardSortRow } from '../db/cardSort'
 import { isCustomCdbLoaded } from './customCardLibrary'
-
-// 自建卡不经过 SQL 排序（无排序键），用确定性的精确名优先 + id 序
-function exactNameFirst(cards: CdbCard[], params: CardSearchParams): CdbCard[] {
-  const keyword = (params.keyword ?? '').trim()
-  const byId = (a: CdbCard, b: CdbCard): number => (a.id ?? 0) - (b.id ?? 0)
-  if (keyword.length === 0) return [...cards].sort(byId)
-  const exact: CdbCard[] = []
-  const rest: CdbCard[] = []
-  for (const card of cards) {
-    if (card.name === keyword) exact.push(card)
-    else rest.push(card)
-  }
-  exact.sort(byId)
-  rest.sort(byId)
-  return [...exact, ...rest]
-}
 
 export function matchNumeric(
   value: number,
@@ -74,7 +58,6 @@ export function matchFilters(
   if (params.onlyFavorites) {
     if (!favorites || !favorites.includes(card.id)) return false
   }
-  if (params.code !== undefined && params.code > 0 && card.id !== params.code) return false
   if (params.type !== undefined && params.type !== 0 && (card.type & params.type) === 0) {
     return false
   }
@@ -119,44 +102,20 @@ export function matchFilters(
   return true
 }
 
-export function searchCustomCards(
+// 自建卡补上排序键后交由 cdbService 统一排序，保持与 SQL 结果同一套规则
+export function searchCustomCardRows(
   cards: CustomCard[],
   params: CardSearchParams,
   fetchLimit: number,
   favorites?: number[]
-): CardSearchResult {
+): { rows: CardSortRow[]; total: number } {
+  if (isCustomCdbLoaded()) return { rows: [], total: 0 }
+  const keyword = (params.keyword ?? '').trim()
   const matched = cards
     .filter((card) => matchKeyword(card, params) && matchFilters(card, params, favorites))
     .map(customCardToCdbCard)
-  const ordered = exactNameFirst(matched, params)
-  return { cards: ordered.slice(0, fetchLimit), total: matched.length }
-}
-
-export function mergeSearchResults(
-  cdbResult: CardSearchResult,
-  params: CardSearchParams,
-  ensureCards: () => CustomCard[],
-  favorites?: number[]
-): CardSearchResult {
-  if (isCustomCdbLoaded()) return cdbResult
-
-  const limit = params.limit || 50
-  const offset = params.offset || 0
-  const custom = searchCustomCards(ensureCards(), params, offset + limit, favorites)
-  if (custom.cards.length === 0) return cdbResult
-
-  const keyword = (params.keyword ?? '').trim()
-  if (keyword.length > 0) {
-    const ordered = exactNameFirst([...cdbResult.cards, ...custom.cards], params)
-    return {
-      cards: ordered.slice(offset, offset + limit),
-      total: cdbResult.total + custom.total
-    }
-  }
-  return {
-    cards: [...cdbResult.cards, ...custom.cards].slice(offset, offset + limit),
-    total: cdbResult.total + custom.total
-  }
+    .map((card) => computeCustomCardKeys(card, keyword))
+  return { rows: matched.slice(0, fetchLimit), total: matched.length }
 }
 
 export function mergeCardsByIds(

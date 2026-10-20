@@ -10,6 +10,7 @@ import {
   AgentHandoffRequest,
   CardNote,
   CardNoteKind,
+  DuelTestSettings,
   SettingsSectionId,
   EngineExportReplayParams,
   EngineExportReplayResult,
@@ -59,8 +60,8 @@ const api: IpcApi = {
 
   exportLuaFile: (state: DuelPuzzleState, targetPath?: string) =>
     ipcRenderer.invoke('file:export-lua', state, targetPath),
-  testInYgo: (state: DuelPuzzleState, force?: boolean) =>
-    ipcRenderer.invoke('file:test-in-ygo', state, force),
+  testInYgo: (state: DuelPuzzleState, force?: boolean, test?: DuelTestSettings) =>
+    ipcRenderer.invoke('file:test-in-ygo', state, force, test),
   importLuaFile: () => ipcRenderer.invoke('file:import-lua'),
   exportScreenplayFile: (state: DuelPuzzleState) =>
     ipcRenderer.invoke('file:export-screenplay-md', state),

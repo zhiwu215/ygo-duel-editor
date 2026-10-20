@@ -43,7 +43,7 @@ import {
   AgentSendMessageResult,
   AgentStreamEvent
 } from './agent'
-import { AppConfig, DataDirectoryResult, SettingsSectionId } from './appConfig'
+import { AppConfig, DataDirectoryResult, DuelTestSettings, SettingsSectionId } from './appConfig'
 import { EngineExportReplayParams, EngineExportReplayResult, TestInGameResult } from './engine'
 import { DuelProjectMeta } from './project'
 import { CardNote, CardNoteEntry, CardNoteKind } from './note'
@@ -94,7 +94,11 @@ export interface IpcApi {
     state: DuelPuzzleState,
     targetPath?: string
   ) => Promise<{ success: boolean; filePath?: string; error?: string }>
-  testInYgo: (state: DuelPuzzleState, force?: boolean) => Promise<TestInGameResult>
+  testInYgo: (
+    state: DuelPuzzleState,
+    force?: boolean,
+    test?: DuelTestSettings
+  ) => Promise<TestInGameResult>
   importLuaFile: () => Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }>
   exportScreenplayFile: (
     state: DuelPuzzleState

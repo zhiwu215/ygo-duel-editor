@@ -4,7 +4,9 @@ import {
   CardImageDirResult,
   CdbLibraryInfo,
   CdbSelectResult,
-  CustomSyncCdbInfo
+  CustomSyncCdbInfo,
+  DEFAULT_DUEL_TEST_SETTINGS,
+  DuelTestSettings
 } from '@shared/index'
 import { alertDialog } from './useDialogStore'
 
@@ -31,6 +33,8 @@ interface ConfigStoreState {
 
   selectCardImageDir: () => Promise<CardImageDirResult>
   clearCardImageDir: () => Promise<void>
+
+  setDuelTestSettings: (patch: Partial<DuelTestSettings>) => Promise<void>
 }
 
 type ThemePreference = AppConfig['theme']
@@ -183,6 +187,13 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     } catch (err) {
       console.error('[useConfigStore] clearCardImageDir error:', err)
     }
+  },
+
+  setDuelTestSettings: async (patch) => {
+    const current = get().config.duelTestSettings ?? DEFAULT_DUEL_TEST_SETTINGS
+    const next = { ...current, ...patch }
+    set((state) => ({ config: { ...state.config, duelTestSettings: next } }))
+    await window.api.saveConfig({ duelTestSettings: next })
   },
 
   addExtraCdb: async () => {

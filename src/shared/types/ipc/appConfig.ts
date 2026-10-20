@@ -36,9 +36,21 @@ export interface AppConfig {
 
   cardImageDirectory?: string
 
+  duelTestSettings?: DuelTestSettings
+
   projectSeries?: string[]
 
   timingPolicy?: TimingPolicy
 }
 
-export type SettingsSectionId = 'appearance' | 'paths' | 'model-settings' | 'chat'
+export type DuelTestDeckOrder = 'fixed' | 'random'
+
+export interface DuelTestSettings {
+  deckOrder: DuelTestDeckOrder
+}
+
+export const DEFAULT_DUEL_TEST_SETTINGS: DuelTestSettings = {
+  deckOrder: 'fixed'
+}
+
+export type SettingsSectionId = 'appearance' | 'paths' | 'duel-test' | 'model-settings' | 'chat'

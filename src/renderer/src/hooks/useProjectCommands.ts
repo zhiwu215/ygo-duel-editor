@@ -5,7 +5,11 @@ import { useConfigStore } from '../stores/useConfigStore'
 import { alertDialog, confirmDialog } from '../stores/useDialogStore'
 import { guardExportableMatch } from '../utils/matchExport'
 import { formatCoverageWarning } from '../utils/coverageWarning'
-import { ContentCoverageDetail, EngineExportReplayResult } from '@shared/index'
+import {
+  ContentCoverageDetail,
+  DEFAULT_DUEL_TEST_SETTINGS,
+  EngineExportReplayResult
+} from '@shared/index'
 
 export interface ProjectCommands {
   isSaveModalOpen: boolean
@@ -104,7 +108,11 @@ export function useProjectCommands(): ProjectCommands {
         void alertDialog(warning)
         return
       }
-      const res = await window.api.testInYgo(state, force)
+
+      const testSettings =
+        useConfigStore.getState().config.duelTestSettings ?? DEFAULT_DUEL_TEST_SETTINGS
+
+      const res = await window.api.testInYgo(state, force, testSettings)
       if (res.success) return
       if (res.errorCode === 'content-missing' && res.coverage) {
         const names = await resolveCoverageNames(res.coverage)
@@ -117,7 +125,7 @@ export function useProjectCommands(): ProjectCommands {
           destructive: false
         })
         if (choice === 'force') {
-          const retry = await window.api.testInYgo(state, true)
+          const retry = await window.api.testInYgo(state, true, testSettings)
           if (!retry.success && retry.error) {
             void alertDialog(`启动游戏测试失败: ${retry.error}`)
           }

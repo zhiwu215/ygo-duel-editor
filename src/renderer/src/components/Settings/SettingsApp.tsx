@@ -1,6 +1,6 @@
 import { ScrollArea } from '../ui/scroll-area'
 import { useEffect, useState, type JSX } from 'react'
-import { Palette, FolderOpen, Plug, MessageSquareText } from 'lucide-react'
+import { Palette, FolderOpen, Plug, MessageSquareText, Swords } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useAgentStore } from '../../stores/useAgentStore'
@@ -10,6 +10,7 @@ import { SettingsSectionId } from '@shared/index'
 import { AppearanceSection } from './components/AppearanceSection'
 import { DataDirectorySection } from './components/DataDirectorySection'
 import { PathsSection } from './components/PathsSection'
+import { DuelTestSection } from './components/DuelTestSection'
 import { ExtraCdbSection } from './components/ExtraCdbSection'
 import { GameLanguageDialog } from './components/GameLanguageDialog'
 import { cn } from '../../lib/utils'
@@ -41,6 +42,12 @@ const NAV_GROUPS: SettingsNavGroup[] = [
         label: '路径与目录',
         icon: FolderOpen,
         description: 'YGO 主程序目录与卡库加载'
+      },
+      {
+        id: 'duel-test',
+        label: '对局测试',
+        icon: Swords,
+        description: 'ygo 菜单「使用游戏测试该局」的启动配置'
       }
     ]
   },
@@ -97,7 +104,7 @@ export function SettingsApp(): JSX.Element {
       <aside className="w-56 shrink-0 border-r border-border bg-muted/30 flex flex-col p-3">
         <div className="text-sm font-bold px-2">偏好设置</div>
         <div className="mt-0.5 px-2 text-[10px] text-muted-foreground">
-          自定义外观、路径与背后灵行为
+          自定义外观、路径、对局测试与背后灵行为
         </div>
 
         <ScrollArea className="mt-4 flex-1 min-h-0">
@@ -157,6 +164,8 @@ export function SettingsApp(): JSX.Element {
               <PathsSection />
               <ExtraCdbSection />
             </div>
+          ) : section === 'duel-test' ? (
+            <DuelTestSection />
           ) : (
             <AgentSettingsContent section={section} />
           )}

@@ -1,6 +1,7 @@
-import { DuelPuzzleState } from '../types/duel'
+import { DuelPuzzleState, FieldCard } from '../types/duel'
 import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
+import type { DuelTestSettings } from '../types/ipc/appConfig'
 
 import { resolveCounterName } from '../constants/counters'
 function getLocationConstName(loc: number): string {
@@ -45,10 +46,26 @@ function getPositionConstName(pos: number): string {
       return 'POS_FACEUP_ATTACK'
   }
 }
-export function generateLuaScript(
-  state: DuelPuzzleState,
-  options?: { forReplay?: boolean }
-): string {
+
+function shuffleCards(cards: FieldCard[]): FieldCard[] {
+  const out = [...cards]
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = out[i]
+    out[i] = out[j]
+    out[j] = tmp
+  }
+  return out
+}
+
+const TEST_OPENING_HAND = 5
+
+export interface LuaScriptOptions {
+  forReplay?: boolean
+  test?: DuelTestSettings
+}
+
+export function generateLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): string {
   const team0Count =
     state.matchConfig?.team0Count ?? (state.duelists?.filter((d) => d.team === 0).length || 1)
   const team1Count =
@@ -66,6 +83,11 @@ export function generateLuaScript(
     )
   }
 
+  const forReplay = options?.forReplay ?? false
+  const test = forReplay ? undefined : options?.test
+  const isFull = !forReplay && state.duelType === 'full'
+  const randomDeck = test?.deckOrder === 'random'
+
   const lines: string[] = []
 
   const duelistsTeam0 = state.duelists?.filter((d) => d.team === 0) || []
@@ -79,6 +101,7 @@ export function generateLuaScript(
   }
   lines.push(`-- 规则版本: 大师规则 (MR${state.masterRule})`)
   lines.push(`-- 决斗模式: ${isTag ? '2v2 双打 (Tag Duel)' : '1v1 标准决斗'}`)
+  if (isFull) lines.push('-- 对局规则: 正常决斗 (多回合)')
   if (isTag && duelistsTeam0.length >= 2 && duelistsTeam1.length >= 2) {
     lines.push(`-- 我方先锋 (Player 0): ${duelistsTeam0[0].name} (LP: ${duelistsTeam0[0].lp})`)
     lines.push(`-- 我方副将 (Player 2): ${duelistsTeam0[1].name} (LP: ${duelistsTeam0[1].lp})`)
@@ -91,6 +114,7 @@ export function generateLuaScript(
   const flags: string[] = []
   if (state.firstTurnAttack) flags.push('DUEL_ATTACK_FIRST_TURN')
   if (isTag) flags.push('DUEL_TAG_MODE')
+  if (!randomDeck) flags.push('DUEL_PSEUDO_SHUFFLE')
   const flagStr = flags.length > 0 ? flags.join(' + ') : '0'
 
   lines.push(
@@ -109,13 +133,16 @@ export function generateLuaScript(
     ? state.players[1].lp
     : (duelistsTeam1[0]?.lp ?? state.players[1].lp)
 
+  const startHandOf = (player: 0 | 1): number => {
+    if (forReplay) return state.players[player].startHand
+    return randomDeck ? TEST_OPENING_HAND : 0
+  }
+
+  const drawCountOf = (player: 0 | 1): number => (isFull ? 1 : state.players[player].maxHand)
+
   lines.push(`-- 2. 双方生命值与手牌配置`)
-  lines.push(
-    `Debug.SetPlayerInfo(0, ${lp0}, ${state.players[0].startHand}, ${state.players[0].maxHand})`
-  )
-  lines.push(
-    `Debug.SetPlayerInfo(1, ${lp1}, ${state.players[1].startHand}, ${state.players[1].maxHand})`
-  )
+  lines.push(`Debug.SetPlayerInfo(0, ${lp0}, ${startHandOf(0)}, ${drawCountOf(0)})`)
+  lines.push(`Debug.SetPlayerInfo(1, ${lp1}, ${startHandOf(1)}, ${drawCountOf(1)})`)
   lines.push('')
   lines.push(`-- 3. 卡片摆放`)
 
@@ -131,6 +158,47 @@ export function generateLuaScript(
     { loc: CardLocation.DECK, name: '主卡组 (DECK)' }
   ]
 
+  const emitCard = (card: FieldCard, location: number, sequence: number): void => {
+    const locName = getLocationConstName(location)
+    const posName = getPositionConstName(card.position)
+    const cardNameComment = card.card?.name ? ` -- ${card.card.name}` : ''
+    let targetController = card.controller
+    if (isTag && location === CardLocation.HAND) {
+      const teamDuelists = card.controller === 0 ? duelistsTeam0 : duelistsTeam1
+      if (teamDuelists.length >= 2 && card.duelistId === teamDuelists[1].id) {
+        targetController = (card.controller === 0 ? 2 : 3) as 0 | 1
+      }
+    }
+
+    const hasCounters = card.counters && Object.values(card.counters).some((v) => v > 0)
+
+    if (hasCounters) {
+      lines.push(
+        `local c = Debug.AddCard(${card.code}, ${card.owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
+      )
+      for (const [typeIdStr, count] of Object.entries(card.counters!)) {
+        const countNum = Number(count)
+        const typeNum = Number(typeIdStr)
+        if (countNum > 0) {
+          const hexStr = `0x${typeNum.toString(16)}`
+          const counterName = resolveCounterName(typeNum, state.customCounters)
+          lines.push(`c:add_counter(${hexStr}, ${countNum}) -- 放置${countNum}个${counterName}`)
+        }
+      }
+    } else {
+      lines.push(
+        `Debug.AddCard(${card.code}, ${card.owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
+      )
+    }
+    if (card.overlayMaterials && card.overlayMaterials.length > 0) {
+      for (const matCode of card.overlayMaterials) {
+        lines.push(
+          `Debug.AddCard(${matCode}, ${card.owner}, ${targetController}, LOCATION_OVERLAY, ${sequence}, POS_FACEUP) -- 超量素材`
+        )
+      }
+    }
+  }
+
   for (const p of players) {
     const pName = p === 0 ? '我方阵营 (Team 0)' : '对方阵营 (Team 1)'
     lines.push(`-- -------------------------------------------------------------`)
@@ -138,62 +206,51 @@ export function generateLuaScript(
     lines.push(`-- -------------------------------------------------------------`)
 
     const playerCards = state.cards.filter((c) => c.controller === p)
+    const handCards = playerCards
+      .filter((c) => c.location === CardLocation.HAND)
+      .sort((a, b) => a.sequence - b.sequence)
+    const deckCards = playerCards
+      .filter((c) => c.location === CardLocation.DECK)
+      .sort((a, b) => a.sequence - b.sequence)
+
+    const deckForOutput = randomDeck ? shuffleCards([...deckCards, ...handCards]) : deckCards
 
     for (const group of locationOrder) {
+      if (group.loc === CardLocation.HAND) {
+        if (randomDeck || handCards.length === 0) continue
+        lines.push(`-- [手牌 (HAND)]`)
+        handCards.forEach((card, index) => emitCard(card, CardLocation.HAND, index))
+        lines.push('')
+        continue
+      }
+
+      if (group.loc === CardLocation.DECK) {
+        if (deckForOutput.length === 0) continue
+        lines.push(
+          randomDeck && handCards.length > 0
+            ? `-- [主卡组 (DECK)]（含手牌区并入的 ${handCards.length} 张，洗牌后开局抽 ${TEST_OPENING_HAND} 张）`
+            : `-- [主卡组 (DECK)]`
+        )
+        deckForOutput.forEach((card, index) => emitCard(card, CardLocation.DECK, index))
+        lines.push('')
+        continue
+      }
+
       const cardsInLoc = playerCards.filter((c) => c.location === group.loc)
       if (cardsInLoc.length === 0) continue
 
       lines.push(`-- [${group.name}]`)
-      cardsInLoc.sort((a, b) => a.sequence - b.sequence)
-
-      for (const card of cardsInLoc) {
-        const locName = getLocationConstName(card.location)
-        const posName = getPositionConstName(card.position)
-        const cardNameComment = card.card?.name ? ` -- ${card.card.name}` : ''
-        let targetController = card.controller
-        if (isTag && card.location === CardLocation.HAND) {
-          const teamDuelists = p === 0 ? duelistsTeam0 : duelistsTeam1
-          if (teamDuelists.length >= 2 && card.duelistId === teamDuelists[1].id) {
-            targetController = (p === 0 ? 2 : 3) as 0 | 1
-          } else {
-            targetController = p
-          }
-        }
-
-        const hasCounters = card.counters && Object.values(card.counters).some((v) => v > 0)
-
-        if (hasCounters) {
-          lines.push(
-            `local c = Debug.AddCard(${card.code}, ${card.owner}, ${targetController}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
-          )
-          for (const [typeIdStr, count] of Object.entries(card.counters!)) {
-            const countNum = Number(count)
-            const typeNum = Number(typeIdStr)
-            if (countNum > 0) {
-              const hexStr = `0x${typeNum.toString(16)}`
-              const counterName = resolveCounterName(typeNum, state.customCounters)
-              lines.push(`c:add_counter(${hexStr}, ${countNum}) -- 放置${countNum}个${counterName}`)
-            }
-          }
-        } else {
-          lines.push(
-            `Debug.AddCard(${card.code}, ${card.owner}, ${targetController}, ${locName}, ${card.sequence}, ${posName})${cardNameComment}`
-          )
-        }
-        if (card.overlayMaterials && card.overlayMaterials.length > 0) {
-          for (const matCode of card.overlayMaterials) {
-            lines.push(
-              `Debug.AddCard(${matCode}, ${card.owner}, ${targetController}, LOCATION_OVERLAY, ${card.sequence}, POS_FACEUP) -- 超量素材`
-            )
-          }
-        }
-      }
+      cardsInLoc
+        .sort((a, b) => a.sequence - b.sequence)
+        .forEach((card) => {
+          emitCard(card, card.location, card.sequence)
+        })
       lines.push('')
     }
   }
-  lines.push(`-- 4. 结束初始化与启动残局判定`)
+  lines.push(`-- 4. 结束初始化`)
   lines.push(`Debug.ReloadFieldEnd()`)
-  if (options?.forReplay) {
+  if (forReplay) {
     lines.push(`local e1=Effect.GlobalEffect()`)
     lines.push(`e1:SetType(EFFECT_TYPE_FIELD)`)
     lines.push(`e1:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
@@ -206,6 +263,16 @@ export function generateLuaScript(
     lines.push(`e2:SetCode(EFFECT_SKIP_SP)`)
     lines.push(`e2:SetTargetRange(1,0)`)
     lines.push(`Duel.RegisterEffect(e2,0)`)
+  } else if (isFull) {
+    if (Number(state.masterRule) >= 4) {
+      lines.push(`local firstDraw=Effect.GlobalEffect()`)
+      lines.push(`firstDraw:SetType(EFFECT_TYPE_FIELD)`)
+      lines.push(`firstDraw:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
+      lines.push(`firstDraw:SetCode(EFFECT_SKIP_DP)`)
+      lines.push(`firstDraw:SetTargetRange(1,0)`)
+      lines.push(`firstDraw:SetReset(RESET_PHASE+PHASE_DRAW)`)
+      lines.push(`Duel.RegisterEffect(firstDraw,0)`)
+    }
   } else {
     lines.push(`aux.BeginPuzzle()`)
   }

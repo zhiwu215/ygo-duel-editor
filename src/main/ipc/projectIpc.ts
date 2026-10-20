@@ -1,5 +1,10 @@
 import { ipcMain } from 'electron'
-import { DuelPuzzleState, EngineExportReplayParams, EngineExportReplayResult } from '@shared/index'
+import {
+  DuelPuzzleState,
+  DuelTestSettings,
+  EngineExportReplayParams,
+  EngineExportReplayResult
+} from '@shared/index'
 import { projectFileService } from '../services/projectFileService'
 import { projectSeriesService } from '../services/projectSeriesService'
 import { ygoproLauncher } from '../services/ygoproLauncher'
@@ -11,9 +16,12 @@ export function registerProjectIpc(): void {
     return luaFileIo.exportLuaFile(state, targetPath)
   })
 
-  ipcMain.handle('file:test-in-ygo', (_, state: DuelPuzzleState, force?: boolean) => {
-    return ygoproLauncher.testInGame(state, force ?? false)
-  })
+  ipcMain.handle(
+    'file:test-in-ygo',
+    (_, state: DuelPuzzleState, force?: boolean, test?: DuelTestSettings) => {
+      return ygoproLauncher.testInGame(state, force ?? false, test)
+    }
+  )
 
   ipcMain.handle('file:import-lua', async () => {
     return luaFileIo.importLuaFile()

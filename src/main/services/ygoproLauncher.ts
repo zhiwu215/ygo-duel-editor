@@ -7,6 +7,7 @@ import { YGOProYrp3d } from 'ygopro-yrp3d-encode'
 import { YGOProMessages, YGOProStocReplay } from 'ygopro-msg-encode'
 import {
   DuelPuzzleState,
+  DuelTestSettings,
   generateLuaScript,
   EngineExportReplayParams,
   EngineExportReplayResult,
@@ -104,7 +105,11 @@ export class YgoproLauncher {
     return { blocked: true, coverage }
   }
 
-  public async testInGame(state: DuelPuzzleState, force = false): Promise<TestInGameResult> {
+  public async testInGame(
+    state: DuelPuzzleState,
+    force = false,
+    test?: DuelTestSettings
+  ): Promise<TestInGameResult> {
     const gameDir = configService.get().gameDirectory
     if (!gameDir) {
       return { success: false, errorCode: 'no-game-directory' }
@@ -122,23 +127,25 @@ export class YgoproLauncher {
       }
       try {
         completeCardDetails(state)
-        const luaContent = generateLuaScript(state)
+        const luaContent = generateLuaScript(state, { test })
 
         const puzzleDir = join(gameDir, 'Puzzle')
-        mkdirSync(puzzleDir, { recursive: true })
+        const testDir = join(puzzleDir, 'yde-test')
+        rmSync(testDir, { recursive: true, force: true })
+        mkdirSync(testDir, { recursive: true })
         const name =
           (sanitizeFileName(state.title).trim() || 'puzzle').replace(/\s+/g, '_') || 'puzzle'
-        const scriptPath = join(puzzleDir, `${name}.lua`)
+        const scriptPath = join(testDir, `${name}.lua`)
         writeFileSync(scriptPath, luaContent, 'utf-8')
 
-        const child = spawn(exePath, ['-s', name], {
+        const child = spawn(exePath, ['-s', `yde-test/${name}`], {
           cwd: gameDir,
           detached: true,
           stdio: 'ignore'
         })
         child.unref()
 
-        console.log(`[FileService] Launched ${exePath} -s ${name}`)
+        console.log(`[FileService] Launched ${exePath} -s yde-test/${name}`)
         return { success: true, exePath, scriptPath }
       } catch (err) {
         console.error('[FileService] Test in MDPro3 failed:', err)
@@ -158,7 +165,7 @@ export class YgoproLauncher {
 
     try {
       completeCardDetails(state)
-      const luaContent = generateLuaScript(state)
+      const luaContent = generateLuaScript(state, { test })
 
       const isEdopro = this.isEdoproExe(exePath)
       const name = sanitizeFileName(state.title).trim() || 'puzzle'

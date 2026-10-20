@@ -1,6 +1,5 @@
 import type { StateCreator } from 'zustand'
 import {
-  ACTION_TYPE_NAMES,
   CdbCard,
   CardLocation,
   CardPosition,
@@ -278,26 +277,6 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         hoveredCard: card
       }
     })
-    const actionType = moveActionType(location)
-    recordEditorStep({
-      actionType,
-      controller,
-      cardName: card.name,
-      description:
-        actionType === 'PLACE'
-          ? `将【${card.name}】放置到${LOCATION_NAMES[location] ?? '场上'}`
-          : `将【${card.name}】${ACTION_TYPE_NAMES[actionType]}`,
-      op: {
-        type: 'add',
-        instanceId: placedInstanceId,
-        code: card.id,
-        controller,
-        location,
-        sequence,
-        position: pos,
-        duelistId
-      }
-    })
   },
 
   moveCard: (
@@ -453,11 +432,6 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
             ? null
             : prev.hoveredInstanceId
       }
-    })
-    recordEditorStep({
-      actionType: 'EVENT',
-      controller,
-      description: `清空${LOCATION_NAMES[location] ?? '卡堆'}（${pileCards.length} 张）`
     })
   },
 

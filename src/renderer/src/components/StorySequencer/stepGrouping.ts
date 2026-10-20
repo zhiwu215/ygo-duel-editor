@@ -1,11 +1,4 @@
-import {
-  ACTION_TYPE_NAMES,
-  DuelStep,
-  DuelPhase,
-  DuelActionType,
-  PHASE_SHORT_NAMES,
-  CardLocation
-} from '@shared/index'
+import { ACTION_TYPE_NAMES, DuelStep, DuelPhase, DuelActionType, CardLocation } from '@shared/index'
 import { stepCardName } from '../../utils/cardNames'
 import type { StepGroupKind } from './StepGroupHeader'
 
@@ -109,8 +102,44 @@ export interface StepGroup {
 }
 
 export type StepListItem =
-  | { kind: 'separator'; key: string; label: string; turnPlayer: 0 | 1 }
+  | { kind: 'turn'; key: string; turn: number; turnPlayer: 0 | 1; lp: [number, number] }
+  | { kind: 'phase'; key: string; turn: number; phase: DuelPhase; turnPlayer: 0 | 1 }
   | { kind: 'group'; group: StepGroup }
+
+export type LpPair = [number, number]
+
+export function resolveStartLp(steps: DuelStep[], initialLp?: LpPair): LpPair {
+  if (initialLp) return [initialLp[0], initialLp[1]]
+  const lp: LpPair = [8000, 8000]
+  const seeded: [boolean, boolean] = [false, false]
+  for (const step of steps) {
+    const change = step.lpChange
+    if (!change || seeded[change.player]) continue
+    lp[change.player] = change.oldLp
+    seeded[change.player] = true
+    if (seeded[0] && seeded[1]) break
+  }
+  return lp
+}
+
+export function buildTurnStartLp(steps: DuelStep[], startLp: LpPair): Map<number, LpPair> {
+  const map = new Map<number, LpPair>()
+  const first = steps[0]
+  if (!first) return map
+  const lp: LpPair = [startLp[0], startLp[1]]
+  let turn = first.turn
+  map.set(turn, [lp[0], lp[1]])
+  for (const step of steps) {
+    if (step.turn !== turn) {
+      turn = step.turn
+      map.set(turn, [lp[0], lp[1]])
+    }
+    if (step.lpChange) lp[step.lpChange.player] = step.lpChange.newLp
+    const lpOp = step.manualOps?.find((op) => op.type === 'lp')
+    if (lpOp) lp[lpOp.player] = lpOp.value
+  }
+  return map
+}
 
 export function buildGroups(entries: StepEntry[]): StepGroup[] {
   const groups: StepGroup[] = []
@@ -136,6 +165,26 @@ export function buildGroups(entries: StepEntry[]): StepGroup[] {
       continue
     }
 
+    if (current.step.actionType === 'DRAW') {
+      let end = cursor + 1
+      while (
+        end < entries.length &&
+        entries[end].step.actionType === 'DRAW' &&
+        entries[end].step.actionPlayer === current.step.actionPlayer
+      ) {
+        end++
+      }
+      if (end - cursor >= 2) {
+        groups.push({
+          kind: 'draw',
+          key: current.step.id,
+          entries: entries.slice(cursor, end)
+        })
+        cursor = end
+        continue
+      }
+    }
+
     const next = entries[cursor + 1]
     if (current.step.actionType === 'ATTACK' && next?.step.actionType === 'DAMAGE') {
       groups.push({
@@ -154,46 +203,51 @@ export function buildGroups(entries: StepEntry[]): StepGroup[] {
   return groups
 }
 
-export function buildStepList(steps: DuelStep[]): StepListItem[] {
+export function buildStepList(steps: DuelStep[], initialLp?: LpPair): StepListItem[] {
+  const startLp = resolveStartLp(steps, initialLp)
+  const turnLp = buildTurnStartLp(steps, startLp)
   const items: StepListItem[] = []
   let pending: StepEntry[] = []
-  let lastGroupKey = ''
-
-  const pushSeparator = (step: DuelStep, index: number): void => {
-    const groupKey = `${step.turn}|${step.turnPlayer}|${step.phase}`
-    if (groupKey === lastGroupKey) return
-    lastGroupKey = groupKey
-    const playerName = step.turnPlayer === 0 ? '我方' : '对方'
-    items.push({
-      kind: 'separator',
-      key: `separator_${index}_${groupKey}`,
-      label: `第 ${step.turn} 回合 ${playerName} · ${PHASE_SHORT_NAMES[step.phase] || step.phase}`,
-      turnPlayer: step.turnPlayer
-    })
-  }
+  let lastTurn: number | null = null
+  let lastPhase: DuelPhase | null = null
 
   const flush = (): void => {
     if (pending.length === 0) return
-    const first = pending[0]
-    pushSeparator(first.step, first.index)
     buildGroups(pending).forEach((group) => items.push({ kind: 'group', group }))
     pending = []
   }
 
+  const syncHeaders = (step: DuelStep): void => {
+    if (lastTurn !== step.turn) {
+      lastTurn = step.turn
+      lastPhase = null
+      items.push({
+        kind: 'turn',
+        key: `turn_${step.turn}`,
+        turn: step.turn,
+        turnPlayer: step.turnPlayer,
+        lp: turnLp.get(step.turn) ?? startLp
+      })
+    }
+    if (lastPhase !== step.phase) {
+      lastPhase = step.phase
+      items.push({
+        kind: 'phase',
+        key: `phase_${step.turn}_${step.phase}`,
+        turn: step.turn,
+        phase: step.phase,
+        turnPlayer: step.turnPlayer
+      })
+    }
+  }
+
   steps.forEach((step, index) => {
-    if (step.actionType === 'PHASE_CHANGE' || step.actionType === 'TURN_CHANGE') {
+    const isMarker = step.actionType === 'PHASE_CHANGE' || step.actionType === 'TURN_CHANGE'
+    if (isMarker || lastTurn !== step.turn || lastPhase !== step.phase) {
       flush()
-      pushSeparator(step, index)
-      return
+      syncHeaders(step)
     }
-    if (
-      index === 0 ||
-      isFirstInPhase(steps, index) ||
-      steps[index - 1].turnPlayer !== step.turnPlayer
-    ) {
-      flush()
-    }
-    pending.push({ step, index })
+    if (!isMarker) pending.push({ step, index })
   })
 
   flush()

@@ -8,8 +8,11 @@ import { Button } from '../ui/button'
 import { Film, PlayCircle, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { StepGroupHeader } from './StepGroupHeader'
+import { StepPhaseHeader } from './StepPhaseHeader'
+import { StepTurnHeader } from './StepTurnHeader'
 import { StepCard } from './StepCard'
 import { buildStepList, getAttackDamageText, resolveStepCardName } from './stepGrouping'
+import { resolveTeamLabel } from '../../utils/duelistNames'
 
 interface StepListProps {
   steps: DuelStep[]
@@ -23,8 +26,10 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
   const engineTimeline = useDuelEngineStore((s) => s.timeline)
   const engineCurrentStepId = useDuelEngineStore((s) => s.currentStepId)
   const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
+  const duelists = useDuelStore((s) => s.state.duelists)
+  const initialLp = useDuelStore((s) => s.state.initialLp)
 
-  const stepList = useMemo(() => buildStepList(steps), [steps])
+  const stepList = useMemo(() => buildStepList(steps, initialLp), [steps, initialLp])
 
   const engineIndexById = useMemo(() => {
     const map = new Map<string, number>()
@@ -140,21 +145,21 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
           </div>
         ) : (
           stepList.map((item) => {
-            if (item.kind === 'separator') {
+            if (item.kind === 'turn') {
               return (
-                <div
+                <StepTurnHeader
                   key={item.key}
-                  className="flex w-full items-center gap-1.5 px-1 pt-1 select-none text-[11px] font-semibold text-muted-foreground/80"
-                >
-                  <span
-                    className={cn(
-                      'w-1.5 h-1.5 rounded-full shrink-0',
-                      item.turnPlayer === 0 ? 'bg-blue-500/70' : 'bg-rose-500/70'
-                    )}
-                  />
-                  <span className="shrink-0">{item.label}</span>
-                  <div className="flex-1 h-px bg-border/50 ml-1" />
-                </div>
+                  turn={item.turn}
+                  turnPlayer={item.turnPlayer}
+                  lp={item.lp}
+                  duelists={duelists}
+                />
+              )
+            }
+
+            if (item.kind === 'phase') {
+              return (
+                <StepPhaseHeader key={item.key} phase={item.phase} turnPlayer={item.turnPlayer} />
               )
             }
 
@@ -181,10 +186,16 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
                   summary={{
                     kind: group.kind,
                     player: firstEntry.step.actionPlayer,
+                    playerName: resolveTeamLabel(
+                      { duelists },
+                      firstEntry.step.actionPlayer,
+                      firstEntry.step.turn
+                    ),
                     cardCode: firstEntry.step.cardCode,
                     cardName: names[0],
                     actionType: firstEntry.step.actionType,
                     names,
+                    cardCodes: group.entries.map(({ step }) => step.cardCode),
                     chainNumber: firstEntry.step.chainIndex,
                     damageText,
                     count: group.entries.length,

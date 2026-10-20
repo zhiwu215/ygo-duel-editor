@@ -116,7 +116,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
 
   const commitLp = useLpCommit()
 
-  const { heldCardInstanceId, placeHeldCard } = useHeldCardPlacement()
+  const { placeHeldCard } = useHeldCardPlacement()
 
   const handlePlaceHeldCard = (e: React.MouseEvent): void => {
     placeHeldCard(e, {
@@ -280,8 +280,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
               : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
             : isOpponent
               ? 'border-red-500/20 hover:border-red-500/40 bg-muted/20 dark:bg-black/20'
-              : 'border-blue-500/20 hover:border-blue-500/40 bg-muted/20 dark:bg-black/20',
-          heldCardInstanceId && 'ring-2 ring-primary/40 border-primary/60'
+              : 'border-blue-500/20 hover:border-blue-500/40 bg-muted/20 dark:bg-black/20'
         )}
       >
         {cards.map((c, idx) => {

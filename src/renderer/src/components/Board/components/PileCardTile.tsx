@@ -129,7 +129,7 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
                   </button>
                 }
               />
-              <TooltipContent>拿起卡片，点击场上区域放下 (Esc 取消)</TooltipContent>
+              <TooltipContent>拿起卡片，点击场上或手牌区放下 (Esc 取消)</TooltipContent>
             </Tooltip>
           )}
           <Tooltip>

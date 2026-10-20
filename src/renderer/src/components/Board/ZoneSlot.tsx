@@ -8,7 +8,7 @@ import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useTokenStore } from '../../stores/useTokenStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStagingStore } from '../../stores/useStagingStore'
-import { useHeldCardStore } from '../../stores/useHeldCardStore'
+import { useHeldCardPlacement } from '../../hooks/useHeldCardPlacement'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { DropHintPopover } from './components/DropHintPopover'
 import { useDeckZoneInteraction } from '../../hooks/useDeckZoneInteraction'
@@ -101,8 +101,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const openZoneMenu = useContextMenuStore((s) => s.openZoneMenu)
   const pendingToken = useTokenStore((s) => s.pendingToken)
   const cancelPendingToken = useTokenStore((s) => s.cancelPending)
-  const heldCardInstanceId = useHeldCardStore((s) => s.instanceId)
-  const releaseHeldCard = useHeldCardStore((s) => s.release)
+  const { heldCardInstanceId, placeHeldCard } = useHeldCardPlacement()
   const [isOver, setIsOver] = useState(false)
   const { cancelDeckDraw, scheduleDeckDraw } = useDeckZoneInteraction(controller)
 
@@ -157,30 +156,19 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     return true
   }
 
-  const placeHeldCard = (e: React.MouseEvent): boolean => {
+  const placeHeldCardOnSlot = (e: React.MouseEvent): boolean => {
     if (!heldCardInstanceId) return false
-    e.preventDefault()
-    e.stopPropagation()
-    releaseHeldCard()
-    if (!canEditLocally) return true
-    const heldCard = useDuelStore
-      .getState()
-      .state.cards.find((c) => c.instanceId === heldCardInstanceId)
-    if (!heldCard) return true
     const toSequence = isPileZone
       ? location === CardLocation.DECK || location === CardLocation.EXTRA
         ? 0
         : (count ?? 0)
       : sequence
-    moveCard(
-      heldCard.instanceId,
-      location,
-      toSequence,
+    return placeHeldCard(e, {
       controller,
-      getDropPosOverride(location, e.ctrlKey),
-      duelistId || card?.duelistId
-    )
-    return true
+      location,
+      sequence: toSequence,
+      duelistId: duelistId || card?.duelistId
+    })
   }
 
   const handleDragOver = (e: React.DragEvent): void => {
@@ -331,7 +319,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClickCapture={(e) => {
-        if (placeHeldCard(e)) return
+        if (placeHeldCardOnSlot(e)) return
         if (location !== CardLocation.DECK) return
         if (!canEditLocally) return
         if (isFromZoneBadge(e)) return

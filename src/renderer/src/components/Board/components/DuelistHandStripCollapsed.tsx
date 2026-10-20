@@ -12,8 +12,7 @@ interface DuelistHandStripCollapsedProps {
   isActiveViewer: boolean
   isDragOver: boolean
   ref?: React.Ref<HTMLDivElement>
-  onFocus: () => void
-  onExpand: () => void
+  onClick: (e: React.MouseEvent) => void
   onDragEnter: (e: React.DragEvent) => void
   onDragLeave: (e: React.DragEvent<HTMLDivElement>) => void
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void
@@ -27,8 +26,7 @@ export const DuelistHandStripCollapsed: React.FC<DuelistHandStripCollapsedProps>
   isActiveViewer,
   isDragOver,
   ref,
-  onFocus,
-  onExpand,
+  onClick,
   onDragEnter,
   onDragLeave,
   onDragOver,
@@ -42,10 +40,7 @@ export const DuelistHandStripCollapsed: React.FC<DuelistHandStripCollapsedProps>
         render={
           <div
             ref={ref}
-            onClick={() => {
-              onFocus()
-              onExpand()
-            }}
+            onClick={onClick}
             onDragEnter={onDragEnter}
             onDragLeave={onDragLeave}
             onDragOver={onDragOver}

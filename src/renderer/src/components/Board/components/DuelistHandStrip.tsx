@@ -12,6 +12,7 @@ import { cn } from '../../../lib/utils'
 import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
 import { DuelistHandStripCollapsed } from './DuelistHandStripCollapsed'
 import { useHandReorderDrag } from '../../../hooks/useHandReorderDrag'
+import { useHeldCardPlacement } from '../../../hooks/useHeldCardPlacement'
 import { useHorizontalWheelScroll } from '../../../hooks/useHorizontalWheelScroll'
 import { useLpCommit } from '../../../hooks/useLpCommit'
 
@@ -115,6 +116,17 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
 
   const commitLp = useLpCommit()
 
+  const { heldCardInstanceId, placeHeldCard } = useHeldCardPlacement()
+
+  const handlePlaceHeldCard = (e: React.MouseEvent): void => {
+    placeHeldCard(e, {
+      controller,
+      location: CardLocation.HAND,
+      sequence: cards.length,
+      duelistId: duelist.id
+    })
+  }
+
   const handleDragEnter = (e: React.DragEvent): void => {
     const isHandReorder = e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)
     setIsDragOver(!isHandReorder)
@@ -156,8 +168,20 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         isActiveViewer={isActiveViewer}
         isDragOver={isDragOver}
         ref={ref}
-        onFocus={focusAsViewer}
-        onExpand={onExpand}
+        onClick={(e) => {
+          if (
+            placeHeldCard(e, {
+              controller,
+              location: CardLocation.HAND,
+              sequence: cards.length,
+              duelistId: duelist.id
+            })
+          ) {
+            return
+          }
+          focusAsViewer()
+          onExpand()
+        }}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
@@ -241,6 +265,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
       <div
         ref={scrollContainerRef}
         onClickCapture={focusAsViewer}
+        onClick={handlePlaceHeldCard}
         onDragStartCapture={handleDragStartCapture}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -255,7 +280,8 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
               : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
             : isOpponent
               ? 'border-red-500/20 hover:border-red-500/40 bg-muted/20 dark:bg-black/20'
-              : 'border-blue-500/20 hover:border-blue-500/40 bg-muted/20 dark:bg-black/20'
+              : 'border-blue-500/20 hover:border-blue-500/40 bg-muted/20 dark:bg-black/20',
+          heldCardInstanceId && 'ring-2 ring-primary/40 border-primary/60'
         )}
       >
         {cards.map((c, idx) => {

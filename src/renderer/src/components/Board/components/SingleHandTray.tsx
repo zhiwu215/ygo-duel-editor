@@ -12,6 +12,7 @@ import { LpInput } from './LpInput'
 import { EditableNameChip } from './EditableNameChip'
 import { useHandShufflePulse } from '../../../hooks/useHandShufflePulse'
 import { useHandReorderDrag } from '../../../hooks/useHandReorderDrag'
+import { useHeldCardPlacement } from '../../../hooks/useHeldCardPlacement'
 import { useHorizontalWheelScroll } from '../../../hooks/useHorizontalWheelScroll'
 import { useLpCommit } from '../../../hooks/useLpCommit'
 import { cn } from '../../../lib/utils'
@@ -60,6 +61,17 @@ export const SingleHandTray: React.FC<{
   })
 
   useHorizontalWheelScroll(trayRef, { scrollRef: scrollContainerRef })
+
+  const { heldCardInstanceId, placeHeldCard } = useHeldCardPlacement()
+
+  const handlePlaceHeldCard = (e: React.MouseEvent): void => {
+    placeHeldCard(e, {
+      controller,
+      location: CardLocation.HAND,
+      sequence: cards.length,
+      duelistId: duelist.id
+    })
+  }
 
   const handleDragEnter = (e: React.DragEvent): void => {
     e.preventDefault()
@@ -160,6 +172,7 @@ export const SingleHandTray: React.FC<{
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          onClick={handlePlaceHeldCard}
           className={cn(
             'h-[100px] w-full px-2 py-0.5 rounded border border-dashed flex items-center gap-1.5 overflow-x-auto overflow-y-hidden transition-colors',
             shuffle.active && 'ring-2 ring-amber-400/70 border-amber-400/60',
@@ -169,7 +182,8 @@ export const SingleHandTray: React.FC<{
                 : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
               : isOpponent
                 ? 'border-red-500/25 hover:border-red-500/50 bg-muted/20 dark:bg-black/20'
-                : 'border-blue-500/25 hover:border-blue-500/50 bg-muted/20 dark:bg-black/20'
+                : 'border-blue-500/25 hover:border-blue-500/50 bg-muted/20 dark:bg-black/20',
+            heldCardInstanceId && 'cursor-pointer ring-2 ring-primary/40 border-primary/60'
           )}
         >
           {cards.map((c, idx) => {

@@ -23,7 +23,7 @@ export function PathsSection(): JSX.Element {
   const imageDirDescription = (): string =>
     config.cardImageDirectory
       ? `自定义卡图目录：${config.cardImageDirectory}`
-      : '未设置，读取 MDPro3 自带的插画 (Picture/Art)。可指定 YGOPro 的 pics 目录获得完整卡面'
+      : '未设置，读取 MDPro3 自带的插画 (Picture/Art)'
 
   return (
     <section className="rounded-xl border border-border bg-card/60">

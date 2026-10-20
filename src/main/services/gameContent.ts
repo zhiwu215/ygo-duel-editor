@@ -207,10 +207,12 @@ export async function checkGameContentCoverage(
 
   const dataCovered = new Set<number>()
   const typesById = new Map<number, number>()
+  const aliasById = new Map<number, number>()
   for (const cdbPath of scan.cdbPaths) {
     for (const row of coveredIdsWithTypeFromCdb(cdbPath, cardIds)) {
       dataCovered.add(row.id)
       if (!typesById.has(row.id)) typesById.set(row.id, row.type)
+      if (row.alias && !aliasById.has(row.id)) aliasById.set(row.id, row.alias)
     }
   }
   const missingDataSet = new Set<number>()
@@ -222,9 +224,19 @@ export async function checkGameContentCoverage(
   let missingScriptIds: number[] = []
   if (gameType !== 'mdpro3') {
     const scriptIds = await collectGameScriptIds(scan)
+    const hasScript = (id: number): boolean => {
+      let current = id
+      const seen = new Set<number>()
+      while (current > 0 && !seen.has(current)) {
+        if (scriptIds.has(current)) return true
+        seen.add(current)
+        current = aliasById.get(current) ?? 0
+      }
+      return false
+    }
     missingScriptIds = cardIds.filter((id) => {
       if (missingDataSet.has(id)) return false
-      return scriptRequired(typesById.get(id) ?? 0) && !scriptIds.has(id)
+      return scriptRequired(typesById.get(id) ?? 0) && !hasScript(id)
     })
   }
 
@@ -344,17 +356,17 @@ export function listMdpro3Locales(gameDir: string): GameLanguageOption[] {
 function coveredIdsWithTypeFromCdb(
   cdbPath: string,
   ids: number[]
-): Array<{ id: number; type: number }> {
+): Array<{ id: number; type: number; alias: number }> {
   let db: Database.Database | null = null
   try {
     db = new Database(cdbPath, { readonly: true, fileMustExist: true })
-    const covered: Array<{ id: number; type: number }> = []
+    const covered: Array<{ id: number; type: number; alias: number }> = []
     for (let i = 0; i < ids.length; i += CDB_QUERY_CHUNK_SIZE) {
       const chunk = ids.slice(i, i + CDB_QUERY_CHUNK_SIZE)
       const placeholders = chunk.map(() => '?').join(',')
       const rows = db
-        .prepare(`SELECT id, type FROM datas WHERE id IN (${placeholders})`)
-        .all(...chunk) as Array<{ id: number; type: number }>
+        .prepare(`SELECT id, type, alias FROM datas WHERE id IN (${placeholders})`)
+        .all(...chunk) as Array<{ id: number; type: number; alias: number }>
       for (const row of rows) covered.push(row)
     }
     return covered

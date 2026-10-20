@@ -111,6 +111,7 @@ export interface EngineDiffPositionChange {
   location: number
   sequence: number
   code: number
+  oldPosition: number
   newPosition: number
 }
 

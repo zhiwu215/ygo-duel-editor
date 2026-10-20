@@ -15,7 +15,16 @@ export interface EditorStepInput {
   actionType: DuelActionType
   controller?: 0 | 1
   instanceId?: string
+  cardCode?: number
   cardName?: string
+  fromLocation?: number
+  fromSequence?: number
+  toLocation?: number
+  toSequence?: number
+  fromController?: 0 | 1
+  toController?: 0 | 1
+  fromPosition?: number
+  toPosition?: number
   targetInstanceId?: string
   targetCardName?: string
   targetPlayer?: 0 | 1
@@ -43,7 +52,16 @@ export function recordEditorStep(input: EditorStepInput): void {
     actionPlayer: input.controller ?? duel.activeTurnPlayer,
     actionType: input.actionType,
     instanceId: input.instanceId,
+    cardCode: input.cardCode,
     cardName: input.cardName,
+    fromLocation: input.fromLocation,
+    fromSequence: input.fromSequence,
+    toLocation: input.toLocation,
+    toSequence: input.toSequence,
+    fromController: input.fromController,
+    toController: input.toController,
+    fromPosition: input.fromPosition,
+    toPosition: input.toPosition,
     targetInstanceId: input.targetInstanceId,
     targetCardName: input.targetCardName,
     targetPlayer: input.targetPlayer,

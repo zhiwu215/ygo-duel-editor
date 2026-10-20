@@ -142,6 +142,7 @@ export function computeDiff(before: EngineBoardState, after: EngineBoardState): 
         location: ac.location,
         sequence: ac.sequence,
         code: ac.code,
+        oldPosition: bc.position,
         newPosition: ac.position
       })
     }

@@ -179,6 +179,10 @@ export interface DuelStep {
   fromSequence?: number
   toLocation?: number
   toSequence?: number
+  fromController?: 0 | 1
+  toController?: 0 | 1
+  fromPosition?: number
+  toPosition?: number
   targetInstanceId?: string
   targetCardName?: string
   targetPlayer?: 0 | 1

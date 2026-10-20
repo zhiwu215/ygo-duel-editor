@@ -1,10 +1,13 @@
 import {
   Answer,
+  CardLocation,
+  CardPosition,
   DuelActionType,
   DuelStep,
   EngineBoardState,
   EngineDiffResult,
   EngineTimelineNode,
+  LOCATION_NAMES,
   RequestCard,
   createLightweightSnapshot
 } from '@shared/index'
@@ -155,6 +158,61 @@ function patchTargetStep(
   })
 }
 
+function moveToActionType(toLocation: number, newPosition: number): DuelActionType {
+  if (toLocation === CardLocation.HAND) return 'TO_HAND'
+  if (toLocation === CardLocation.GRAVE) return 'TO_GRAVE'
+  if (toLocation === CardLocation.REMOVED) return 'BANISH'
+  if (toLocation === CardLocation.DECK || toLocation === CardLocation.EXTRA) return 'TO_DECK'
+  if (toLocation === CardLocation.FZONE) return 'ACTIVATE_FIELD'
+  if (toLocation === CardLocation.PZONE) return 'SET_PENDULUM'
+  const facedown = (newPosition & CardPosition.FACEDOWN) !== 0
+  if (toLocation === CardLocation.MZONE) return facedown ? 'SET_MONSTER' : 'SPECIAL_SUMMON'
+  if (toLocation === CardLocation.SZONE) return facedown ? 'SET_SPELL_TRAP' : 'ACTIVATE'
+  return 'PLACE'
+}
+
+function recordTargetMoveSteps(
+  node: EngineTimelineNode,
+  diff: EngineDiffResult,
+  timeline: EngineTimelineNode[],
+  actContext?: StepActContext
+): void {
+  if (hasEngineStep(node.id)) return
+  const hostCardCode = findHostStep(node, timeline)?.step.cardCode
+  const moves = diff.movedCards.filter(
+    (m) =>
+      m.code !== hostCardCode &&
+      !(m.fromController === m.toController && m.fromLocation === m.toLocation)
+  )
+  if (moves.length === 0) return
+
+  moves.forEach((m, index) => {
+    const duelStoreState = useDuelStore.getState()
+    const cardName = resolveCardName(m.code)
+    const step: Omit<DuelStep, 'id'> = {
+      turn: actContext?.turn ?? duelStoreState.currentTurn,
+      turnPlayer: actContext?.turnPlayer ?? duelStoreState.activeTurnPlayer,
+      phase: actContext ? mapPhaseToDuelPhase(actContext.phase) : duelStoreState.currentPhase,
+      actionPlayer: m.toController,
+      actionType: moveToActionType(m.toLocation, m.newPosition),
+      cardCode: m.code,
+      cardName,
+      fromLocation: m.fromLocation,
+      fromSequence: m.fromSequence,
+      toLocation: m.toLocation,
+      toSequence: m.toSequence,
+      fromController: m.fromController,
+      toController: m.toController,
+      description: `将【${cardName}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`,
+      boardAfter: createLightweightSnapshot(useDuelStore.getState().state.cards)
+    }
+    if (index === 0) step.actId = node.id
+    useDuelStore.getState().addStep(step)
+    const added = useDuelStore.getState().state.steps?.at(-1)
+    if (added && index === 0) recordEngineStep(node.id, added)
+  })
+}
+
 export interface StepActContext {
   turn: number
   turnPlayer: 0 | 1
@@ -177,6 +235,7 @@ export function appendEngineStepFromAnswer(
   if (answer.kind === 'card') {
     patchTargetStep(answer.cards ?? [], node, timeline, boardState)
     patchCompletedStep(node, diff, timeline)
+    recordTargetMoveSteps(node, diff, timeline, actContext)
     return
   }
 
@@ -198,6 +257,15 @@ export function appendEngineStepFromAnswer(
           m.fromSequence === card.sequence
       )
     : undefined
+  const positionChange = card
+    ? diff.positionChanges.find(
+        (pc) =>
+          pc.code === card.code &&
+          pc.controller === card.controller &&
+          pc.location === card.location &&
+          pc.sequence === card.sequence
+      )
+    : undefined
 
   const duelStoreState = useDuelStore.getState()
   const step: Omit<DuelStep, 'id'> = {
@@ -213,6 +281,10 @@ export function appendEngineStepFromAnswer(
     fromSequence: card?.sequence,
     toLocation: moved?.toLocation ?? card?.location,
     toSequence: moved?.toSequence ?? card?.sequence,
+    fromController: card?.controller,
+    toController: moved?.toController ?? card?.controller,
+    fromPosition: positionChange?.oldPosition,
+    toPosition: positionChange?.newPosition,
     chainIndex: actionType === 'CHAIN' ? duelStoreState.currentChain + 1 : undefined,
     description: humanizeEngineLog(node.title),
     boardAfter: createLightweightSnapshot(duelStoreState.state.cards)

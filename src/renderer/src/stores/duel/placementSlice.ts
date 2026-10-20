@@ -320,7 +320,14 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       recordEditorStep({
         actionType: stepLabel?.actionType ?? moveActionType(toLocation),
         controller: toController ?? fromCard.controller,
+        cardCode: fromCard.code,
         cardName: name,
+        fromLocation: fromCard.location,
+        fromSequence: fromCard.sequence,
+        toLocation,
+        toSequence,
+        fromController: fromCard.controller,
+        toController: toController ?? fromCard.controller,
         description:
           stepLabel?.description ??
           (name
@@ -381,7 +388,14 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       recordEditorStep({
         actionType: moveActionType(m.toLocation),
         controller: m.toController ?? fromCard.controller,
+        cardCode: fromCard.code,
         cardName: name,
+        fromLocation: fromCard.location,
+        fromSequence: fromCard.sequence,
+        toLocation: m.toLocation,
+        toSequence: m.toSequence,
+        fromController: fromCard.controller,
+        toController: m.toController ?? fromCard.controller,
         description: name
           ? `将【${name}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
           : `移动卡片至${LOCATION_NAMES[m.toLocation] ?? '区域'}`,
@@ -469,14 +483,26 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
             ? {
                 actionType: 'ACTIVATE',
                 controller: card.controller,
+                cardCode: card.code,
                 cardName: name,
+                fromLocation: card.location,
+                fromSequence: card.sequence,
+                toLocation: card.location,
+                toSequence: card.sequence,
                 description: name ? `发动【${name}】` : '发动魔法陷阱',
                 op: { type: 'position', instanceId, position }
               }
             : {
                 actionType: 'CHANGE_POS',
                 controller: card.controller,
+                cardCode: card.code,
                 cardName: name,
+                fromLocation: card.location,
+                fromSequence: card.sequence,
+                toLocation: card.location,
+                toSequence: card.sequence,
+                fromPosition: oldPos,
+                toPosition: position,
                 description: name ? `【${name}】变更表示形式` : '变更表示形式',
                 op: { type: 'position', instanceId, position }
               }

@@ -93,7 +93,7 @@ QQ 交流群：**1126832557**
 
 - [ygopro](https://github.com/Fluorohydride/ygopro)
 - [MDPro3](https://code.moenext.com/sherry_chaos/MDPro3/-/tree/master)
-- [EDOPro](https://tieba.baidu.com/p/7454495011)
+- [EDOPro](https://github.com/knight00/KCGEdopro)，具体是这个[贴子](https://tieba.baidu.com/p/7454495011)
 - [neos-ts](https://github.com/DarkNeos/neos-ts)
 - [ZCode](https://github.com/zai-org/ZCode)
 

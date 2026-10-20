@@ -80,16 +80,15 @@ export function buildSearchSql(
   const relevanceArgs: (string | number)[] = []
 
   const getSetcodeClause = (codes: number[]): string => {
-    const exactCodes = [...new Set(codes)]
-    const baseCodes = [...new Set(codes.map((code) => code & 0xfff))]
+    const unique = [...new Set(codes.map((code) => code & 0xffff))]
     const parts: string[] = []
     for (const shift of [0, 16, 32, 48]) {
-      const exactMarks = exactCodes.map(() => '?').join(',')
-      const baseMarks = baseCodes.map(() => '?').join(',')
-      parts.push(
-        `(((d.setcode >> ${shift}) & 65535) IN (${exactMarks}) OR ((d.setcode >> ${shift}) & 4095) IN (${baseMarks}))`
-      )
-      args.push(...exactCodes, ...baseCodes)
+      for (const code of unique) {
+        const mask = 0xfff | (code & 0xf000)
+        parts.push(
+          `(((d.setcode >> ${shift}) & 65535) != 0 AND ((d.setcode >> ${shift}) & ${mask}) = ${code})`
+        )
+      }
     }
     return `(${parts.join(' OR ')})`
   }

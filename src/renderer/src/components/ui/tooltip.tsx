@@ -1,4 +1,3 @@
-import React from 'react'
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
 import { cn } from '../../lib/utils'
 
@@ -16,13 +15,24 @@ function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
 
 function TooltipContent({
   className,
+  side = 'top',
+  align = 'center',
   sideOffset = 6,
   children,
   ...props
-}: TooltipPrimitive.Popup.Props & { sideOffset?: number }) {
+}: TooltipPrimitive.Popup.Props & {
+  side?: TooltipPrimitive.Positioner.Props['side']
+  align?: TooltipPrimitive.Positioner.Props['align']
+  sideOffset?: number
+}) {
   return (
     <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Positioner sideOffset={sideOffset} className="isolate z-50">
+      <TooltipPrimitive.Positioner
+        side={side}
+        align={align}
+        sideOffset={sideOffset}
+        className="isolate z-50"
+      >
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(

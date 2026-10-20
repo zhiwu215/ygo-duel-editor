@@ -44,11 +44,20 @@ export const ChainAutoIcon = makeChainIcon(
   'ChainAutoIcon'
 )
 
+export const ChainSmartIcon = makeChainIcon(
+  <>
+    <path d="M469.333333 128c17.066667 187.733333 111.786667 288 298.666667 298.666667-186.88 10.666667-281.6 110.933333-298.666667 298.666666-17.066667-187.733333-111.786667-288-298.666666-298.666666 186.88-10.666667 281.6-110.933333 298.666666-298.666667z" />
+    <path d="M810.666667 554.666667c8.533333 93.866667 55.466667 140.8 149.333333 149.333333-93.866667 8.533333-140.8 55.466667-149.333333 149.333333-8.533333-93.866667-55.466667-140.8-149.333334-149.333333 93.866667-8.533333 140.8-55.466667 149.333334-149.333333z" />
+  </>,
+  'ChainSmartIcon'
+)
+
 export function ChainModeIcon({
   mode,
   ...props
-}: ChainIconProps & { mode: 'ignore' | 'available' | 'all' }): React.ReactElement {
+}: ChainIconProps & { mode: 'ignore' | 'smart' | 'available' | 'all' }): React.ReactElement {
   if (mode === 'all') return <ChainAllIcon {...props} />
   if (mode === 'ignore') return <ChainBrokenIcon {...props} />
+  if (mode === 'smart') return <ChainSmartIcon {...props} />
   return <ChainAutoIcon {...props} />
 }

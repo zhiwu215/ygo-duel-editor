@@ -3,6 +3,7 @@ import { Check } from 'lucide-react'
 import { TimingPolicy } from '@shared/index'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { Button } from '../ui/button'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,18 +20,23 @@ type EffectYnPolicy = TimingPolicy['effectYn']
 
 const CHAIN_MODES: { value: ChainPolicy; label: string; description: string }[] = [
   {
+    value: 'smart',
+    label: '智能连锁',
+    description: '仅在关键时点询问（可选诱发、连锁结算中），其余窗口自动通过'
+  },
+  {
     value: 'available',
-    label: '自动时点',
-    description: '有卡可连锁时才询问，无卡可连时自动放弃'
+    label: '可用连锁',
+    description: '只要有可连锁候选就停下询问'
   },
   {
     value: 'all',
-    label: '全部时点',
-    description: '每个连锁时点都停下询问（含无卡可连）'
+    label: '全部连锁',
+    description: '每个连锁窗口都停下询问，无候选也确认'
   },
   {
     value: 'ignore',
-    label: '忽略时点',
+    label: '忽略连锁',
     description: '无强制效果时从不询问连锁'
   }
 ]
@@ -69,48 +75,50 @@ export const ChainModeToggle: React.FC = () => {
         <ChainModeIcon mode={timingPolicy.chain} size={14} />
         <span className="hidden sm:inline">{current.label}</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="end" className="w-64">
+      <DropdownMenuContent side="top" align="end" className="w-48">
         <DropdownMenuGroup>
           <DropdownMenuLabel>连锁时点</DropdownMenuLabel>
           {CHAIN_MODES.map((mode) => (
-            <DropdownMenuItem
-              key={mode.value}
-              className="items-start gap-2"
-              onClick={() => update({ chain: mode.value })}
-            >
-              <ChainModeIcon mode={mode.value} size={14} className="mt-0.5 shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-xs font-semibold">{mode.label}</span>
-                <span className="text-[10px] leading-snug text-muted-foreground">
-                  {mode.description}
-                </span>
-              </span>
-              {timingPolicy.chain === mode.value ? (
-                <Check className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-              ) : null}
-            </DropdownMenuItem>
+            <Tooltip key={mode.value}>
+              <TooltipTrigger
+                render={
+                  <DropdownMenuItem
+                    className="items-center gap-2"
+                    onClick={() => update({ chain: mode.value })}
+                  >
+                    <ChainModeIcon mode={mode.value} size={14} className="shrink-0" />
+                    <span className="text-xs font-semibold">{mode.label}</span>
+                    {timingPolicy.chain === mode.value ? (
+                      <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
+                    ) : null}
+                  </DropdownMenuItem>
+                }
+              />
+              <TooltipContent side="right">{mode.description}</TooltipContent>
+            </Tooltip>
           ))}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuLabel>可选发动效果</DropdownMenuLabel>
           {EFFECT_YN_MODES.map((mode) => (
-            <DropdownMenuItem
-              key={mode.value}
-              className="items-start gap-2"
-              onClick={() => update({ effectYn: mode.value })}
-            >
-              <span className="mt-0.5 w-3.5 shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-xs font-semibold">{mode.label}</span>
-                <span className="text-[10px] leading-snug text-muted-foreground">
-                  {mode.description}
-                </span>
-              </span>
-              {timingPolicy.effectYn === mode.value ? (
-                <Check className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-              ) : null}
-            </DropdownMenuItem>
+            <Tooltip key={mode.value}>
+              <TooltipTrigger
+                render={
+                  <DropdownMenuItem
+                    className="items-center gap-2"
+                    onClick={() => update({ effectYn: mode.value })}
+                  >
+                    <span className="w-3.5 shrink-0" />
+                    <span className="text-xs font-semibold">{mode.label}</span>
+                    {timingPolicy.effectYn === mode.value ? (
+                      <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
+                    ) : null}
+                  </DropdownMenuItem>
+                }
+              />
+              <TooltipContent side="right">{mode.description}</TooltipContent>
+            </Tooltip>
           ))}
         </DropdownMenuGroup>
       </DropdownMenuContent>

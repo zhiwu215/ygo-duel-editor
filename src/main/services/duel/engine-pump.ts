@@ -46,7 +46,9 @@ function resolveAutoResponse(state: SessionState, msg: unknown): Uint8Array | nu
       return null
     }
     if (msg.chains.length === 0) return msg.defaultResponse()
-    return state.timingPolicy.chain === 'ignore' ? msg.defaultResponse() : null
+    if (state.timingPolicy.chain === 'ignore') return msg.defaultResponse()
+    if (state.timingPolicy.chain === 'smart' && msg.specialCount === 0) return msg.defaultResponse()
+    return null
   }
 
   if (msg instanceof YGOProMsgSelectEffectYn && state.timingPolicy.effectYn === 'never') {

@@ -101,7 +101,7 @@ export type RequestData =
     }
 
 export type TimingPolicy = {
-  chain: 'ignore' | 'available' | 'all'
+  chain: 'ignore' | 'smart' | 'available' | 'all'
   effectYn: 'never' | 'ask'
 }
 
@@ -112,7 +112,10 @@ export const DEFAULT_TIMING_POLICY: TimingPolicy = {
 
 export function normalizeTimingPolicy(value?: Partial<TimingPolicy> | null): TimingPolicy {
   const chain =
-    value?.chain === 'ignore' || value?.chain === 'available' || value?.chain === 'all'
+    value?.chain === 'ignore' ||
+    value?.chain === 'smart' ||
+    value?.chain === 'available' ||
+    value?.chain === 'all'
       ? value.chain
       : DEFAULT_TIMING_POLICY.chain
   const effectYn = value?.effectYn === 'never' ? 'never' : DEFAULT_TIMING_POLICY.effectYn

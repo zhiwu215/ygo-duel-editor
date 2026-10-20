@@ -12,8 +12,8 @@ interface HandTrayProps {
   controller: 0 | 1
 }
 
-export const HandTray: React.FC<HandTrayProps> = ({ controller }) => {
-  const { state } = useDuelStore()
+const HandTrayBase: React.FC<HandTrayProps> = ({ controller }) => {
+  const state = useDuelStore((s) => s.state)
   const engineBoardState = useDuelEngineStore((s) => s.boardState)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
 
@@ -62,3 +62,5 @@ export const HandTray: React.FC<HandTrayProps> = ({ controller }) => {
     />
   )
 }
+
+export const HandTray = React.memo(HandTrayBase)

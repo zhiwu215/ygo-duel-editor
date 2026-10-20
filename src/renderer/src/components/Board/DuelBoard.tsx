@@ -14,7 +14,8 @@ import { getPileTopCard, getPileCount } from '../../utils/duelBoardQuery'
 import { resolveOwnerScope } from '../../utils/duelistNames'
 
 export const DuelBoard: React.FC = () => {
-  const { state, activeDuelistId } = useDuelStore()
+  const state = useDuelStore((s) => s.state)
+  const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const ruleInfo = MASTER_RULES[state.masterRule]
 

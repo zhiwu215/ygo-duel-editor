@@ -68,7 +68,11 @@ export function getAttackDamageText(attack: DuelStep, damage?: DuelStep): string
   if (value === null || value === 0) return undefined
   const targetPlayer = damage.lpChange?.player ?? (attack.actionPlayer === 0 ? 1 : 0)
   const targetName = targetPlayer === 0 ? '我方' : '对方'
-  return value < 0 ? `${targetName}受到 -${Math.abs(value)}` : `${targetName}回复 +${value}`
+  const lp = damage.lpChange
+  const lpSuffix = lp ? `（LP ${lp.oldLp} → ${lp.newLp}）` : ''
+  return value < 0
+    ? `${targetName}受到 -${Math.abs(value)}${lpSuffix}`
+    : `${targetName}回复 +${value}${lpSuffix}`
 }
 
 export function duelActionLabel(step: Pick<DuelStep, 'actionType' | 'targetPlayer'>): string {
@@ -141,12 +145,47 @@ export function buildTurnStartLp(steps: DuelStep[], startLp: LpPair): Map<number
   return map
 }
 
+function drawRegionEnd(entries: StepEntry[], start: number): number {
+  let end = start
+  while (
+    end < entries.length &&
+    entries[end].step.actionType === 'DRAW' &&
+    (entries[end].step.chainIndex ?? 0) === 0
+  ) {
+    end++
+  }
+  return end
+}
+
+function mergeDrawGroup(
+  entries: StepEntry[],
+  start: number
+): { group: StepEntry[]; runLength: number } | null {
+  const player = entries[start].step.actionPlayer
+  const end = drawRegionEnd(entries, start)
+  let runLength = 0
+  while (start + runLength < end && entries[start + runLength].step.actionPlayer === player) {
+    runLength++
+  }
+  const group = entries.slice(start, start + runLength)
+  for (let i = start + runLength; i < end; i++) {
+    if (entries[i].step.actionPlayer === player) group.push(entries[i])
+  }
+  return group.length >= 2 ? { group, runLength } : null
+}
+
 export function buildGroups(entries: StepEntry[]): StepGroup[] {
   const groups: StepGroup[] = []
+  const mergedIndexes = new Set<number>()
   let cursor = 0
 
   while (cursor < entries.length) {
     const current = entries[cursor]
+
+    if (mergedIndexes.has(current.index)) {
+      cursor++
+      continue
+    }
 
     if ((current.step.chainIndex ?? 0) > 0) {
       let end = cursor + 1
@@ -166,21 +205,11 @@ export function buildGroups(entries: StepEntry[]): StepGroup[] {
     }
 
     if (current.step.actionType === 'DRAW') {
-      let end = cursor + 1
-      while (
-        end < entries.length &&
-        entries[end].step.actionType === 'DRAW' &&
-        entries[end].step.actionPlayer === current.step.actionPlayer
-      ) {
-        end++
-      }
-      if (end - cursor >= 2) {
-        groups.push({
-          kind: 'draw',
-          key: current.step.id,
-          entries: entries.slice(cursor, end)
-        })
-        cursor = end
+      const drawGroup = mergeDrawGroup(entries, cursor)
+      if (drawGroup) {
+        drawGroup.group.forEach((entry) => mergedIndexes.add(entry.index))
+        groups.push({ kind: 'draw', key: current.step.id, entries: drawGroup.group })
+        cursor += drawGroup.runLength
         continue
       }
     }

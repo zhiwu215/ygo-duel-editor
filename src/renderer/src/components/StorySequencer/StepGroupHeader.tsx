@@ -1,6 +1,6 @@
 import React from 'react'
 import { ACTION_TYPE_COLORS, DuelActionType } from '@shared/index'
-import { ArrowRight, ChevronRight, Layers, Link2 } from 'lucide-react'
+import { ArrowRight, ChevronRight, Link2 } from 'lucide-react'
 import { CardImage } from '../ui/CardImage'
 import { cn } from '../../lib/utils'
 
@@ -23,11 +23,7 @@ export interface StepGroupSummary {
 
 const CardThumb: React.FC<{ code?: number; name: string }> = ({ code, name }) => {
   if (!code) {
-    return (
-      <div className="w-7 h-10 rounded border border-dashed border-border/70 flex items-center justify-center shrink-0 text-muted-foreground/50">
-        <Layers className="w-3.5 h-3.5" />
-      </div>
-    )
+    return null
   }
 
   return (

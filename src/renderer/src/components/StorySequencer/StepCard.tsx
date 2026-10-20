@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronUp,
   Crosshair,
-  Layers,
   MessageSquare,
   PlayCircle,
   Trash2,
@@ -74,7 +73,7 @@ export const StepCard: React.FC<StepCardProps> = ({
         )}
       >
         <div className="flex items-center gap-2">
-          {step.cardCode ? (
+          {step.cardCode && (
             <div className="w-9 h-[52px] rounded overflow-hidden border border-border/80 bg-black/60 shrink-0 shadow-sm relative">
               <CardImage
                 code={step.cardCode}
@@ -82,10 +81,6 @@ export const StepCard: React.FC<StepCardProps> = ({
                 alt={displayCardName}
                 className="w-full h-full object-cover"
               />
-            </div>
-          ) : (
-            <div className="w-9 h-[52px] rounded border border-dashed border-border/70 flex items-center justify-center shrink-0 text-muted-foreground/50">
-              <Layers className="w-4 h-4" />
             </div>
           )}
 

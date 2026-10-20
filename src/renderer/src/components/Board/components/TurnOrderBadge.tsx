@@ -48,13 +48,7 @@ export const TurnOrderBadge: React.FC<TurnOrderBadgeProps> = ({
                     : 'bg-muted/50 text-muted-foreground hover:text-foreground border border-border/70 group-hover:border-primary/50'
                 )}
               >
-                {isFirst ? (
-                  <Crown className="w-3 h-3 text-amber-500 shrink-0" />
-                ) : (
-                  <span className="font-mono text-[9px] font-semibold text-muted-foreground">
-                    #
-                  </span>
-                )}
+                {isFirst && <Crown className="w-3 h-3 text-amber-500 shrink-0" />}
                 <span>{orderLabel(currentOrder)}</span>
               </div>
             </SelectTrigger>

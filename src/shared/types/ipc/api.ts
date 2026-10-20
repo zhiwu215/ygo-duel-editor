@@ -18,6 +18,7 @@ import type { EngineSubmitAnswerResult } from '../../engine/protocol'
 import type { EngineSessionFileResult, EngineSessionImportResult } from '../../engine/sessionDoc'
 import type { EngineImportReplayResult } from './engine'
 import {
+  CardImageDirResult,
   CardSearchFilterOptions,
   CardSearchParams,
   CardSearchResult,
@@ -62,6 +63,8 @@ export interface IpcApi {
   getAppVersion: () => Promise<string>
 
   selectYgoDirectory: () => Promise<CdbSelectResult>
+  selectCardImageDirectory: () => Promise<CardImageDirResult>
+  setCardImageDirectory: (dir: string | null) => Promise<boolean>
   getGameLanguageOptions: () => Promise<GameLanguageOption[]>
   setGameLanguage: (languageId: string) => Promise<{ success: boolean; error?: string }>
   addExtraCdb: () => Promise<CdbSelectResult & { paths?: string[]; picsDetected?: boolean }>

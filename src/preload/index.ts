@@ -24,6 +24,9 @@ const api: IpcApi = {
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
 
   selectYgoDirectory: () => ipcRenderer.invoke('config:select-ygo-dir'),
+  selectCardImageDirectory: () => ipcRenderer.invoke('config:select-card-image-dir'),
+  setCardImageDirectory: (dir: string | null) =>
+    ipcRenderer.invoke('config:set-card-image-dir', dir),
   getGameLanguageOptions: () => ipcRenderer.invoke('config:game-language-options'),
   setGameLanguage: (languageId: string) =>
     ipcRenderer.invoke('config:set-game-language', languageId),

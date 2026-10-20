@@ -56,6 +56,31 @@ export class ImageService {
     }
   }
 
+  private hasNumericImages(dir: string): boolean {
+    try {
+      return readdirSync(dir).some((entry) => /^\d+\.(jpe?g|png)$/i.test(entry))
+    } catch {
+      return false
+    }
+  }
+
+  public classifyCardImageDir(dir: string): 'full' | 'art' | 'none' {
+    if (existsSync(join(dir, 'pics')) || existsSync(join(dir, 'expansions', 'pics'))) {
+      return 'full'
+    }
+    if (existsSync(join(dir, 'Picture', 'Art'))) return 'art'
+    if (this.hasNumericImages(dir)) return 'full'
+    return 'none'
+  }
+
+  public resolveCardImageDir(dir: string): string | null {
+    if (existsSync(join(dir, 'pics'))) return join(dir, 'pics')
+    if (existsSync(join(dir, 'expansions', 'pics'))) return join(dir, 'expansions', 'pics')
+    if (existsSync(join(dir, 'Picture', 'Art'))) return join(dir, 'Picture', 'Art')
+    if (this.hasNumericImages(dir)) return dir
+    return null
+  }
+
   public detectPicsDirsFromCdb(cdbPath: string): string[] {
     const dirs: string[] = []
     let dir = dirname(cdbPath)
@@ -71,6 +96,10 @@ export class ImageService {
   public getPicsDirectories(): string[] {
     const cfg = configService.get()
     const dirs: string[] = []
+
+    if (cfg.cardImageDirectory && existsSync(cfg.cardImageDirectory)) {
+      dirs.push(cfg.cardImageDirectory)
+    }
 
     this.collectPicsDirs(cfg.gameDirectory, dirs)
 

@@ -53,6 +53,19 @@ export class YgoproLauncher {
     return res.filePaths[0]
   }
 
+  public async selectCardImageDirectory(window?: BrowserWindow): Promise<string | null> {
+    const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
+      title: '选择卡图目录 (YGOPro 的 pics 文件夹，或包含 pics / Picture\\Art 的游戏目录)',
+      properties: ['openDirectory']
+    })
+
+    if (res.canceled || res.filePaths.length === 0) {
+      return null
+    }
+
+    return res.filePaths[0]
+  }
+
   private locateYgoproExe(gameDir: string): string | null {
     const candidates = [join(gameDir, 'ygopro.exe'), join(gameDir, 'ygopro')]
     for (const p of candidates) {

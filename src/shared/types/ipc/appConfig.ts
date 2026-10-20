@@ -34,6 +34,8 @@ export interface AppConfig {
 
   dataDirectory?: string
 
+  cardImageDirectory?: string
+
   projectSeries?: string[]
 
   timingPolicy?: TimingPolicy

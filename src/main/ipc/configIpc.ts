@@ -14,6 +14,7 @@ import {
   resolveGameLanguagePack
 } from '../services/gameContent'
 import { invalidateScriptReaders } from '../services/duel/ocgcore-engine'
+import { imageService } from '../services/imageService'
 import { ygoproLauncher } from '../services/ygoproLauncher'
 import { broadcastToWindows } from '../services/broadcast'
 import { enabledExtraPaths } from './cdbIpc'
@@ -116,7 +117,41 @@ export function registerConfigIpc(): void {
     })
     invalidateScriptReaders()
     broadcastToWindows('cdb:updated')
-    return { success: true, path: dir, languageOptions: askLanguage ? options : undefined }
+    return {
+      success: true,
+      path: dir,
+      languageOptions: askLanguage ? options : undefined,
+      artOnlyImages: gameType === 'mdpro3' && imageService.classifyCardImageDir(dir) === 'art'
+    }
+  })
+
+  ipcMain.handle('config:select-card-image-dir', async () => {
+    const dir = await ygoproLauncher.selectCardImageDirectory()
+    if (!dir) {
+      return { success: false, canceled: true }
+    }
+    const picsDir = imageService.resolveCardImageDir(dir)
+    if (!picsDir) {
+      return {
+        success: false,
+        error:
+          '未在该目录下找到卡图：请选择 YGOPro 的 pics 文件夹，或包含 pics / Picture\\Art 的游戏目录'
+      }
+    }
+    configService.save({ cardImageDirectory: picsDir })
+    broadcastToWindows('image:updated')
+    return { success: true, path: picsDir }
+  })
+
+  ipcMain.handle('config:set-card-image-dir', async (_, dir: string | null) => {
+    try {
+      configService.save({ cardImageDirectory: dir || undefined })
+      broadcastToWindows('image:updated')
+      return true
+    } catch (err) {
+      console.error('[registerConfigIpc] set card image dir failed:', err)
+      return false
+    }
   })
 
   ipcMain.handle('config:game-language-options', () => {

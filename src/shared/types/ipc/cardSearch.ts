@@ -80,6 +80,15 @@ export interface CdbSelectResult {
   path?: string
   error?: string
   languageOptions?: GameLanguageOption[]
+
+  artOnlyImages?: boolean
+}
+
+export interface CardImageDirResult {
+  success: boolean
+  canceled?: boolean
+  path?: string
+  error?: string
 }
 
 export type CdbLibrarySource = 'primary' | 'bundled' | 'extra' | 'language'

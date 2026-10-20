@@ -1,5 +1,5 @@
 import { type JSX } from 'react'
-import { Folder, Languages } from 'lucide-react'
+import { Folder, Images, Languages, RotateCcw } from 'lucide-react'
 import { useConfigStore } from '../../../stores/useConfigStore'
 import { useYgoDirSelect } from '../../../hooks/useYgoDirSelect'
 import { openGameLanguageDialog } from '../../../stores/useGameLanguageStore'
@@ -10,12 +10,22 @@ import { SettingsRow } from './SettingsRow'
 export function PathsSection(): JSX.Element {
   const { config } = useConfigStore()
   const selectYgoDir = useYgoDirSelect()
+  const selectCardImageDir = useConfigStore((state) => state.selectCardImageDir)
+  const clearCardImageDir = useConfigStore((state) => state.clearCardImageDir)
   const currentLanguageId =
     config.gameType === 'mdpro3' ? mdpro3LocaleIdFromCdbPath(config.cdbPath) : config.gameLanguage
 
   const openLanguages = async (): Promise<void> => {
     const options = await window.api.getGameLanguageOptions()
     if (options.length > 0) openGameLanguageDialog(options)
+  }
+
+  const imageDirDescription = (): string => {
+    if (config.cardImageDirectory) return `自定义卡图目录：${config.cardImageDirectory}`
+    if (config.gameType === 'mdpro3') {
+      return '未设置，读取 MDPro3 自带的插画 (Picture/Art)。可指定 YGOPro 的 pics 目录获得完整卡面'
+    }
+    return '未设置，读取游戏目录内的卡图 (pics / Picture/Art)'
   }
 
   return (
@@ -45,6 +55,31 @@ export function PathsSection(): JSX.Element {
           <Button size="xs" variant="outline" onClick={() => void selectYgoDir()} className="gap-1">
             <Folder className="w-3.5 h-3.5" />
             <span>{config.gameDirectory ? '更换...' : '设置...'}</span>
+          </Button>
+        </div>
+      </SettingsRow>
+
+      <SettingsRow title="卡图目录" description={imageDirDescription()}>
+        <div className="flex shrink-0 items-center gap-1">
+          {config.cardImageDirectory && (
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => void clearCardImageDir()}
+              className="gap-1"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>恢复默认</span>
+            </Button>
+          )}
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => void selectCardImageDir()}
+            className="gap-1"
+          >
+            <Images className="w-3.5 h-3.5" />
+            <span>{config.cardImageDirectory ? '更换...' : '选择...'}</span>
           </Button>
         </div>
       </SettingsRow>

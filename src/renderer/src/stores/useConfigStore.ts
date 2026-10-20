@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import { AppConfig, CdbLibraryInfo, CdbSelectResult, CustomSyncCdbInfo } from '@shared/index'
+import {
+  AppConfig,
+  CardImageDirResult,
+  CdbLibraryInfo,
+  CdbSelectResult,
+  CustomSyncCdbInfo
+} from '@shared/index'
 import { alertDialog } from './useDialogStore'
 
 interface ConfigStoreState {
@@ -22,6 +28,9 @@ interface ConfigStoreState {
   selectDataDir: (migrate: boolean) => Promise<boolean>
   resetDataDir: (migrate: boolean) => Promise<void>
   openDataDir: () => Promise<void>
+
+  selectCardImageDir: () => Promise<CardImageDirResult>
+  clearCardImageDir: () => Promise<void>
 }
 
 type ThemePreference = AppConfig['theme']
@@ -149,6 +158,30 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     } catch (err) {
       console.error('[useConfigStore] selectYgoDir error:', err)
       return { success: false }
+    }
+  },
+
+  selectCardImageDir: async () => {
+    try {
+      const res = await window.api.selectCardImageDirectory()
+      if (res.success) {
+        await get().loadConfig()
+      } else if (res.error) {
+        void alertDialog(`设置卡图目录失败：${res.error}`)
+      }
+      return res
+    } catch (err) {
+      console.error('[useConfigStore] selectCardImageDir error:', err)
+      return { success: false }
+    }
+  },
+
+  clearCardImageDir: async () => {
+    try {
+      await window.api.setCardImageDirectory(null)
+      await get().loadConfig()
+    } catch (err) {
+      console.error('[useConfigStore] clearCardImageDir error:', err)
     }
   },
 

@@ -97,7 +97,7 @@ export class ImageService {
     const cfg = configService.get()
     const dirs: string[] = []
 
-    if (cfg.cardImageDirectory && existsSync(cfg.cardImageDirectory)) {
+    if (cfg.gameType === 'mdpro3' && cfg.cardImageDirectory && existsSync(cfg.cardImageDirectory)) {
       dirs.push(cfg.cardImageDirectory)
     }
 

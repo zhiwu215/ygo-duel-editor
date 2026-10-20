@@ -4,7 +4,6 @@ import { DeckData } from '@shared/index'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useConfigStore } from '../../stores/useConfigStore'
 import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { resolveViewerDuelist } from '../../utils/duelistNames'
 import { CardImage } from '../ui/CardImage'
@@ -32,8 +31,6 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
   const [decks, setDecks] = useState<DeckData[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [query, setQuery] = useState<string>('')
-  const drawCount: 0 | 5 = useConfigStore((s) => (s.config.deckLoadDrawCount === 5 ? 5 : 0))
-  const setDeckLoadDrawCount = useConfigStore((s) => s.setDeckLoadDrawCount)
 
   const [deckMenu, setDeckMenu] = useState<{ x: number; y: number; deck: DeckData } | null>(null)
   const deckMenuRef = useRef<HTMLDivElement>(null)
@@ -84,7 +81,7 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
       closeDeckSwitcher()
       return
     }
-    applyDeckToPlayer(controller, deck, drawCount, targetDuelist?.id)
+    applyDeckToPlayer(controller, deck, targetDuelist?.id)
     closeDeckSwitcher()
   }
 
@@ -145,27 +142,6 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
         </div>
 
         <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/20 shrink-0">
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span>载入手牌</span>
-            <div className="flex items-center rounded-md border border-border overflow-hidden">
-              {([0, 5] as const).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => void setDeckLoadDrawCount(n)}
-                  className={cn(
-                    'px-2.5 py-0.5 text-[11px] transition-colors cursor-pointer',
-                    drawCount === n
-                      ? 'bg-primary/15 text-primary font-bold'
-                      : 'text-muted-foreground hover:bg-muted'
-                  )}
-                >
-                  {n === 0 ? '无' : '抽 5'}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="relative flex-1 max-w-xs">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input

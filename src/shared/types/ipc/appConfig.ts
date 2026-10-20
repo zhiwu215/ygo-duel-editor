@@ -34,8 +34,6 @@ export interface AppConfig {
 
   dataDirectory?: string
 
-  deckLoadDrawCount?: 0 | 5
-
   projectSeries?: string[]
 
   timingPolicy?: TimingPolicy

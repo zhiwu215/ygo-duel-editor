@@ -22,8 +22,6 @@ interface ConfigStoreState {
   selectDataDir: (migrate: boolean) => Promise<boolean>
   resetDataDir: (migrate: boolean) => Promise<void>
   openDataDir: () => Promise<void>
-
-  setDeckLoadDrawCount: (drawCount: 0 | 5) => Promise<void>
 }
 
 type ThemePreference = AppConfig['theme']
@@ -135,11 +133,6 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     } catch (err) {
       console.error('[useConfigStore] openDataDir error:', err)
     }
-  },
-
-  setDeckLoadDrawCount: async (drawCount) => {
-    set((state) => ({ config: { ...state.config, deckLoadDrawCount: drawCount } }))
-    await window.api.saveConfig({ deckLoadDrawCount: drawCount })
   },
 
   selectYgoDir: async () => {

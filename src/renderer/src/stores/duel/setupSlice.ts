@@ -200,7 +200,7 @@ export interface SetupSlice {
     clearExisting: boolean
   }) => void
 
-  applyDeckToPlayer: (player: 0 | 1, deck: DeckData, drawCount?: number, duelistId?: string) => void
+  applyDeckToPlayer: (player: 0 | 1, deck: DeckData, duelistId?: string) => void
 }
 
 export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (set, get) => ({
@@ -245,7 +245,7 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
       }
     }),
 
-  applyDeckToPlayer: (player, deck, drawCount = 0, duelistId) => {
+  applyDeckToPlayer: (player, deck, duelistId) => {
     set((prev) => {
       const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === player)
       const multi = teamDuelists.length > 1
@@ -278,25 +278,8 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
       )
 
       const newCards: FieldCard[] = []
-      const totalMain = deck.main.length
-      const actualDraw = Math.min(drawCount, totalMain)
 
-      for (let i = 0; i < actualDraw; i++) {
-        const code = deck.main[i]
-        newCards.push({
-          instanceId: `inst_${Date.now()}_h_${i}_${Math.random().toString(36).slice(2, 6)}`,
-          code,
-          controller: player,
-          owner: player,
-          location: CardLocation.HAND,
-          sequence: i,
-          position: CardPosition.FACEDOWN,
-          overlayMaterials: [],
-          duelistId: assignDuelistId
-        })
-      }
-
-      for (let i = actualDraw; i < totalMain; i++) {
+      for (let i = 0; i < deck.main.length; i++) {
         const code = deck.main[i]
         newCards.push({
           instanceId: `inst_${Date.now()}_d_${i}_${Math.random().toString(36).slice(2, 6)}`,
@@ -304,7 +287,7 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
           controller: player,
           owner: player,
           location: CardLocation.DECK,
-          sequence: i - actualDraw,
+          sequence: i,
           position: CardPosition.FACEDOWN,
           overlayMaterials: [],
           duelistId: assignDuelistId
@@ -347,7 +330,8 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
         },
 
         selectedCardId: null,
-        hoveredCard: null
+        hoveredCard: null,
+        duelStarted: isDuelStarted({ cards: nextCards, steps: prev.state.steps })
       }
     })
     fillMissingCardData(get)

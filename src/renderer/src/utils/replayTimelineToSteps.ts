@@ -11,6 +11,8 @@ import { mapPhaseToDuelPhase } from '../stores/duelEngine/boardReconcile'
 
 interface ReplayCardMove {
   code: number
+  fromController?: 0 | 1
+  toController?: 0 | 1
   fromLocation?: number
   fromSequence?: number
   toLocation: number
@@ -58,6 +60,8 @@ function findReplayCardMove(
     if (before && before.location === card.location && before.sequence === card.sequence) continue
     const move: ReplayCardMove = {
       code: card.code,
+      fromController: before?.controller,
+      toController: card.controller,
       fromLocation: before?.location,
       fromSequence: before?.sequence,
       toLocation: card.location,
@@ -138,6 +142,8 @@ export function buildReplaySteps(timeline: EngineTimelineNode[]): DuelStep[] {
       fromSequence: move?.fromSequence,
       toLocation: move?.toLocation,
       toSequence: move?.toSequence,
+      fromController: move?.fromController,
+      toController: move?.toController,
       description: describeReplayStep(move, node)
     }
   })

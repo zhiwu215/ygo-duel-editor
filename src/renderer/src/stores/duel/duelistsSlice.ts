@@ -64,7 +64,7 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
         selectedCardId: null,
         currentStepIndex: null,
         currentTurn: 1,
-        currentPhase: 'M1' as const,
+        currentPhase: 'DP' as const,
         currentChain: 0
       }
 

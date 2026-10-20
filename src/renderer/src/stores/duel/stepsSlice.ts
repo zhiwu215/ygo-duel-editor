@@ -223,7 +223,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   selectedStepId: null,
 
   currentTurn: 1,
-  currentPhase: 'M1',
+  currentPhase: 'DP',
   currentChain: 0,
   activeTurnPlayer: 0,
 

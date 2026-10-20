@@ -37,7 +37,7 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
     set({
       state: normalized,
       currentTurn: 1,
-      currentPhase: 'M1',
+      currentPhase: 'DP',
       currentChain: 0,
       activeTurnPlayer: normalized.turnPlayer ?? 0,
       selectedCardId: null,

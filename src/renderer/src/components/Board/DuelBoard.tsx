@@ -17,6 +17,7 @@ export const DuelBoard: React.FC = () => {
   const state = useDuelStore((s) => s.state)
   const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const ruleInfo = MASTER_RULES[state.masterRule]
 
   const { viewportRef, wrapperRef, boardRef, scale, naturalW } = useBoardAutoScale()
@@ -205,9 +206,11 @@ export const DuelBoard: React.FC = () => {
         </div>
       </div>
 
-      <div className="relative z-20 flex shrink-0 items-center justify-end gap-2 border-t border-border/60 bg-card/50 px-3 py-1">
-        <ChainModeToggle />
-      </div>
+      {isEngineActive && !replayInfo && (
+        <div className="relative z-20 flex shrink-0 items-center justify-end gap-2 border-t border-border/60 bg-card/50 px-3 py-1">
+          <ChainModeToggle />
+        </div>
+      )}
 
       <DuelBoardOverlays />
     </div>

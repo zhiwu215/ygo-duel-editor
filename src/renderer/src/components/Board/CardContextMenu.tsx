@@ -9,7 +9,6 @@ import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
 import { useStagingStore } from '../../stores/useStagingStore'
 import { CardLocation, LOCATION_NAMES } from '@shared/index'
 import { deriveCardEngineActions } from '../../utils/engineActions'
-import { resolveCardName } from '../../utils/cardNames'
 import {
   buildDuelActionItems,
   buildEngineEditItems,
@@ -19,16 +18,7 @@ import {
   type MenuItemConfig
 } from '../../utils/cardMenuItems'
 import { ZoneContextMenu } from './components/ZoneContextMenu'
-import {
-  Ghost,
-  Sliders,
-  Zap,
-  History,
-  ArrowLeftRight,
-  ListOrdered,
-  Trash2,
-  SquarePen
-} from 'lucide-react'
+import { Ghost, Zap, History, ArrowLeftRight, ListOrdered, Trash2, SquarePen } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
 import { resolveDuelistDeck } from '../../utils/duelistNames'
@@ -178,10 +168,6 @@ export const CardContextMenu: React.FC = () => {
       className="fixed z-[60] min-w-48 max-w-56 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-52">
-        {resolveCardName(card.code)}
-      </div>
-
       {duelActionItems.length > 0 && (
         <>
           <div className="px-2 py-0.5 text-[9px] font-bold text-amber-500/90 tracking-wide uppercase flex items-center gap-1 select-none">
@@ -284,7 +270,6 @@ export const CardContextMenu: React.FC = () => {
             })}
             className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
           >
-            <Sliders className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             <span>攻守与指示物 (Shift+点击)</span>
           </Button>
           <Separator className="my-1" />

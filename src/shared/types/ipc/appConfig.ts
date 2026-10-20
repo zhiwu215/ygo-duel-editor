@@ -12,6 +12,10 @@ export interface AppConfig {
 
   gameType?: 'ygopro' | 'mdpro3'
 
+  gameLanguage?: string
+
+  preferredLanguage?: string
+
   cdbPath?: string
 
   extraCdbPaths?: string[]
@@ -29,8 +33,6 @@ export interface AppConfig {
   recentProjectPaths?: string[]
 
   dataDirectory?: string
-
-  projectsDirectory?: string
 
   deckLoadDrawCount?: 0 | 5
 

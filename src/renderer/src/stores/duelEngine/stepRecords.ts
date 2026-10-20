@@ -15,6 +15,15 @@ export function clearEngineSteps(): void {
   engineSteps.clear()
 }
 
+export function clearEditorSteps(): void {
+  useDuelStore.setState((prev) => ({
+    ...prev,
+    currentStepIndex: null,
+    selectedStepId: null,
+    state: { ...prev.state, steps: [] }
+  }))
+}
+
 export function findHostStep(
   node: EngineTimelineNode,
   timeline: EngineTimelineNode[]

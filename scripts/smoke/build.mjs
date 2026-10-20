@@ -24,7 +24,9 @@ const shimPlugin = {
   name: 'smoke-shims',
   setup(build) {
     build.onResolve({ filter: /^\.\.\/\.\.\/db\/cdbService$/ }, () => ({ path: cdbShimPath }))
-    build.onResolve({ filter: /^\.\.\/configService$/ }, () => ({ path: configShimPath }))
+    build.onResolve({ filter: /^(\.\.\/|\.\.\/\.\.\/|\.\/)configService$/ }, () => ({
+      path: configShimPath
+    }))
     build.onResolve({ filter: /^\.\/ocgcore-engine$/ }, () => ({ path: engineShimPath }))
   }
 }
@@ -41,18 +43,21 @@ const commonOptions = {
     'ygopro-msg-encode': path.join(root, 'node_modules/ygopro-msg-encode/dist/index.cjs')
   },
   plugins: [shimPlugin],
-  external: ['koishipro-core.js', 'sql.js', 'ygopro-msg-encode'],
+  external: ['koishipro-core.js', 'sql.js', 'ygopro-msg-encode', 'better-sqlite3'],
   logLevel: 'info'
 }
 
 const entries = [
   'field-reader-main',
+  'language-pack-smoke',
+  'real-language-smoke',
   'session-smoke',
   'attack-smoke',
   'atk-propagation-smoke',
   'inject-smoke',
   'renderer-inject-smoke',
   'renderer-repos-smoke',
+  'renderer-turn-steps-smoke',
   'hand-shuffle-smoke',
   'policy-smoke',
   'provenance-smoke',
@@ -61,7 +66,10 @@ const entries = [
   'replay-import-smoke',
   'hand-idle-smoke',
   'hand-menu-smoke',
-  'deck-dup-smoke'
+  'deck-dup-smoke',
+  'engine-start-dup-smoke',
+  'turn-progression-smoke',
+  'editor-battle-smoke'
 ]
 
 let failed = 0

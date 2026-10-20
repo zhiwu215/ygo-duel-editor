@@ -12,18 +12,18 @@ interface CardNoteAdderProps {
   onSave: (
     cardCode: number,
     kind: CardNoteKind,
-    label: string,
+    title: string,
     text: string,
     source?: string
   ) => Promise<boolean>
 
-  existingLabelsFor: (cardCode: number, kind: CardNoteKind) => string[]
+  existingTitlesFor: (cardCode: number, kind: CardNoteKind) => string[]
   onClose: () => void
 }
 
 export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
   onSave,
-  existingLabelsFor,
+  existingTitlesFor,
   onClose
 }) => {
   const [keyword, setKeyword] = useState('')
@@ -70,11 +70,11 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
       <CardNoteEditor
         cardName={`${picked.name} [${picked.id}]`}
         kind="chant"
-        initial={{ label: '', text: '' }}
+        initial={{ title: '', text: '' }}
         kindEditable
-        existingLabelsForKind={(k) => existingLabelsFor(picked.id, k)}
-        onSave={(label, text, k, source) =>
-          onSave(picked.id, k, label, text, source).then((ok) => {
+        existingTitlesForKind={(k) => existingTitlesFor(picked.id, k)}
+        onSave={(title, text, k, source) =>
+          onSave(picked.id, k, title, text, source).then((ok) => {
             if (ok) onClose()
             return ok
           })

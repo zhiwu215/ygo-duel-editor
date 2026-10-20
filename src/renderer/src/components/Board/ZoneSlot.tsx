@@ -8,6 +8,7 @@ import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useTokenStore } from '../../stores/useTokenStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStagingStore } from '../../stores/useStagingStore'
+import { useHeldCardStore } from '../../stores/useHeldCardStore'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { DropHintPopover } from './components/DropHintPopover'
 import { useDeckZoneInteraction } from '../../hooks/useDeckZoneInteraction'
@@ -100,6 +101,8 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const openZoneMenu = useContextMenuStore((s) => s.openZoneMenu)
   const pendingToken = useTokenStore((s) => s.pendingToken)
   const cancelPendingToken = useTokenStore((s) => s.cancelPending)
+  const heldCardInstanceId = useHeldCardStore((s) => s.instanceId)
+  const releaseHeldCard = useHeldCardStore((s) => s.release)
   const [isOver, setIsOver] = useState(false)
   const { cancelDeckDraw, scheduleDeckDraw } = useDeckZoneInteraction(controller)
 
@@ -151,6 +154,32 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       duelistId
     )
     cancelPendingToken()
+    return true
+  }
+
+  const placeHeldCard = (e: React.MouseEvent): boolean => {
+    if (!heldCardInstanceId) return false
+    e.preventDefault()
+    e.stopPropagation()
+    releaseHeldCard()
+    if (!canEditLocally) return true
+    const heldCard = useDuelStore
+      .getState()
+      .state.cards.find((c) => c.instanceId === heldCardInstanceId)
+    if (!heldCard) return true
+    const toSequence = isPileZone
+      ? location === CardLocation.DECK || location === CardLocation.EXTRA
+        ? 0
+        : (count ?? 0)
+      : sequence
+    moveCard(
+      heldCard.instanceId,
+      location,
+      toSequence,
+      controller,
+      getDropPosOverride(location, e.ctrlKey),
+      duelistId || card?.duelistId
+    )
     return true
   }
 
@@ -302,6 +331,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClickCapture={(e) => {
+        if (placeHeldCard(e)) return
         if (location !== CardLocation.DECK) return
         if (!canEditLocally) return
         if (isFromZoneBadge(e)) return
@@ -347,21 +377,25 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         isEnginePlaceTarget
           ? 'ring-2 ring-amber-400 bg-amber-500/10 border-amber-400/60 cursor-pointer animate-pulse'
           : ''
+      } ${
+        heldCardInstanceId ? 'cursor-pointer hover:ring-2 hover:ring-primary/70' : ''
       } ${className}`}
       title={
         isTokenDropTarget
           ? `点击放下「${pendingToken.name}」`
-          : location === CardLocation.DECK
-            ? isEngineActive
-              ? '双击展开卡组列表'
-              : '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
-            : card &&
-                ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
-                  (card.overlayMaterials && card.overlayMaterials.length > 0))
-              ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
-              : isPileZone && count !== undefined && count > 0
-                ? '双击直接查看列表'
-                : undefined
+          : heldCardInstanceId
+            ? '点击将手上的卡片放到这里'
+            : location === CardLocation.DECK
+              ? isEngineActive
+                ? '双击展开卡组列表'
+                : '单击抽 1 张 · 双击展开卡组列表 · 右键切换卡组'
+              : card &&
+                  ((card.card ? CardUtils.isXyz(card.card.type) : false) ||
+                    (card.overlayMaterials && card.overlayMaterials.length > 0))
+                ? `双击查看超量素材列表 (当前 ${card.overlayMaterials?.length || 0} 张)`
+                : isPileZone && count !== undefined && count > 0
+                  ? '双击直接查看列表'
+                  : undefined
       }
     >
       {count !== undefined && count > 0 && (

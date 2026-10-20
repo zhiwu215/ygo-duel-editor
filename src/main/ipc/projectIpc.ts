@@ -11,8 +11,8 @@ export function registerProjectIpc(): void {
     return luaFileIo.exportLuaFile(state, targetPath)
   })
 
-  ipcMain.handle('file:test-in-ygo', (_, state: DuelPuzzleState) => {
-    return ygoproLauncher.testInGame(state)
+  ipcMain.handle('file:test-in-ygo', (_, state: DuelPuzzleState, force?: boolean) => {
+    return ygoproLauncher.testInGame(state, force ?? false)
   })
 
   ipcMain.handle('file:import-lua', async () => {
@@ -67,18 +67,6 @@ export function registerProjectIpc(): void {
 
   ipcMain.handle('file:reveal-file', async (_, filePath: string) => {
     return projectFileService.revealFileInFolder(filePath)
-  })
-
-  ipcMain.handle('file:get-projects-dir', async () => {
-    return projectFileService.getProjectsDirectory()
-  })
-
-  ipcMain.handle('file:open-projects-dir', async () => {
-    return projectFileService.openProjectsDirectory()
-  })
-
-  ipcMain.handle('file:select-projects-dir', async () => {
-    return projectFileService.selectProjectsDirectory()
   })
 
   ipcMain.handle('file:create-project-series', async (_, name: string) => {

@@ -1,7 +1,7 @@
 import { dialog, BrowserWindow, app } from 'electron'
 import { spawn } from 'child_process'
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'fs'
+import { basename, join } from 'path'
 import { YGOProYrp } from 'ygopro-yrp-encode'
 import { YGOProYrp3d } from 'ygopro-yrp3d-encode'
 import { YGOProMessages, YGOProStocReplay } from 'ygopro-msg-encode'
@@ -9,10 +9,12 @@ import {
   DuelPuzzleState,
   generateLuaScript,
   EngineExportReplayParams,
-  EngineExportReplayResult
+  EngineExportReplayResult,
+  TestInGameResult
 } from '@shared/index'
 import { configService } from './configService'
 import { duelDirector } from './duel/duel-director'
+import { checkGameContentCoverage, collectStateCardIds, isGameProgramName } from './gameContent'
 import { buildYrpSingleFile, DUEL_PSEUDO_SHUFFLE } from './yrpWriter'
 import { sanitizeFileName, sanitizeProjectFileName } from '../utils/fileName'
 import { toErrorMessage } from '../utils/errors'
@@ -21,7 +23,7 @@ import { completeCardDetails } from './completeCardDetails'
 export class YgoproLauncher {
   public async selectGameDirectory(window?: BrowserWindow): Promise<string | null> {
     const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-      title: '选择 YGO 游戏主目录 (即 ygopro.exe 所在的文件夹，选择后自动读取其中的 cards.cdb)',
+      title: '选择 YGO 游戏主目录 (选择后自动识别游戏类型，并读取其中的卡库与本地卡图)',
       properties: ['openDirectory']
     })
 
@@ -38,11 +40,10 @@ export class YgoproLauncher {
     return null
   }
 
-  public async selectExtraCdb(window?: BrowserWindow): Promise<string | null> {
+  public async selectExtraPack(window?: BrowserWindow): Promise<string | null> {
     const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-      title: '选择附加卡库 (.cdb，例如动漫卡库)',
-      properties: ['openFile'],
-      filters: [{ name: '卡库文件', extensions: ['cdb'] }]
+      title: '选择内容包文件夹 (自动读取其中的卡库 .cdb，并跟随其卡图与脚本)',
+      properties: ['openDirectory']
     })
 
     if (res.canceled || res.filePaths.length === 0) {
@@ -52,30 +53,6 @@ export class YgoproLauncher {
     return res.filePaths[0]
   }
 
-  public locateCardsCdb(gameDir: string, gameType?: 'ygopro' | 'mdpro3'): string | null {
-    if (gameType === 'mdpro3') {
-      const localesDir = join(gameDir, 'Data', 'locales')
-      const zhCn = join(localesDir, 'zh-CN', 'cards.cdb')
-      if (existsSync(zhCn)) return zhCn
-      try {
-        for (const entry of readdirSync(localesDir)) {
-          const candidate = join(localesDir, entry, 'cards.cdb')
-          if (existsSync(candidate)) return candidate
-        }
-      } catch {
-        return null
-      }
-      return null
-    }
-    const candidates = [join(gameDir, 'cards.cdb'), join(gameDir, 'expansions', 'cards.cdb')]
-    for (const p of candidates) {
-      if (existsSync(p)) {
-        return p
-      }
-    }
-    return null
-  }
-
   private locateYgoproExe(gameDir: string): string | null {
     const candidates = [join(gameDir, 'ygopro.exe'), join(gameDir, 'ygopro')]
     for (const p of candidates) {
@@ -83,7 +60,7 @@ export class YgoproLauncher {
     }
     try {
       for (const file of readdirSync(gameDir)) {
-        if (/(ygo|gopro|pro)\.exe$/i.test(file)) {
+        if (isGameProgramName(file)) {
           return join(gameDir, file)
         }
       }
@@ -93,13 +70,28 @@ export class YgoproLauncher {
     return null
   }
 
-  public testInGame(state: DuelPuzzleState): {
-    success: boolean
-    exePath?: string
-    scriptPath?: string
-    errorCode?: 'no-game-directory' | 'game-not-found'
-    error?: string
-  } {
+  private isEdoproExe(exePath: string): boolean {
+    return /edopro/i.test(basename(exePath))
+  }
+
+  private async checkCoverageOrDeferred(
+    gameDir: string,
+    gameType: 'ygopro' | 'mdpro3',
+    state: DuelPuzzleState,
+    force: boolean
+  ): Promise<{
+    blocked: boolean
+    coverage?: Awaited<ReturnType<typeof checkGameContentCoverage>>
+  }> {
+    if (force) return { blocked: false }
+    const coverage = await checkGameContentCoverage(gameDir, gameType, collectStateCardIds(state))
+    if (coverage.missingDataIds.length === 0 && coverage.missingScriptIds.length === 0) {
+      return { blocked: false }
+    }
+    return { blocked: true, coverage }
+  }
+
+  public async testInGame(state: DuelPuzzleState, force = false): Promise<TestInGameResult> {
     const gameDir = configService.get().gameDirectory
     if (!gameDir) {
       return { success: false, errorCode: 'no-game-directory' }
@@ -110,6 +102,10 @@ export class YgoproLauncher {
       const exePath = join(gameDir, 'MDPro3.exe')
       if (!existsSync(exePath)) {
         return { success: false, errorCode: 'game-not-found', error: gameDir }
+      }
+      const coverage = await this.checkCoverageOrDeferred(gameDir, gameType, state, force)
+      if (coverage.blocked) {
+        return { success: false, errorCode: 'content-missing', coverage: coverage.coverage }
       }
       try {
         completeCardDetails(state)
@@ -142,24 +138,40 @@ export class YgoproLauncher {
       return { success: false, errorCode: 'game-not-found', error: gameDir }
     }
 
+    const coverage = await this.checkCoverageOrDeferred(gameDir, gameType, state, force)
+    if (coverage.blocked) {
+      return { success: false, errorCode: 'content-missing', coverage: coverage.coverage }
+    }
+
     try {
       completeCardDetails(state)
       const luaContent = generateLuaScript(state)
 
-      const dir = join(app.getPath('userData'), 'ygo-test')
-      mkdirSync(dir, { recursive: true })
+      const isEdopro = this.isEdoproExe(exePath)
       const name = sanitizeFileName(state.title).trim() || 'puzzle'
-      const scriptPath = join(dir, `${name}.lua`)
+      let scriptPath: string
+      let args: string[] = []
+      if (isEdopro) {
+        const puzzleDir = join(gameDir, 'puzzles', 'yde-test')
+        rmSync(puzzleDir, { recursive: true, force: true })
+        mkdirSync(puzzleDir, { recursive: true })
+        scriptPath = join(puzzleDir, `${name}.lua`)
+      } else {
+        const dir = join(app.getPath('userData'), 'ygo-test')
+        mkdirSync(dir, { recursive: true })
+        scriptPath = join(dir, `${name}.lua`)
+        args = ['-s', scriptPath]
+      }
       writeFileSync(scriptPath, luaContent, 'utf-8')
 
-      const child = spawn(exePath, ['-s', scriptPath], {
+      const child = spawn(exePath, args, {
         cwd: gameDir,
         detached: true,
         stdio: 'ignore'
       })
       child.unref()
 
-      console.log(`[FileService] Launched ${exePath} -s ${scriptPath}`)
+      console.log(`[FileService] Launched ${exePath} ${args.join(' ')}`)
       return { success: true, exePath, scriptPath }
     } catch (err) {
       console.error('[FileService] Test in ygo failed:', err)
@@ -191,6 +203,16 @@ export class YgoproLauncher {
         `Player ${2 - turnPlayer}`
     ]
     const name = sanitizeProjectFileName(params.state.title || '未命名对局')
+
+    const coverage = await this.checkCoverageOrDeferred(
+      gameDir,
+      gameType,
+      params.state,
+      params.force ?? false
+    )
+    if (coverage.blocked) {
+      return { success: false, errorCode: 'content-missing', coverage: coverage.coverage }
+    }
 
     if (gameType === 'mdpro3') {
       const exePath = join(gameDir, 'MDPro3.exe')
@@ -277,9 +299,10 @@ export class YgoproLauncher {
       })
       writeFileSync(yrpPath, Buffer.from(yrpBytes))
 
+      const isEdopro = this.isEdoproExe(exePath)
       let launched = false
       if (params.launch !== false) {
-        const child = spawn(exePath, ['-r', yrpPath], {
+        const child = spawn(exePath, isEdopro ? [] : ['-r', yrpPath], {
           cwd: gameDir,
           detached: true,
           stdio: 'ignore'
@@ -287,7 +310,15 @@ export class YgoproLauncher {
         child.unref()
         launched = true
       }
-      return { success: true, luaPath, yrpPath, launched }
+      return {
+        success: true,
+        luaPath,
+        yrpPath,
+        launched,
+        manualHint: isEdopro
+          ? `EDOPro 内核不支持通过命令行直接打开回放，录像已保存到游戏目录 replay 下，请在游戏的「观看回放」菜单中选择「${name}」。`
+          : undefined
+      }
     } catch (err) {
       return {
         success: false,

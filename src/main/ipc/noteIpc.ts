@@ -11,12 +11,12 @@ export function registerNoteIpc(): void {
     return cardNoteService.getNotes(cardCode, kind)
   })
 
-  ipcMain.handle('note:save', async (_, note: CardNote) => {
-    return cardNoteService.saveNote(note)
+  ipcMain.handle('note:save', async (_, note: CardNote, originalTitle?: string) => {
+    return cardNoteService.saveNote(note, originalTitle)
   })
 
-  ipcMain.handle('note:delete', async (_, cardCode: number, kind: CardNoteKind, label: string) => {
-    return cardNoteService.deleteNote(cardCode, kind, label)
+  ipcMain.handle('note:delete', async (_, cardCode: number, kind: CardNoteKind, title: string) => {
+    return cardNoteService.deleteNote(cardCode, kind, title)
   })
 
   ipcMain.handle('note:export', async () => {
@@ -29,8 +29,8 @@ export function registerNoteIpc(): void {
 
   ipcMain.handle(
     'note:reorder',
-    async (_, cardCode: number, kind: CardNoteKind, labels: string[]) => {
-      return cardNoteService.reorderNotes(cardCode, kind, labels)
+    async (_, cardCode: number, kind: CardNoteKind, titles: string[]) => {
+      return cardNoteService.reorderNotes(cardCode, kind, titles)
     }
   )
 }

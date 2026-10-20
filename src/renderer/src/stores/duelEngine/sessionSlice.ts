@@ -6,6 +6,7 @@ import { clearIdentities } from './identityMap'
 import {
   appendDiscardNotice,
   clearEngineSteps,
+  clearEditorSteps,
   discardFutureSteps,
   restoreEngineSteps,
   splitTimeline
@@ -65,6 +66,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
 
       const res = await window.api.duelEngineInit(initParams)
       clearEngineSteps()
+      if (!get().isInitialized) clearEditorSteps()
       clearIdentities()
       const timeline = [res.initialNode]
       set({
@@ -213,6 +215,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       const timeline = res.timeline
       const currentStepId = res.currentStepId
       clearEngineSteps()
+      clearEditorSteps()
       clearIdentities()
       useDuelStore.getState().exitPreview()
       set({

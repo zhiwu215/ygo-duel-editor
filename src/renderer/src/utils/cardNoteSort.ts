@@ -6,16 +6,16 @@ export interface DisplayEntry extends CardNoteEntry {
   isCustom?: boolean
 }
 
-export function parseSortId(id: string): { kind: CardNoteKind; label: string } | null {
+export function parseSortId(id: string): { kind: CardNoteKind; title: string } | null {
   const sep = id.indexOf('::')
   if (sep <= 0) return null
   const k = id.slice(0, sep)
   if (k !== 'chant' && k !== 'note') return null
-  return { kind: k as CardNoteKind, label: id.slice(sep + 2) }
+  return { kind: k as CardNoteKind, title: id.slice(sep + 2) }
 }
 
-export function buildSortId(kind: CardNoteKind, label: string): string {
-  return `${kind}::${label}`
+export function buildSortId(kind: CardNoteKind, title: string): string {
+  return `${kind}::${title}`
 }
 
 export function buildDisplayEntries(
@@ -61,7 +61,7 @@ export function filterDisplayEntries(
     return (
       e.cardName.toLowerCase().includes(kw) ||
       String(e.cardCode).includes(kw) ||
-      e.chants.some((c) => c.label.toLowerCase().includes(kw) || c.text.toLowerCase().includes(kw))
+      e.chants.some((c) => c.title.toLowerCase().includes(kw) || c.text.toLowerCase().includes(kw))
     )
   })
 }

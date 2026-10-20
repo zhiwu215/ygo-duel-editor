@@ -1,13 +1,20 @@
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 
-export function collectConfigDirs(cdbPaths: string[], gameDirectory: string | undefined): string[] {
+export function collectConfigDirs(
+  cdbPaths: string[],
+  languageDirs: string[] = [],
+  gameDirectory: string | undefined
+): string[] {
   const dirs: string[] = []
   for (const cdbPath of cdbPaths) {
     const dir = path.dirname(cdbPath)
     dirs.push(dir, path.dirname(dir))
   }
-  if (gameDirectory) dirs.push(gameDirectory)
+  if (gameDirectory) {
+    dirs.push(gameDirectory, path.join(gameDirectory, 'config'))
+  }
+  dirs.push(...languageDirs)
   return [...new Set(dirs.filter((d) => d && d.length > 0))]
 }
 

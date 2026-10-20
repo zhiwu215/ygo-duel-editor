@@ -22,7 +22,8 @@ import {
   CardSearchParams,
   CardSearchResult,
   CdbSelectResult,
-  CdbStatusResult
+  CdbStatusResult,
+  GameLanguageOption
 } from './cardSearch'
 import {
   CustomCardDeleteResult,
@@ -42,7 +43,7 @@ import {
   AgentStreamEvent
 } from './agent'
 import { AppConfig, DataDirectoryResult, SettingsSectionId } from './appConfig'
-import { EngineExportReplayParams, EngineExportReplayResult } from './engine'
+import { EngineExportReplayParams, EngineExportReplayResult, TestInGameResult } from './engine'
 import { DuelProjectMeta } from './project'
 import { CardNote, CardNoteEntry, CardNoteKind } from './note'
 import { TextChapter, TextMeta } from './text'
@@ -61,7 +62,9 @@ export interface IpcApi {
   getAppVersion: () => Promise<string>
 
   selectYgoDirectory: () => Promise<CdbSelectResult>
-  addExtraCdb: () => Promise<CdbSelectResult & { picsDetected?: boolean }>
+  getGameLanguageOptions: () => Promise<GameLanguageOption[]>
+  setGameLanguage: (languageId: string) => Promise<{ success: boolean; error?: string }>
+  addExtraCdb: () => Promise<CdbSelectResult & { paths?: string[]; picsDetected?: boolean }>
   removeExtraCdb: (cdbPath: string) => Promise<{ success: boolean; paths: string[] }>
   setExtraCdbEnabled: (
     cdbPath: string,
@@ -88,13 +91,7 @@ export interface IpcApi {
     state: DuelPuzzleState,
     targetPath?: string
   ) => Promise<{ success: boolean; filePath?: string; error?: string }>
-  testInYgo: (state: DuelPuzzleState) => Promise<{
-    success: boolean
-    exePath?: string
-    scriptPath?: string
-    errorCode?: 'no-game-directory' | 'game-not-found'
-    error?: string
-  }>
+  testInYgo: (state: DuelPuzzleState, force?: boolean) => Promise<TestInGameResult>
   importLuaFile: () => Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }>
   exportScreenplayFile: (
     state: DuelPuzzleState
@@ -152,18 +149,21 @@ export interface IpcApi {
   onScreenplayStateRequested: (callback: () => void) => () => void
   listCardNotes: () => Promise<CardNoteEntry[]>
   getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') => Promise<CardNote[]>
-  saveCardNote: (note: CardNote) => Promise<{ success: boolean; error?: string }>
+  saveCardNote: (
+    note: CardNote,
+    originalTitle?: string
+  ) => Promise<{ success: boolean; error?: string }>
   deleteCardNote: (
     cardCode: number,
     kind: CardNoteKind,
-    label: string
+    title: string
   ) => Promise<{ success: boolean; error?: string }>
   exportCardNoteLibrary: () => Promise<{ success: boolean; filePath?: string; error?: string }>
   importCardNoteLibrary: () => Promise<{ success: boolean; imported?: number; error?: string }>
   reorderCardNotes: (
     cardCode: number,
     kind: CardNoteKind,
-    labels: string[]
+    titles: string[]
   ) => Promise<{ success: boolean; error?: string }>
 
   saveProjectFile: (state: DuelPuzzleState) => Promise<{ success: boolean; filePath?: string }>
@@ -182,9 +182,6 @@ export interface IpcApi {
     filePath: string
   ) => Promise<{ success: boolean; newPath?: string; error?: string }>
   revealFileInFolder: (filePath: string) => Promise<void>
-  getProjectsDirectory: () => Promise<string>
-  openProjectsDirectory: () => Promise<void>
-  selectProjectsDirectory: () => Promise<string | null>
 
   getDefaultDataDirectory: () => Promise<string>
   openDataDirectory: () => Promise<void>

@@ -12,6 +12,7 @@ import { PAGE_SIZE, buildSearchParams } from '../utils/cardSearchQuery'
 export interface CardSearchFilters {
   keyword: string
   searchDesc: boolean
+  onlyFavorites: boolean
   type: number
   subType: number
   attribute: number
@@ -36,6 +37,7 @@ export interface CardSearchFilters {
 export const DEFAULT_FILTERS: CardSearchFilters = {
   keyword: '',
   searchDesc: true,
+  onlyFavorites: false,
   type: 0,
   subType: 0,
   attribute: 0,
@@ -73,6 +75,7 @@ export function countActiveFilters(filters: CardSearchFilters): number {
   if (filters.def !== undefined || filters.defOp === 'unknown') count++
   if (filters.code !== undefined) count++
   if (!filters.searchDesc) count++
+  if (filters.onlyFavorites) count++
   if (filters.sortField !== 'level') count++
   return count
 }
@@ -137,7 +140,7 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
         total: res.total,
         isLoading: false,
         hasSearched: true,
-        hasMore: res.cards.length >= (mergedParams.limit || PAGE_SIZE)
+        hasMore: res.cards.length < res.total
       })
     } catch (err) {
       console.error('[useCardSearchStore] search failed:', err)
@@ -164,12 +167,13 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
 
       const existingIds = new Set(state.results.map((c) => c.id))
       const uniqueNewCards = res.cards.filter((c) => !existingIds.has(c.id))
+      const results = [...state.results, ...uniqueNewCards]
 
       set({
-        results: [...state.results, ...uniqueNewCards],
+        results,
         total: res.total,
         isLoadingMore: false,
-        hasMore: res.cards.length >= PAGE_SIZE
+        hasMore: results.length < res.total
       })
     } catch (err) {
       console.error('[useCardSearchStore] loadMore failed:', err)
@@ -192,6 +196,14 @@ if (typeof window !== 'undefined' && window.api?.onCustomCardsUpdated) {
     bumpCardImageVersion()
     const state = useCardSearchStore.getState()
     if (!state.hasSearched) return
+    void state.search()
+  })
+}
+
+if (typeof window !== 'undefined' && window.api?.onFavoritesChanged) {
+  window.api.onFavoritesChanged(() => {
+    const state = useCardSearchStore.getState()
+    if (!state.hasSearched || !state.onlyFavorites) return
     void state.search()
   })
 }

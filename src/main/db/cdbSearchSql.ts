@@ -1,4 +1,10 @@
-import { CardSearchParams, CardType, NumericCompareOp, cardPoolOtMask } from '@shared/index'
+import {
+  CardSearchParams,
+  CardType,
+  NumericCompareOp,
+  AVAIL_HIDDEN,
+  searchPoolOption
+} from '@shared/index'
 import { COMPARATOR } from './cardSort'
 import { CdbConnection } from './cdbConnections'
 import { parseSearchTokens } from './searchTokens'
@@ -37,7 +43,7 @@ export interface SearchSqlPlan {
   countSql: string
   dataSql: string
   args: (string | number)[]
-  relevanceArgs: (string | number)[]
+  dataArgs: (string | number)[]
   fetchLimit: number
 }
 
@@ -46,7 +52,8 @@ export function buildSearchSql(
   params: CardSearchParams,
   fetchLimit: number,
   setnameMap: Map<number, string>,
-  limitMap: Map<number, 1 | 2 | 3>
+  limitMap: Map<number, 1 | 2 | 3>,
+  favorites?: number[]
 ): SearchSqlPlan {
   const { pick, join: overlayJoin } = textSource(conn)
   const nameExpr = pick('name')
@@ -55,6 +62,7 @@ export function buildSearchSql(
   let baseWhere =
     ` FROM datas d JOIN texts t ON d.id = t.id${overlayJoin} WHERE 1=1` +
     ' AND (d.type & 16384) = 0' +
+    ` AND (d.ot & ${AVAIL_HIDDEN}) = 0` +
     ` AND ${nameExpr} NOT LIKE '%占位符%'` +
     ' AND NOT (' +
     ' (d.type & 7) = 0 AND d.atk = 0 AND d.def = 0 AND (d.level & 255) = 0' +
@@ -183,14 +191,10 @@ export function buildSearchSql(
     args.push(params.effectCategoryMask)
   }
 
-  const poolMask = cardPoolOtMask(params.cardPool)
-  if (params.cardPool === 'ocg') baseWhere += ' AND (d.ot & 1) != 0'
-  else if (params.cardPool === 'tcg') baseWhere += ' AND (d.ot & 2) != 0'
-  else if (params.cardPool === 'ocgOnly') baseWhere += ' AND (d.ot & 1) != 0 AND (d.ot & 2) = 0'
-  else if (params.cardPool === 'tcgOnly') baseWhere += ' AND (d.ot & 2) != 0 AND (d.ot & 1) = 0'
-  else if (poolMask !== undefined) {
-    baseWhere += ' AND (d.ot & ?) != 0'
-    args.push(poolMask)
+  const pool = searchPoolOption(params.cardPool)
+  if (pool) {
+    baseWhere += pool.exact ? ' AND d.ot = ?' : ' AND (d.ot & ?) != 0'
+    args.push(pool.mask)
   }
 
   if (params.limitFilter) {
@@ -211,48 +215,61 @@ export function buildSearchSql(
     args.push(CardType.LINK, params.markers, params.markers)
   }
 
+  if (params.onlyFavorites) {
+    if (!favorites || favorites.length === 0) {
+      baseWhere += ' AND 0=1'
+    } else {
+      baseWhere += ` AND d.id IN (${favorites.map(() => '?').join(',')})`
+      args.push(...favorites)
+    }
+  }
+
   const orderDir = params.sortOrder === 'ASC' ? 'ASC' : 'DESC'
   const groupDir = orderDir === 'ASC' ? 'DESC' : 'ASC'
-  const monsterKey = (column: string): string =>
-    `CASE WHEN (d.type & 7) = 1 THEN ${column} ELSE 0 END ${orderDir}`
-  const typeGroupSql = `(d.type & 7) ${groupDir}`
+  const relExprs = relevanceTokens.map((text) => {
+    relevanceArgs.push(text, `${text}%`, `%${text}%`)
+    return `CASE WHEN ${nameExpr} = ? THEN 0 WHEN ${nameExpr} LIKE ? THEN 1 WHEN ${nameExpr} LIKE ? THEN 2 ELSE 3 END`
+  })
+  const relCase =
+    relExprs.length === 0
+      ? '0'
+      : relExprs.length === 1
+        ? relExprs[0]
+        : `MAX(${relExprs.join(', ')})`
   const subtypeSql =
     `CASE WHEN (d.type & 7) = 1 THEN` +
     ` CASE WHEN (d.type & 0x48020c0) != 0 THEN (d.type & 0x48020c1) ELSE (d.type & 0x31) END` +
-    ` ELSE (d.type & 4294967288) END ${groupDir}`
-  const levelKeySql = monsterKey('(d.level & 255)')
-  const atkKeySql = monsterKey('d.atk')
-  const defKeySql = monsterKey('d.def')
-  const idTailSql = `d.id ${groupDir}`
+    ` ELSE (d.type & 4294967288) END`
+  const keyOrder = (keys: string[]): string =>
+    keys
+      .map((key) => `${key} ${key === 'subKey' || key === 'typeKey' ? groupDir : orderDir}`)
+      .join(', ') + `, d.id ${groupDir}`
   let orderBy: string
   if (params.sortField === 'atk') {
-    orderBy = [typeGroupSql, atkKeySql, defKeySql, levelKeySql, subtypeSql, idTailSql].join(', ')
+    orderBy = keyOrder(['typeKey', 'atkKey', 'defKey', 'levelKey', 'subKey'])
   } else if (params.sortField === 'def') {
-    orderBy = [typeGroupSql, defKeySql, atkKeySql, levelKeySql, subtypeSql, idTailSql].join(', ')
+    orderBy = keyOrder(['typeKey', 'defKey', 'atkKey', 'levelKey', 'subKey'])
   } else if (params.sortField === 'name') {
-    orderBy = `${nameExpr} ${orderDir}, d.id ASC`
+    orderBy = `${nameExpr} COLLATE BINARY ${orderDir}, d.id ASC`
   } else {
-    orderBy = [typeGroupSql, subtypeSql, levelKeySql, atkKeySql, defKeySql, idTailSql].join(', ')
-  }
-
-  if (relevanceTokens.length > 0) {
-    const cases = relevanceTokens.map((text) => {
-      relevanceArgs.push(text, `${text}%`, `%${text}%`)
-      return `CASE WHEN ${nameExpr} = ? THEN 0 WHEN ${nameExpr} LIKE ? THEN 1 WHEN ${nameExpr} LIKE ? THEN 2 ELSE 3 END`
-    })
-    const relevance = cases.length === 1 ? cases[0] : `MAX(${cases.join(', ')})`
-    orderBy = `${relevance}, ${orderBy}`
+    orderBy = keyOrder(['typeKey', 'subKey', 'levelKey', 'atkKey', 'defKey'])
   }
 
   const countSql = `SELECT count(*) as total` + baseWhere
   const dataSql = `
     SELECT
       d.id, d.ot, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, d.category,
-      ${nameExpr} AS name, ${descExpr} AS desc
+      ${nameExpr} AS name, ${descExpr} AS desc,
+      (d.type & 7) AS typeKey,
+      ${subtypeSql} AS subKey,
+      CASE WHEN (d.type & 7) = 1 THEN COALESCE(d.level & 255, -3) ELSE 0 END AS levelKey,
+      CASE WHEN (d.type & 7) = 1 THEN COALESCE(d.atk, -3) ELSE 0 END AS atkKey,
+      CASE WHEN (d.type & 7) = 1 THEN COALESCE(d.def, -3) ELSE 0 END AS defKey,
+      ${relCase} AS relKey
     ${baseWhere}
-    ORDER BY ${orderBy}
+    ORDER BY relKey ASC, ${orderBy}
     LIMIT ?
   `
 
-  return { countSql, dataSql, args, relevanceArgs, fetchLimit }
+  return { countSql, dataSql, args, dataArgs: [...relevanceArgs, ...args], fetchLimit }
 }

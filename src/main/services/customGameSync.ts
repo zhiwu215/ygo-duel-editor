@@ -4,8 +4,8 @@ import { CustomCardSyncResult } from '@shared/index'
 import { configService } from './configService'
 import { customCardService } from './customCardService'
 import { customCdbPath, getCustomScriptInfo } from './customCardLibrary'
-
-const GAME_CDB_NAME = 'custom_cards.cdb'
+import { CUSTOM_CDB_NAME, invalidateGameContentScan } from './gameContent'
+import { broadcastToWindows } from './broadcast'
 
 function filesDiffer(source: string, target: string): boolean {
   try {
@@ -42,7 +42,7 @@ export function syncCustomCardsToGame(): CustomCardSyncResult {
   try {
     const sourceCdb = customCdbPath()
     if (existsSync(sourceCdb)) {
-      result.cdb = placeFile(sourceCdb, join(expansionsDir, GAME_CDB_NAME))
+      result.cdb = placeFile(sourceCdb, join(expansionsDir, CUSTOM_CDB_NAME))
     }
 
     for (const card of customCardService.list()) {
@@ -55,6 +55,8 @@ export function syncCustomCardsToGame(): CustomCardSyncResult {
         if (placeFile(image, join(picsDir, gameImageName(card.id, image)))) result.pics++
       }
     }
+    invalidateGameContentScan(gameDirectory)
+    broadcastToWindows('cdb:updated')
     return result
   } catch (err) {
     console.error('[CustomGameSync] Failed to sync custom cards to game:', err)

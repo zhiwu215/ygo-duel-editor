@@ -26,7 +26,7 @@ export function SortableNoteRow({
   onDelete
 }: SortableNoteRowProps): React.JSX.Element {
   const draggable = !item.readonly
-  const id = buildSortId(kind, item.label)
+  const id = buildSortId(kind, item.title)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
     disabled: !draggable
@@ -56,7 +56,7 @@ export function SortableNoteRow({
             kind === 'chant' ? 'text-foreground' : 'text-foreground/80'
           } truncate flex-1`}
         >
-          {item.label}
+          {item.title}
         </span>
         {item.readonly ? (
           <Tooltip>

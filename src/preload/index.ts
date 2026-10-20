@@ -24,6 +24,9 @@ const api: IpcApi = {
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
 
   selectYgoDirectory: () => ipcRenderer.invoke('config:select-ygo-dir'),
+  getGameLanguageOptions: () => ipcRenderer.invoke('config:game-language-options'),
+  setGameLanguage: (languageId: string) =>
+    ipcRenderer.invoke('config:set-game-language', languageId),
   addExtraCdb: () => ipcRenderer.invoke('cdb:add-extra'),
   removeExtraCdb: (cdbPath: string) => ipcRenderer.invoke('cdb:remove-extra', cdbPath),
   setExtraCdbEnabled: (cdbPath: string, enabled: boolean) =>
@@ -53,7 +56,8 @@ const api: IpcApi = {
 
   exportLuaFile: (state: DuelPuzzleState, targetPath?: string) =>
     ipcRenderer.invoke('file:export-lua', state, targetPath),
-  testInYgo: (state: DuelPuzzleState) => ipcRenderer.invoke('file:test-in-ygo', state),
+  testInYgo: (state: DuelPuzzleState, force?: boolean) =>
+    ipcRenderer.invoke('file:test-in-ygo', state, force),
   importLuaFile: () => ipcRenderer.invoke('file:import-lua'),
   exportScreenplayFile: (state: DuelPuzzleState) =>
     ipcRenderer.invoke('file:export-screenplay-md', state),
@@ -114,13 +118,14 @@ const api: IpcApi = {
   listCardNotes: () => ipcRenderer.invoke('note:list-all'),
   getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') =>
     ipcRenderer.invoke('note:get', cardCode, kind),
-  saveCardNote: (note: CardNote) => ipcRenderer.invoke('note:save', note),
-  deleteCardNote: (cardCode: number, kind: CardNoteKind, label: string) =>
-    ipcRenderer.invoke('note:delete', cardCode, kind, label),
+  saveCardNote: (note: CardNote, originalTitle?: string) =>
+    ipcRenderer.invoke('note:save', note, originalTitle),
+  deleteCardNote: (cardCode: number, kind: CardNoteKind, title: string) =>
+    ipcRenderer.invoke('note:delete', cardCode, kind, title),
   exportCardNoteLibrary: () => ipcRenderer.invoke('note:export'),
   importCardNoteLibrary: () => ipcRenderer.invoke('note:import'),
-  reorderCardNotes: (cardCode: number, kind: CardNoteKind, labels: string[]) =>
-    ipcRenderer.invoke('note:reorder', cardCode, kind, labels),
+  reorderCardNotes: (cardCode: number, kind: CardNoteKind, titles: string[]) =>
+    ipcRenderer.invoke('note:reorder', cardCode, kind, titles),
 
   duelExportReplay: (params: EngineExportReplayParams): Promise<EngineExportReplayResult> =>
     ipcRenderer.invoke('duel:export-replay', params),
@@ -155,9 +160,6 @@ const api: IpcApi = {
   duplicateProjectFile: (filePath: string) =>
     ipcRenderer.invoke('file:duplicate-project-file', filePath),
   revealFileInFolder: (filePath: string) => ipcRenderer.invoke('file:reveal-file', filePath),
-  getProjectsDirectory: () => ipcRenderer.invoke('file:get-projects-dir'),
-  openProjectsDirectory: () => ipcRenderer.invoke('file:open-projects-dir'),
-  selectProjectsDirectory: () => ipcRenderer.invoke('file:select-projects-dir'),
 
   getDefaultDataDirectory: () => ipcRenderer.invoke('data:get-default-dir'),
   openDataDirectory: () => ipcRenderer.invoke('data:open-dir'),

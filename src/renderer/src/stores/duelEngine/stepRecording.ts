@@ -10,6 +10,7 @@ import {
 } from '@shared/index'
 import { resolveCardName } from '../../utils/cardNames'
 import { useDuelStore } from '../useDuelStore'
+import { mapPhaseToDuelPhase } from './boardReconcile'
 import { getEditorId } from './identityMap'
 import { findHostStep, hasEngineStep, recordEngineStep, storeEngineStep } from './stepRecords'
 
@@ -154,12 +155,19 @@ function patchTargetStep(
   })
 }
 
+export interface StepActContext {
+  turn: number
+  turnPlayer: 0 | 1
+  phase: number
+}
+
 export function appendEngineStepFromAnswer(
   answer: Answer,
   node: EngineTimelineNode,
   diff: EngineDiffResult,
   timeline: EngineTimelineNode[],
-  boardState: EngineBoardState | null
+  boardState: EngineBoardState | null,
+  actContext?: StepActContext
 ): void {
   if (answer.kind === 'place') {
     patchPlacementStep(answer, node, timeline)
@@ -193,9 +201,9 @@ export function appendEngineStepFromAnswer(
 
   const duelStoreState = useDuelStore.getState()
   const step: Omit<DuelStep, 'id'> = {
-    turn: duelStoreState.currentTurn,
-    turnPlayer: duelStoreState.activeTurnPlayer,
-    phase: duelStoreState.currentPhase,
+    turn: actContext?.turn ?? duelStoreState.currentTurn,
+    turnPlayer: actContext?.turnPlayer ?? duelStoreState.activeTurnPlayer,
+    phase: actContext ? mapPhaseToDuelPhase(actContext.phase) : duelStoreState.currentPhase,
     actionPlayer: node.player,
     actionType,
     actId: node.id,

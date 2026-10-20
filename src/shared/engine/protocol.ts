@@ -180,6 +180,9 @@ export interface EngineSubmitAnswerResult {
   pendingRequest?: EngineRequest | null
   node?: EngineTimelineNode
   diff?: EngineDiffResult
+  actTurn?: number
+  actTurnPlayer?: 0 | 1
+  actPhase?: number
 }
 
 export interface EngineInjectResult {

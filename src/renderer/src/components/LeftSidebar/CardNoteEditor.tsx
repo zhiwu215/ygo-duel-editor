@@ -10,12 +10,12 @@ interface CardNoteEditorProps {
   cardName: string
   kind: CardNoteKind
 
-  initial: { label: string; text: string; source?: string }
+  initial: { title: string; text: string; source?: string }
 
-  existingLabels?: string[]
-  existingLabelsForKind?: (kind: CardNoteKind) => string[]
+  existingTitles?: string[]
+  existingTitlesForKind?: (kind: CardNoteKind) => string[]
   kindEditable?: boolean
-  onSave: (label: string, text: string, kind: CardNoteKind, source?: string) => Promise<boolean>
+  onSave: (title: string, text: string, kind: CardNoteKind, source?: string) => Promise<boolean>
   onClose: () => void
 }
 
@@ -33,34 +33,34 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   cardName,
   kind,
   initial,
-  existingLabels,
-  existingLabelsForKind,
+  existingTitles,
+  existingTitlesForKind,
   kindEditable,
   onSave,
   onClose
 }) => {
-  const isEdit = Boolean(initial.label)
+  const isEdit = Boolean(initial.title)
   const [activeKind, setActiveKind] = useState<CardNoteKind>(kind)
   const kindSelectorVisible = Boolean(kindEditable) && !isEdit
   const effectiveKind = kindSelectorVisible ? activeKind : kind
   const isChant = effectiveKind === 'chant'
-  const existingLabelList =
-    kindSelectorVisible && existingLabelsForKind
-      ? existingLabelsForKind(effectiveKind)
-      : (existingLabels ?? [])
-  const labelPrefix = isChant ? '召唤词' : '备注'
+  const existingTitleList =
+    kindSelectorVisible && existingTitlesForKind
+      ? existingTitlesForKind(effectiveKind)
+      : (existingTitles ?? [])
+  const titlePrefix = isChant ? '召唤词' : '备注'
   const nextSeq = useMemo(() => {
-    const prefix = `${labelPrefix}-`
+    const prefix = `${titlePrefix}-`
     let max = 0
-    for (const l of existingLabelList) {
-      if (!l.startsWith(prefix)) continue
-      const n = Number(l.slice(prefix.length))
+    for (const t of existingTitleList) {
+      if (!t.startsWith(prefix)) continue
+      const n = Number(t.slice(prefix.length))
       if (Number.isInteger(n) && n > max) max = n
     }
     return max + 1
-  }, [existingLabelList, labelPrefix])
-  const defaultLabel = `${labelPrefix}-${nextSeq}`
-  const [label, setLabel] = useState<string>(initial.label)
+  }, [existingTitleList, titlePrefix])
+  const defaultTitle = `${titlePrefix}-${nextSeq}`
+  const [title, setTitle] = useState<string>(initial.title)
   const [text, setText] = useState<string>(initial.text)
   const [origin, setOrigin] = useState<CardNoteOrigin['id']>(
     initial.source && initial.source.length > 0 ? 'borrowed' : 'original'
@@ -68,21 +68,21 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   const [source, setSource] = useState<string>(initial.source ?? '')
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState<boolean>(false)
-  const labelRef = useRef<HTMLInputElement>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
   const textRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (isEdit) textRef.current?.focus()
     else {
-      labelRef.current?.focus()
-      labelRef.current?.select()
+      titleRef.current?.focus()
+      titleRef.current?.select()
     }
   }, [isEdit])
 
   const handleConfirm = async (): Promise<void> => {
     const trimmedText = text.trim()
-    const trimmedLabel = label.trim() || (!isEdit ? defaultLabel : '')
-    if (!trimmedLabel) {
+    const trimmedTitle = title.trim() || (!isEdit ? defaultTitle : '')
+    if (!trimmedTitle) {
       setError('请填写标题')
       return
     }
@@ -91,13 +91,13 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
       return
     }
 
-    if (!isEdit && existingLabelList.includes(trimmedLabel)) {
-      setError(`已存在「${trimmedLabel}」，保存会覆盖它`)
+    if (!isEdit && existingTitleList.includes(trimmedTitle)) {
+      setError(`已存在「${trimmedTitle}」，请换一个标题`)
       return
     }
     setIsSaving(true)
     const borrowedSource = isChant && origin === 'borrowed' ? source.trim() : ''
-    const ok = await onSave(trimmedLabel, trimmedText, effectiveKind, borrowedSource || undefined)
+    const ok = await onSave(trimmedTitle, trimmedText, effectiveKind, borrowedSource || undefined)
     setIsSaving(false)
     if (ok) onClose()
   }
@@ -186,12 +186,12 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
             {isEdit ? '标题' : '标题（可选）'}
           </span>
           <Input
-            ref={labelRef}
+            ref={titleRef}
             type="text"
-            value={label}
-            placeholder={!isEdit ? `默认：${defaultLabel}` : undefined}
+            value={title}
+            placeholder={!isEdit ? `默认：${defaultTitle}` : undefined}
             onChange={(e) => {
-              setLabel(e.target.value)
+              setTitle(e.target.value)
               setError(null)
             }}
             onKeyDown={(e) => {

@@ -1,5 +1,5 @@
 import React from 'react'
-import { ACTION_TYPE_COLORS, ACTION_TYPE_NAMES, DuelStep, PHASE_SHORT_NAMES } from '@shared/index'
+import { ACTION_TYPE_COLORS, DuelStep, PHASE_SHORT_NAMES } from '@shared/index'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import { Button } from '../ui/button'
@@ -7,7 +7,7 @@ import { CardImage } from '../ui/CardImage'
 import { Film, Plus, Layers, MessageSquare } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { stepCardName } from '../../utils/cardNames'
-import { isFirstInPhase, isFirstInTurn } from './stepGrouping'
+import { duelActionLabel, isFirstInPhase, isFirstInTurn } from './stepGrouping'
 
 interface ScreenplayOutlineListProps {
   steps: DuelStep[]
@@ -55,7 +55,7 @@ export const ScreenplayOutlineList: React.FC<ScreenplayOutlineListProps> = ({
 
               const hasScript = Boolean(s.dialogue || s.speaker || s.innerThoughts)
               const color = ACTION_TYPE_COLORS[s.actionType]
-              const actName = ACTION_TYPE_NAMES[s.actionType] || s.actionType
+              const actName = duelActionLabel(s)
 
               return (
                 <div key={s.id} className="flex flex-col gap-1">

@@ -14,7 +14,7 @@ import {
   YGOProMsgShuffleHand
 } from 'ygopro-msg-encode'
 import { cdbService } from '../../db/cdbService'
-import type { SessionState } from './session-state'
+import type { PendingQuery, SessionState } from './session-state'
 import { isInteractiveQuery } from './message-parser'
 import { routeRequest } from './request-router'
 
@@ -25,6 +25,12 @@ const MAX_PROCESS_LOOPS = 10000
 export interface DrawEvent {
   player: 0 | 1
   codes: number[]
+}
+
+interface ProcessResultLike {
+  raw: Uint8Array
+  status: number
+  messages?: unknown[]
 }
 
 function resolveAutoResponse(state: SessionState, msg: unknown): Uint8Array | null {
@@ -67,11 +73,35 @@ function collectLogs(state: SessionState, msgs: unknown[]): void {
   }
 }
 
+function assertMessagesComplete(state: SessionState, res: ProcessResultLike): void {
+  if (res.raw.length === 0) return
+  state.lastParseError = null
+  let parsed = 0
+  try {
+    for (const msg of res.messages ?? []) {
+      parsed += (msg as { toPayload(): Uint8Array }).toPayload().length
+    }
+  } catch (err) {
+    state.lastParseError = `消息反序列化失败：${err instanceof Error ? err.message : String(err)}`
+  }
+  if (state.lastParseError) {
+    state.accumulatedLogs.push(`引擎产生了无法解析的消息（${state.lastParseError}）`)
+    console.error(`[engine-pump] ${state.lastParseError}`)
+    return
+  }
+  if (parsed !== res.raw.length) {
+    state.lastParseError = `解析出 ${parsed} 字节，实际 ${res.raw.length} 字节`
+    state.accumulatedLogs.push(`引擎产生了无法完整解析的消息（${state.lastParseError}）`)
+    console.error(`[engine-pump] 引擎消息解析不完整：${state.lastParseError}`)
+  }
+}
+
 export function advanceEngine(state: SessionState): Uint8Array[] {
   const duel: OcgcoreDuel | null = state.duel
   if (!duel) return []
 
   state.lastAdvanceRetried = false
+  state.lastParseError = null
   state.lastDrawEvents = []
   state.lastDeckShuffles = []
   const autoResponses: Uint8Array[] = []
@@ -83,10 +113,11 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
       throw new Error('引擎推进步数超出上限，可能陷入死循环。')
     }
 
-    const res = duel.process()
+    const res: ProcessResultLike = duel.process()
     const msgs = res.messages ?? []
-    let autoCandidate: Uint8Array | null = null
-    const manualQueries: unknown[] = []
+    const retried = msgs.some((msg) => msg instanceof YGOProMsgRetry)
+
+    assertMessagesComplete(state, res)
 
     if (msgs.length > 0) {
       if (state.recordingMessages) {
@@ -116,48 +147,43 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
       }
       collectLogs(state, msgs)
 
+      const batchQueries: PendingQuery[] = []
+      let batchAutoCount = 0
       for (const msg of msgs) {
         if (!isInteractiveQuery(msg)) continue
         const auto = resolveAutoResponse(state, msg)
         if (auto) {
-          autoCandidate = auto
+          duel.setResponse(auto)
+          autoResponses.push(auto)
+          batchAutoCount++
         } else {
-          manualQueries.push(msg)
+          const request = routeRequest(msg, {
+            id: `req-${state.requestSeq}`,
+            seq: state.requestSeq,
+            descHint: state.lastHintDesc
+          })
+          state.lastHintDesc = undefined
+          if (request) batchQueries.push({ msg, request })
         }
       }
-
-      for (const msg of manualQueries) {
-        state.currentPendingMsg = msg
-        state.currentPendingRequest = routeRequest(msg, {
-          id: `req-${state.requestSeq}`,
-          seq: state.requestSeq,
-          descHint: state.lastHintDesc
-        })
-        state.lastHintDesc = undefined
+      if (batchQueries.length > 0) {
+        state.pendingQueries = batchQueries
       }
 
-      if (msgs.some((m) => m instanceof YGOProMsgRetry)) {
+      if (retried) {
         state.lastAdvanceRetried = true
         state.accumulatedLogs.push('引擎拒绝了上一次响应 (RETRY)。')
         break
       }
+
+      if (res.status === 1 && res.raw.length > 0) {
+        if (batchAutoCount > 0 && batchQueries.length === 0) continue
+        break
+      }
     }
 
-    const autoResponse = manualQueries.length === 0 ? autoCandidate : null
-    if (autoResponse) {
-      state.currentPendingMsg = null
-      state.currentPendingRequest = null
-      duel.setResponse(autoResponse)
-      autoResponses.push(autoResponse)
-      continue
-    }
-
-    if (res.status === 1 && res.raw.length > 0) {
-      break
-    }
     if (res.status === 2 || duel.ended) {
-      state.currentPendingMsg = null
-      state.currentPendingRequest = null
+      state.pendingQueries = []
       break
     }
   }
@@ -166,12 +192,13 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
 }
 
 export function isAutoFinishableUnselect(state: SessionState, answeredMsg: unknown): boolean {
-  const msg = state.currentPendingMsg
-  if (!(msg instanceof YGOProMsgSelectUnselectCard)) return false
-  if (msg === answeredMsg) return true
-  const data = state.currentPendingRequest?.data
+  const head = state.pendingQueries[0]
+  if (!head) return false
+  if (!(head.msg instanceof YGOProMsgSelectUnselectCard)) return false
+  if (head.msg === answeredMsg) return true
+  const data = head.request.data
   return (
-    data?.kind === 'unselect' &&
+    data.kind === 'unselect' &&
     data.finishable &&
     data.selectable.length === 0 &&
     data.unselectable.length > 0

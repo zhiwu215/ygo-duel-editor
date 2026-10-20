@@ -1,119 +1,92 @@
 import React from 'react'
-import { motion } from 'framer-motion'
 import { CardLocation, CardPosition, FieldCard } from '@shared/index'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import { CardImage } from '../../ui/CardImage'
-import { MoreHorizontal, Trash2 } from 'lucide-react'
+import { Hand, Trash2 } from 'lucide-react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { cn } from '../../../lib/utils'
+import { SORTABLE_TRANSITION } from '../../../utils/dnd'
 
 interface PileCardTileProps {
   card: FieldCard
   cardName: string
-  originalIndex: number
-  remainingIndex: number
+  index: number
   location: number
   isSelected: boolean
-  isBeingDragged: boolean
-  onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void
-  onContextMenu: (e: React.MouseEvent<HTMLDivElement>) => void
-  onMouseEnter: () => void
-  onMouseLeave: () => void
-  onTogglePosition: () => void
-  onOpenMenu: (e: React.MouseEvent<HTMLButtonElement>) => void
-  onRemove: () => void
+  dragDisabled: boolean
+  onSelect: (card: FieldCard) => void
+  onHoverChange: (card: FieldCard, hovering: boolean) => void
+  onTogglePosition: (card: FieldCard) => void
+  onHold: (card: FieldCard, point: { x: number; y: number }) => void
+  holdEnabled: boolean
+  onRemove: (card: FieldCard) => void
+  onContextMenu: (card: FieldCard, e: React.MouseEvent<HTMLDivElement>) => void
 }
 
-export const PileCardTile: React.FC<PileCardTileProps> = ({
+const PileCardTileBase: React.FC<PileCardTileProps> = ({
   card,
   cardName,
-  originalIndex,
-  remainingIndex,
+  index,
   location,
   isSelected,
-  isBeingDragged,
-  onPointerDown,
-  onContextMenu,
-  onMouseEnter,
-  onMouseLeave,
+  dragDisabled,
+  onSelect,
+  onHoverChange,
   onTogglePosition,
-  onOpenMenu,
-  onRemove
+  onHold,
+  holdEnabled,
+  onRemove,
+  onContextMenu
 }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: card.instanceId,
+    disabled: dragDisabled,
+    transition: SORTABLE_TRANSITION
+  })
+
   return (
-    <motion.div
-      layout="position"
-      transition={{
-        layout: {
-          type: 'spring',
-          stiffness: 300,
-          damping: 30
-        }
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+        willChange: isDragging ? 'transform' : undefined
       }}
-      data-remaining-index={remainingIndex}
-      className={cn('h-full', isBeingDragged && 'opacity-0 pointer-events-none')}
+      {...attributes}
+      {...listeners}
+      onContextMenu={(e) => onContextMenu(card, e)}
+      onClick={() => onSelect(card)}
+      onMouseEnter={() => onHoverChange(card, true)}
+      onMouseLeave={() => onHoverChange(card, false)}
+      className={cn(
+        'group relative rounded overflow-hidden select-none',
+        dragDisabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing touch-none',
+        isDragging ? 'opacity-30' : '',
+        isSelected ? 'ring-2 ring-blue-500' : 'hover:ring-2 hover:ring-blue-500/70'
+      )}
     >
-      <div
-        title={cardName}
-        onDragStart={(e) => {
-          e.preventDefault()
-        }}
-        onPointerDown={onPointerDown}
-        onContextMenu={onContextMenu}
-        className={cn(
-          'group relative flex flex-col rounded-md border bg-card p-1.5 shadow-sm transition-colors select-none cursor-grab active:cursor-grabbing',
-          isSelected
-            ? 'border-blue-500 ring-1 ring-blue-500/50'
-            : 'border-border/80 hover:border-blue-500/70 hover:shadow-md'
-        )}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-      >
-        <div className="relative w-full aspect-[59/86] rounded overflow-hidden border border-border/70 bg-black/30">
-          <CardImage
-            code={card.code}
-            small
-            alt={cardName}
-            className="w-full h-full object-cover pointer-events-none"
-          />
+      <div className="relative w-full aspect-[59/86] bg-black/30">
+        <CardImage
+          code={card.code}
+          small
+          alt={cardName}
+          className="w-full h-full object-cover pointer-events-none"
+        />
 
-          <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
-            #{originalIndex + 1}
+        <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
+          #{index + 1}
+        </span>
+
+        {location === CardLocation.DECK && index === 0 && (
+          <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
+            下一抽
           </span>
+        )}
 
-          {location === CardLocation.DECK && originalIndex === 0 && (
-            <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
-              下一抽
-            </span>
-          )}
-
-          {location === CardLocation.EXTRA && (
-            <span className="absolute right-1 top-1 inline-flex">
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onTogglePosition()
-                      }}
-                      className={cn(
-                        'px-1 rounded font-sans text-[9px] leading-[14px] border transition-colors cursor-pointer',
-                        card.position === CardPosition.FACEUP
-                          ? 'bg-cyan-500/85 text-black border-cyan-500/50 font-bold'
-                          : 'bg-black/65 text-white/85 border-white/25 hover:text-white'
-                      )}
-                    >
-                      {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
-                    </button>
-                  }
-                />
-                <TooltipContent>点击切换 表侧 / 里侧 表示形式</TooltipContent>
-              </Tooltip>
-            </span>
-          )}
-
-          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
+        {location === CardLocation.EXTRA && (
+          <span className="absolute right-1 top-1 inline-flex">
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -121,40 +94,65 @@ export const PileCardTile: React.FC<PileCardTileProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      onOpenMenu(e)
+                      onTogglePosition(card)
+                    }}
+                    className={cn(
+                      'px-1 rounded font-sans text-[9px] leading-[14px] border transition-colors cursor-pointer',
+                      card.position === CardPosition.FACEUP
+                        ? 'bg-cyan-500/85 text-black border-cyan-500/50 font-bold'
+                        : 'bg-black/65 text-white/85 border-white/25 hover:text-white'
+                    )}
+                  >
+                    {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
+                  </button>
+                }
+              />
+              <TooltipContent>点击切换 表侧 / 里侧 表示形式</TooltipContent>
+            </Tooltip>
+          </span>
+        )}
+
+        <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
+          {holdEnabled && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onHold(card, { x: e.clientX, y: e.clientY })
                     }}
                     className="p-1 rounded text-white/85 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
                   >
-                    <MoreHorizontal className="w-3.5 h-3.5" />
+                    <Hand className="w-3.5 h-3.5" />
                   </button>
                 }
               />
-              <TooltipContent>更多操作 (手牌/墓地/除外/回卡组，也可右键卡片)</TooltipContent>
+              <TooltipContent>拿起卡片，点击场上区域放下 (Esc 取消)</TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onRemove()
-                    }}
-                    className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                }
-              />
-              <TooltipContent>从决斗中移除</TooltipContent>
-            </Tooltip>
-          </div>
+          )}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onRemove(card)
+                  }}
+                  className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              }
+            />
+            <TooltipContent>从决斗中移除</TooltipContent>
+          </Tooltip>
         </div>
-
-        <span className="mt-1 min-h-[26px] px-0.5 text-[10.5px] leading-[13px] text-center text-foreground/85 line-clamp-2 break-all">
-          {cardName}
-        </span>
       </div>
-    </motion.div>
+    </div>
   )
 }
+
+export const PileCardTile = React.memo(PileCardTileBase)

@@ -1,21 +1,24 @@
 import {
-  CARD_POOL_OT_MASKS,
   CdbCard,
   CardSearchFilterOptions,
   CardSearchParams,
   CardSearchResult,
   CardType,
-  cardPoolIdsFromOt
+  CdbLibraryInfo,
+  cardPoolIdsFromOt,
+  SEARCH_POOLS
 } from '@shared/index'
 import { CdbConnection, CdbConnections } from './cdbConnections'
 import { buildSearchSql, textSource } from './cdbSearchSql'
-import { sortExactFirst } from './cardSort'
+import { sortCards, stripSortKeys, CardSortRow } from './cardSort'
 import { loadLflists } from './lflistParser'
 import { collectConfigDirs, loadCdbStringsConf } from './stringsConfParser'
 import { splitSetcode } from './setcode'
 
 export class CdbService {
-  private connections = new CdbConnections((paths) => this.loadStringsConf(paths))
+  private connections = new CdbConnections((paths, languagePaths) =>
+    this.loadStringsConf(paths, languagePaths)
+  )
   private setnameMap: Map<number, string> = new Map()
   private systemStringMap: Map<number, string> = new Map()
   private limitMap: Map<number, 1 | 2 | 3> = new Map()
@@ -26,14 +29,15 @@ export class CdbService {
     if (!gameDirectory || this.connections.list().length === 0) return
     this.limitMap = loadLflists(
       collectConfigDirs(
-        this.connections.list().map((c) => c.path),
+        this.connections.searchableList().map((c) => c.path),
+        [],
         this.gameDirectory
       )
     )
   }
 
-  private loadStringsConf(cdbPaths: string[]): void {
-    const searchDirs = collectConfigDirs(cdbPaths, this.gameDirectory)
+  private loadStringsConf(cdbPaths: string[], languageDirs: string[] = []): void {
+    const searchDirs = collectConfigDirs(cdbPaths, languageDirs, this.gameDirectory)
     this.limitMap = loadLflists(searchDirs)
     const conf = loadCdbStringsConf(searchDirs)
     this.setnameMap = conf.setnameMap
@@ -58,16 +62,26 @@ export class CdbService {
     return names
   }
 
-  public open(cdbPath: string, extraPaths: string[] = []): boolean {
-    return this.connections.open(cdbPath, extraPaths)
+  public open(
+    cdbPath: string,
+    bundledPaths: string[] = [],
+    extraPaths: string[] = [],
+    languagePack: { id: string; dir?: string; cdbPaths: string[] } | null = null
+  ): boolean {
+    return this.connections.open(cdbPath, bundledPaths, extraPaths, languagePack)
   }
 
   public addExtra(extraPaths: string[]): string[] {
     return this.connections.addExtra(extraPaths)
   }
 
-  public reloadAll(primaryPath: string | undefined, extraPaths: string[]): void {
-    this.connections.reloadAll(primaryPath, extraPaths)
+  public reloadAll(
+    primaryPath: string | undefined,
+    bundledPaths: string[],
+    extraPaths: string[],
+    languagePack: { id: string; dir?: string; cdbPaths: string[] } | null = null
+  ): void {
+    this.connections.reloadAll(primaryPath, bundledPaths, extraPaths, languagePack)
   }
 
   public getCurrentPath(): string | null {
@@ -78,6 +92,10 @@ export class CdbService {
     return this.connections.getLoadedPaths()
   }
 
+  public listLibraries(): CdbLibraryInfo[] {
+    return this.connections.listLibraries()
+  }
+
   private applyCardPools(cards: CdbCard[]): void {
     for (const card of cards) {
       const pools = cardPoolIdsFromOt(card.ot)
@@ -86,9 +104,12 @@ export class CdbService {
     }
   }
 
-  private hasPoolMask(db: CdbConnection['db'], mask: number): boolean {
+  private hasPoolMask(db: CdbConnection['db'], mask: number, exact?: boolean): boolean {
+    const sql = exact
+      ? 'SELECT 1 FROM datas WHERE ot = ? LIMIT 1'
+      : 'SELECT 1 FROM datas WHERE (ot & ?) != 0 LIMIT 1'
     try {
-      const row = db.prepare('SELECT 1 FROM datas WHERE (ot & ?) != 0 LIMIT 1').get(mask)
+      const row = db.prepare(sql).get(mask)
       return row !== undefined
     } catch (err) {
       console.error('[CdbService] Pool mask probe error:', err)
@@ -103,8 +124,12 @@ export class CdbService {
       if (label) effectCategories.push({ mask: 2 ** index, label })
     }
     const availablePools: string[] = []
-    for (const pool of CARD_POOL_OT_MASKS) {
-      if (this.connections.list().some((conn) => this.hasPoolMask(conn.db, pool.mask))) {
+    for (const pool of SEARCH_POOLS) {
+      if (
+        this.connections
+          .searchableList()
+          .some((conn) => this.hasPoolMask(conn.db, pool.mask, pool.exact))
+      ) {
         availablePools.push(pool.id)
       }
     }
@@ -115,20 +140,24 @@ export class CdbService {
     return this.connections.list().length > 0
   }
 
-  public search(params: CardSearchParams): CardSearchResult {
-    const connections = this.connections.list()
+  public search(params: CardSearchParams, favorites?: number[]): CardSearchResult {
+    const connections = this.connections.searchableList()
     if (connections.length === 0) return { cards: [], total: 0 }
+
+    if (params.onlyFavorites && (!favorites || favorites.length === 0)) {
+      return { cards: [], total: 0 }
+    }
 
     const limit = params.limit || 50
     const offset = params.offset || 0
     const perDbLimit = offset + limit
 
     let total = 0
-    let collected: CdbCard[] = []
+    const collected: CdbCard[] = []
     const seen = new Set<number>()
 
     for (const conn of connections) {
-      const result = this.searchOne(conn, params, perDbLimit)
+      const result = this.searchOne(conn, params, perDbLimit, favorites)
       total += result.total
       for (const card of result.cards) {
         if (seen.has(card.id)) continue
@@ -137,7 +166,8 @@ export class CdbService {
       }
     }
 
-    collected = sortExactFirst(collected, params)
+    const page = sortCards(collected as CardSortRow[], params).slice(offset, offset + limit)
+    for (const card of page) stripSortKeys(card)
 
     for (const card of collected) {
       if (card.setcode) {
@@ -152,23 +182,29 @@ export class CdbService {
     }
     this.applyCardPools(collected)
 
-    return { cards: collected.slice(offset, offset + limit), total }
+    return { cards: page, total }
   }
 
   private searchOne(
     conn: CdbConnection,
     params: CardSearchParams,
-    fetchLimit: number
+    fetchLimit: number,
+    favorites?: number[]
   ): CardSearchResult {
     const db = conn.db
     try {
-      const plan = buildSearchSql(conn, params, fetchLimit, this.setnameMap, this.limitMap)
+      const plan = buildSearchSql(
+        conn,
+        params,
+        fetchLimit,
+        this.setnameMap,
+        this.limitMap,
+        favorites
+      )
       const countRow = db.prepare(plan.countSql).get(...plan.args) as { total: number } | undefined
       const total = countRow?.total ?? 0
 
-      const rows = db
-        .prepare(plan.dataSql)
-        .all(...plan.args, ...plan.relevanceArgs, plan.fetchLimit) as CdbCard[]
+      const rows = db.prepare(plan.dataSql).all(...plan.dataArgs, plan.fetchLimit) as CdbCard[]
 
       return { cards: rows, total }
     } catch (err) {
@@ -178,7 +214,7 @@ export class CdbService {
   }
 
   public getCardsByIds(ids: number[]): Record<number, CdbCard> {
-    const connections = this.connections.list()
+    const connections = this.connections.searchableList()
     if (connections.length === 0 || ids.length === 0) return {}
 
     const placeholders = ids.map(() => '?').join(',')
@@ -223,7 +259,7 @@ export class CdbService {
   }
 
   public getAliasGroupIds(id: number): number[] {
-    const connections = this.connections.list()
+    const connections = this.connections.searchableList()
     if (connections.length === 0) return [id]
     const ids = new Set<number>([id])
     try {

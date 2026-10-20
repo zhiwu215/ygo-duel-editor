@@ -33,7 +33,11 @@ export function registerWindowIpc(): void {
   })
 
   ipcMain.handle('window:open-deck-editor', async (event, deckId?: string, createNew?: boolean) => {
-    deckService.openDeckEditorWindow(deckId, createNew, !deckService.isDeckEditorSender(event.sender))
+    deckService.openDeckEditorWindow(
+      deckId,
+      createNew,
+      !deckService.isDeckEditorSender(event.sender)
+    )
   })
 
   ipcMain.handle('window:minimize', (event) => {

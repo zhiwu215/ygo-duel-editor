@@ -21,10 +21,6 @@ export class ProjectFileService {
   }
 
   public getProjectsDirectory(): string {
-    const customDir = configService.get().projectsDirectory
-    if (customDir && existsSync(customDir)) {
-      return customDir
-    }
     return this.projectsDir
   }
 
@@ -299,24 +295,6 @@ export class ProjectFileService {
     } catch (err) {
       console.error('[FileService] revealFileInFolder failed:', err)
     }
-  }
-
-  public async selectProjectsDirectory(window?: BrowserWindow): Promise<string | null> {
-    const currentDir = this.getProjectsDirectory()
-    const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-      title: '选择决斗工程默认保存与归档目录',
-      defaultPath: currentDir,
-      properties: ['openDirectory', 'createDirectory']
-    })
-
-    if (res.canceled || res.filePaths.length === 0) {
-      return null
-    }
-
-    const selectedDir = res.filePaths[0]
-    configService.save({ projectsDirectory: selectedDir })
-    this.ensureProjectsDirectory()
-    return selectedDir
   }
 
   public async openProjectsDirectory(): Promise<void> {

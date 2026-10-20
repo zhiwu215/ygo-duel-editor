@@ -9,6 +9,7 @@ import {
 } from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
 import { useCustomCardStore } from '../useCustomCardStore'
+import { useDuelEngineStore } from '../useDuelEngineStore'
 import { findCapturedCardData } from '../useStagingStore'
 import {
   isManualCapturePaused,
@@ -70,6 +71,7 @@ function applyManualOp(op: ManualOp): void {
     return
   }
   if (op.type === 'add') {
+    if (op.instanceId !== undefined && cardExists(op.instanceId)) return
     const card = resolveManualOpCardData(op.code)
     if (!card) {
       console.warn(`[boardReconcile] 手动 add 记录找不到卡 ${op.code} 的卡面数据，已跳过。`)
@@ -90,7 +92,12 @@ function applyManualOp(op: ManualOp): void {
 }
 
 function reapplyManualOps(): void {
-  const steps = useDuelStore.getState().state.steps || []
+  const nodeIds = new Set(useDuelEngineStore.getState().timeline.map((node) => node.id))
+  const steps = (useDuelStore.getState().state.steps || []).filter(
+    (step) =>
+      (step.actId !== undefined && nodeIds.has(step.actId)) ||
+      (step.afterActId !== undefined && nodeIds.has(step.afterActId))
+  )
   const pending = steps.flatMap((step) => step.manualOps ?? [])
   if (pending.length === 0) return
   if (isManualCapturePaused()) {

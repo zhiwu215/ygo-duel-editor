@@ -39,6 +39,10 @@ export function isEngineReady(): boolean {
   return ocgcoreInstance !== null
 }
 
+export function setScriptErrorListener(listener: ((message: string) => void) | null): void {
+  void listener
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function bindEngineCapabilities(wrapper: any): Promise<void> {
   wrapper.setMessageHandler((_: unknown, message: string, type: number) => {

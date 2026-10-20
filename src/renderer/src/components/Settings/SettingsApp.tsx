@@ -11,6 +11,7 @@ import { AppearanceSection } from './components/AppearanceSection'
 import { DataDirectorySection } from './components/DataDirectorySection'
 import { PathsSection } from './components/PathsSection'
 import { ExtraCdbSection } from './components/ExtraCdbSection'
+import { GameLanguageDialog } from './components/GameLanguageDialog'
 import { cn } from '../../lib/utils'
 
 interface SettingsNavItem {
@@ -39,7 +40,7 @@ const NAV_GROUPS: SettingsNavGroup[] = [
         id: 'paths',
         label: '路径与目录',
         icon: FolderOpen,
-        description: 'YGO 主程序目录与决斗档案保存位置'
+        description: 'YGO 主程序目录与卡库加载'
       }
     ]
   },
@@ -91,10 +92,7 @@ export function SettingsApp(): JSX.Element {
   return (
     <div className="relative h-screen w-screen flex bg-background text-foreground overflow-hidden select-none">
       <div className="absolute top-0 left-0 right-16 h-10 z-50 [-webkit-app-region:drag]" />
-      <WindowControls
-        actions={['close']}
-        className="absolute top-0.5 right-0 z-50"
-      />
+      <WindowControls actions={['close']} className="absolute top-0.5 right-0 z-50" />
 
       <aside className="w-56 shrink-0 border-r border-border bg-muted/30 flex flex-col p-3">
         <div className="text-sm font-bold px-2">偏好设置</div>
@@ -164,6 +162,8 @@ export function SettingsApp(): JSX.Element {
           )}
         </div>
       </ScrollArea>
+
+      <GameLanguageDialog />
     </div>
   )
 }

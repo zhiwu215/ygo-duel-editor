@@ -32,11 +32,11 @@ export const CardNoteApp: React.FC = () => {
     })
   }, [])
 
-  const existingLabelsFor = useCallback(
+  const existingTitlesFor = useCallback(
     (cardCode: number, kind: CardNoteKind): string[] => {
       const entry = entries.find((e) => e.cardCode === cardCode)
       if (!entry) return []
-      return (kind === 'chant' ? entry.chants : entry.notes).map((c) => c.label)
+      return (kind === 'chant' ? entry.chants : entry.notes).map((c) => c.title)
     },
     [entries]
   )
@@ -55,24 +55,23 @@ export const CardNoteApp: React.FC = () => {
           cardName={editor.cardName}
           kind={editor.kind}
           initial={editor.initial}
-          existingLabels={existingLabelsFor(editor.cardCode, editor.kind)}
-          onSave={(label, text, kind, source) => save(editor.cardCode, kind, label, text, source)}
+          existingTitles={existingTitlesFor(editor.cardCode, editor.kind)}
+          onSave={(title, text, kind, source) =>
+            save(editor.cardCode, kind, title, text, source, {
+              originalTitle: editor.initial.title || undefined
+            })
+          }
           onClose={() => setEditor(null)}
         />
       )}
 
       {showAdder && (
         <CardNoteAdder
-          existingLabelsFor={existingLabelsFor}
-          onSave={(cardCode, kind, label, text, source) =>
-            save(
-              cardCode,
-              kind,
-              label,
-              text,
-              source,
-              kind === 'chant' ? '已录入召唤词' : '已添加备注'
-            )
+          existingTitlesFor={existingTitlesFor}
+          onSave={(cardCode, kind, title, text, source) =>
+            save(cardCode, kind, title, text, source, {
+              successFlash: kind === 'chant' ? '已录入召唤词' : '已添加备注'
+            })
           }
           onClose={() => setShowAdder(false)}
         />

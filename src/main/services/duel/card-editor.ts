@@ -6,7 +6,7 @@ import type {
   EngineTimelineNode
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
-import type { SessionState } from './session-state'
+import { headPendingQuery, type SessionState } from './session-state'
 import type { ProvenanceOrigin } from './provenance-tracker'
 
 export type CardEditAction = { type: 'replace'; code: number } | { type: 'remove' }
@@ -115,12 +115,12 @@ export function editCard(
     const node = state.timeline.getStep(currentStepId)?.node
     if (!node) throw new Error('编辑后找不到当前步骤。')
     node.boardState = boardState
-    node.pendingRequest = state.currentPendingRequest
+    node.pendingRequest = headPendingQuery(state)?.request ?? null
     updateEditedNode(state, node, action, origin)
 
     return {
       boardState,
-      pendingRequest: state.currentPendingRequest,
+      pendingRequest: headPendingQuery(state)?.request ?? null,
       node,
       currentStepId
     }

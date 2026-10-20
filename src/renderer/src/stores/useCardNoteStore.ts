@@ -12,18 +12,18 @@ interface CardNoteState {
   applyReorder: (
     cardCode: number,
     kind: CardNoteKind,
-    fromLabel: string,
-    toLabel: string
+    fromTitle: string,
+    toTitle: string
   ) => Promise<void>
   save: (
     cardCode: number,
     kind: CardNoteKind,
-    label: string,
+    title: string,
     text: string,
     source?: string,
-    successFlash?: string
+    opts?: { successFlash?: string; originalTitle?: string }
   ) => Promise<boolean>
-  removeNote: (cardCode: number, kind: CardNoteKind, label: string) => Promise<void>
+  removeNote: (cardCode: number, kind: CardNoteKind, title: string) => Promise<void>
   removeCustomCard: (cardCode: number) => Promise<void>
   clearEntry: (cardCode: number) => Promise<void>
   exportLibrary: () => Promise<void>
@@ -54,54 +54,57 @@ export const useCardNoteStore = create<CardNoteState>((set, get) => ({
   applyReorder: async (
     cardCode: number,
     kind: CardNoteKind,
-    fromLabel: string,
-    toLabel: string
+    fromTitle: string,
+    toTitle: string
   ): Promise<void> => {
-    if (!fromLabel || fromLabel === toLabel) return
-    let nextLabels: string[] | null = null
+    if (!fromTitle || fromTitle === toTitle) return
+    let nextTitles: string[] | null = null
     set((state) => ({
       entries: state.entries.map((e) => {
         if (e.cardCode !== cardCode) return e
         const list = kind === 'chant' ? [...e.chants] : [...e.notes]
-        const fromIdx = list.findIndex((c) => c.label === fromLabel)
-        const toIdx = list.findIndex((c) => c.label === toLabel)
+        const fromIdx = list.findIndex((c) => c.title === fromTitle)
+        const toIdx = list.findIndex((c) => c.title === toTitle)
         if (fromIdx < 0 || toIdx < 0) return e
         list.splice(toIdx, 0, ...list.splice(fromIdx, 1))
-        nextLabels = list.map((c) => c.label)
+        nextTitles = list.map((c) => c.title)
         return kind === 'chant' ? { ...e, chants: list } : { ...e, notes: list }
       })
     }))
-    if (nextLabels) {
-      void window.api.reorderCardNotes(cardCode, kind, nextLabels)
+    if (nextTitles) {
+      void window.api.reorderCardNotes(cardCode, kind, nextTitles)
     }
   },
 
   save: async (
     cardCode: number,
     kind: CardNoteKind,
-    label: string,
+    title: string,
     text: string,
     source?: string,
-    successFlash?: string
+    opts?: { successFlash?: string; originalTitle?: string }
   ): Promise<boolean> => {
-    const res = await window.api.saveCardNote({ cardCode, kind, label, text, source })
+    const res = await window.api.saveCardNote(
+      { cardCode, kind, title, text, source },
+      opts?.originalTitle
+    )
     if (!res.success) {
       get().notify(res.error || '保存失败')
       return false
     }
     await get().fetchAll()
-    if (successFlash) get().notify(successFlash)
+    if (opts?.successFlash) get().notify(opts.successFlash)
     return true
   },
 
-  removeNote: async (cardCode: number, kind: CardNoteKind, label: string): Promise<void> => {
+  removeNote: async (cardCode: number, kind: CardNoteKind, title: string): Promise<void> => {
     const kindLabel = kind === 'chant' ? '召唤词' : '备注'
     const ok = await confirmDialog({
-      title: `删除${kindLabel}「${label}」`,
+      title: `删除${kindLabel}「${title}」`,
       confirmText: '删除'
     })
     if (!ok) return
-    await window.api.deleteCardNote(cardCode, kind, label)
+    await window.api.deleteCardNote(cardCode, kind, title)
     await get().fetchAll()
     get().notify('已删除')
   },
@@ -124,10 +127,10 @@ export const useCardNoteStore = create<CardNoteState>((set, get) => ({
     if (!ok) return
     if (entry) {
       for (const chant of entry.chants) {
-        await window.api.deleteCardNote(cardCode, 'chant', chant.label)
+        await window.api.deleteCardNote(cardCode, 'chant', chant.title)
       }
       for (const note of entry.notes) {
-        await window.api.deleteCardNote(cardCode, 'note', note.label)
+        await window.api.deleteCardNote(cardCode, 'note', note.title)
       }
     }
     const removed = await remove(cardCode)
@@ -157,10 +160,10 @@ export const useCardNoteStore = create<CardNoteState>((set, get) => ({
     })
     if (!ok) return
     for (const chant of userChants) {
-      await window.api.deleteCardNote(cardCode, 'chant', chant.label)
+      await window.api.deleteCardNote(cardCode, 'chant', chant.title)
     }
     for (const note of userNotes) {
-      await window.api.deleteCardNote(cardCode, 'note', note.label)
+      await window.api.deleteCardNote(cardCode, 'note', note.title)
     }
     await get().fetchAll()
     get().notify(hasBuiltins ? '已清空自定义内容，内置条目保留' : '已删除该卡的图鉴条目')

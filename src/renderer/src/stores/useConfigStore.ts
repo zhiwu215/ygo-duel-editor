@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { AppConfig } from '@shared/index'
+import { AppConfig, CdbLibraryInfo, CdbSelectResult, CustomSyncCdbInfo } from '@shared/index'
 import { alertDialog } from './useDialogStore'
 
 interface ConfigStoreState {
@@ -7,14 +7,15 @@ interface ConfigStoreState {
   isLoaded: boolean
   dbReady: boolean | null
   customCdbPath: string
+  libraries: CdbLibraryInfo[]
+  customSyncCdb: CustomSyncCdbInfo | null
   loadConfig: () => Promise<void>
   refreshCdbStatus: () => Promise<void>
-  selectYgoDir: () => Promise<string | null>
+  selectYgoDir: () => Promise<CdbSelectResult>
 
   addExtraCdb: () => Promise<string | null>
   removeExtraCdb: (cdbPath: string) => Promise<void>
   setExtraCdbEnabled: (cdbPath: string, enabled: boolean) => Promise<void>
-  selectProjectsDir: () => Promise<string | null>
   setTheme: (theme: ThemePreference) => Promise<void>
   toggleTheme: () => Promise<void>
 
@@ -28,6 +29,7 @@ interface ConfigStoreState {
 type ThemePreference = AppConfig['theme']
 
 let configUpdatedSubscribed = false
+let cdbUpdatedSubscribed = false
 
 const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
@@ -47,12 +49,19 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   isLoaded: false,
   dbReady: null,
   customCdbPath: '',
+  libraries: [],
+  customSyncCdb: null,
 
   refreshCdbStatus: async () => {
     try {
       if (!window.api?.getCdbStatus) return
       const status = await window.api.getCdbStatus()
-      set({ dbReady: status.ready, customCdbPath: status.customCdbPath })
+      set({
+        dbReady: status.ready,
+        customCdbPath: status.customCdbPath,
+        libraries: status.libraries ?? [],
+        customSyncCdb: status.customSyncCdb ?? null
+      })
     } catch (err) {
       console.error('[useConfigStore] refreshCdbStatus error:', err)
       set({ dbReady: null })
@@ -64,6 +73,12 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       configUpdatedSubscribed = true
       window.api.onConfigUpdated(() => {
         void get().loadConfig()
+      })
+    }
+    if (!cdbUpdatedSubscribed && window.api?.onCdbUpdated) {
+      cdbUpdatedSubscribed = true
+      window.api.onCdbUpdated(() => {
+        void get().refreshCdbStatus()
       })
     }
     try {
@@ -132,15 +147,15 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       const res = await window.api.selectYgoDirectory()
       if (res.success && res.path) {
         await get().loadConfig()
-        return res.path
+        return res
       }
       if (res.error) {
         void alertDialog(`设置 YGO 路径失败：${res.error}`)
       }
-      return null
+      return res
     } catch (err) {
       console.error('[useConfigStore] selectYgoDir error:', err)
-      return null
+      return { success: false }
     }
   },
 
@@ -179,19 +194,6 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       await get().loadConfig()
     } catch (err) {
       console.error('[useConfigStore] setExtraCdbEnabled error:', err)
-    }
-  },
-
-  selectProjectsDir: async () => {
-    try {
-      const dir = await window.api.selectProjectsDirectory()
-      if (dir) {
-        await get().loadConfig()
-      }
-      return dir
-    } catch (err) {
-      console.error('[useConfigStore] selectProjectsDir error:', err)
-      return null
     }
   }
 }))

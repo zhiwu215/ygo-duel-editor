@@ -31,8 +31,17 @@ export const ConfirmDialogHost: React.FC<{ children: React.ReactNode }> = ({ chi
             destructive={request.kind === 'confirm' && (request.destructive ?? true)}
             icon={request.kind === 'alert' ? 'info' : 'warning'}
             showCancel={request.kind === 'confirm'}
+            extraText={request.extraAction?.text}
             onConfirm={() => settle(request.id, true)}
             onCancel={() => settle(request.id, false)}
+            onExtra={
+              request.extraAction
+                ? () => {
+                    const action = request.extraAction
+                    if (action) settle(request.id, action.value)
+                  }
+                : undefined
+            }
           />
         )
       )}

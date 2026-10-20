@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Answer, isCustomCardCode } from '@shared/index'
+import { Answer, CardLocation, CardPosition, isCustomCardCode } from '@shared/index'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStagingStore } from '../../stores/useStagingStore'
+import { useDuelStore } from '../../stores/useDuelStore'
+import { useAttackTargetingStore } from '../../stores/useAttackTargetingStore'
+import { executeEditorAttack } from '../../utils/editorBattle'
 import { promptDialog } from '../../stores/useDialogStore'
 import { deriveCardEngineActions, hasCardEngineActivate } from '../../utils/engineActions'
 import { buildCardEngineActionMap, reposActionLabel } from '../../utils/cardMenuActions'
@@ -39,6 +42,8 @@ export const CardCommandMenu: React.FC = () => {
 
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const cards = useDuelStore((s) => s.state.cards)
+  const currentPhase = useDuelStore((s) => s.currentPhase)
 
   const requestActions = React.useMemo(
     () => deriveCardEngineActions(pendingRequest, card),
@@ -54,6 +59,17 @@ export const CardCommandMenu: React.FC = () => {
     card !== null &&
     isCustomCardCode(card.code) &&
     !hasCardEngineActivate(pendingRequest, card)
+
+  const isEditorAttackable =
+    !isEngine &&
+    currentPhase === 'BP' &&
+    card !== null &&
+    card.location === CardLocation.MZONE &&
+    card.position === CardPosition.FACEUP_ATTACK
+  const editorDirectAttackable =
+    isEditorAttackable &&
+    card !== null &&
+    !cards.some((c) => c.controller !== card.controller && c.location === CardLocation.MZONE)
 
   if (!card || !anchorRect) return null
 
@@ -112,6 +128,17 @@ export const CardCommandMenu: React.FC = () => {
     onClose()
   }
 
+  const handleEditorAttack = (): void => {
+    if (card) {
+      if (editorDirectAttackable) {
+        executeEditorAttack(card, null)
+      } else {
+        useAttackTargetingStore.getState().start(card)
+      }
+    }
+    onClose()
+  }
+
   const handleChain = (): void => {
     if (actionMap?.chain) {
       submitAnswer(actionMap.chain.answer)
@@ -139,8 +166,13 @@ export const CardCommandMenu: React.FC = () => {
 
   const reposLabel = reposActionLabel(card.position)
 
-  const attackLabel =
-    useRequestActions && requestActions?.attack?.directAttackable ? '攻击（可直攻）' : '攻击'
+  const attackLabel = useRequestActions
+    ? requestActions?.attack?.directAttackable
+      ? '攻击（可直攻）'
+      : '攻击'
+    : editorDirectAttackable
+      ? '攻击（可直攻）'
+      : '攻击'
 
   const buttonCount = useRequestActions
     ? (actionMap?.summon ? 1 : 0) +
@@ -150,7 +182,9 @@ export const CardCommandMenu: React.FC = () => {
       (actionMap?.attack ? 1 : 0) +
       (actionMap?.activate.length ? 1 : 0) +
       (actionMap?.chain ? 1 : 0)
-    : 0
+    : isEditorAttackable
+      ? 1
+      : 0
   const manualButtonCount = canManualActivate ? 1 : 0
 
   const activateOptionList: { id: string; label: string }[] =
@@ -253,6 +287,15 @@ export const CardCommandMenu: React.FC = () => {
             <button
               type="button"
               onClick={handleAttack}
+              className={cn(buttonClass, 'text-rose-700 dark:text-rose-400')}
+            >
+              {attackLabel}
+            </button>
+          ) : null}
+          {!useRequestActions && isEditorAttackable ? (
+            <button
+              type="button"
+              onClick={handleEditorAttack}
               className={cn(buttonClass, 'text-rose-700 dark:text-rose-400')}
             >
               {attackLabel}

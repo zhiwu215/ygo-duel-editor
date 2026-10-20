@@ -64,9 +64,13 @@ export const useStagingStore = create<StagingState>((set, get) => ({
 
     const selected = duel.currentStepIndex
     const total = (duel.state.steps || []).length
-    if (selected !== null && selected < total - 1) {
-      duel.insertStep(step)
-      duel.setCurrentStepIndex(selected + 1)
+    if (selected !== null) {
+      if (selected < total - 1) {
+        duel.insertStep(step)
+      } else {
+        duel.addStep(step)
+      }
+      duel.previewStepBoard(selected + 1)
     } else {
       duel.addStep(step)
     }

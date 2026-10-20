@@ -4,17 +4,35 @@ import type { EngineBoardState, EngineTimelineNode } from '../duelEngine'
 export interface EngineExportReplayParams {
   state: DuelPuzzleState
   launch?: boolean
+  force?: boolean
+}
+
+export interface ContentCoverageDetail {
+  missingDataIds: number[]
+  missingScriptIds: number[]
 }
 
 export interface EngineExportReplayResult {
   success: boolean
-  errorCode?: 'no-game-directory' | 'game-not-found' | 'replay-failed' | 'no-actions'
+  manualHint?: string
+  errorCode?:
+    'no-game-directory' | 'game-not-found' | 'replay-failed' | 'no-actions' | 'content-missing'
   error?: string
   luaPath?: string
   yrpPath?: string
   yrp3dPath?: string
   launched?: boolean
   warnings?: string[]
+  coverage?: ContentCoverageDetail
+}
+
+export interface TestInGameResult {
+  success: boolean
+  exePath?: string
+  scriptPath?: string
+  errorCode?: 'no-game-directory' | 'game-not-found' | 'content-missing'
+  error?: string
+  coverage?: ContentCoverageDetail
 }
 
 export interface EngineReplaySummary {

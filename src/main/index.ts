@@ -7,6 +7,13 @@ import unknownImage from '../../src/renderer/src/assets/textures/unknown.jpg?ass
 import { registerAllIpcHandlers } from './ipc/registerIpc'
 import { configService } from './services/configService'
 import { cdbService } from './db/cdbService'
+import {
+  currentBundledCdbPaths,
+  currentLanguagePack,
+  discoverGameLanguagePacks,
+  readGameConfigLanguage,
+  resolveGameLanguagePack
+} from './services/gameContent'
 import { imageService } from './services/imageService'
 import { customCardService } from './services/customCardService'
 import { libraryService } from './services/libraryService'
@@ -111,9 +118,24 @@ app.whenReady().then(() => {
   const cfg = configService.get()
   const disabled = cfg.disabledCdbPaths || []
   const extraCdbPaths = (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
-  if (cfg.cdbPath || extraCdbPaths.length > 0) {
+  if (cfg.gameDirectory && cfg.gameType === 'ygopro') {
+    const packs = discoverGameLanguagePacks(cfg.gameDirectory)
+    if (packs.length > 0) {
+      const pack = resolveGameLanguagePack(
+        packs,
+        cfg.gameLanguage ?? readGameConfigLanguage(cfg.gameDirectory)
+      )
+      if (pack && pack.id !== cfg.gameLanguage) {
+        configService.save({ gameLanguage: pack.id })
+      }
+    } else if (cfg.gameLanguage) {
+      configService.save({ gameLanguage: undefined })
+    }
+  }
+  const bundledCdbPaths = currentBundledCdbPaths()
+  if (cfg.cdbPath || extraCdbPaths.length > 0 || bundledCdbPaths.length > 0) {
     cdbService.setGameDirectory(cfg.gameDirectory)
-    cdbService.reloadAll(cfg.cdbPath, extraCdbPaths)
+    cdbService.reloadAll(cfg.cdbPath, bundledCdbPaths, extraCdbPaths, currentLanguagePack())
     if (!cfg.gameDirectory && cfg.cdbPath) {
       const detected = imageService.detectGameDirectory(cfg.cdbPath)
       if (detected) {

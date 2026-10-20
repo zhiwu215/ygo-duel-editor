@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import {
   createOcgcoreWrapper,
+  OcgcoreMessageType,
   ZipScriptReader,
   DirScriptReader,
   OcgcoreWrapper,
@@ -13,6 +14,15 @@ import { readCustomScript } from '../customCardLibrary'
 
 let ocgcoreInstance: OcgcoreWrapper | null = null
 let cachedScriptReaders: ScriptReader[] | null = null
+let scriptErrorListener: ((message: string) => void) | null = null
+
+export function setScriptErrorListener(listener: ((message: string) => void) | null): void {
+  scriptErrorListener = listener
+}
+
+export function invalidateScriptReaders(): void {
+  cachedScriptReaders = null
+}
 
 function getAvailableScriptSources(): { zips: string[]; dirs: string[] } {
   const config = configService.get()
@@ -97,6 +107,9 @@ function createPreloadStubReader(): ScriptReader {
 export async function bindEngineCapabilities(wrapper: OcgcoreWrapper): Promise<void> {
   wrapper.setMessageHandler((_, message, type) => {
     console.log(`[Core Log (${type})]: ${message}`)
+    if (type === OcgcoreMessageType.ScriptError) {
+      scriptErrorListener?.(message)
+    }
   })
 
   wrapper.setCardReader(readEngineCardData)

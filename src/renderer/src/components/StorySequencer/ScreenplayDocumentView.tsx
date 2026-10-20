@@ -1,15 +1,9 @@
 import React from 'react'
-import {
-  ACTION_TYPE_COLORS,
-  ACTION_TYPE_NAMES,
-  DuelPuzzleState,
-  DuelStep,
-  PHASE_NAMES
-} from '@shared/index'
+import { ACTION_TYPE_COLORS, DuelPuzzleState, DuelStep, PHASE_NAMES } from '@shared/index'
 import { ScrollArea } from '../ui/scroll-area'
 import { Sparkles, BrainCircuit, Crosshair, Lightbulb, FileText } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { isFirstInPhase, isFirstInTurn } from './stepGrouping'
+import { duelActionLabel, isFirstInPhase, isFirstInTurn } from './stepGrouping'
 
 interface ScreenplayDocumentViewProps {
   state: DuelPuzzleState
@@ -43,7 +37,7 @@ export const ScreenplayDocumentView: React.FC<ScreenplayDocumentViewProps> = ({ 
             <div className="flex flex-col gap-6 text-sm leading-relaxed">
               {steps.map((s, idx) => {
                 const pName = s.actionPlayer === 0 ? '我方' : '对方'
-                const actName = ACTION_TYPE_NAMES[s.actionType] || s.actionType
+                const actName = duelActionLabel(s)
                 const color = ACTION_TYPE_COLORS[s.actionType]
 
                 return (

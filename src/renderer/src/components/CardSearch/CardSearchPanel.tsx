@@ -14,6 +14,7 @@ import {
   Ghost,
   Ban,
   Layers,
+  Star,
   X
 } from 'lucide-react'
 import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
@@ -61,6 +62,7 @@ export const CardSearchPanel: React.FC = () => {
     isLoading,
     isLoadingMore,
     hasSearched,
+    onlyFavorites,
     isFilterOpen,
     toggleFilterOpen,
     setKeyword,
@@ -71,7 +73,7 @@ export const CardSearchPanel: React.FC = () => {
   const activeFilterCount = useCardSearchStore(countActiveFilters)
 
   const { setHoveredCard } = useDuelStore()
-  const { isFavorite, toggleFavorite } = useFavoritesStore()
+  const { isFavorite, toggleFavorite, loadFavorites } = useFavoritesStore()
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
   const [localKw, setLocalKw] = useState(keyword)
@@ -82,6 +84,10 @@ export const CardSearchPanel: React.FC = () => {
   const closeInjectMenu = (): void => setInjectMenu(null)
 
   useDismissOnOutside(injectMenuRef, injectMenu !== null, closeInjectMenu)
+
+  useEffect(() => {
+    void loadFavorites()
+  }, [loadFavorites])
 
   useEffect(() => {
     search({ limit: 40 })
@@ -222,9 +228,21 @@ export const CardSearchPanel: React.FC = () => {
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto p-2">
         {results.length === 0 && !isLoading && hasSearched ? (
           <div className="h-48 flex flex-col items-center justify-center text-muted-foreground text-xs p-4 text-center">
-            <Sparkles className="w-8 h-8 opacity-20 mb-2" />
-            <p>未找到符合条件的卡片</p>
-            <p className="text-[11px] opacity-60 mt-1">请尝试放宽检索关键词或重置筛选条件</p>
+            {onlyFavorites ? (
+              <>
+                <Star className="w-8 h-8 opacity-25 mb-2 text-amber-500" />
+                <p>未找到收藏的卡片</p>
+                <p className="text-[11px] opacity-60 mt-1">
+                  点击卡片右侧星星即可加入收藏，或尝试放宽筛选条件
+                </p>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-8 h-8 opacity-20 mb-2" />
+                <p>未找到符合条件的卡片</p>
+                <p className="text-[11px] opacity-60 mt-1">请尝试放宽检索关键词或重置筛选条件</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-1.5">

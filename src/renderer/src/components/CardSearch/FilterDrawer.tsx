@@ -91,6 +91,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     defOp,
     code,
     searchDesc,
+    onlyFavorites,
     sortField,
     setKeyword,
     search,
@@ -491,6 +492,21 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     </button>
   )
 
+  const onlyFavoritesToggle = (
+    <button
+      type="button"
+      onClick={() => setFilters({ onlyFavorites: !onlyFavorites })}
+      className="flex items-center gap-1.5 w-full px-1.5 py-1 rounded-md hover:bg-muted/40 cursor-pointer text-muted-foreground hover:text-foreground transition-colors text-left"
+    >
+      {onlyFavorites ? (
+        <CheckSquare className="w-3.5 h-3.5 text-primary shrink-0" />
+      ) : (
+        <Square className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      )}
+      <span className="text-[11px]">仅显示收藏卡片</span>
+    </button>
+  )
+
   if (isBand) {
     return (
       <FilterBand
@@ -574,6 +590,8 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
           {sortRow}
 
           {searchDescToggle}
+
+          {onlyFavoritesToggle}
         </div>
       </ScrollArea>
     </div>

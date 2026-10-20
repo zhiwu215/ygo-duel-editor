@@ -1,4 +1,11 @@
-import { DuelStep, DuelPhase, DuelActionType, PHASE_SHORT_NAMES, CardLocation } from '@shared/index'
+import {
+  ACTION_TYPE_NAMES,
+  DuelStep,
+  DuelPhase,
+  DuelActionType,
+  PHASE_SHORT_NAMES,
+  CardLocation
+} from '@shared/index'
 import { stepCardName } from '../../utils/cardNames'
 import type { StepGroupKind } from './StepGroupHeader'
 
@@ -69,6 +76,11 @@ export function getAttackDamageText(attack: DuelStep, damage?: DuelStep): string
   const targetPlayer = damage.lpChange?.player ?? (attack.actionPlayer === 0 ? 1 : 0)
   const targetName = targetPlayer === 0 ? '我方' : '对方'
   return value < 0 ? `${targetName}受到 -${Math.abs(value)}` : `${targetName}回复 +${value}`
+}
+
+export function duelActionLabel(step: Pick<DuelStep, 'actionType' | 'targetPlayer'>): string {
+  if (step.actionType === 'ATTACK' && step.targetPlayer !== undefined) return '直接攻击'
+  return ACTION_TYPE_NAMES[step.actionType] || step.actionType
 }
 
 export const resolveStepCardName = (step: DuelStep): string => stepCardName(step) || '剧情事件'
@@ -145,24 +157,35 @@ export function buildGroups(entries: StepEntry[]): StepGroup[] {
 export function buildStepList(steps: DuelStep[]): StepListItem[] {
   const items: StepListItem[] = []
   let pending: StepEntry[] = []
+  let lastGroupKey = ''
+
+  const pushSeparator = (step: DuelStep, index: number): void => {
+    const groupKey = `${step.turn}|${step.turnPlayer}|${step.phase}`
+    if (groupKey === lastGroupKey) return
+    lastGroupKey = groupKey
+    const playerName = step.turnPlayer === 0 ? '我方' : '对方'
+    items.push({
+      kind: 'separator',
+      key: `separator_${index}_${groupKey}`,
+      label: `第 ${step.turn} 回合 ${playerName} · ${PHASE_SHORT_NAMES[step.phase] || step.phase}`,
+      turnPlayer: step.turnPlayer
+    })
+  }
 
   const flush = (): void => {
     if (pending.length === 0) return
     const first = pending[0]
-    const groupKey = `${first.step.turn}|${first.step.turnPlayer}|${first.step.phase}`
-    const playerName = first.step.turnPlayer === 0 ? '我方' : '对方'
-    const phaseName = PHASE_SHORT_NAMES[first.step.phase] || first.step.phase
-    items.push({
-      kind: 'separator',
-      key: `separator_${first.index}_${groupKey}`,
-      label: `第 ${first.step.turn} 回合 ${playerName} · ${phaseName}`,
-      turnPlayer: first.step.turnPlayer
-    })
+    pushSeparator(first.step, first.index)
     buildGroups(pending).forEach((group) => items.push({ kind: 'group', group }))
     pending = []
   }
 
   steps.forEach((step, index) => {
+    if (step.actionType === 'PHASE_CHANGE' || step.actionType === 'TURN_CHANGE') {
+      flush()
+      pushSeparator(step, index)
+      return
+    }
     if (
       index === 0 ||
       isFirstInPhase(steps, index) ||
@@ -170,9 +193,7 @@ export function buildStepList(steps: DuelStep[]): StepListItem[] {
     ) {
       flush()
     }
-    if (step.actionType !== 'PHASE_CHANGE' && step.actionType !== 'TURN_CHANGE') {
-      pending.push({ step, index })
-    }
+    pending.push({ step, index })
   })
 
   flush()

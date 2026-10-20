@@ -2,6 +2,13 @@ import { ipcMain } from 'electron'
 import { CardSearchParams } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from '../services/configService'
+import {
+  collectFolderCdbPaths,
+  currentBundledCdbPaths,
+  currentLanguagePack,
+  customSyncCdbInfo
+} from '../services/gameContent'
+import { invalidateScriptReaders } from '../services/duel/ocgcore-engine'
 import { imageService } from '../services/imageService'
 import { customCardService } from '../services/customCardService'
 import { customCdbPath } from '../services/customCardLibrary'
@@ -16,7 +23,12 @@ export const enabledExtraPaths = (): string[] => {
 
 export function registerCdbIpc(): void {
   ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
-    return customCardService.mergeSearchResults(cdbService.search(params), params)
+    const favorites = params.onlyFavorites ? (configService.get().favorites || []) : undefined
+    return customCardService.mergeSearchResults(
+      cdbService.search(params, favorites),
+      params,
+      favorites
+    )
   })
 
   ipcMain.handle('cdb:search-filter-options', () => cdbService.getSearchFilterOptions())
@@ -30,30 +42,40 @@ export function registerCdbIpc(): void {
       ready: cdbService.isReady(),
       path: cdbService.getCurrentPath(),
       loadedPaths: cdbService.getLoadedPaths(),
-      customCdbPath: customCdbPath()
+      customCdbPath: customCdbPath(),
+      libraries: cdbService.listLibraries(),
+      customSyncCdb: customSyncCdbInfo()
     }
   })
 
   ipcMain.handle('cdb:add-extra', async () => {
-    const cdbPath = await ygoproLauncher.selectExtraCdb()
-    if (!cdbPath) {
+    const packDir = await ygoproLauncher.selectExtraPack()
+    if (!packDir) {
       return { success: false }
     }
-    const cfg = configService.get()
-    const extras = (cfg.extraCdbPaths || []).filter((p) => p !== cdbPath)
-    const merged = [...extras, cdbPath]
-    const loaded = cdbService.addExtra([cdbPath])
+    const candidates = collectFolderCdbPaths(packDir)
+    if (candidates.length === 0) {
+      return { success: false, error: '该文件夹内未找到卡库文件 (.cdb)' }
+    }
+    const loaded = cdbService.addExtra(candidates)
     if (loaded.length === 0) {
       return { success: false, error: '该文件不是有效的卡库 (缺少 datas/texts 表)' }
     }
 
-    const detectedPics = imageService.detectPicsDirsFromCdb(cdbPath)
+    const cfg = configService.get()
+    const merged = [...(cfg.extraCdbPaths || []).filter((p) => !loaded.includes(p)), ...loaded]
     configService.save({ extraCdbPaths: merged })
     broadcastToWindows('cdb:updated')
+    invalidateScriptReaders()
+    const picsDirs = new Set<string>()
+    for (const p of loaded) {
+      for (const dir of imageService.detectPicsDirsFromCdb(p)) picsDirs.add(dir)
+    }
     return {
       success: true,
-      path: cdbPath,
-      picsDetected: detectedPics.length > 0
+      path: packDir,
+      paths: loaded,
+      picsDetected: picsDirs.size > 0
     }
   })
 
@@ -64,9 +86,12 @@ export function registerCdbIpc(): void {
     configService.save({ extraCdbPaths: extras, disabledCdbPaths })
     cdbService.reloadAll(
       cfg.cdbPath,
-      extras.filter((p) => !disabledCdbPaths.includes(p))
+      currentBundledCdbPaths(),
+      extras.filter((p) => !disabledCdbPaths.includes(p)),
+      currentLanguagePack()
     )
     broadcastToWindows('cdb:updated')
+    invalidateScriptReaders()
     return { success: true, paths: cdbService.getLoadedPaths() }
   })
 
@@ -79,9 +104,12 @@ export function registerCdbIpc(): void {
     configService.save({ disabledCdbPaths })
     cdbService.reloadAll(
       cfg.cdbPath,
-      (cfg.extraCdbPaths || []).filter((p) => !disabledCdbPaths.includes(p))
+      currentBundledCdbPaths(),
+      (cfg.extraCdbPaths || []).filter((p) => !disabledCdbPaths.includes(p)),
+      currentLanguagePack()
     )
     broadcastToWindows('cdb:updated')
+    invalidateScriptReaders()
     return { success: true, paths: cdbService.getLoadedPaths() }
   })
 

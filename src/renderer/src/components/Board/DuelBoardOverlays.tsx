@@ -11,6 +11,8 @@ import { CardContextMenu } from './CardContextMenu'
 import { CardCommandMenu } from './CardCommandMenu'
 import { StagingStatusBar } from './components/StagingStatusBar'
 import { CardStatPopover } from './components/CardStatPopover'
+import { HeldCardOverlay } from './components/HeldCardOverlay'
+import { AttackTargetingBar } from './components/AttackTargetingBar'
 import { DuelRequestModals } from './request-modals'
 
 export const DuelBoardOverlays: React.FC = () => {
@@ -21,6 +23,8 @@ export const DuelBoardOverlays: React.FC = () => {
       <LpChangeOverlay />
 
       <PileListModal />
+
+      <HeldCardOverlay />
 
       <OverlayListModal />
 
@@ -37,6 +41,8 @@ export const DuelBoardOverlays: React.FC = () => {
       <CardCommandMenu />
 
       <StagingStatusBar />
+
+      <AttackTargetingBar />
 
       <CardStatPopover />
 

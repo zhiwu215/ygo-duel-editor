@@ -7,7 +7,7 @@ import type { EngineBoardState, EngineReplaySummary, EngineTimelineNode } from '
 import { configService } from '../configService'
 import { advanceEngine } from './engine-pump'
 import { initializeProvenance, trackAdvance } from './provenance-tracker'
-import type { SessionState } from './session-state'
+import { headPendingQuery, type SessionState } from './session-state'
 
 export interface ReplayPlayback {
   bytes: Uint8Array
@@ -122,12 +122,13 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
     const frames = yrp.responses.filter((frame) => frame.length > 0)
     for (let i = 0; i < frames.length; i++) {
       const frame = frames[i]
-      if (!state.currentPendingMsg || !state.currentPendingRequest) {
+      const head = headPendingQuery(state)
+      if (!head) {
         warning = `回放共 ${frames.length} 步，引擎在第 ${i} 步后已结束，仅回放前 ${i} 步。`
         break
       }
-      const askTitle = state.currentPendingRequest.title || `回放步骤 ${i + 1}`
-      const actingPlayer = state.currentPendingRequest.player
+      const askTitle = head.request.title || `回放步骤 ${i + 1}`
+      const actingPlayer = head.request.player
       const before = state.fieldReader.readBoard(state.duel!)
       state.duel!.setResponse(frame)
       advanceEngine(state)
@@ -153,6 +154,14 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
       state.requestSeq += 1
       state.accumulatedLogs = []
       state.accumulatedEvents = []
+    }
+    if (state.lastParseError) {
+      const parseWarning = `引擎产生了无法完整解析的消息（${state.lastParseError}）`
+      warning = warning ? `${warning}；${parseWarning}` : parseWarning
+    }
+    if (state.lastScriptError) {
+      const scriptWarning = `回放过程中脚本执行失败：${state.lastScriptError.slice(0, 240)}`
+      warning = warning ? `${warning}；${scriptWarning}` : scriptWarning
     }
     state.timeline.setCurrentStepId(initialNode.id)
     return warning

@@ -1,5 +1,5 @@
 import React from 'react'
-import { ACTION_TYPE_COLORS, ACTION_TYPE_NAMES, DuelStep } from '@shared/index'
+import { ACTION_TYPE_COLORS, DuelStep } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { CardImage } from '../ui/CardImage'
@@ -17,7 +17,7 @@ import {
   ArrowRight
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { getLocationDisplayName, resolveStepCardName } from './stepGrouping'
+import { duelActionLabel, getLocationDisplayName, resolveStepCardName } from './stepGrouping'
 
 interface StepCardProps {
   step: DuelStep
@@ -46,7 +46,7 @@ export const StepCard: React.FC<StepCardProps> = ({
   const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
   const colorTheme = ACTION_TYPE_COLORS[step.actionType] || ACTION_TYPE_COLORS.NORMAL_SUMMON
-  const actionLabel = ACTION_TYPE_NAMES[step.actionType] || step.actionType
+  const actionLabel = duelActionLabel(step)
   const hasBoardSnapshot = Boolean(step.boardAfter && step.boardAfter.length > 0)
   const playableFromHere = hasBoardSnapshot && stepEngineIndex === undefined
   const displayCardName = resolveStepCardName(step)

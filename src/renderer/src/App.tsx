@@ -11,6 +11,7 @@ import { SettingsApp } from './components/Settings/SettingsApp'
 import { TextLibraryApp } from './components/TextLibrary/TextLibraryApp'
 import { CdbSetupModal } from './components/CardSearch/CdbSetupModal'
 import { CustomCardEditorDialog } from './components/CustomCard/CustomCardEditorDialog'
+import { GameLanguageDialog } from './components/Settings/components/GameLanguageDialog'
 import { useConfigStore } from './stores/useConfigStore'
 import { useDuelEngineStore } from './stores/useDuelEngineStore'
 import { useDeckEditorStore } from './stores/useDeckEditorStore'
@@ -21,6 +22,7 @@ function AppModals(): React.JSX.Element {
     <>
       <CustomCardEditorDialog />
       <CdbSetupModal />
+      <GameLanguageDialog />
     </>
   )
 }

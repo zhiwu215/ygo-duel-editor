@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
-import { DuelStep, PHASE_NAMES } from '@shared/index'
+import { DuelStep, DuelPhase, PHASE_NAMES } from '@shared/index'
+import type { Answer } from '@shared/engine/protocol'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { alertDialog } from '../../stores/useDialogStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
+import { phaseJumpCommand, phaseAdvanceCommand, turnEndCommand } from '../../utils/phaseFlow'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -34,6 +36,18 @@ export const StepSequencerPanel: React.FC = () => {
   const engineCurrentStepId = useDuelEngineStore((s) => s.currentStepId)
   const stopEngine = useDuelEngineStore((s) => s.stopEngine)
   const convertReplayToPuzzle = useDuelEngineStore((s) => s.convertReplayToPuzzle)
+  const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  const submitEngineAnswer = useDuelEngineStore((s) => s.submitAnswer)
+
+  const advanceCommand = isEngine ? phaseAdvanceCommand(pendingRequest) : null
+  const turnEndCmd = isEngine ? turnEndCommand(pendingRequest) : null
+  const enginePhaseCommand = (target: DuelPhase): Answer | null =>
+    isEngine ? phaseJumpCommand(target, pendingRequest) : null
+
+  const submitEngine = (command: Answer): void => {
+    void submitEngineAnswer(command)
+  }
 
   const steps = state.steps || []
   const isReplay = replayInfo !== null
@@ -115,17 +129,18 @@ export const StepSequencerPanel: React.FC = () => {
                   <Badge
                     variant="outline"
                     onClick={
-                      isReplay
+                      isReplay || isEngine
                         ? undefined
                         : () => setActiveTurnPlayer(activeTurnPlayer === 0 ? 1 : 0)
                     }
                     className={cn(
                       'text-[10px] px-1.5 py-0 font-bold transition-colors',
-                      !isReplay && 'cursor-pointer',
+                      !isReplay && !isEngine && 'cursor-pointer',
                       activeTurnPlayer === 0
                         ? 'border-blue-500/50 text-blue-400 bg-blue-500/10'
                         : 'border-rose-500/50 text-rose-400 bg-rose-500/10',
                       !isReplay &&
+                        !isEngine &&
                         (activeTurnPlayer === 0 ? 'hover:bg-blue-500/20' : 'hover:bg-rose-500/20')
                     )}
                   >
@@ -133,7 +148,9 @@ export const StepSequencerPanel: React.FC = () => {
                   </Badge>
                 }
               />
-              {!isReplay && <TooltipContent>点击切换当前行动方 (我方 / 对方)</TooltipContent>}
+              {!isReplay && !isEngine && (
+                <TooltipContent>点击切换当前行动方 (我方 / 对方)</TooltipContent>
+              )}
             </Tooltip>
           </div>
 
@@ -172,15 +189,25 @@ export const StepSequencerPanel: React.FC = () => {
               <div className="flex items-center gap-0.5 bg-background/80 p-0.5 rounded-md border border-border/70 flex-1">
                 {ALL_PHASES.map((p) => {
                   const isActive = currentPhase === p
+                  const command = enginePhaseCommand(p)
+                  const engineDisabled = isEngine && !command
                   return (
                     <Tooltip key={p}>
                       <TooltipTrigger
                         render={
                           <button
                             type="button"
-                            onClick={() => insertPhaseJump(p)}
+                            disabled={engineDisabled}
+                            onClick={() => {
+                              if (isEngine) {
+                                if (command) submitEngine(command)
+                                return
+                              }
+                              insertPhaseJump(p)
+                            }}
                             className={cn(
-                              'flex-1 text-[10px] font-extrabold py-0.5 rounded transition-all text-center cursor-pointer',
+                              'flex-1 text-[10px] font-extrabold py-0.5 rounded transition-all text-center',
+                              engineDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
                               isActive
                                 ? 'bg-primary text-primary-foreground shadow-xs'
                                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -203,7 +230,14 @@ export const StepSequencerPanel: React.FC = () => {
                       <Button
                         size="xs"
                         variant="outline"
-                        onClick={insertPhaseChange}
+                        disabled={isEngine && (!advanceCommand || engineLoading)}
+                        onClick={() => {
+                          if (isEngine) {
+                            if (advanceCommand) submitEngine(advanceCommand)
+                            return
+                          }
+                          insertPhaseChange()
+                        }}
                         className="h-6 px-1.5 text-[10px] font-bold gap-0.5 border-border"
                       >
                         <span>下阶段</span>
@@ -221,7 +255,14 @@ export const StepSequencerPanel: React.FC = () => {
                       <Button
                         size="xs"
                         variant="secondary"
-                        onClick={insertTurnChange}
+                        disabled={isEngine && (!turnEndCmd || engineLoading)}
+                        onClick={() => {
+                          if (isEngine) {
+                            if (turnEndCmd) submitEngine(turnEndCmd)
+                            return
+                          }
+                          insertTurnChange()
+                        }}
                         className="h-6 px-1.5 text-[10px] font-bold text-foreground/90"
                       >
                         <span>下回合</span>

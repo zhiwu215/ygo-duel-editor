@@ -41,7 +41,7 @@ export class CustomCardService {
   }
 
   private get imageDir(): string {
-    return dataDirService.ensureDirectory(join('pics', 'custom'))
+    return dataDirService.ensureDirectory(join('custom', 'pics'))
   }
 
   public resetCache(): void {
@@ -183,19 +183,29 @@ export class CustomCardService {
     return removeCustomScript(code)
   }
 
-  public search(params: CardSearchParams, fetchLimit: number): CardSearchResult {
+  public search(
+    params: CardSearchParams,
+    fetchLimit: number,
+    favorites?: number[]
+  ): CardSearchResult {
     this.ensureLoaded()
-    return searchCustomCards(this.cards, params, fetchLimit)
+    return searchCustomCards(this.cards, params, fetchLimit, favorites)
   }
 
   public mergeSearchResults(
     cdbResult: CardSearchResult,
-    params: CardSearchParams
+    params: CardSearchParams,
+    favorites?: number[]
   ): CardSearchResult {
-    return mergeSearchResults(cdbResult, params, () => {
-      this.ensureLoaded()
-      return this.cards
-    })
+    return mergeSearchResults(
+      cdbResult,
+      params,
+      () => {
+        this.ensureLoaded()
+        return this.cards
+      },
+      favorites
+    )
   }
 
   public mergeCardsByIds(map: Record<number, CdbCard>, ids: number[]): Record<number, CdbCard> {

@@ -1,19 +1,22 @@
 import Database from 'better-sqlite3'
 import { existsSync } from 'fs'
 import path from 'path'
-import { CdbLibraryRole } from '@shared/index'
+import { CdbLibraryRole, CdbLibrarySource } from '@shared/index'
 
 export interface CdbConnection {
   path: string
   db: Database.Database
   role: CdbLibraryRole
+  source: CdbLibrarySource
   overlayAliases: string[]
   coveredReady: boolean
+  searchable: boolean
 }
 
 const AUTO_TEXT_OVERLAP_RATIO = 0.9
+const MAX_ATTACHED_DATABASES = 10
 
-function openConnection(cdbPath: string): CdbConnection | null {
+function openConnection(cdbPath: string, source: CdbLibrarySource): CdbConnection | null {
   try {
     if (!existsSync(cdbPath)) {
       console.error(`[CdbService] File not found: ${cdbPath}`)
@@ -33,7 +36,15 @@ function openConnection(cdbPath: string): CdbConnection | null {
       return null
     }
 
-    return { path: cdbPath, db, role: 'data', overlayAliases: [], coveredReady: false }
+    return {
+      path: cdbPath,
+      db,
+      role: 'data',
+      source,
+      overlayAliases: [],
+      coveredReady: false,
+      searchable: true
+    }
   } catch (err) {
     console.error('[CdbService] Failed to open cdb:', err)
     return null
@@ -43,9 +54,9 @@ function openConnection(cdbPath: string): CdbConnection | null {
 export class CdbConnections {
   private connections: CdbConnection[] = []
   private currentPath: string | null = null
+  private languageConnDir: string | undefined
 
-  constructor(private readonly loadTexts: (paths: string[]) => void) {}
-
+  constructor(private readonly loadTexts: (paths: string[], languageDirs: string[]) => void) {}
   private readIdSet(db: Database.Database): Set<number> {
     const ids = new Set<number>()
     try {
@@ -104,6 +115,10 @@ export class CdbConnections {
         conn.role = 'data'
         return
       }
+      if (conn.source === 'language') {
+        conn.role = 'text'
+        return
+      }
       const own = idSets.get(conn.path) ?? new Set<number>()
       const covered = othersUnion.get(conn.path) ?? new Set<number>()
       let hit = 0
@@ -112,13 +127,21 @@ export class CdbConnections {
     })
 
     const dataConns = this.connections.filter((conn) => conn.role === 'data')
-    const textConns = this.connections.filter((conn) => conn.role === 'text')
-    this.connections = [...dataConns, ...textConns]
+    const languageConns = this.connections.filter(
+      (conn) => conn.role === 'text' && conn.source === 'language'
+    )
+    const otherTextConns = this.connections.filter(
+      (conn) => conn.role === 'text' && conn.source !== 'language'
+    )
+    const searchableConns = this.connections.filter((conn) => conn.searchable)
+    this.connections = [...dataConns, ...languageConns, ...otherTextConns]
 
-    textConns.forEach((textConn, index) => {
+    const attachConns = [...languageConns, ...otherTextConns]
+    attachConns.forEach((textConn, index) => {
+      if (index >= MAX_ATTACHED_DATABASES) return
       const alias = `ov${index}`
       const literal = textConn.path.replace(/'/g, "''")
-      for (const conn of dataConns) {
+      for (const conn of searchableConns) {
         try {
           conn.db.exec(`ATTACH DATABASE '${literal}' AS ${alias}`)
           conn.overlayAliases.push(alias)
@@ -130,6 +153,7 @@ export class CdbConnections {
 
     const coveredSoFar = new Set<number>()
     for (const conn of this.connections) {
+      if (!conn.searchable) continue
       if (coveredSoFar.size > 0) this.writeCoveredIds(conn, coveredSoFar)
       for (const id of idSets.get(conn.path) ?? []) coveredSoFar.add(id)
     }
@@ -145,6 +169,10 @@ export class CdbConnections {
     return this.connections
   }
 
+  public searchableList(): CdbConnection[] {
+    return this.connections.filter((c) => c.searchable)
+  }
+
   public getCurrentPath(): string | null {
     return this.currentPath
   }
@@ -153,27 +181,45 @@ export class CdbConnections {
     return this.connections.map((c) => c.path)
   }
 
-  public open(cdbPath: string, extraPaths: string[] = []): boolean {
-    const primary = openConnection(cdbPath)
+  public listLibraries(): Array<{ path: string; source: CdbLibrarySource }> {
+    return this.connections.map((c) => ({ path: c.path, source: c.source }))
+  }
+
+  public open(
+    cdbPath: string,
+    bundledPaths: string[] = [],
+    extraPaths: string[] = [],
+    languagePack: { id: string; dir?: string; cdbPaths: string[] } | null = null
+  ): boolean {
+    const primary = openConnection(cdbPath, 'primary')
     if (!primary) return false
 
     this.closeConnections()
+    this.languageConnDir = languagePack?.dir
     this.connections = [primary]
 
-    for (const extraPath of extraPaths) {
-      if (extraPath === cdbPath) continue
-      const conn = openConnection(extraPath)
-      if (conn) this.connections.push(conn)
-      else console.warn(`[CdbService] Skipped invalid extra cdb: ${extraPath}`)
-    }
+    this.addConnections(bundledPaths, 'bundled')
+    this.addConnections(extraPaths, 'extra')
+    this.addConnections(languagePack?.cdbPaths ?? [], 'language')
 
     this.currentPath = cdbPath
     this.finalizeConnections()
-    this.loadTexts(this.connections.map((c) => c.path))
+    this.notifyTexts()
     console.log(
       `[CdbService] Loaded ${this.connections.length} database(s): ${this.connections.map((c) => c.path).join(', ')}`
     )
     return true
+  }
+
+  private addConnections(paths: string[], source: CdbLibrarySource): void {
+    for (const cdbPath of paths) {
+      if (this.connections.some((c) => c.path === cdbPath)) continue
+      const conn = openConnection(cdbPath, source)
+      if (conn) {
+        conn.searchable = source !== 'language'
+        this.connections.push(conn)
+      } else console.warn(`[CdbService] Skipped invalid cdb: ${cdbPath}`)
+    }
   }
 
   public addExtra(extraPaths: string[]): string[] {
@@ -183,33 +229,46 @@ export class CdbConnections {
         loaded.push(extraPath)
         continue
       }
-      const conn = openConnection(extraPath)
+      const conn = openConnection(extraPath, 'extra')
       if (!conn) continue
       this.connections.push(conn)
       loaded.push(extraPath)
     }
     this.finalizeConnections()
-    this.loadTexts(this.connections.map((c) => c.path))
+    this.notifyTexts()
     console.log(`[CdbService] Extra cdb loaded: ${loaded.join(', ') || '(none)'}`)
     return loaded
   }
 
-  public reloadAll(primaryPath: string | undefined, extraPaths: string[]): void {
+  public reloadAll(
+    primaryPath: string | undefined,
+    bundledPaths: string[],
+    extraPaths: string[],
+    languagePack: { id: string; dir?: string; cdbPaths: string[] } | null = null
+  ): void {
     this.closeConnections()
     this.currentPath = null
     if (primaryPath) {
-      this.open(primaryPath, extraPaths)
+      this.open(primaryPath, bundledPaths, extraPaths, languagePack)
       return
     }
-    for (const extraPath of extraPaths) {
-      const conn = openConnection(extraPath)
+    for (const cdbPath of [...bundledPaths, ...extraPaths]) {
+      const conn = openConnection(cdbPath, 'extra')
       if (!conn) continue
+      this.languageConnDir = undefined
       this.connections = [conn]
       this.currentPath = conn.path
       this.finalizeConnections()
-      this.loadTexts([conn.path])
+      this.notifyTexts()
       return
     }
+  }
+
+  private notifyTexts(): void {
+    this.loadTexts(
+      this.searchableList().map((c) => c.path),
+      this.languageConnDir ? [this.languageConnDir] : []
+    )
   }
 
   private closeConnections(): void {

@@ -1,8 +1,16 @@
 import type { StateCreator } from 'zustand'
-import { CdbCard, CardLocation, CardPosition, FieldCard, LOCATION_NAMES } from '@shared/index'
+import {
+  ACTION_TYPE_NAMES,
+  CdbCard,
+  CardLocation,
+  CardPosition,
+  FieldCard,
+  LOCATION_NAMES,
+  resolveTargetPosition
+} from '@shared/index'
 import { FIELD_ZONE_SEQ } from './setupSlice'
 import { useStagingStore } from '../useStagingStore'
-import { moveActionType, recordEditorStep } from './editorStepRecorder'
+import { moveActionType, recordEditorStep, StepLabel } from './editorStepRecorder'
 import type { DuelStore } from './types'
 
 export interface MoveCardParams {
@@ -43,30 +51,27 @@ function applyMoveCard(prev: DuelStore, params: MoveCardParams): Partial<DuelSto
     toLocation === CardLocation.EXTRA ||
     toLocation === CardLocation.REMOVED
 
-  let assignedDuelistId = targetDuelistId
-  if (isPileZone && !assignedDuelistId) {
-    const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === ctrl)
-    assignedDuelistId =
+  const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === ctrl)
+  const pileDuelistId = isPileZone
+    ? targetDuelistId ||
       targetCard.duelistId ||
       teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ||
       teamDuelists[0]?.id ||
       (ctrl === 0 ? 'duelist_0_0' : 'duelist_1_0')
-  }
+    : undefined
 
   let seq = toSequence
   let updatedCards = prev.state.cards
 
   if (isPileZone) {
     const targetPiles = prev.state.cards
-      .filter((c) => {
-        if (c.controller !== ctrl || c.location !== toLocation || c.instanceId === instanceId) {
-          return false
-        }
-        if (isPileZone && assignedDuelistId) {
-          return c.duelistId === assignedDuelistId
-        }
-        return true
-      })
+      .filter(
+        (c) =>
+          c.controller === ctrl &&
+          c.location === toLocation &&
+          c.instanceId !== instanceId &&
+          c.duelistId === pileDuelistId
+      )
       .sort((a, b) => a.sequence - b.sequence)
 
     const insertIdx =
@@ -91,27 +96,12 @@ function applyMoveCard(prev: DuelStore, params: MoveCardParams): Partial<DuelSto
     }
   }
 
-  const sameZone = targetCard.location === toLocation
-  let newPos = targetCard.position
-  if (customPos !== undefined) {
-    newPos = customPos
-  } else if (!sameZone) {
-    if (toLocation === CardLocation.SZONE) {
-      newPos = CardPosition.FACEDOWN
-    } else if (toLocation === CardLocation.MZONE) {
-      newPos = CardPosition.FACEUP_ATTACK
-    } else if (toLocation === CardLocation.HAND) {
-      newPos = CardPosition.FACEDOWN
-    } else if (toLocation === CardLocation.DECK || toLocation === CardLocation.EXTRA) {
-      newPos = CardPosition.FACEDOWN
-    } else if (
-      toLocation === CardLocation.GRAVE ||
-      toLocation === CardLocation.REMOVED ||
-      toLocation === CardLocation.PZONE
-    ) {
-      newPos = CardPosition.FACEUP
-    }
-  }
+  const newPos = resolveTargetPosition(
+    toLocation,
+    customPos,
+    targetCard.location,
+    targetCard.position
+  )
 
   const finalCards = updatedCards.map((c) => {
     if (c.instanceId === instanceId) {
@@ -121,7 +111,7 @@ function applyMoveCard(prev: DuelStore, params: MoveCardParams): Partial<DuelSto
         sequence: seq,
         controller: ctrl,
         position: newPos,
-        duelistId: isPileZone ? assignedDuelistId : c.duelistId
+        duelistId: isPileZone ? pileDuelistId : c.duelistId
       }
     }
     return c
@@ -153,7 +143,8 @@ export interface PlacementSlice {
     toSequence: number,
     toController?: 0 | 1,
     customPos?: number,
-    targetDuelistId?: string
+    targetDuelistId?: string,
+    stepLabel?: StepLabel
   ) => void
   moveCards: (moves: MoveCardParams[]) => void
   removeCard: (instanceId: string) => void
@@ -184,6 +175,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
   addCardToZone: (card, controller, location, sequence, customPos, duelistId, engineInstanceId) => {
     const placedInstanceId =
       engineInstanceId ?? `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    const pos = resolveTargetPosition(location, customPos)
     useStagingStore.getState().pushOp(
       {
         type: 'add',
@@ -192,7 +184,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         controller,
         location,
         sequence,
-        position: customPos,
+        position: pos,
         duelistId
       },
       card
@@ -204,23 +196,6 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         location === CardLocation.DECK ||
         location === CardLocation.EXTRA ||
         location === CardLocation.REMOVED
-
-      let defaultPos: number = CardPosition.FACEUP_ATTACK
-      if (
-        location === CardLocation.SZONE ||
-        location === CardLocation.DECK ||
-        location === CardLocation.EXTRA ||
-        location === CardLocation.HAND
-      ) {
-        defaultPos = CardPosition.FACEDOWN
-      } else if (
-        location === CardLocation.GRAVE ||
-        location === CardLocation.REMOVED ||
-        location === CardLocation.PZONE
-      ) {
-        defaultPos = CardPosition.FACEUP
-      }
-      const pos = customPos !== undefined ? customPos : defaultPos
 
       const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
       const isOwnerScopedZone =
@@ -303,11 +278,15 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         hoveredCard: card
       }
     })
+    const actionType = moveActionType(location)
     recordEditorStep({
-      actionType: 'PLACE',
+      actionType,
       controller,
       cardName: card.name,
-      description: `将【${card.name}】放置到${LOCATION_NAMES[location] ?? '场上'}`,
+      description:
+        actionType === 'PLACE'
+          ? `将【${card.name}】放置到${LOCATION_NAMES[location] ?? '场上'}`
+          : `将【${card.name}】${ACTION_TYPE_NAMES[actionType]}`,
       op: {
         type: 'add',
         instanceId: placedInstanceId,
@@ -315,37 +294,67 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         controller,
         location,
         sequence,
-        position: customPos,
+        position: pos,
         duelistId
       }
     })
   },
 
-  moveCard: (instanceId, toLocation, toSequence, toController, customPos, targetDuelistId) => {
+  moveCard: (
+    instanceId,
+    toLocation,
+    toSequence,
+    toController,
+    customPos,
+    targetDuelistId,
+    stepLabel
+  ) => {
     const fromCard = get().state.cards.find((c) => c.instanceId === instanceId)
+    const effectivePos = resolveTargetPosition(
+      toLocation,
+      customPos,
+      fromCard?.location,
+      fromCard?.position
+    )
     useStagingStore
       .getState()
-      .pushOp({ type: 'move', instanceId, toLocation, toSequence, toController, customPos })
+      .pushOp({
+        type: 'move',
+        instanceId,
+        toLocation,
+        toSequence,
+        toController,
+        customPos: effectivePos
+      })
     set((prev) => ({
       ...applyMoveCard(prev, {
         instanceId,
         toLocation,
         toSequence,
         toController,
-        customPos,
+        customPos: effectivePos,
         targetDuelistId
       })
     }))
     if (fromCard) {
       const name = fromCard.card?.name
       recordEditorStep({
-        actionType: moveActionType(toLocation),
+        actionType: stepLabel?.actionType ?? moveActionType(toLocation),
         controller: toController ?? fromCard.controller,
         cardName: name,
-        description: name
-          ? `将【${name}】移至${LOCATION_NAMES[toLocation] ?? '区域'}`
-          : `移动卡片至${LOCATION_NAMES[toLocation] ?? '区域'}`,
-        op: { type: 'move', instanceId, toLocation, toSequence, toController, customPos }
+        description:
+          stepLabel?.description ??
+          (name
+            ? `将【${name}】移至${LOCATION_NAMES[toLocation] ?? '区域'}`
+            : `移动卡片至${LOCATION_NAMES[toLocation] ?? '区域'}`),
+        op: {
+          type: 'move',
+          instanceId,
+          toLocation,
+          toSequence,
+          toController,
+          customPos: effectivePos
+        }
       })
     }
   },
@@ -356,8 +365,20 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         .state.cards.filter((c) => moves.some((m) => m.instanceId === c.instanceId))
         .map((c) => [c.instanceId, c])
     )
+    const effectiveMoves = moves.map((m) => {
+      const fromCard = fromCards.get(m.instanceId)
+      return {
+        ...m,
+        customPos: resolveTargetPosition(
+          m.toLocation,
+          m.customPos,
+          fromCard?.location,
+          fromCard?.position
+        )
+      }
+    })
     const staging = useStagingStore.getState()
-    for (const m of moves) {
+    for (const m of effectiveMoves) {
       staging.pushOp({
         type: 'move',
         instanceId: m.instanceId,
@@ -369,12 +390,12 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
     }
     set((prev) => {
       let acc = prev
-      for (const m of moves) {
+      for (const m of effectiveMoves) {
         acc = { ...acc, ...applyMoveCard(acc, m) }
       }
       return acc
     })
-    for (const m of moves) {
+    for (const m of effectiveMoves) {
       const fromCard = fromCards.get(m.instanceId)
       if (!fromCard) continue
       const name = fromCard.card?.name

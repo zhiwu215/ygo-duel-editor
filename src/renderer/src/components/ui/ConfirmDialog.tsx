@@ -20,8 +20,10 @@ interface ConfirmDialogProps {
   destructive?: boolean
   icon?: 'warning' | 'info'
   showCancel?: boolean
+  extraText?: string
   onConfirm: () => void
   onCancel: () => void
+  onExtra?: () => void
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -33,8 +35,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   destructive = true,
   icon = 'warning',
   showCancel = true,
+  extraText,
   onConfirm,
-  onCancel
+  onCancel,
+  onExtra
 }) => {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
@@ -62,6 +66,11 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           {showCancel && (
             <Button variant="outline" size="sm" onClick={onCancel} className="h-7 text-xs">
               {cancelText}
+            </Button>
+          )}
+          {extraText && onExtra && (
+            <Button variant="outline" size="sm" onClick={onExtra} className="h-7 text-xs">
+              {extraText}
             </Button>
           )}
           <Button

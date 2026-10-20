@@ -2,6 +2,7 @@ import {
   CardLocation,
   DuelActionType,
   DuelStep,
+  LightweightCardSnapshot,
   ManualOp,
   createLightweightSnapshot,
   createStepId
@@ -13,9 +14,21 @@ import { useDuelStore } from './index'
 export interface EditorStepInput {
   actionType: DuelActionType
   controller?: 0 | 1
+  instanceId?: string
   cardName?: string
+  targetInstanceId?: string
+  targetCardName?: string
+  targetPlayer?: 0 | 1
   description: string
   op?: ManualOp
+  ops?: ManualOp[]
+  lpChange?: { player: 0 | 1; oldLp: number; newLp: number }
+  boardAfter?: LightweightCardSnapshot[]
+}
+
+export interface StepLabel {
+  actionType: DuelActionType
+  description?: string
 }
 
 export function recordEditorStep(input: EditorStepInput): void {
@@ -29,17 +42,26 @@ export function recordEditorStep(input: EditorStepInput): void {
     phase: duel.currentPhase,
     actionPlayer: input.controller ?? duel.activeTurnPlayer,
     actionType: input.actionType,
+    instanceId: input.instanceId,
     cardName: input.cardName,
+    targetInstanceId: input.targetInstanceId,
+    targetCardName: input.targetCardName,
+    targetPlayer: input.targetPlayer,
     description: input.description,
-    manualOps: input.op ? [input.op] : undefined,
-    boardAfter: createLightweightSnapshot(duel.state.cards)
+    manualOps: input.ops ?? (input.op ? [input.op] : undefined),
+    lpChange: input.lpChange,
+    boardAfter: input.boardAfter ?? createLightweightSnapshot(duel.state.cards)
   }
 
   const selected = duel.currentStepIndex
   const total = (duel.state.steps || []).length
-  if (selected !== null && selected < total - 1) {
-    duel.insertStep(step)
-    duel.setCurrentStepIndex(selected + 1)
+  if (selected !== null) {
+    if (selected < total - 1) {
+      duel.insertStep(step)
+    } else {
+      duel.addStep(step)
+    }
+    duel.previewStepBoard(selected + 1)
   } else {
     duel.addStep(step)
   }

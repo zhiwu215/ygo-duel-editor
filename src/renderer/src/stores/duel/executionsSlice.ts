@@ -29,17 +29,20 @@ export const createExecutionsSlice: StateCreator<DuelStore, [], [], ExecutionsSl
     if (deckCards.length === 0) return
 
     const topCard = deckCards[0]
-    const handCards = state.cards
-      .filter((c) => c.controller === controller && c.location === CardLocation.HAND)
-      .sort((a, b) => a.sequence - b.sequence)
-    const lastHand = handCards[handCards.length - 1]
+    const handCount = state.cards.filter(
+      (c) => c.controller === controller && c.location === CardLocation.HAND
+    ).length
     moveCard(
       topCard.instanceId,
       CardLocation.HAND,
-      handCards.length,
+      handCount,
       controller,
       CardPosition.FACEDOWN,
-      lastHand?.duelistId ?? ownerScope ?? undefined
+      ownerScope ?? undefined,
+      {
+        actionType: 'DRAW',
+        description: topCard.card?.name ? `抽到【${topCard.card.name}】` : '抽卡'
+      }
     )
   }
 })

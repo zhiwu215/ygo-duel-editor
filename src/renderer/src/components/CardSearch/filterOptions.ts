@@ -1,4 +1,4 @@
-import { CardType, CardPoolFilter, LimitFilter } from '@shared/index'
+import { CardType, CardPoolFilter, LimitFilter, SEARCH_POOLS } from '@shared/index'
 
 export const NONE_LABEL = '（无）'
 
@@ -60,11 +60,5 @@ interface CardPoolOptionItem {
 
 export const CARD_POOL_OPTIONS: CardPoolOptionItem[] = [
   { value: 'any', label: '全部卡池' },
-  { value: 'ocg', label: 'OCG' },
-  { value: 'tcg', label: 'TCG' },
-  { value: 'ocgOnly', label: 'OCG 独有' },
-  { value: 'tcgOnly', label: 'TCG 独有' },
-  { value: 'anime', label: '动漫/漫画', tag: 'anime' },
-  { value: 'rush', label: '超速（Rush）', tag: 'rush' },
-  { value: 'tf', label: '卡片力量（TF）', tag: 'tf' }
+  ...SEARCH_POOLS.map((pool) => ({ value: pool.id, label: pool.label, tag: pool.id }))
 ]

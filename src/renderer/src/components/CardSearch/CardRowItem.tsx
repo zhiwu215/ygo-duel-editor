@@ -44,7 +44,7 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
       ? card.pools.map((pool) => `[${cardPoolLabel(pool)}]`).join('')
       : ''
   const isMonster = CardUtils.isMonster(card.type)
-  const otBadges = cardPool === 'ocgOnly' || cardPool === 'tcgOnly' ? otBadgeIds(card.ot) : []
+  const otBadges = cardPool === 'ocg' || cardPool === 'tcg' ? otBadgeIds(card.ot) : []
 
   return (
     <div

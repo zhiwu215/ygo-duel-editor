@@ -15,6 +15,8 @@ import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStagingStore } from '../../stores/useStagingStore'
 import { useSelectionStore } from '../../stores/useSelectionStore'
+import { useAttackTargetingStore } from '../../stores/useAttackTargetingStore'
+import { isFaceupMonster } from '../../utils/battleDamage'
 import { hasCardEngineActions } from '../../utils/engineActions'
 import {
   resolveCardSelectionMatch,
@@ -53,7 +55,19 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     [pendingRequest, card, selectedKeys]
   )
 
-  const role = useMemo(() => resolveCardRole(selectionMatch), [selectionMatch])
+  const editorTargetActive = useAttackTargetingStore((s) =>
+    s.attacker &&
+    s.attacker.instanceId !== card.instanceId &&
+    card.controller !== s.attacker.controller &&
+    isFaceupMonster(card)
+      ? 'target'
+      : null
+  )
+
+  const role = useMemo(
+    () => editorTargetActive ?? resolveCardRole(selectionMatch),
+    [editorTargetActive, selectionMatch]
+  )
 
   const handleCardClick = useCardPointerActions({
     card,

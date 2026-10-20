@@ -1,5 +1,5 @@
 import React from 'react'
-import { ACTION_TYPE_COLORS, ACTION_TYPE_NAMES, DuelStep, PHASE_NAMES } from '@shared/index'
+import { ACTION_TYPE_COLORS, DuelStep, PHASE_NAMES } from '@shared/index'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import { Button } from '../ui/button'
@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, Sparkles, Plus, Trash2, BookOpen, Layers } f
 import { cn } from '../../lib/utils'
 import { stepCardName } from '../../utils/cardNames'
 import { confirmDialog } from '../../stores/useDialogStore'
+import { duelActionLabel } from './stepGrouping'
 import { CHARACTER_PRESETS } from './characterPresets'
 
 interface ScreenplayStepEditorProps {
@@ -68,7 +69,7 @@ export const ScreenplayStepEditor: React.FC<ScreenplayStepEditorProps> = ({
                         ACTION_TYPE_COLORS[activeStep.actionType].border
                       )}
                     >
-                      {ACTION_TYPE_NAMES[activeStep.actionType]}
+                      {duelActionLabel(activeStep)}
                     </span>
                   </div>
 

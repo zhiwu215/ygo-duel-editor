@@ -25,11 +25,11 @@ import {
   normalizeTimingPolicy
 } from '@shared/engine/protocol'
 import { createDuelFromYrp } from 'koishipro-core.js'
-import { getOcgcoreEngine } from './ocgcore-engine'
+import { getOcgcoreEngine, setScriptErrorListener } from './ocgcore-engine'
 import { computeDiff } from './diff-resolver'
 import { encodeAnswer, describeAnswer } from './answer-encoder'
 import { describeInject, executeInject, injectCardName, verifyInject } from './injector'
-import { createSessionState } from './session-state'
+import { createSessionState, headPendingQuery } from './session-state'
 import { setupFromPuzzleState, setupFromDeckParams } from './session-setup'
 import {
   buildReplayTimeline,
@@ -75,6 +75,10 @@ export class DuelSession {
   async init(): Promise<void> {
     if (!this.state.ocgcore) {
       this.state.ocgcore = await getOcgcoreEngine()
+      setScriptErrorListener((message) => {
+        if (!this.state.lastScriptError) this.state.lastScriptError = message
+        this.state.accumulatedLogs.push(`脚本执行失败：${message.slice(0, 240)}`)
+      })
     }
   }
 
@@ -127,8 +131,7 @@ export class DuelSession {
     this.disposeDuel()
     state.accumulatedLogs = []
     state.accumulatedEvents = []
-    state.currentPendingMsg = null
-    state.currentPendingRequest = null
+    state.pendingQueries = []
     state.lastHintDesc = undefined
     state.replaying = true
 
@@ -199,10 +202,11 @@ export class DuelSession {
     const state = this.state
     state.accumulatedLogs = []
     state.accumulatedEvents = []
-    state.currentPendingMsg = null
-    state.currentPendingRequest = null
+    state.pendingQueries = []
     state.requestSeq = 1
     state.lastHintDesc = undefined
+    state.lastParseError = null
+    state.lastScriptError = null
     state.replaying = false
     state.replay = null
     state.recordingMessages = null
@@ -294,11 +298,11 @@ export class DuelSession {
       const node = state.timeline.getStep(parsed.currentStepId)?.node
       if (!node) throw new Error('找不到剧本指定的当前步骤。')
       node.boardState = boardState
-      node.pendingRequest = state.currentPendingRequest
+      node.pendingRequest = headPendingQuery(state)?.request ?? null
 
       return {
         boardState,
-        pendingRequest: state.currentPendingRequest,
+        pendingRequest: headPendingQuery(state)?.request ?? null,
         timeline: state.timeline.getAllNodes(),
         currentStepId: parsed.currentStepId
       }
@@ -337,11 +341,12 @@ export class DuelSession {
 
     const initialBoard = this.readBoard()
     initializeProvenance(state, initialBoard)
+    const pendingRequest = headPendingQuery(state)?.request ?? null
     const initialNode = state.timeline.addStep(
       '决斗开局',
       initialBoard.turnPlayer,
       initialBoard,
-      state.currentPendingRequest,
+      pendingRequest,
       [...state.accumulatedLogs],
       [...state.accumulatedEvents],
       state.ops.length - 1
@@ -351,7 +356,7 @@ export class DuelSession {
 
     return {
       boardState: initialNode.boardState,
-      pendingRequest: state.currentPendingRequest,
+      pendingRequest,
       initialNode
     }
   }
@@ -407,12 +412,13 @@ export class DuelSession {
     if (!state.duel || state.duel.ended) {
       throw new Error('当前没有进行中的对局。')
     }
-    if (!state.currentPendingMsg || !state.currentPendingRequest) {
+    const head = headPendingQuery(state)
+    if (!head) {
       throw new Error('引擎当前没有等待响应的操作。')
     }
 
-    const requestMsg = state.currentPendingMsg
-    const actingPlayer = state.currentPendingRequest.player
+    const requestMsg = head.msg
+    const actingPlayer = head.request.player
     const response = encodeAnswer(requestMsg, answer)
     const logText = describeAnswer(requestMsg, answer)
 
@@ -424,13 +430,14 @@ export class DuelSession {
     if (state.lastAdvanceRetried) {
       state.accumulatedLogs = []
       state.accumulatedEvents = []
-      return { retry: true, pendingRequest: state.currentPendingRequest }
+      return { retry: true, pendingRequest: headPendingQuery(state)?.request ?? null }
     }
     trackAdvance(state, beforeBoard, this.readBoard(), baseOpIndex)
 
     for (let loops = 0; loops < MAX_AUTO_FINISH_LOOPS; loops++) {
       if (!isAutoFinishableUnselect(state, requestMsg)) break
-      const autoResponse = encodeAnswer(state.currentPendingMsg, { kind: 'unselect', card: null })
+      const autoMsg = headPendingQuery(state)!.msg
+      const autoResponse = encodeAnswer(autoMsg, { kind: 'unselect', card: null })
       const beforeAuto = this.readBoard()
       state.duel.setResponse(autoResponse)
       autoResponses.push(autoResponse, ...advanceEngine(state))
@@ -450,11 +457,12 @@ export class DuelSession {
     }
 
     const shuffledHands = state.accumulatedEvents.some((event) => event.kind === 'shuffle-hand')
+    const pendingRequest = headPendingQuery(state)?.request ?? null
     const node = state.timeline.addStep(
       shuffledHands ? `${logText}（手牌切洗）` : logText,
       actingPlayer,
       boardState,
-      state.currentPendingRequest,
+      pendingRequest,
       [...state.accumulatedLogs],
       [...state.accumulatedEvents],
       state.ops.length - 1
@@ -468,9 +476,12 @@ export class DuelSession {
     return {
       retry: false,
       boardState,
-      pendingRequest: state.currentPendingRequest,
+      pendingRequest,
       node,
-      diff
+      diff,
+      actTurn: beforeBoard.turn,
+      actTurnPlayer: beforeBoard.turnPlayer,
+      actPhase: beforeBoard.phase
     }
   }
 
@@ -499,7 +510,7 @@ export class DuelSession {
       title,
       command.player,
       boardState,
-      state.currentPendingRequest,
+      headPendingQuery(state)?.request ?? null,
       logs,
       [...state.accumulatedEvents],
       opIndex
@@ -521,8 +532,7 @@ export class DuelSession {
 
     this.replayTo(stepId)
     if (state.replay) {
-      state.currentPendingMsg = null
-      state.currentPendingRequest = null
+      state.pendingQueries = []
     }
 
     const boardState = this.readBoard()
@@ -530,7 +540,7 @@ export class DuelSession {
     const node = state.timeline.getStep(stepId)?.node
     if (node) {
       node.boardState = boardState
-      node.pendingRequest = state.currentPendingRequest
+      node.pendingRequest = headPendingQuery(state)?.request ?? null
     }
 
     return {
@@ -623,7 +633,7 @@ export class DuelSession {
   }
 
   getPendingRequest(): EngineRequest | null {
-    return this.state.currentPendingRequest
+    return headPendingQuery(this.state)?.request ?? null
   }
 
   recordMessageStream(): { messages: Uint8Array[]; responses: Uint8Array[] } {

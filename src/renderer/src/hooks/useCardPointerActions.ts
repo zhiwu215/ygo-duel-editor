@@ -1,11 +1,14 @@
 import React from 'react'
-import { CardLocation, FieldCard, isCustomCardCode } from '@shared/index'
+import { CardLocation, CardPosition, FieldCard, isCustomCardCode } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useCardCommandMenuStore } from '../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { useStagingStore } from '../stores/useStagingStore'
 import { useDropHintStore } from '../stores/useDropHintStore'
 import { useSelectionStore } from '../stores/useSelectionStore'
+import { useAttackTargetingStore } from '../stores/useAttackTargetingStore'
+import { executeEditorAttack } from '../utils/editorBattle'
+import { isFaceupMonster } from '../utils/battleDamage'
 import {
   submitSelection,
   type CardSelectionMatch,
@@ -30,6 +33,7 @@ export function useCardPointerActions({
   const closeStatPopover = useDuelStore((s) => s.closeStatPopover)
   const activeStatPopoverCardId = useDuelStore((s) => s.activeStatPopoverCardId)
   const statPopoverPosition = useDuelStore((s) => s.statPopoverPosition)
+  const currentPhase = useDuelStore((s) => s.currentPhase)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
@@ -61,6 +65,33 @@ export function useCardPointerActions({
     }
     setSelectedCardId(card.instanceId)
     if (card.card) setHoveredCard(card.card)
+    if (!isEngineActive) {
+      const targeting = useAttackTargetingStore.getState()
+      if (targeting.attacker) {
+        if (
+          card.controller !== targeting.attacker.controller &&
+          isFaceupMonster(card) &&
+          !e.shiftKey
+        ) {
+          executeEditorAttack(targeting.attacker, card)
+        } else {
+          targeting.cancel()
+        }
+        return
+      }
+      if (
+        currentPhase === 'BP' &&
+        card.location === CardLocation.MZONE &&
+        card.position === CardPosition.FACEUP_ATTACK
+      ) {
+        if (menuCard?.instanceId === card.instanceId) {
+          closeCommandMenu()
+        } else {
+          openCommandMenu(card, e.currentTarget.getBoundingClientRect())
+        }
+        return
+      }
+    }
     if (e.shiftKey) {
       closeCommandMenu()
       if (activeStatPopoverCardId === card.instanceId) {

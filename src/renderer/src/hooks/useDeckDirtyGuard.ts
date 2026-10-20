@@ -17,11 +17,12 @@ export function useDeckDirtyGuard(deckId: string | undefined): {
   const confirmDiscard = useCallback(async (): Promise<boolean> => {
     const current = JSON.stringify(useDeckEditorStore.getState().deck)
     if (current === savedSnapshotRef.current) return true
-    return confirmDialog({
+    const confirmed = await confirmDialog({
       title: '放弃修改',
       description: '此操作将放弃对当前卡组的修改，是否继续？',
       confirmText: '继续'
     })
+    return confirmed === true
   }, [])
 
   return { markDeckClean, confirmDiscard }

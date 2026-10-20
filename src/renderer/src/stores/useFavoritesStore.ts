@@ -46,3 +46,7 @@ if (typeof window !== 'undefined' && window.api?.onFavoritesChanged) {
     applyFavorites(useFavoritesStore.setState, newFavs)
   })
 }
+
+if (typeof window !== 'undefined' && window.api) {
+  void useFavoritesStore.getState().loadFavorites()
+}

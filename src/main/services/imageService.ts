@@ -1,8 +1,9 @@
-import { existsSync } from 'fs'
+import { existsSync, readdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { configService } from './configService'
 import { cdbService } from '../db/cdbService'
 import { customCardService } from './customCardService'
+import { isGameProgramName } from './gameContent'
 
 export class ImageService {
   public detectGameDirectory(targetPath: string): string | null {
@@ -23,12 +24,18 @@ export class ImageService {
         return parentDir
       }
 
-      if (
-        existsSync(join(dir, 'cards.cdb')) ||
-        existsSync(join(dir, 'ygopro.exe')) ||
-        existsSync(join(dir, 'EDOPro.exe'))
-      ) {
+      if (existsSync(join(dir, 'cards.cdb')) || existsSync(join(dir, 'MDPro3.exe'))) {
         return dir
+      }
+
+      try {
+        for (const entry of readdirSync(dir)) {
+          if (isGameProgramName(entry)) {
+            return dir
+          }
+        }
+      } catch {
+        return null
       }
     } catch (err) {
       console.error('[ImageService] detectGameDirectory error:', err)
@@ -39,10 +46,14 @@ export class ImageService {
 
   private collectPicsDirs(baseDir: string | undefined, out: string[]): void {
     if (!baseDir) return
-    const p1 = join(baseDir, 'pics')
-    if (existsSync(p1) && !out.includes(p1)) out.push(p1)
-    const p2 = join(baseDir, 'expansions', 'pics')
-    if (existsSync(p2) && !out.includes(p2)) out.push(p2)
+    const candidates = [
+      join(baseDir, 'pics'),
+      join(baseDir, 'expansions', 'pics'),
+      join(baseDir, 'Picture', 'Art')
+    ]
+    for (const dir of candidates) {
+      if (existsSync(dir) && !out.includes(dir)) out.push(dir)
+    }
   }
 
   public detectPicsDirsFromCdb(cdbPath: string): string[] {

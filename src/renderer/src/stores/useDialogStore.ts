@@ -3,6 +3,11 @@ import { create } from 'zustand'
 type DialogKind = 'confirm' | 'alert' | 'prompt'
 type DialogValue = boolean | string | null
 
+export interface DialogExtraAction {
+  text: string
+  value: string
+}
+
 interface DialogRequest {
   id: number
   kind: DialogKind
@@ -11,6 +16,7 @@ interface DialogRequest {
   placeholder?: string
   confirmText?: string
   destructive?: boolean
+  extraAction?: DialogExtraAction
   resolve: (value: DialogValue) => void
 }
 
@@ -37,9 +43,10 @@ interface ConfirmDialogOptions {
   description?: string
   confirmText?: string
   destructive?: boolean
+  extraAction?: DialogExtraAction
 }
 
-export function confirmDialog(options: ConfirmDialogOptions): Promise<boolean> {
+export function confirmDialog(options: ConfirmDialogOptions): Promise<boolean | string> {
   return new Promise((resolve) => {
     useDialogStore.getState().push({
       id: nextDialogId++,

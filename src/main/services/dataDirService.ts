@@ -16,7 +16,7 @@ import { configService } from './configService'
 import { broadcastToWindows } from './broadcast'
 
 const DATA_FILES = ['ygo_duel_editor_decks.json', 'card_notes.json', 'custom_cards.json']
-const DATA_DIRS = ['pics/custom', 'projects', 'texts', 'custom']
+const DATA_DIRS = ['projects', 'texts', 'custom']
 
 let installDataDirectory: string | null | undefined
 

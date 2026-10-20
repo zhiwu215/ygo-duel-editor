@@ -13,11 +13,11 @@ import {
 } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
+import { CUSTOM_CDB_NAME, currentBundledCdbPaths, currentLanguagePack } from './gameContent'
 import { dataDirService } from './dataDirService'
 import { broadcastToWindows } from './broadcast'
 
 const LIBRARY_DIR = 'custom'
-const CDB_FILE = 'cards.cdb'
 const SCRIPT_DIR = 'script'
 const SCRIPT_EXTENSION = '.lua'
 
@@ -26,7 +26,7 @@ export function customLibraryDir(): string {
 }
 
 export function customCdbPath(): string {
-  return join(customLibraryDir(), CDB_FILE)
+  return join(customLibraryDir(), CUSTOM_CDB_NAME)
 }
 
 export function customScriptDir(): string {
@@ -63,7 +63,7 @@ function findCustomScriptPath(code: number): string | null {
 
 export function isCustomCdbPath(cdbPath: string): boolean {
   return (
-    basename(cdbPath).toLowerCase() === CDB_FILE &&
+    basename(cdbPath).toLowerCase() === CUSTOM_CDB_NAME &&
     basename(dirname(cdbPath)).toLowerCase() === LIBRARY_DIR
   )
 }
@@ -157,7 +157,7 @@ function registerCustomCdb(): void {
     configService.save({ extraCdbPaths: nextExtras, disabledCdbPaths: disabled })
   }
 
-  cdbService.reloadAll(cfg.cdbPath, nextExtras)
+  cdbService.reloadAll(cfg.cdbPath, currentBundledCdbPaths(), nextExtras, currentLanguagePack())
   broadcastToWindows('cdb:updated')
 }
 

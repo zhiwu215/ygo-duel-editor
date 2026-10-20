@@ -1,4 +1,4 @@
-import { CdbCard, CardSearchParams, CardType, NumericCompareOp } from '@shared/index'
+import { CdbCard, CardSearchParams, NumericCompareOp } from '@shared/index'
 
 export const COMPARATOR: Record<Exclude<NumericCompareOp, 'unknown'>, string> = {
   eq: '=',
@@ -8,71 +8,70 @@ export const COMPARATOR: Record<Exclude<NumericCompareOp, 'unknown'>, string> = 
   lte: '<='
 }
 
-function subtypeOrder(type: number): number {
-  return type & 0x48020c0 ? type & 0x48020c1 : type & 0x31
+// SQL (cdbSearchSql) 在 SELECT 中输出的排序键：跨库合并排序的唯一事实来源，
+// JS 侧只读键值，不重复实现任何排序公式
+export interface CardSortRow extends CdbCard {
+  relKey: number
+  typeKey: number
+  subKey: number
+  levelKey: number
+  atkKey: number
+  defKey: number
 }
 
-type MonsterSortStep = 'sub' | 'level' | 'atk' | 'def'
+type SortKeyField = Exclude<keyof CardSortRow, keyof CdbCard>
 
-function deckSortComparator(
-  params: CardSearchParams,
-  monsterSteps: MonsterSortStep[]
-): (a: CdbCard, b: CdbCard) => number {
-  const keyDir = params.sortOrder === 'ASC' ? 1 : -1
-  const groupDir = -keyDir
-  const stepValue = (card: CdbCard, step: MonsterSortStep): number => {
-    if (step === 'sub') return subtypeOrder(card.type)
-    if (step === 'level') return (card.level ?? 0) & 255
-    if (step === 'atk') return card.atk ?? 0
-    return card.def ?? 0
-  }
-  return (a, b) => {
-    const at = a.type & 0x7
-    const bt = b.type & 0x7
-    if (at !== bt) return (at - bt) * groupDir
-    if (at !== CardType.MONSTER) {
-      const ar = a.type & ~0x7
-      const br = b.type & ~0x7
-      if (ar !== br) return (ar - br) * groupDir
+const STEPS_BY_SORT_FIELD: Record<'atk' | 'def' | 'name' | 'level', Array<[SortKeyField, 'key' | 'group']>> = {
+  atk: [
+    ['atkKey', 'key'],
+    ['defKey', 'key'],
+    ['levelKey', 'key'],
+    ['subKey', 'group']
+  ],
+  def: [
+    ['defKey', 'key'],
+    ['atkKey', 'key'],
+    ['levelKey', 'key'],
+    ['subKey', 'group']
+  ],
+  name: [],
+  level: [
+    ['subKey', 'group'],
+    ['levelKey', 'key'],
+    ['atkKey', 'key'],
+    ['defKey', 'key']
+  ]
+}
+
+export function sortCards(rows: CardSortRow[], params: CardSearchParams): CdbCard[] {
+  const dir = params.sortOrder === 'ASC' ? 1 : -1
+  const groupDir = -dir
+  const steps = STEPS_BY_SORT_FIELD[params.sortField ?? 'level']
+  return [...rows].sort((a, b) => {
+    if (a.relKey !== b.relKey) return a.relKey - b.relKey
+    if (params.sortField === 'name') {
+      const cmp = Buffer.compare(Buffer.from(a.name ?? '', 'utf8'), Buffer.from(b.name ?? '', 'utf8'))
+      if (cmp !== 0) return cmp * dir
       return (a.id ?? 0) - (b.id ?? 0)
     }
-    for (const step of monsterSteps) {
-      const av = stepValue(a, step)
-      const bv = stepValue(b, step)
-      if (av !== bv) return (av - bv) * keyDir
+    const at = a.typeKey
+    const bt = b.typeKey
+    if (at !== bt) return (at - bt) * groupDir
+    if (at !== 1) {
+      if (a.subKey !== b.subKey) return (a.subKey - b.subKey) * groupDir
+      return ((a.id ?? 0) - (b.id ?? 0)) * groupDir
     }
-    return (a.id ?? 0) - (b.id ?? 0)
-  }
+    for (const [field, mode] of steps) {
+      const av = a[field]
+      const bv = b[field]
+      if (av !== bv) return (av - bv) * (mode === 'key' ? dir : groupDir)
+    }
+    return ((a.id ?? 0) - (b.id ?? 0)) * groupDir
+  })
 }
 
-export function compareCards(params: CardSearchParams): (a: CdbCard, b: CdbCard) => number {
-  const dir = params.sortOrder === 'ASC' ? 1 : -1
-  switch (params.sortField) {
-    case 'atk':
-      return deckSortComparator(params, ['atk', 'def', 'level', 'sub'])
-    case 'def':
-      return deckSortComparator(params, ['def', 'atk', 'level', 'sub'])
-    case 'name':
-      return (a, b) => {
-        const res = String(a.name ?? '').localeCompare(String(b.name ?? ''))
-        if (res !== 0) return res * dir
-        return (a.id ?? 0) - (b.id ?? 0)
-      }
-    default:
-      return deckSortComparator(params, ['sub', 'level', 'atk', 'def'])
-  }
-}
+const SORT_KEY_FIELDS: SortKeyField[] = ['relKey', 'typeKey', 'subKey', 'levelKey', 'atkKey', 'defKey']
 
-export function sortExactFirst(cards: CdbCard[], params: CardSearchParams): CdbCard[] {
-  const keyword = (params.keyword ?? '').trim()
-  if (keyword.length === 0) return [...cards].sort(compareCards(params))
-  const exact: CdbCard[] = []
-  const rest: CdbCard[] = []
-  for (const card of cards) {
-    if (card.name === keyword) exact.push(card)
-    else rest.push(card)
-  }
-  exact.sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
-  rest.sort(compareCards(params))
-  return [...exact, ...rest]
+export function stripSortKeys(card: CdbCard): void {
+  for (const field of SORT_KEY_FIELDS) delete (card as CardSortRow)[field]
 }

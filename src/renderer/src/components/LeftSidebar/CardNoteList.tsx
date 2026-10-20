@@ -46,7 +46,7 @@ export interface CardNoteEditorState {
   cardCode: number
   cardName: string
   kind: CardNoteKind
-  initial: { label: string; text: string; source?: string }
+  initial: { title: string; text: string; source?: string }
 }
 
 interface CardNoteListProps {
@@ -120,7 +120,7 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
       const from = parseSortId(String(active.id))
       const to = parseSortId(String(over.id))
       if (!from || !to || from.kind !== to.kind) return
-      void applyReorder(cardCode, from.kind, from.label, to.label)
+      void applyReorder(cardCode, from.kind, from.title, to.title)
     }
 
   return (
@@ -333,7 +333,7 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                                     cardCode: entry.cardCode,
                                     cardName: entry.cardName,
                                     kind: 'chant',
-                                    initial: { label: '', text: '' }
+                                    initial: { title: '', text: '' }
                                   })
                                 }}
 
@@ -356,7 +356,7 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                                     cardCode: entry.cardCode,
                                     cardName: entry.cardName,
                                     kind: 'note',
-                                    initial: { label: '', text: '' }
+                                    initial: { title: '', text: '' }
                                   })
                                 }}
 
@@ -443,15 +443,15 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                                 召唤词
                               </div>
                               <SortableContext
-                                items={entry.chants.map((c) => buildSortId('chant', c.label))}
+                                items={entry.chants.map((c) => buildSortId('chant', c.title))}
                                 strategy={verticalListSortingStrategy}
                               >
                                 {entry.chants.map((chant) => (
                                   <SortableNoteRow
-                                    key={chant.label}
+                                    key={chant.title}
                                     kind="chant"
                                     item={chant}
-                                    copyKey={`${entry.cardCode}:chant:${chant.label}`}
+                                    copyKey={`${entry.cardCode}:chant:${chant.title}`}
                                     copiedField={copiedField}
                                     onCopy={copy}
                                     onEdit={() =>
@@ -460,14 +460,14 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                                         cardName: entry.cardName,
                                         kind: 'chant',
                                         initial: {
-                                          label: chant.label,
+                                          title: chant.title,
                                           text: chant.text,
                                           source: chant.source
                                         }
                                       })
                                     }
                                     onDelete={() =>
-                                      void removeNote(entry.cardCode, 'chant', chant.label)
+                                      void removeNote(entry.cardCode, 'chant', chant.title)
                                     }
                                   />
                                 ))}
@@ -481,15 +481,15 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                                 备注
                               </div>
                               <SortableContext
-                                items={entry.notes.map((n) => buildSortId('note', n.label))}
+                                items={entry.notes.map((n) => buildSortId('note', n.title))}
                                 strategy={verticalListSortingStrategy}
                               >
                                 {entry.notes.map((note) => (
                                   <SortableNoteRow
-                                    key={note.label}
+                                    key={note.title}
                                     kind="note"
                                     item={note}
-                                    copyKey={`${entry.cardCode}:note:${note.label}`}
+                                    copyKey={`${entry.cardCode}:note:${note.title}`}
                                     copiedField={copiedField}
                                     onCopy={copy}
                                     onEdit={() =>
@@ -497,11 +497,11 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                                         cardCode: entry.cardCode,
                                         cardName: entry.cardName,
                                         kind: 'note',
-                                        initial: { label: note.label, text: note.text }
+                                        initial: { title: note.title, text: note.text }
                                       })
                                     }
                                     onDelete={() =>
-                                      void removeNote(entry.cardCode, 'note', note.label)
+                                      void removeNote(entry.cardCode, 'note', note.title)
                                     }
                                   />
                                 ))}

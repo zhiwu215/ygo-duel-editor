@@ -7,6 +7,7 @@ import { CardImage } from '../ui/CardImage'
 import { resolveCardName } from '../../utils/cardNames'
 import { cn } from '../../lib/utils'
 import { DeckDragSourceData } from './deckDnd'
+import { SORTABLE_TRANSITION } from '../../utils/dnd'
 
 interface DeckCardItemProps {
   code: number
@@ -32,7 +33,7 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortableId,
     data: { source: 'deck', section, index, code } as DeckDragSourceData,
-    transition: { duration: 160, easing: 'cubic-bezier(0.2, 0, 0, 1)' }
+    transition: SORTABLE_TRANSITION
   })
 
   const handleClick = (e: React.MouseEvent): void => {

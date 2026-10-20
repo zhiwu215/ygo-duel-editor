@@ -91,7 +91,18 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
         restoreEngineSteps(newTimeline)
       }
       if (res.node && res.diff) {
-        appendEngineStepFromAnswer(answer, res.node, res.diff, newTimeline, res.boardState ?? null)
+        const actContext =
+          res.actTurn !== undefined && res.actTurnPlayer !== undefined && res.actPhase !== undefined
+            ? { turn: res.actTurn, turnPlayer: res.actTurnPlayer, phase: res.actPhase }
+            : undefined
+        appendEngineStepFromAnswer(
+          answer,
+          res.node,
+          res.diff,
+          newTimeline,
+          res.boardState ?? null,
+          actContext
+        )
       }
     } catch (err) {
       console.error('[useDuelEngineStore] submitAnswer failed:', err)

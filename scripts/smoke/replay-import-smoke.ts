@@ -20,7 +20,7 @@ async function runReplay(
   fileName: string,
   opts: { verbose: boolean; guardEnabled: boolean }
 ): Promise<void> {
-  const yrp = parseYrpReplay(bytes, fileName)
+  const { yrp } = parseYrpReplay(bytes, fileName)
   const rawFrames = yrp.responses
   const frames = rawFrames.filter((f) => f.length > 0)
   console.log(`\n=== ${fileName} (replaying 守卫=${opts.guardEnabled}) ===`)
@@ -35,17 +35,18 @@ async function runReplay(
 
   const initialAuto = advanceEngine(state)
   console.log(
-    `开局推进: autoResponses=${initialAuto.length} pending=${state.currentPendingRequest?.kind ?? '无'}`
+    `开局推进: autoResponses=${initialAuto.length} pending=${state.pendingQueries[0]?.request.kind ?? '无'}`
   )
 
   let retried = -1
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i]
-    if (!state.currentPendingMsg || !state.currentPendingRequest) {
+    const head = state.pendingQueries[0]
+    if (!head) {
       console.log(`[step ${i}] 引擎已结束，仅回放前 ${i} 步`)
       break
     }
-    const req = state.currentPendingRequest
+    const req = head.request
     if (opts.verbose) {
       console.log(
         `[step ${i}] ask=${req.kind} player=${req.player} title="${req.title}" frame=${frameSummary(frame)}`

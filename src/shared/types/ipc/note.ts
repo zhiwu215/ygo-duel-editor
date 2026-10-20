@@ -3,7 +3,7 @@ export type CardNoteKind = 'chant' | 'note'
 export interface CardNote {
   cardCode: number
   kind: CardNoteKind
-  label: string
+  title: string
   text: string
   user?: string
   source?: string
@@ -14,7 +14,7 @@ export interface DefaultCardNote {
   cardCode: number
   cardName: string
   kind: CardNoteKind
-  label: string
+  title: string
   text: string
   user?: string
   source?: string

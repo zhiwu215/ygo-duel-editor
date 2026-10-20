@@ -4,6 +4,7 @@ import { FolderOpen, Loader2, Check } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { useConfigStore } from '../../stores/useConfigStore'
+import { useYgoDirSelect } from '../../hooks/useYgoDirSelect'
 
 const INFO_ROWS: Array<{ label: string; value: string; href?: string }> = [
   { label: '作者', value: '知兀' },
@@ -21,7 +22,8 @@ const INFO_ROWS: Array<{ label: string; value: string; href?: string }> = [
 ]
 
 export const CdbSetupModal: React.FC = () => {
-  const { dbReady, selectYgoDir } = useConfigStore()
+  const { dbReady } = useConfigStore()
+  const selectYgoDir = useYgoDirSelect()
   const [busy, setBusy] = useState<boolean>(false)
   const [copied, setCopied] = useState<string | null>(null)
 

@@ -255,6 +255,8 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
             ? (teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ?? teamDuelists[0]?.id)
             : null
 
+      const assignDuelistId = ownerScope ?? teamDuelists[0]?.id ?? `duelist_${player}_0`
+
       const ZONES_TO_CLEAR: number[] = [
         CardLocation.HAND,
         CardLocation.DECK,
@@ -285,12 +287,10 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
           controller: player,
           owner: player,
           location: CardLocation.HAND,
-
-          sequence: 900 + i,
-
+          sequence: i,
           position: CardPosition.FACEDOWN,
           overlayMaterials: [],
-          duelistId: ownerScope ?? undefined
+          duelistId: assignDuelistId
         })
       }
 
@@ -303,10 +303,9 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
           owner: player,
           location: CardLocation.DECK,
           sequence: i - actualDraw,
-
           position: CardPosition.FACEDOWN,
           overlayMaterials: [],
-          duelistId: ownerScope ?? undefined
+          duelistId: assignDuelistId
         })
       }
 
@@ -321,7 +320,7 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
           sequence: i,
           position: CardPosition.FACEDOWN,
           overlayMaterials: [],
-          duelistId: ownerScope ?? undefined
+          duelistId: assignDuelistId
         })
       }
 

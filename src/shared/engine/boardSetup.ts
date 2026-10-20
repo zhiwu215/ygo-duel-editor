@@ -83,3 +83,32 @@ export function normalizeAgentBoardPlacement(input: {
 
   return { ok: true, zone, sequence, facing }
 }
+
+export function defaultPositionForLocation(location: number): number {
+  if (location === CardLocation.MZONE) {
+    return CardPosition.FACEUP_ATTACK
+  }
+  if (
+    location === CardLocation.SZONE ||
+    location === CardLocation.HAND ||
+    location === CardLocation.DECK ||
+    location === CardLocation.EXTRA
+  ) {
+    return CardPosition.FACEDOWN
+  }
+  return CardPosition.FACEUP
+}
+
+export function resolveTargetPosition(
+  toLocation: number,
+  customPos?: number,
+  fromLocation?: number,
+  fromPosition?: number
+): number {
+  if (customPos !== undefined) return customPos
+  if (fromLocation !== undefined && fromLocation === toLocation && fromPosition !== undefined) {
+    return fromPosition
+  }
+  return defaultPositionForLocation(toLocation)
+}
+

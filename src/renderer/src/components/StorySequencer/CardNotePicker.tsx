@@ -237,7 +237,7 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
                   <>
                     {chants.map((chant) => (
                       <button
-                        key={chant.label}
+                        key={chant.title}
                         type="button"
                         onClick={() => handlePick(chant.text)}
                         className={cn(
@@ -246,7 +246,7 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
                       >
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className="text-[10px] font-semibold text-primary/90">
-                            {chant.label}
+                            {chant.title}
                           </span>
                           <Check className="w-3 h-3 text-muted-foreground/0 group-hover:text-muted-foreground/60 ml-auto" />
                         </div>
@@ -276,13 +276,13 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
         <CardNoteEditor
           cardName={name || `卡密 ${code}`}
           kind="chant"
-          initial={{ label: '', text: '' }}
-          existingLabels={chants.map((c) => c.label)}
-          onSave={async (label, text, kind, source) => {
+          initial={{ title: '', text: '' }}
+          existingTitles={chants.map((c) => c.title)}
+          onSave={async (title, text, kind, source) => {
             const res = await window.api.saveCardNote({
               cardCode: code,
               kind,
-              label,
+              title,
               text,
               source
             })

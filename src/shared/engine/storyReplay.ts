@@ -2,6 +2,7 @@ import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 import { DuelPhase, DuelStep, LightweightCardSnapshot, ManualOp } from '../types/story'
 import { AgentStepProposal } from '../types/ipc'
+import { defaultPositionForLocation } from './boardSetup'
 
 const STEP_TARGET: Partial<
   Record<DuelStep['actionType'], { zone: number; position?: number; fromPileOnly?: boolean }>
@@ -60,7 +61,9 @@ function moveCardInBoard(
   const moved: LightweightCardSnapshot = {
     ...card,
     location: toZone,
-    position: toPosition ?? card.position
+    position:
+      toPosition ??
+      (card.location === toZone ? card.position : defaultPositionForLocation(toZone))
   }
   if (isPileZone(toZone)) {
     const pileSize = rest.filter(
@@ -162,7 +165,7 @@ function applyManualOpToState(state: ManualReplayState, op: ManualOp): void {
       owner: op.controller,
       location: op.location,
       sequence: op.sequence,
-      position: op.position ?? CardPosition.FACEDOWN,
+      position: op.position ?? defaultPositionForLocation(op.location),
       overlayMaterials: [],
       duelistId: op.duelistId
     })
@@ -182,13 +185,23 @@ function applyManualOpToState(state: ManualReplayState, op: ManualOp): void {
   const rest = board.filter((_, i) => i !== index)
   const toController = op.toController ?? card.controller
   if (isPileZone(op.toLocation)) {
-    const pileSize = rest.filter(
-      (c) =>
-        c.controller === toController &&
-        c.location === op.toLocation &&
-        (c.duelistId ?? `duelist_${c.controller}`) === (card.duelistId ?? `duelist_${toController}`)
-    ).length
-    card.sequence = op.toSequence ?? pileSize
+    const pileCards = rest
+      .filter(
+        (c) =>
+          c.controller === toController &&
+          c.location === op.toLocation &&
+          (c.duelistId ?? `duelist_${c.controller}`) ===
+            (card.duelistId ?? `duelist_${toController}`)
+      )
+      .sort((a, b) => a.sequence - b.sequence)
+    const insertIdx =
+      op.toSequence !== undefined && op.toSequence >= 0 && op.toSequence <= pileCards.length
+        ? op.toSequence
+        : pileCards.length
+    card.sequence = insertIdx
+    for (let i = insertIdx; i < pileCards.length; i++) {
+      pileCards[i].sequence += 1
+    }
   } else {
     card.sequence = op.toSequence ?? card.sequence
     for (let i = rest.length - 1; i >= 0; i--) {
@@ -204,8 +217,13 @@ function applyManualOpToState(state: ManualReplayState, op: ManualOp): void {
   }
   card.controller = toController
   card.owner = toController
+  const sameZone = card.location === op.toLocation
   card.location = op.toLocation
-  if (op.customPos !== undefined) card.position = op.customPos
+  if (op.customPos !== undefined) {
+    card.position = op.customPos
+  } else if (!sameZone) {
+    card.position = defaultPositionForLocation(op.toLocation)
+  }
   rest.push(card)
   board.length = 0
   board.push(...rest)
@@ -219,12 +237,13 @@ export function replayManualSteps(
   initial: LightweightCardSnapshot[],
   steps: DuelStep[],
   startLp: [number, number],
-  startTurnPlayer: 0 | 1
+  startTurnPlayer: 0 | 1,
+  startPhase: DuelPhase = 'DP'
 ): { steps: DuelStep[]; lp: [number, number] } {
   const state: ManualReplayState = {
     board: cloneSnap(initial),
     turn: 1,
-    phase: 'DP',
+    phase: startPhase,
     turnPlayer: startTurnPlayer,
     lp: [startLp[0], startLp[1]]
   }

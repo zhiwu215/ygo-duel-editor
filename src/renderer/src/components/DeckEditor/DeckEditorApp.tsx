@@ -11,13 +11,13 @@ import { DeckSearchPanel } from './DeckSearchPanel'
 import { DeckTestHandModal } from './DeckTestHandModal'
 import { DeckEditorToolbar, NONE_GROUP_VALUE } from './DeckEditorToolbar'
 import { CardImage } from '../ui/CardImage'
+import { DROP_ANIMATION } from '../../utils/dnd'
 import { deckCollisionDetection, useDeckDnd } from '../../hooks/useDeckDnd'
 import { useDeckDirtyGuard } from '../../hooks/useDeckDirtyGuard'
 import { useFlashMessage } from '../../hooks/useFlashMessage'
 import { useDeckFileExport } from '../../hooks/useDeckFileExport'
 import { getGroupSiblings, pickNextDeckAfterDelete } from '../../utils/deckLibraryView'
 
-const DROP_ANIMATION = { duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }
 const FLASH_DURATION = 700
 
 export const DeckEditorApp: React.FC = () => {
@@ -275,7 +275,10 @@ export const DeckEditorApp: React.FC = () => {
           </div>
         </div>
 
-        <DragOverlay dropAnimation={activeDrag?.source === 'deck' ? DROP_ANIMATION : null}>
+        <DragOverlay
+          dropAnimation={activeDrag?.source === 'deck' ? DROP_ANIMATION : null}
+          style={{ pointerEvents: 'none' }}
+        >
           {activeDrag && (
             <div
               className="pointer-events-none overflow-hidden rounded border border-primary/80 shadow-2xl ring-2 ring-primary/40"

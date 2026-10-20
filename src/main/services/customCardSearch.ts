@@ -7,8 +7,23 @@ import {
   customCardToCdbCard
 } from '@shared/index'
 import { parseSearchTokens } from '../db/searchTokens'
-import { sortExactFirst } from '../db/cardSort'
 import { isCustomCdbLoaded } from './customCardLibrary'
+
+// 自建卡不经过 SQL 排序（无排序键），用确定性的精确名优先 + id 序
+function exactNameFirst(cards: CdbCard[], params: CardSearchParams): CdbCard[] {
+  const keyword = (params.keyword ?? '').trim()
+  const byId = (a: CdbCard, b: CdbCard): number => (a.id ?? 0) - (b.id ?? 0)
+  if (keyword.length === 0) return [...cards].sort(byId)
+  const exact: CdbCard[] = []
+  const rest: CdbCard[] = []
+  for (const card of cards) {
+    if (card.name === keyword) exact.push(card)
+    else rest.push(card)
+  }
+  exact.sort(byId)
+  rest.sort(byId)
+  return [...exact, ...rest]
+}
 
 export function matchNumeric(
   value: number,
@@ -51,7 +66,14 @@ export function matchKeyword(card: CustomCard, params: CardSearchParams): boolea
   return true
 }
 
-export function matchFilters(card: CustomCard, params: CardSearchParams): boolean {
+export function matchFilters(
+  card: CustomCard,
+  params: CardSearchParams,
+  favorites?: number[]
+): boolean {
+  if (params.onlyFavorites) {
+    if (!favorites || !favorites.includes(card.id)) return false
+  }
   if (params.code !== undefined && params.code > 0 && card.id !== params.code) return false
   if (params.type !== undefined && params.type !== 0 && (card.type & params.type) === 0) {
     return false
@@ -100,30 +122,32 @@ export function matchFilters(card: CustomCard, params: CardSearchParams): boolea
 export function searchCustomCards(
   cards: CustomCard[],
   params: CardSearchParams,
-  fetchLimit: number
+  fetchLimit: number,
+  favorites?: number[]
 ): CardSearchResult {
   const matched = cards
-    .filter((card) => matchKeyword(card, params) && matchFilters(card, params))
+    .filter((card) => matchKeyword(card, params) && matchFilters(card, params, favorites))
     .map(customCardToCdbCard)
-  const ordered = sortExactFirst(matched, params)
+  const ordered = exactNameFirst(matched, params)
   return { cards: ordered.slice(0, fetchLimit), total: matched.length }
 }
 
 export function mergeSearchResults(
   cdbResult: CardSearchResult,
   params: CardSearchParams,
-  ensureCards: () => CustomCard[]
+  ensureCards: () => CustomCard[],
+  favorites?: number[]
 ): CardSearchResult {
   if (isCustomCdbLoaded()) return cdbResult
 
   const limit = params.limit || 50
   const offset = params.offset || 0
-  const custom = searchCustomCards(ensureCards(), params, offset + limit)
+  const custom = searchCustomCards(ensureCards(), params, offset + limit, favorites)
   if (custom.cards.length === 0) return cdbResult
 
   const keyword = (params.keyword ?? '').trim()
   if (keyword.length > 0) {
-    const ordered = sortExactFirst([...cdbResult.cards, ...custom.cards], params)
+    const ordered = exactNameFirst([...cdbResult.cards, ...custom.cards], params)
     return {
       cards: ordered.slice(offset, offset + limit),
       total: cdbResult.total + custom.total

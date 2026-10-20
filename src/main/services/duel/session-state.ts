@@ -8,16 +8,26 @@ import type { ReplayPlayback } from './replay-session'
 import { FieldReader } from './field-reader'
 import { EngineTimelineManager } from './timeline-manager'
 
+export interface PendingQuery {
+  msg: unknown
+  request: EngineRequest
+}
+
+export function headPendingQuery(state: SessionState): PendingQuery | null {
+  return state.pendingQueries[0] ?? null
+}
+
 export interface SessionState {
   ocgcore: OcgcoreWrapper | null
   duel: OcgcoreDuel | null
   ownedWrapper: OcgcoreWrapper | null
   fieldReader: FieldReader
   timeline: EngineTimelineManager
-  currentPendingMsg: unknown
-  currentPendingRequest: EngineRequest | null
+  pendingQueries: PendingQuery[]
   requestSeq: number
   lastHintDesc: number | undefined
+  lastParseError: string | null
+  lastScriptError: string | null
   accumulatedLogs: string[]
   accumulatedEvents: EngineStepEvent[]
   lastAdvanceRetried: boolean
@@ -43,10 +53,11 @@ export function createSessionState(): SessionState {
     ownedWrapper: null,
     fieldReader: new FieldReader(),
     timeline: new EngineTimelineManager(),
-    currentPendingMsg: null,
-    currentPendingRequest: null,
+    pendingQueries: [],
     requestSeq: 1,
     lastHintDesc: undefined,
+    lastParseError: null,
+    lastScriptError: null,
     accumulatedLogs: [],
     accumulatedEvents: [],
     lastAdvanceRetried: false,

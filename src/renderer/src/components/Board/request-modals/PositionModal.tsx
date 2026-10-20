@@ -28,7 +28,7 @@ export const PositionModal: React.FC<{ data: DataOf<'position'> }> = ({ data }) 
   const loading = useDuelEngineStore((s) => s.loading)
   const faceImage = data.code && data.code > 0 ? getCardImageUrl(data.code) : UNKNOWN_CARD_IMAGE
   return (
-    <RequestModalShell width="max-w-2xl">
+    <RequestModalShell title="请选择表示形式" width="max-w-2xl">
       <div className="flex flex-wrap items-center justify-center gap-3 py-1">
         {data.positions.map((position) => {
           const label = POSITION_LABELS[position] ?? `表示形式 #${position}`
@@ -40,7 +40,7 @@ export const PositionModal: React.FC<{ data: DataOf<'position'> }> = ({ data }) 
               aria-label={label}
               title={label}
               onClick={() => submitAnswer({ kind: 'position', position })}
-              className="flex h-[176px] w-[176px] items-center justify-center rounded-xl border border-border/70 bg-background/60 transition-all hover:border-primary/70 hover:bg-primary/10 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
+              className="flex h-[176px] w-[176px] items-center justify-center rounded-md border border-border/70 bg-background/60 transition-colors hover:border-foreground/40 hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-60"
             >
               <img
                 src={POSITION_FACEDOWN.has(position) ? getCardBack() : faceImage}

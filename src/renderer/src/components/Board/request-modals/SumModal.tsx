@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react'
-import { Check } from 'lucide-react'
 import type { EngineRequest } from '@shared/engine/protocol'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { useSelectionStore } from '../../../stores/useSelectionStore'
@@ -40,6 +39,10 @@ export const SumModal: React.FC<{ request: EngineRequest; data: DataOf<'sum'> }>
   const mustSum = data.mustSelect.reduce((sum, card) => sum + (card.opParam ?? 0), 0)
   const hasOpParam = allCards.some((card) => card.opParam !== undefined)
 
+  const submit = (): void => {
+    if (derived) submitSelection(derived, selectedCards)
+  }
+
   return (
     <RequestModalShell
       title={request.title}
@@ -51,13 +54,7 @@ export const SumModal: React.FC<{ request: EngineRequest; data: DataOf<'sum'> }>
             已选 {selectedCards.length} / {min === max ? min : `${min}~${max}`} 张
             {hasOpParam && ` · 合计 ${mustSum + selectedSum} / 目标 ${data.sumVal}`}
           </span>
-          <Button
-            disabled={loading || !ready}
-            onClick={() => {
-              if (derived) submitSelection(derived, selectedCards)
-            }}
-          >
-            <Check />
+          <Button size="sm" disabled={loading || !ready} onClick={submit}>
             确认
           </Button>
         </>

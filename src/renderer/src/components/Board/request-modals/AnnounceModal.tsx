@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react'
-import { Check } from 'lucide-react'
 import { ATTRIBUTE_NAMES, CdbCard, RACE_NAMES } from '@shared/index'
 import type { EngineRequest } from '@shared/engine/protocol'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
@@ -72,11 +71,7 @@ export const AnnounceModal: React.FC<{ request: EngineRequest; data: DataOf<'ann
       subtitle={request.subtitle}
       width={data.announceType === 'card' ? 'max-w-2xl' : 'max-w-lg'}
       footer={
-        <Button
-          disabled={loading || !canConfirm}
-          onClick={() => submitAnswer({ kind: 'announce', value: announceValue })}
-        >
-          <Check />
+        <Button size="sm" disabled={loading || !canConfirm} onClick={() => submitAnswer({ kind: 'announce', value: announceValue })}>
           {confirmLabel}
         </Button>
       }

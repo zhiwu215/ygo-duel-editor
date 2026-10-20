@@ -21,6 +21,8 @@ import {
   YGOProMsgAnnounceCard
 } from 'ygopro-msg-encode'
 import { EngineRequest, RequestCard, RequestData, RequestPlace } from '@shared/engine/protocol'
+import { LOCATION_NAMES } from '@shared/index'
+import { cdbService } from '../../db/cdbService'
 import { getEffectDescText, getSystemDescText } from './strings-service'
 
 export interface RouteContext {
@@ -98,7 +100,7 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
     identifier = YGOProMsgSelectCard.identifier
     title =
       ctx.descHint !== undefined
-        ? (getSystemDescText(ctx.descHint, '') ?? `Player ${player} 请选择卡片`)
+        ? (getSystemDescText(ctx.descHint) ?? `Player ${player} 请选择卡片`)
         : `Player ${player} 请选择卡片`
     subtitle = msg.min === msg.max ? `请选择 ${msg.min} 张` : `请选择 ${msg.min}~${msg.max} 张`
     data = {
@@ -169,8 +171,10 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
             sequence: msg.sequence
           })
         : undefined
-    const descText = getEffectDescText(msg.desc, card ? card.code.toString() : '')
-    title = descText ?? getSystemDescText(msg.desc, '') ?? `Player ${player} 请确认`
+    const placeName = card ? (LOCATION_NAMES[card.location] ?? '') : ''
+    const cardName = card ? (cdbService.getCardById(card.code)?.name ?? '') : ''
+    const descText = getEffectDescText(msg.desc, [placeName, cardName])
+    title = descText ?? getSystemDescText(msg.desc, [placeName, cardName]) ?? '请确认'
     data = { kind: 'yesno', desc: msg.desc, card }
   } else if (msg instanceof YGOProMsgSelectOption) {
     player = normalizePlayer(msg.player, 0)

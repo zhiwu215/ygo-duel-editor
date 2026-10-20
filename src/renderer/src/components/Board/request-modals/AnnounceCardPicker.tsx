@@ -79,10 +79,8 @@ export const AnnounceCardPicker: React.FC<AnnounceCardPickerProps> = ({
               disabled={loading}
               onClick={() => onPick(card)}
               className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg border p-1.5 text-left transition-colors',
-                selected
-                  ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
-                  : 'border-border/70 bg-background/60 hover:border-primary/60 hover:bg-muted/40'
+                'flex w-full items-center gap-2.5 border-b border-border/50 p-1.5 text-left transition-colors last:border-b-0',
+                selected ? 'bg-foreground/[0.06]' : 'hover:bg-muted/60'
               )}
             >
               <CardImage

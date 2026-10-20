@@ -27,7 +27,7 @@ export const DuelSelectionBar: React.FC = () => {
 
   if (derived.mode === 'modal') {
     if (derived.kind !== 'unselect') return null
-    return <UnselectCardModal request={request} derived={derived} loading={loading} cards={cards} />
+    return <UnselectCardModal derived={derived} loading={loading} cards={cards} />
   }
 
   const isUnselect = derived.kind === 'unselect'

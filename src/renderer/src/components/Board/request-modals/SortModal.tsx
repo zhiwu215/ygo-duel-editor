@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Check, ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { EngineRequest } from '@shared/engine/protocol'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../../utils/cardImage'
@@ -36,12 +36,14 @@ export const SortModal: React.FC<{ request: EngineRequest; data: DataOf<'sort'> 
         <>
           <Button
             variant="outline"
+            size="sm"
             disabled={loading}
             onClick={() => submitAnswer({ kind: 'sort', cards: null })}
           >
             不排序
           </Button>
           <Button
+            size="sm"
             disabled={loading}
             onClick={() =>
               submitAnswer({
@@ -50,19 +52,18 @@ export const SortModal: React.FC<{ request: EngineRequest; data: DataOf<'sort'> 
               })
             }
           >
-            <Check />
             确认顺序
           </Button>
         </>
       }
     >
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col">
         {order.map((cardIndex, position) => {
           const card = data.cards[cardIndex]
           return (
             <div
               key={`${cardIndex}-${card.code}-${card.controller}-${card.location}-${card.sequence}`}
-              className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-background/60 p-1.5"
+              className="flex items-center gap-2.5 border-b border-border/50 px-1.5 py-1.5 last:border-b-0"
             >
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-[11px] font-bold text-muted-foreground">
                 {position + 1}

@@ -33,15 +33,15 @@ export const RequestCardTile: React.FC<RequestCardTileProps> = ({
       title={name}
       onClick={onClick}
       className={cn(
-        'group flex w-[86px] shrink-0 flex-col items-center gap-1 rounded-lg border bg-background/60 p-1.5 text-center transition-all',
+        'group flex w-[86px] shrink-0 flex-col items-center gap-1 rounded-md border bg-background/60 p-1.5 text-center transition-colors',
         onClick ? 'cursor-pointer' : 'cursor-default',
         selected
-          ? 'border-primary ring-2 ring-primary/50 shadow-md'
-          : 'border-border/70 hover:border-primary/60 hover:shadow-md',
+          ? 'border-foreground bg-muted'
+          : 'border-border/70 hover:border-foreground/40 hover:bg-muted/40',
         disabled && 'pointer-events-none opacity-60'
       )}
     >
-      <div className="relative h-[112px] w-[80px] overflow-hidden rounded border border-border/60 bg-black/30">
+      <div className="relative h-[112px] w-[80px] overflow-hidden rounded-sm border border-border/60 bg-black/30">
         <img
           src={getCardImageUrl(card.code, true)}
           alt={name}
@@ -53,8 +53,8 @@ export const RequestCardTile: React.FC<RequestCardTileProps> = ({
           }}
         />
         {selected && (
-          <div className="absolute inset-0 flex items-center justify-center bg-primary/25">
-            <Check className="h-6 w-6 text-primary-foreground drop-shadow" />
+          <div className="absolute inset-0 flex items-center justify-center bg-foreground/25">
+            <Check className="h-6 w-6 text-background" />
           </div>
         )}
         {badge && (

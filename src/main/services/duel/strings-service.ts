@@ -27,23 +27,25 @@ function loadStringsConf(): void {
   }
 }
 
-function expandPlaceholders(text: string, cardName: string): string {
-  return text
-    .replaceAll('[%ls]', cardName ? `【${cardName}】` : '该卡')
-    .replaceAll('[%ls]', cardName ? `【${cardName}】` : '该卡')
-    .replaceAll('[%d]', '')
+function expandPlaceholders(text: string, args: string[]): string {
+  let index = 0
+  return text.replace(/\[%ls\]|\[%d\]/g, (token) => {
+    if (token === '[%d]') return ''
+    const value = args[index++] ?? ''
+    return value ? `【${value}】` : '该卡'
+  })
 }
 
-export function getEffectDescText(desc: number, cardName?: string): string | undefined {
+export function getEffectDescText(desc: number, args: string[] = []): string | undefined {
   loadStringsConf()
   const text = effectStrings.get(desc)
   if (text === undefined) return undefined
-  return expandPlaceholders(text, cardName ?? '')
+  return expandPlaceholders(text, args)
 }
 
-export function getSystemDescText(desc: number, cardName?: string): string | undefined {
+export function getSystemDescText(desc: number, args: string[] = []): string | undefined {
   loadStringsConf()
   const text = systemStrings.get(desc)
   if (text === undefined) return undefined
-  return expandPlaceholders(text, cardName ?? '')
+  return expandPlaceholders(text, args)
 }

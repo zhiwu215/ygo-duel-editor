@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Check, Minus, Plus } from 'lucide-react'
+import { Minus, Plus } from 'lucide-react'
 import { COUNTER_DEFINITIONS } from '@shared/index'
 import type { EngineRequest } from '@shared/engine/protocol'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
@@ -37,6 +37,15 @@ export const CounterModal: React.FC<{ request: EngineRequest; data: DataOf<'coun
     })
   }
 
+  const submit = (): void => {
+    submitAnswer({
+      kind: 'counter',
+      counters: data.cards
+        .map((card, index) => ({ card, count: counts[index] ?? 0 }))
+        .filter((entry) => entry.count > 0)
+    })
+  }
+
   return (
     <RequestModalShell
       title={request.title}
@@ -47,31 +56,20 @@ export const CounterModal: React.FC<{ request: EngineRequest; data: DataOf<'coun
           <span className="mr-auto text-[11px] text-muted-foreground">
             已取除 {total} / {data.counterCount}
           </span>
-          <Button
-            disabled={loading || total !== data.counterCount}
-            onClick={() =>
-              submitAnswer({
-                kind: 'counter',
-                counters: data.cards
-                  .map((card, index) => ({ card, count: counts[index] ?? 0 }))
-                  .filter((entry) => entry.count > 0)
-              })
-            }
-          >
-            <Check />
+          <Button size="sm" disabled={loading || total !== data.counterCount} onClick={submit}>
             确认取除
           </Button>
         </>
       }
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col">
         {data.cards.map((card, index) => {
           const max = maxOf(index)
           const count = counts[index] ?? 0
           return (
             <div
               key={`${card.controller}-${card.location}-${card.sequence}-${card.code}-${index}`}
-              className="flex items-center gap-3 rounded-lg border border-border/70 bg-background/60 p-2"
+              className="flex items-center gap-3 border-b border-border/50 px-1.5 py-2 last:border-b-0"
             >
               <img
                 src={getCardImageUrl(card.code, true)}

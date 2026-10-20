@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react'
-import { Check } from 'lucide-react'
 import type { EngineRequest } from '@shared/engine/protocol'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { useSelectionStore } from '../../../stores/useSelectionStore'
@@ -57,12 +56,11 @@ export const CardSelectModal: React.FC<{
             已选 {selectedCards.length} / {min === max ? min : `${min}~${max}`} {unit}
           </span>
           {data.cancelable && (
-            <Button variant="destructive" disabled={loading} onClick={cancel}>
+            <Button variant="outline" size="sm" disabled={loading} onClick={cancel}>
               取消
             </Button>
           )}
-          <Button disabled={loading || !ready} onClick={submit}>
-            <Check />
+          <Button size="sm" disabled={loading || !ready} onClick={submit}>
             {data.kind === 'tribute' ? '确认解放' : '确认'}
           </Button>
         </>

@@ -21,7 +21,6 @@ interface PileCardTileProps {
   onHold: (card: FieldCard, point: { x: number; y: number }) => void
   holdEnabled: boolean
   onRemove: (card: FieldCard) => void
-  onContextMenu: (card: FieldCard, e: React.MouseEvent<HTMLDivElement>) => void
 }
 
 const PileCardTileBase: React.FC<PileCardTileProps> = ({
@@ -36,8 +35,7 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   onTogglePosition,
   onHold,
   holdEnabled,
-  onRemove,
-  onContextMenu
+  onRemove
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.instanceId,
@@ -56,7 +54,6 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
       }}
       {...attributes}
       {...listeners}
-      onContextMenu={(e) => onContextMenu(card, e)}
       onClick={() => onSelect(card)}
       onMouseEnter={() => onHoverChange(card, true)}
       onMouseLeave={() => onHoverChange(card, false)}

@@ -161,6 +161,20 @@ export const CardContextMenu: React.FC = () => {
     currentPileTarget.controller === card.controller &&
     currentPileTarget.location === card.location
 
+  const showPileBranch = isPileZone && !isModalOpenForThisZone
+  const showOverlayBranch =
+    isMonsterZone && !isEngine && !!(card.overlayMaterials && card.overlayMaterials.length > 0)
+  const showStatBranch = isMonsterZone || isSpellTrapZone
+  const showRemoveBranch = (!isEngine || stagingActive) && !isModalOpenForThisZone
+  const hasAnyContent =
+    duelActionItems.length > 0 ||
+    engineEditItems.length > 0 ||
+    showPileBranch ||
+    showOverlayBranch ||
+    showStatBranch ||
+    showRemoveBranch
+  if (!hasAnyContent) return null
+
   return (
     <div
       ref={menuRef}

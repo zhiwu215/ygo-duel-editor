@@ -25,7 +25,6 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStagingStore } from '../../stores/useStagingStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useHeldCardStore } from '../../stores/useHeldCardStore'
-import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { resolveCardName } from '../../utils/cardNames'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { getCardImageUrl } from '../../utils/cardImage'
@@ -60,7 +59,6 @@ export const PileListModal: React.FC = () => {
 
 const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
-  const openContextMenu = useContextMenuStore((s) => s.openMenu)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
   const {
@@ -225,15 +223,6 @@ const PileListContent: React.FC = () => {
       }
     },
     [cardDataMap, setHoveredCard, setHoveredInstanceId]
-  )
-
-  const handleTileContextMenu = useCallback(
-    (card: FieldCard, e: React.MouseEvent<HTMLDivElement>): void => {
-      e.preventDefault()
-      e.stopPropagation()
-      openContextMenu({ ...card, card: card.card || cardDataMap[card.code] }, e.clientX, e.clientY)
-    },
-    [cardDataMap, openContextMenu]
   )
 
   const handleTogglePosition = useCallback(
@@ -477,7 +466,6 @@ const PileListContent: React.FC = () => {
                       onHold={handleHold}
                       holdEnabled={!isEngineActive || stagingActive}
                       onRemove={handleRemoveCard}
-                      onContextMenu={handleTileContextMenu}
                     />
                   ))}
                 </div>

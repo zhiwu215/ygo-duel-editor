@@ -9,3 +9,8 @@ export function getDropPosOverride(location: number, invert: boolean): number | 
   if (location === CardLocation.DECK) return CardPosition.FACEUP
   return undefined
 }
+
+export function canShowPositionHint(location: number, phase: string): boolean {
+  if (location === CardLocation.MZONE && phase === 'BP') return false
+  return true
+}

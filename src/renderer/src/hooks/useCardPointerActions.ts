@@ -15,6 +15,7 @@ import {
   type CardSelectionRole
 } from '../utils/duelSelection'
 import { hasCardEngineActions, hasCardEngineActivate } from '../utils/engineActions'
+import { canShowPositionHint } from '../utils/zoneDrop'
 
 interface CardPointerActionsInput {
   card: FieldCard
@@ -128,7 +129,8 @@ export function useCardPointerActions({
       }
       const loc = card.location
       const canHint =
-        loc === CardLocation.MZONE || loc === CardLocation.SZONE || loc === CardLocation.HAND
+        (loc === CardLocation.MZONE || loc === CardLocation.SZONE || loc === CardLocation.HAND) &&
+        canShowPositionHint(loc, currentPhase)
       if (!canHint) {
         closeHint()
         return

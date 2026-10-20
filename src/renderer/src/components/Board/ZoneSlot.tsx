@@ -12,7 +12,7 @@ import { useHeldCardPlacement } from '../../hooks/useHeldCardPlacement'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { DropHintPopover } from './components/DropHintPopover'
 import { useDeckZoneInteraction } from '../../hooks/useDeckZoneInteraction'
-import { getDropPosOverride } from '../../utils/zoneDrop'
+import { getDropPosOverride, canShowPositionHint } from '../../utils/zoneDrop'
 import { buildInjectCommand } from '../../utils/engineInject'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -281,7 +281,9 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       }
 
       if (location === CardLocation.MZONE || location === CardLocation.SZONE) {
-        showHint({ controller, location, sequence })
+        if (canShowPositionHint(location, useDuelStore.getState().currentPhase)) {
+          showHint({ controller, location, sequence })
+        }
       }
     } catch (err) {
       console.error('[ZoneSlot] Drop failed:', err)

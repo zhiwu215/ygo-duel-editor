@@ -1,5 +1,6 @@
 import {
   CardLocation,
+  CardPosition,
   DuelActionType,
   DuelStep,
   LightweightCardSnapshot,
@@ -91,4 +92,36 @@ export function moveActionType(toLocation: number): DuelActionType {
   if (toLocation === CardLocation.HAND) return 'TO_HAND'
   if (toLocation === CardLocation.DECK || toLocation === CardLocation.EXTRA) return 'TO_DECK'
   return 'PLACE'
+}
+
+export function resolveMoveStepLabel(
+  fromLocation: number | undefined,
+  toLocation: number,
+  toPosition: number,
+  name?: string
+): StepLabel | null {
+  if (fromLocation !== CardLocation.HAND) return null
+  const label = name ? `【${name}】` : '卡片'
+  if (toLocation === CardLocation.MZONE) {
+    if (toPosition === CardPosition.FACEDOWN_DEFENSE) {
+      return { actionType: 'SET_MONSTER', description: `盖放${label}` }
+    }
+    if (toPosition === CardPosition.FACEUP_DEFENSE) {
+      return { actionType: 'NORMAL_SUMMON', description: `召唤${label}（守备）` }
+    }
+    return { actionType: 'NORMAL_SUMMON', description: `召唤${label}` }
+  }
+  if (toLocation === CardLocation.SZONE) {
+    if (toPosition === CardPosition.FACEDOWN) {
+      return { actionType: 'SET_SPELL_TRAP', description: `盖放${label}` }
+    }
+    return { actionType: 'ACTIVATE', description: `发动${label}` }
+  }
+  if (toLocation === CardLocation.PZONE) {
+    return { actionType: 'SET_PENDULUM', description: `设置${label}` }
+  }
+  if (toLocation === CardLocation.FZONE) {
+    return { actionType: 'ACTIVATE_FIELD', description: `发动场地${label}` }
+  }
+  return null
 }

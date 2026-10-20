@@ -29,6 +29,7 @@ interface DropHintPopoverProps {
 export const DropHintPopover: React.FC<DropHintPopoverProps> = ({ card, location }) => {
   const closeHint = useDropHintStore((s) => s.close)
   const updateCardPosition = useDuelStore((s) => s.updateCardPosition)
+  const setPlacedCardPosition = useDuelStore((s) => s.setPlacedCardPosition)
   const popoverRef = useRef<HTMLDivElement>(null)
 
   useDismissOnOutside(popoverRef, true, closeHint, { resize: false })
@@ -50,7 +51,8 @@ export const DropHintPopover: React.FC<DropHintPopoverProps> = ({ card, location
           key={opt.pos}
           type="button"
           onClick={() => {
-            updateCardPosition(card.instanceId, opt.pos)
+            if (location === CardLocation.HAND) updateCardPosition(card.instanceId, opt.pos)
+            else setPlacedCardPosition(card.instanceId, opt.pos)
             closeHint()
           }}
           className={cn(

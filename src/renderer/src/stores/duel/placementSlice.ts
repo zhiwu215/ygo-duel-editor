@@ -5,11 +5,18 @@ import {
   CardPosition,
   FieldCard,
   LOCATION_NAMES,
+  createLightweightSnapshot,
   resolveTargetPosition
 } from '@shared/index'
 import { FIELD_ZONE_SEQ } from './setupSlice'
 import { useStagingStore } from '../useStagingStore'
-import { moveActionType, recordEditorStep, StepLabel } from './editorStepRecorder'
+import { useDuelEngineStore } from '../useDuelEngineStore'
+import {
+  moveActionType,
+  recordEditorStep,
+  resolveMoveStepLabel,
+  StepLabel
+} from './editorStepRecorder'
 import type { DuelStore } from './types'
 
 export interface MoveCardParams {
@@ -149,6 +156,7 @@ export interface PlacementSlice {
   removeCard: (instanceId: string) => void
   clearPile: (controller: 0 | 1, location: number) => void
   updateCardPosition: (instanceId: string, position: number) => void
+  setPlacedCardPosition: (instanceId: string, position: number) => void
 
   reorderPileCards: (
     controller: 0 | 1,
@@ -295,16 +303,14 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       fromCard?.location,
       fromCard?.position
     )
-    useStagingStore
-      .getState()
-      .pushOp({
-        type: 'move',
-        instanceId,
-        toLocation,
-        toSequence,
-        toController,
-        customPos: effectivePos
-      })
+    useStagingStore.getState().pushOp({
+      type: 'move',
+      instanceId,
+      toLocation,
+      toSequence,
+      toController,
+      customPos: effectivePos
+    })
     set((prev) => ({
       ...applyMoveCard(prev, {
         instanceId,
@@ -317,8 +323,11 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
     }))
     if (fromCard) {
       const name = fromCard.card?.name
+      const resolvedLabel =
+        stepLabel ??
+        resolveMoveStepLabel(fromCard.location, toLocation, effectivePos, fromCard.card?.name)
       recordEditorStep({
-        actionType: stepLabel?.actionType ?? moveActionType(toLocation),
+        actionType: resolvedLabel?.actionType ?? moveActionType(toLocation),
         controller: toController ?? fromCard.controller,
         cardCode: fromCard.code,
         cardName: name,
@@ -328,8 +337,10 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         toSequence,
         fromController: fromCard.controller,
         toController: toController ?? fromCard.controller,
+        fromPosition: fromCard.position,
+        toPosition: effectivePos,
         description:
-          stepLabel?.description ??
+          resolvedLabel?.description ??
           (name
             ? `将【${name}】移至${LOCATION_NAMES[toLocation] ?? '区域'}`
             : `移动卡片至${LOCATION_NAMES[toLocation] ?? '区域'}`),
@@ -509,6 +520,56 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         )
       }
     }
+  },
+
+  setPlacedCardPosition: (instanceId, position) => {
+    if (useDuelEngineStore.getState().isInitialized) {
+      get().updateCardPosition(instanceId, position)
+      return
+    }
+    const steps = get().state.steps || []
+    const stepIndex = get().currentStepIndex
+    const targetIndex = stepIndex === null ? steps.length - 1 : stepIndex
+    const step = steps[targetIndex]
+    const card = get().state.cards.find((c) => c.instanceId === instanceId)
+    const moveOp = step?.manualOps?.find((op) => op.type === 'move')
+    if (
+      !card ||
+      !step ||
+      !moveOp ||
+      targetIndex !== steps.length - 1 ||
+      step.instanceId !== instanceId ||
+      step.toLocation !== card.location
+    ) {
+      get().updateCardPosition(instanceId, position)
+      return
+    }
+    const label = resolveMoveStepLabel(step.fromLocation, card.location, position, step.cardName)
+    useStagingStore.getState().pushOp({ type: 'position', instanceId, position })
+    set((prev) => {
+      const cards = prev.state.cards.map((c) =>
+        c.instanceId === instanceId ? { ...c, position } : c
+      )
+      const manualOps = step.manualOps!.map((op) =>
+        op.type === 'move' ? { ...op, customPos: position } : op
+      )
+      const updatedStep = {
+        ...step,
+        ...(label
+          ? { actionType: label.actionType, description: label.description ?? step.description }
+          : {}),
+        toPosition: position,
+        manualOps,
+        boardAfter: createLightweightSnapshot(cards)
+      }
+      return {
+        state: {
+          ...prev.state,
+          cards,
+          steps: (prev.state.steps || []).map((s) => (s.id === step.id ? updatedStep : s))
+        }
+      }
+    })
   },
 
   reorderPileCards: (controller, location, fromIndex, toIndex, duelistId) =>

@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import { useState, type JSX } from 'react'
 import { Check, ChevronDown, ChevronRight, Loader2, Sliders } from 'lucide-react'
@@ -84,12 +83,7 @@ export function DuelProposalSummaryCard({
         )}
         {placements.length > 0 && <span>开局布局 {placements.length} 张卡</span>}
         {warnings.length > 0 && (
-          <Tooltip>
-            <TooltipTrigger
-              render={<span className="text-amber-500">{warnings.length} 条落位警告</span>}
-            />
-            <TooltipContent>{warnings.join('\n')}</TooltipContent>
-          </Tooltip>
+          <span className="text-amber-500">{warnings.length} 条落位警告</span>
         )}
       </div>
 

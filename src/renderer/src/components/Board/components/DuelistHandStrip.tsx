@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React, { useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
@@ -217,50 +216,38 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
             : 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10')
       )}
     >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <div
-              onDoubleClick={handleHeaderDoubleClick}
-              onClick={(e) => {
-                const target = e.target as HTMLElement | null
-                if (target?.closest('input, select, textarea, button, a, [data-no-expand]')) return
-                focusAsViewer()
-              }}
+      <div
+        onDoubleClick={handleHeaderDoubleClick}
+        onClick={(e) => {
+          const target = e.target as HTMLElement | null
+          if (target?.closest('input, select, textarea, button, a, [data-no-expand]')) return
+          focusAsViewer()
+        }}
+        className="flex items-center justify-between text-xs px-0.5 shrink-0 gap-1 h-5 cursor-pointer"
+      >
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
+            ({cards.length})
+          </span>
+        </div>
 
-              className="flex items-center justify-between text-xs px-0.5 shrink-0 gap-1 h-5 cursor-pointer"
-            >
-              <div className="flex items-center gap-1 min-w-0">
-                <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
-                  ({cards.length})
-                </span>
-              </div>
+        <div className="flex items-center gap-1 shrink-0" data-no-expand>
+          {!isSharedLp && (
+            <LpInput
+              lp={duelist.lp}
+              label="LP"
+              size="sm"
+              player={controller}
+              popoverPlacement="bottom"
+              onLpChange={(newLp) =>
+                commitLp(controller, newLp, (lp) => updateDuelist(duelist.id, { lp }))
+              }
+            />
+          )}
 
-              <div className="flex items-center gap-1 shrink-0" data-no-expand>
-                {!isSharedLp && (
-                  <LpInput
-                    lp={duelist.lp}
-                    label="LP"
-                    size="sm"
-                    player={controller}
-                    popoverPlacement="bottom"
-                    onLpChange={(newLp) =>
-                      commitLp(controller, newLp, (lp) => updateDuelist(duelist.id, { lp }))
-                    }
-                  />
-                )}
-
-                <TurnOrderBadge duelist={duelist} totalCount={totalCount || 2} />
-              </div>
-            </div>
-          }
-        />
-        <TooltipContent>
-          {isActiveViewer
-            ? `正在查看 ${duelist.name} 的卡组 · 双击收起为并排展示`
-            : `点击切换查看 ${duelist.name} 的卡组 · 双击展开占满整行`}
-        </TooltipContent>
-      </Tooltip>
+          <TurnOrderBadge duelist={duelist} totalCount={totalCount || 2} />
+        </div>
+      </div>
 
       <div
         ref={scrollContainerRef}

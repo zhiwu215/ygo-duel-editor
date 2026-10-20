@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -50,43 +49,34 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <div
-            ref={setNodeRef}
-            {...attributes}
-            {...listeners}
-            onClick={handleClick}
-            onContextMenu={handleContextMenu}
-            style={{
-              transform: CSS.Transform.toString(transform),
-              transition,
-              zIndex: isDragging ? 10 : undefined,
-              willChange: isDragging ? 'transform' : undefined
-            }}
-            className={cn(
-              'group relative aspect-[59/86] w-full rounded overflow-hidden cursor-grab active:cursor-grabbing select-none border border-border/40',
-              'hover:border-primary/80 hover:shadow-md transition-[border-color,box-shadow] duration-150 bg-background/50',
-              isDragging && 'opacity-30',
-              isFlash && 'ring-2 ring-primary shadow-md shadow-primary/30'
-            )}
-          >
-            <CardImage
-              code={code}
-              small
-              alt={card?.name || resolveCardName(code)}
-              loading="lazy"
-              draggable={false}
-              className="w-full h-full object-cover pointer-events-none"
-            />
-          </div>
-        }
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={handleClick}
+      onContextMenu={handleContextMenu}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+        willChange: isDragging ? 'transform' : undefined
+      }}
+      className={cn(
+        'group relative aspect-[59/86] w-full rounded overflow-hidden cursor-grab active:cursor-grabbing select-none border border-border/40',
+        'hover:border-primary/80 hover:shadow-md transition-[border-color,box-shadow] duration-150 bg-background/50',
+        isDragging && 'opacity-30',
+        isFlash && 'ring-2 ring-primary shadow-md shadow-primary/30'
+      )}
+    >
+      <CardImage
+        code={code}
+        small
+        alt={card?.name || resolveCardName(code)}
+        loading="lazy"
+        draggable={false}
+        className="w-full h-full object-cover pointer-events-none"
       />
-      <TooltipContent>
-        {card ? `${card.name} (拖动调整，右键移出)` : `卡密: ${code} (拖动调整，右键移出)`}
-      </TooltipContent>
-    </Tooltip>
+    </div>
   )
 }
 

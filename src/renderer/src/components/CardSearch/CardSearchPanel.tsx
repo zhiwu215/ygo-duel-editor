@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useEffect, useState, useRef } from 'react'
 import {
   Search,
@@ -174,31 +173,24 @@ export const CardSearchPanel: React.FC = () => {
             {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           </Button>
 
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={toggleFilterOpen}
-                  className={`h-8 px-2 shrink-0 transition-all ${
-                    isFilterOpen || activeFilterCount > 0
-                      ? 'bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold'
-                      : ''
-                  }`}
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  {isFilterOpen ? (
-                    <ChevronRight className="w-3.5 h-3.5 -ml-0.5" />
-                  ) : (
-                    <ChevronLeft className="w-3.5 h-3.5 -ml-0.5" />
-                  )}
-                </Button>
-              }
-            />
-            <TooltipContent>{isFilterOpen ? '收起高级筛选' : '展开多维度高级筛选'}</TooltipContent>
-          </Tooltip>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={toggleFilterOpen}
+            className={`h-8 px-2 shrink-0 transition-all ${
+              isFilterOpen || activeFilterCount > 0
+                ? 'bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold'
+                : ''
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            {isFilterOpen ? (
+              <ChevronRight className="w-3.5 h-3.5 -ml-0.5" />
+            ) : (
+              <ChevronLeft className="w-3.5 h-3.5 -ml-0.5" />
+            )}
+          </Button>
         </div>
         <p className="mt-1.5 px-0.5 text-[10px] leading-tight text-muted-foreground/75">
           支持空格同时匹配、引号短语、-排除、$仅卡名、@系列

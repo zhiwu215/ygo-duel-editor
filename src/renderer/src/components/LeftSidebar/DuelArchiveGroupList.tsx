@@ -13,7 +13,6 @@ import {
   Pencil,
   FolderInput
 } from 'lucide-react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import { DuelProjectMeta, DuelSourceRef } from '@shared/index'
 import { cn } from '../../lib/utils'
@@ -91,40 +90,26 @@ export const DuelArchiveGroupList: React.FC<DuelArchiveGroupListProps> = ({
 
                   {!isUnfiled && (
                     <div className="flex items-center gap-0.5 opacity-0 group-hover/series:opacity-100 transition-opacity shrink-0">
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onRenameSeries(group.key)
-                              }}
-                              className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                          }
-                        />
-                        <TooltipContent>重命名分类</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                void onDeleteSeries(group)
-                              }}
-                              className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          }
-                        />
-                        <TooltipContent>删除分类</TooltipContent>
-                      </Tooltip>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRenameSeries(group.key)
+                        }}
+                        className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void onDeleteSeries(group)
+                        }}
+                        className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -174,69 +159,40 @@ export const DuelArchiveGroupList: React.FC<DuelArchiveGroupListProps> = ({
                               </div>
 
                               <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                <Tooltip>
-                                  <TooltipTrigger
-                                    render={
-                                      <button
-                                        type="button"
-                                        onClick={(e) => onReveal(e, item)}
-                                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-                                      >
-                                        <ExternalLink className="w-3 h-3" />
-                                      </button>
-                                    }
-                                  />
-                                  <TooltipContent>在文件资源管理器中定位</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger
-                                    render={
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          onPickSeries(
-                                            item.filePath,
-                                            e.currentTarget.getBoundingClientRect()
-                                          )
-                                        }}
-
-                                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-                                      >
-                                        <FolderInput className="w-3 h-3" />
-                                      </button>
-                                    }
-                                  />
-                                  <TooltipContent>归入作品分类</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger
-                                    render={
-                                      <button
-                                        type="button"
-                                        onClick={(e) => onDuplicate(e, item)}
-                                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-                                      >
-                                        <Copy className="w-3 h-3" />
-                                      </button>
-                                    }
-                                  />
-                                  <TooltipContent>创建档案副本</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger
-                                    render={
-                                      <button
-                                        type="button"
-                                        onClick={(e) => onDelete(e, item)}
-                                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    }
-                                  />
-                                  <TooltipContent>删除此档案</TooltipContent>
-                                </Tooltip>
+                                <button
+                                  type="button"
+                                  onClick={(e) => onReveal(e, item)}
+                                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    onPickSeries(
+                                      item.filePath,
+                                      e.currentTarget.getBoundingClientRect()
+                                    )
+                                  }}
+                                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                                >
+                                  <FolderInput className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => onDuplicate(e, item)}
+                                  className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => onDelete(e, item)}
+                                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
                               </div>
                             </div>
 

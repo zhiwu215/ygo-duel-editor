@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React from 'react'
 import { groupLeafName } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
@@ -56,16 +55,9 @@ export const GroupMenu: React.FC<GroupMenuProps> = ({
         </>
       ) : (
         <>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44">
-                  {groupLeafName(menu.group)}
-                </div>
-              }
-            />
-            <TooltipContent>{menu.group}</TooltipContent>
-          </Tooltip>
+          <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate max-w-44">
+            {groupLeafName(menu.group)}
+          </div>
           <Button
             variant="ghost"
             size="sm"

@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState } from 'react'
 import { FolderOpen, Loader2, Check } from 'lucide-react'
 import { Button } from '../ui/button'
@@ -74,25 +73,18 @@ export const CdbSetupModal: React.FC = () => {
                     <span>{row.value}</span>
                   </button>
                 ) : (
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          onClick={() => void handleCopy(row.value)}
-                          className="flex items-center gap-1 text-foreground hover:text-foreground/70 transition-colors cursor-pointer"
-                        >
-                          <span>{row.value}</span>
-                          {copied === row.value ? (
-                            <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                          ) : (
-                            <span className="w-3 h-3 shrink-0" />
-                          )}
-                        </button>
-                      }
-                    />
-                    <TooltipContent>点击复制</TooltipContent>
-                  </Tooltip>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopy(row.value)}
+                    className="flex items-center gap-1 text-foreground hover:text-foreground/70 transition-colors cursor-pointer"
+                  >
+                    <span>{row.value}</span>
+                    {copied === row.value ? (
+                      <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                    ) : (
+                      <span className="w-3 h-3 shrink-0" />
+                    )}
+                  </button>
                 )}
               </div>
             )

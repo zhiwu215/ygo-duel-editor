@@ -3,7 +3,6 @@ import { Check, Copy, GripVertical, Pencil, Trash2 } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { CardNote, CardNoteKind } from '@shared/index'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { buildSortId } from '../../utils/cardNoteSort'
 
 interface SortableNoteRowProps {
@@ -59,92 +58,50 @@ export function SortableNoteRow({
           {item.title}
         </span>
         {item.readonly ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className="shrink-0 text-[9px] px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25">
-                  内置
-                </span>
-              }
-            />
-            <TooltipContent>内置的经典条目，不可修改</TooltipContent>
-          </Tooltip>
+          <span className="shrink-0 text-[9px] px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+            内置
+          </span>
         ) : kind === 'chant' ? (
           item.source ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span
-                    title={`借鉴条目，出自：${item.source}`}
-                    className="shrink-0 max-w-40 truncate text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25"
-                  >
-                    {`借鉴：${item.source}`}
-                  </span>
-                }
-              />
-              <TooltipContent>借鉴条目，出自：{item.source}</TooltipContent>
-            </Tooltip>
+            <span
+              title={`借鉴条目，出自：${item.source}`}
+              className="shrink-0 max-w-40 truncate text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25"
+            >
+              {`借鉴：${item.source}`}
+            </span>
           ) : (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span className="shrink-0 text-[9px] px-1 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
-                    原创
-                  </span>
-                }
-              />
-              <TooltipContent>原创条目</TooltipContent>
-            </Tooltip>
+            <span className="shrink-0 text-[9px] px-1 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+              原创
+            </span>
           )
         ) : null}
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => void onCopy(copyKey, item.text)}
-                className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-              >
-                {copiedField === copyKey ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5" />
-                )}
-              </button>
-            }
-          />
-          <TooltipContent>复制</TooltipContent>
-        </Tooltip>
+        <button
+          type="button"
+          onClick={() => void onCopy(copyKey, item.text)}
+          className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+        >
+          {copiedField === copyKey ? (
+            <Check className="w-3.5 h-3.5 text-emerald-500" />
+          ) : (
+            <Copy className="w-3.5 h-3.5" />
+          )}
+        </button>
         {!item.readonly && (
           <>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={onEdit}
-                    className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                }
-              />
-              <TooltipContent>编辑</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={onDelete}
-                    className="p-1 rounded text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                }
-              />
-              <TooltipContent>删除</TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={onEdit}
+              className="p-1 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="p-1 rounded text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </>
         )}
       </div>

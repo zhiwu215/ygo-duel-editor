@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React from 'react'
 import { SlidersHorizontal, RotateCcw, CheckSquare, Square } from 'lucide-react'
@@ -529,22 +528,15 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
           <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
           <span className="truncate">筛选条件</span>
         </div>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={resetFilters}
-                className="h-6 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-1.5 shrink-0"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>重置</span>
-              </Button>
-            }
-          />
-          <TooltipContent>重置所有筛选条件</TooltipContent>
-        </Tooltip>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={resetFilters}
+          className="h-6 text-[11px] text-muted-foreground hover:text-foreground gap-1 px-1.5 shrink-0"
+        >
+          <RotateCcw className="w-3 h-3" />
+          <span>重置</span>
+        </Button>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">

@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { CardLocation, CdbCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -129,21 +128,14 @@ export const OverlayListModal: React.FC = () => {
               </div>
             )}
 
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={closeOverlayList}
-                    className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                }
-              />
-              <TooltipContent>关闭 (Esc)</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={closeOverlayList}
+              className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </Button>
           </div>
         </DialogHeader>
 
@@ -176,137 +168,91 @@ export const OverlayListModal: React.FC = () => {
                     </span>
                   </div>
 
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <div
-                          onClick={() => {
-                            if (isEngineActive) return
-                            detachMaterialToLocation(
-                              hostCard.instanceId,
-                              item.index,
-                              CardLocation.GRAVE
-                            )
-                          }}
-                          className="relative w-[110px] h-[160px] rounded overflow-hidden shadow border border-border bg-black/40 cursor-pointer group/img hover:ring-2 hover:ring-amber-500/80 hover:scale-[1.02] transition-all"
-                        >
-                          <CardImage
-                            code={item.code}
-                            small
-                            alt={item.name}
-                            className="w-full h-full object-cover select-none"
-                          />
-                          {!isEngineActive && (
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity backdrop-blur-[1px]">
-                              <Ghost className="w-5 h-5 text-amber-400 drop-shadow" />
-                              <span className="text-[10px] font-bold text-amber-300 drop-shadow px-1.5 py-0.5 bg-black/60 rounded">
-                                拔除至墓地
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      }
+                  <div
+                    onClick={() => {
+                      if (isEngineActive) return
+                      detachMaterialToLocation(hostCard.instanceId, item.index, CardLocation.GRAVE)
+                    }}
+                    className="relative w-[110px] h-[160px] rounded overflow-hidden shadow border border-border bg-black/40 cursor-pointer group/img hover:ring-2 hover:ring-amber-500/80 hover:scale-[1.02] transition-all"
+                  >
+                    <CardImage
+                      code={item.code}
+                      small
+                      alt={item.name}
+                      className="w-full h-full object-cover select-none"
                     />
-                    <TooltipContent>点击直接拔除此卡至墓地</TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <span className="text-xs font-semibold text-center truncate w-full text-foreground group-hover:text-primary transition-colors leading-tight">
-                          {item.name}
+                    {!isEngineActive && (
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity backdrop-blur-[1px]">
+                        <Ghost className="w-5 h-5 text-amber-400 drop-shadow" />
+                        <span className="text-[10px] font-bold text-amber-300 drop-shadow px-1.5 py-0.5 bg-black/60 rounded">
+                          拔除至墓地
                         </span>
-                      }
-                    />
-                    <TooltipContent>{item.name}</TooltipContent>
-                  </Tooltip>
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="text-xs font-semibold text-center truncate w-full text-foreground group-hover:text-primary transition-colors leading-tight">
+                    {item.name}
+                  </span>
 
                   <div className="w-full flex flex-col gap-1 pt-1 border-t border-border/50">
                     <div className="grid grid-cols-3 gap-1">
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="secondary"
-                              size="xs"
-                              disabled={isEngineActive}
-                              onClick={() =>
-                                detachMaterialToLocation(
-                                  hostCard.instanceId,
-                                  item.index,
-                                  CardLocation.HAND
-                                )
-                              }
-                              className="h-5 px-1 text-[9px] gap-0.5"
-                            >
-                              <ArrowDownToLine className="w-2.5 h-2.5 text-muted-foreground" />
-                              <span>手牌</span>
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>拔除并加入手牌</TooltipContent>
-                      </Tooltip>
+                      <Button
+                        variant="secondary"
+                        size="xs"
+                        disabled={isEngineActive}
+                        onClick={() =>
+                          detachMaterialToLocation(
+                            hostCard.instanceId,
+                            item.index,
+                            CardLocation.HAND
+                          )
+                        }
+                        className="h-5 px-1 text-[9px] gap-0.5"
+                      >
+                        <ArrowDownToLine className="w-2.5 h-2.5 text-muted-foreground" />
+                        <span>手牌</span>
+                      </Button>
 
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="secondary"
-                              size="xs"
-                              disabled={isEngineActive}
-                              onClick={() =>
-                                detachMaterialToLocation(
-                                  hostCard.instanceId,
-                                  item.index,
-                                  CardLocation.REMOVED
-                                )
-                              }
-                              className="h-5 px-1 text-[9px] gap-0.5"
-                            >
-                              <Ban className="w-2.5 h-2.5 text-muted-foreground" />
-                              <span>除外</span>
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>拔除并除外</TooltipContent>
-                      </Tooltip>
+                      <Button
+                        variant="secondary"
+                        size="xs"
+                        disabled={isEngineActive}
+                        onClick={() =>
+                          detachMaterialToLocation(
+                            hostCard.instanceId,
+                            item.index,
+                            CardLocation.REMOVED
+                          )
+                        }
+                        className="h-5 px-1 text-[9px] gap-0.5"
+                      >
+                        <Ban className="w-2.5 h-2.5 text-muted-foreground" />
+                        <span>除外</span>
+                      </Button>
 
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <Button
-                              variant="secondary"
-                              size="xs"
-                              disabled={isEngineActive}
-                              onClick={() => removeOverlayMaterial(hostCard.instanceId, item.index)}
-                              className="h-5 px-1 text-[9px] text-muted-foreground hover:text-rose-400 gap-0.5"
-                            >
-                              <Trash2 className="w-2.5 h-2.5" />
-                              <span>删除</span>
-                            </Button>
-                          }
-                        />
-                        <TooltipContent>直接删除此素材（不送去任何区域）</TooltipContent>
-                      </Tooltip>
+                      <Button
+                        variant="secondary"
+                        size="xs"
+                        disabled={isEngineActive}
+                        onClick={() => removeOverlayMaterial(hostCard.instanceId, item.index)}
+                        className="h-5 px-1 text-[9px] text-muted-foreground hover:text-rose-400 gap-0.5"
+                      >
+                        <Trash2 className="w-2.5 h-2.5" />
+                        <span>删除</span>
+                      </Button>
                     </div>
 
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            disabled={isEngineActive}
-                            onClick={() => handleSwapHost(item.index, item.code)}
-                            className="w-full h-5 text-[9px] text-muted-foreground hover:text-foreground gap-1"
-                          >
-                            <ArrowUpCircle className="w-2.5 h-2.5" />
-                            <span>设为主怪兽</span>
-                          </Button>
-                        }
-                      />
-                      <TooltipContent>将此卡作为顶层主怪兽，原怪兽退为超量素材</TooltipContent>
-                    </Tooltip>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      disabled={isEngineActive}
+                      onClick={() => handleSwapHost(item.index, item.code)}
+                      className="w-full h-5 text-[9px] text-muted-foreground hover:text-foreground gap-1"
+                    >
+                      <ArrowUpCircle className="w-2.5 h-2.5" />
+                      <span>设为主怪兽</span>
+                    </Button>
                   </div>
                 </div>
               )

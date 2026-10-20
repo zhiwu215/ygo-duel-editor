@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useState, useEffect, useRef, JSX } from 'react'
 import { createPortal } from 'react-dom'
@@ -160,20 +159,13 @@ export function BehindSpiritPanel(): JSX.Element {
 
         <div className="flex items-center gap-1 shrink-0">
           {messages.length > 0 && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => void resetSession()}
-                    className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                }
-              />
-              <TooltipContent>清空对话并重置 AI 会话</TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={() => void resetSession()}
+              className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
         </div>
       </div>
@@ -275,24 +267,15 @@ export function BehindSpiritPanel(): JSX.Element {
 
                   {msg.role === 'user' && msg.textSource && (
                     <div className="mb-1.5 flex items-center gap-1.5">
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <span className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground min-w-0">
-                              <BookOpen className="w-3 h-3 shrink-0" />
-                              <span className="truncate max-w-64">{msg.textSource.title}</span>
-                              {msg.textSource.wordCount ? (
-                                <span className="shrink-0 font-mono">
-                                  约 {msg.textSource.wordCount} 字
-                                </span>
-                              ) : null}
-                            </span>
-                          }
-                        />
-                        <TooltipContent>
-                          已附加的文本素材，正文经 read_text_source 工具读取
-                        </TooltipContent>
-                      </Tooltip>
+                      <span className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground min-w-0">
+                        <BookOpen className="w-3 h-3 shrink-0" />
+                        <span className="truncate max-w-64">{msg.textSource.title}</span>
+                        {msg.textSource.wordCount ? (
+                          <span className="shrink-0 font-mono">
+                            约 {msg.textSource.wordCount} 字
+                          </span>
+                        ) : null}
+                      </span>
                     </div>
                   )}
 
@@ -300,16 +283,12 @@ export function BehindSpiritPanel(): JSX.Element {
                     <div className="mb-1.5 flex flex-wrap items-center gap-1">
                       <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
                       {msg.attachedCards.map((c) => (
-                        <Tooltip key={c.id}>
-                          <TooltipTrigger
-                            render={
-                              <span className="rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                {c.name}
-                              </span>
-                            }
-                          />
-                          <TooltipContent>{`卡密 ${c.id}`}</TooltipContent>
-                        </Tooltip>
+                        <span
+                          key={c.id}
+                          className="rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                        >
+                          {c.name}
+                        </span>
                       ))}
                     </div>
                   )}
@@ -372,27 +351,18 @@ export function BehindSpiritPanel(): JSX.Element {
           <div className="flex items-center justify-between gap-1.5" ref={toolbarRef}>
             <div className="flex items-center gap-1 min-w-0 flex-1">
               <div ref={textPickerAnchorRef} className="shrink-0">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        onClick={openTextPicker}
-                        className={cn(
-                          'w-6 h-6 rounded flex items-center justify-center transition-colors',
-                          textPickerOpen
-                            ? 'bg-muted text-foreground'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                        )}
-                      >
-                        <BookOpen className="w-3.5 h-3.5" />
-                      </button>
-                    }
-                  />
-                  <TooltipContent>
-                    附加素材：从资料库选章节；也可以把 txt / md 文件拖到面板任意位置
-                  </TooltipContent>
-                </Tooltip>
+                <button
+                  type="button"
+                  onClick={openTextPicker}
+                  className={cn(
+                    'w-6 h-6 rounded flex items-center justify-center transition-colors',
+                    textPickerOpen
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  )}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                </button>
               </div>
               <div className="relative min-w-0 flex-1">
                 <ModelPickerMenu toolbarRef={toolbarRef} />

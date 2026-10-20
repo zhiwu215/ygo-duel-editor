@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState } from 'react'
 import { DeckData, groupDepth, groupLeafName } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
@@ -151,33 +150,27 @@ export const DeckCardMenu: React.FC<DeckCardMenuProps> = ({ menu, onClose }) => 
               {[...deckGroups]
                 .sort((a, b) => a.localeCompare(b, 'zh-CN'))
                 .map((g) => (
-                  <Tooltip key={g}>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={() => {
-                            const id = menu.deck.id
-                            onClose()
-                            setMoveMenuDeckId(null)
-                            if (id) void assignDeckGroup(id, g)
-                          }}
-                          style={{ paddingLeft: `${8 + (groupDepth(g) - 1) * 12}px` }}
-                          className={cn(
-                            'w-full pr-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
-                            menu.deck.group === g
-                              ? 'bg-primary/15 text-primary font-semibold'
-                              : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                          )}
-                        >
-                          <Folder className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{groupLeafName(g)}</span>
-                        </button>
-                      }
-                    />
-                    <TooltipContent>{g}</TooltipContent>
-                  </Tooltip>
+                  <button
+                    key={g}
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      const id = menu.deck.id
+                      onClose()
+                      setMoveMenuDeckId(null)
+                      if (id) void assignDeckGroup(id, g)
+                    }}
+                    style={{ paddingLeft: `${8 + (groupDepth(g) - 1) * 12}px` }}
+                    className={cn(
+                      'w-full pr-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
+                      menu.deck.group === g
+                        ? 'bg-primary/15 text-primary font-semibold'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    )}
+                  >
+                    <Folder className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{groupLeafName(g)}</span>
+                  </button>
                 ))}
 
               {deckGroups.length === 0 && (

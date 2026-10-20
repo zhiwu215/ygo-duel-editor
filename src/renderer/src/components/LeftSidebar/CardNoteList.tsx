@@ -22,7 +22,6 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CardNoteKind } from '@shared/index'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import { Input } from '../ui/input'
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover'
@@ -128,34 +127,20 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
       <header className="h-11 px-4 border-b border-border bg-card/80 backdrop-blur-md flex items-center gap-3 shrink-0 [-webkit-app-region:drag]">
         <span className="font-bold text-sm tracking-wide">卡牌图鉴</span>
         <div className="ml-auto flex items-center gap-1.5 [-webkit-app-region:no-drag]">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={() => void importLibrary()}
-                  className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-              }
-            />
-            <TooltipContent>从 JSON 文件导入</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={() => void exportLibrary()}
-                  className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                >
-                  <Upload className="w-4 h-4" />
-                </button>
-              }
-            />
-            <TooltipContent>把你的图鉴导出为 JSON 文件</TooltipContent>
-          </Tooltip>
+          <button
+            type="button"
+            onClick={() => void importLibrary()}
+            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportLibrary()}
+            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            <Upload className="w-4 h-4" />
+          </button>
           <Popover open={addMenuOpen} onOpenChange={setAddMenuOpen}>
             <PopoverTrigger
               render={
@@ -283,148 +268,94 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                             isOpen ? 'rotate-90' : ''
                           }`}
                         />
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                onContextMenu={(e) => onOpenCardMenu(e, entry)}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onPreview(entry.cardCode)
-                                }}
-
-                                className="shrink-0 cursor-zoom-in rounded transition-transform duration-150 hover:scale-105"
-                              >
-                                <CardImage
-                                  code={entry.cardCode}
-                                  small
-                                  alt={entry.cardName}
-                                  className="w-8 h-11 object-cover rounded border border-border/60"
-                                />
-                              </button>
-                            }
+                        <button
+                          type="button"
+                          onContextMenu={(e) => onOpenCardMenu(e, entry)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onPreview(entry.cardCode)
+                          }}
+                          className="shrink-0 cursor-zoom-in rounded transition-transform duration-150 hover:scale-105"
+                        >
+                          <CardImage
+                            code={entry.cardCode}
+                            small
+                            alt={entry.cardName}
+                            className="w-8 h-11 object-cover rounded border border-border/60"
                           />
-                          <TooltipContent>放大查看卡图</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <span className="min-w-0 flex-1 text-xs font-semibold text-foreground truncate">
-                                {entry.cardName}
-                              </span>
-                            }
-                          />
-                          <TooltipContent>{entry.cardName}</TooltipContent>
-                        </Tooltip>
+                        </button>
+                        <span className="min-w-0 flex-1 text-xs font-semibold text-foreground truncate">
+                          {entry.cardName}
+                        </span>
                         {entry.isCustom && (
                           <span className="shrink-0 text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25">
                             自建
                           </span>
                         )}
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onEdit({
-                                    cardCode: entry.cardCode,
-                                    cardName: entry.cardName,
-                                    kind: 'chant',
-                                    initial: { title: '', text: '' }
-                                  })
-                                }}
-
-                                className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            }
-                          />
-                          <TooltipContent>添加召唤词</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onEdit({
-                                    cardCode: entry.cardCode,
-                                    cardName: entry.cardName,
-                                    kind: 'note',
-                                    initial: { title: '', text: '' }
-                                  })
-                                }}
-
-                                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
-                              >
-                                <MessageSquareQuote className="w-3.5 h-3.5" />
-                              </button>
-                            }
-                          />
-                          <TooltipContent>添加备注</TooltipContent>
-                        </Tooltip>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEdit({
+                              cardCode: entry.cardCode,
+                              cardName: entry.cardName,
+                              kind: 'chant',
+                              initial: { title: '', text: '' }
+                            })
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEdit({
+                              cardCode: entry.cardCode,
+                              cardName: entry.cardName,
+                              kind: 'note',
+                              initial: { title: '', text: '' }
+                            })
+                          }}
+                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shrink-0"
+                        >
+                          <MessageSquareQuote className="w-3.5 h-3.5" />
+                        </button>
                         {!entry.isCustom && (
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    void clearEntry(entry.cardCode)
-                                  }}
-                                  className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              }
-                            />
-                            <TooltipContent>
-                              清空该卡全部召唤词与备注（内置条目保留）
-                            </TooltipContent>
-                          </Tooltip>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void clearEntry(entry.cardCode)
+                            }}
+                            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         )}
                         {entry.isCustom && (
                           <>
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      openEdit(entry.cardCode)
-                                    }}
-                                    className="p-1 rounded text-violet-500/80 hover:text-violet-500 hover:bg-violet-500/10 transition-colors cursor-pointer shrink-0"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                }
-                              />
-                              <TooltipContent>编辑自建卡信息</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      void removeCustomCard(entry.cardCode)
-                                    }}
-                                    className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                }
-                              />
-                              <TooltipContent>删除自建卡</TooltipContent>
-                            </Tooltip>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openEdit(entry.cardCode)
+                              }}
+                              className="p-1 rounded text-violet-500/80 hover:text-violet-500 hover:bg-violet-500/10 transition-colors cursor-pointer shrink-0"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                void removeCustomCard(entry.cardCode)
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </>
                         )}
                       </div>

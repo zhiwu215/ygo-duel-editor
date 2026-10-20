@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { CardLocation, CardPosition, CdbCard, FieldCard, InjectCommand } from '@shared/index'
@@ -362,22 +361,15 @@ const PileListContent: React.FC = () => {
               </div>
             )}
 
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closePile()
-                    }}
-                    className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                }
-              />
-              <TooltipContent>关闭 (Esc)</TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={() => {
+                closePile()
+              }}
+              className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
 

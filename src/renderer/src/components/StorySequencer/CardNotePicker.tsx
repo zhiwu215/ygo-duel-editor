@@ -1,5 +1,4 @@
 import { ScrollArea } from '../ui/scroll-area'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Search, Sparkles, X, Plus, Check } from 'lucide-react'
 import { CardNote, CdbCard } from '@shared/index'
@@ -131,20 +130,13 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
               {name && <div className="text-[10px] text-muted-foreground truncate">{name}</div>}
             </div>
             {code && !showSearch && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      onClick={() => setShowSearch(true)}
-                      className="px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0"
-                    >
-                      换卡
-                    </button>
-                  }
-                />
-                <TooltipContent>换一张卡</TooltipContent>
-              </Tooltip>
+              <button
+                type="button"
+                onClick={() => setShowSearch(true)}
+                className="px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0"
+              >
+                换卡
+              </button>
             )}
             <Button
               variant="ghost"

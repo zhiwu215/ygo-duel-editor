@@ -1,5 +1,4 @@
 import React from 'react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import { Dialog, DialogContent } from '../../ui/dialog'
 import { Check, Copy, X } from 'lucide-react'
 import appIcon from '../../../assets/app-icon.png'
@@ -16,20 +15,13 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ appVersion, onClose })
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent showCloseButton={false} className="max-w-sm space-y-3 p-5">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={onClose}
-                className="absolute top-3 right-3 text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            }
-          />
-          <TooltipContent>关闭</TooltipContent>
-        </Tooltip>
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-3 right-3 text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
 
         <div className="text-center space-y-1">
           <img
@@ -70,25 +62,18 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ appVersion, onClose })
                   {text}
                 </a>
               ) : (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        onClick={() => void copy(label!, text!)}
-                        className="group flex items-center gap-1.5 truncate hover:text-foreground transition-colors"
-                      >
-                        <span className="truncate">{text}</span>
-                        {copiedField === label ? (
-                          <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                        ) : (
-                          <Copy className="w-3 h-3 opacity-0 group-hover:opacity-60 shrink-0 transition-opacity" />
-                        )}
-                      </button>
-                    }
-                  />
-                  <TooltipContent>点击复制</TooltipContent>
-                </Tooltip>
+                <button
+                  type="button"
+                  onClick={() => void copy(label!, text!)}
+                  className="group flex items-center gap-1.5 truncate hover:text-foreground transition-colors"
+                >
+                  <span className="truncate">{text}</span>
+                  {copiedField === label ? (
+                    <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Copy className="w-3 h-3 opacity-0 group-hover:opacity-60 shrink-0 transition-opacity" />
+                  )}
+                </button>
               )}
             </div>
           ))}

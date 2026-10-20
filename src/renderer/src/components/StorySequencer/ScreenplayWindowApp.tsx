@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CardLocation, DuelPuzzleState, DuelStep } from '@shared/index'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { Button } from '../ui/button'
 import { WindowControls } from '../ui/window-controls'
 import { Film, Copy, Check, FileText, Download, Layers } from 'lucide-react'
@@ -183,76 +182,53 @@ const ScreenplayWindowBody = ({
           </button>
         </div>
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void handleCopyFullScript()}
-                className="h-7 text-xs font-semibold gap-1.5 border-border"
-              >
-                {copiedFullScript ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    <span className="text-emerald-500 font-bold">已复制全文</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span>复制台本</span>
-                  </>
-                )}
-              </Button>
-            }
-          />
-          <TooltipContent>一键复制完整台本文档，方便直接用于视频配音或小说写作</TooltipContent>
-        </Tooltip>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handleCopyFullScript()}
+          className="h-7 text-xs font-semibold gap-1.5 border-border"
+        >
+          {copiedFullScript ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-emerald-500 font-bold">已复制全文</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>复制台本</span>
+            </>
+          )}
+        </Button>
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant={savedToArchive ? 'outline' : 'secondary'}
-                size="sm"
-                onClick={() => void handleSaveToArchive()}
-                className="h-7 text-xs font-semibold gap-1.5"
-              >
-                {savedToArchive ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    <span className="text-emerald-500 font-bold">已存入档案</span>
-                  </>
-                ) : (
-                  <>
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>存入档案</span>
-                  </>
-                )}
-              </Button>
-            }
-          />
-          <TooltipContent>
-            把当前盘面与步骤存入对局档案，之后可从左侧「决斗档案」重新载入
-          </TooltipContent>
-        </Tooltip>
+        <Button
+          variant={savedToArchive ? 'outline' : 'secondary'}
+          size="sm"
+          onClick={() => void handleSaveToArchive()}
+          className="h-7 text-xs font-semibold gap-1.5"
+        >
+          {savedToArchive ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-emerald-500 font-bold">已存入档案</span>
+            </>
+          ) : (
+            <>
+              <Layers className="w-3.5 h-3.5" />
+              <span>存入档案</span>
+            </>
+          )}
+        </Button>
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => void handleExportMarkdown()}
-                className="h-7 text-xs font-bold gap-1.5 shadow-xs"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>导出 .md</span>
-              </Button>
-            }
-          />
-          <TooltipContent>导出为标准同人决斗剧本 Markdown 文档 (.md)</TooltipContent>
-        </Tooltip>
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => void handleExportMarkdown()}
+          className="h-7 text-xs font-bold gap-1.5 shadow-xs"
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span>导出 .md</span>
+        </Button>
       </div>
 
       {viewMode === 'document' ? (

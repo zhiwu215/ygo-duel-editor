@@ -3,7 +3,6 @@ import { ACTION_TYPE_COLORS, DuelActionType, DuelStep, POSITION_NAMES } from '@s
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { CardImage } from '../ui/CardImage'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { Button } from '../ui/button'
 import { BookOpen, ChevronDown, ChevronUp, MessageSquare, PlayCircle, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -67,7 +66,6 @@ export const StepCard: React.FC<StepCardProps> = ({
   onClick
 }: StepCardProps) => {
   const { setHoveredInstanceId, moveStep, deleteStep, openScreenplayWithStep } = useDuelStore()
-  const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
   const colorTheme = ACTION_TYPE_COLORS[step.actionType] || ACTION_TYPE_COLORS.NORMAL_SUMMON
   const actionLabel = duelActionLabel(step)
@@ -146,31 +144,24 @@ export const StepCard: React.FC<StepCardProps> = ({
           </div>
         ) : (
           <div className="flex items-center gap-1.5 min-w-0">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <div className="w-14 rounded overflow-hidden border border-border/80 bg-black/60 shrink-0 shadow-sm relative">
-                    <CardImage
-                      code={step.cardCode}
-                      small
-                      alt={displayCardName}
-                      className="w-full h-auto block"
-                    />
-                    <span
-                      className={cn(
-                        'absolute inset-x-0 bottom-0 text-center text-[8px] font-bold leading-none py-0.5',
-                        step.actionPlayer === 0
-                          ? 'bg-blue-950/80 text-blue-300'
-                          : 'bg-rose-950/80 text-rose-300'
-                      )}
-                    >
-                      {step.actionPlayer === 0 ? '我方' : '对方'}
-                    </span>
-                  </div>
-                }
+            <div className="w-14 rounded overflow-hidden border border-border/80 bg-black/60 shrink-0 shadow-sm relative">
+              <CardImage
+                code={step.cardCode}
+                small
+                alt={displayCardName}
+                className="w-full h-auto block"
               />
-              <TooltipContent>{displayCardName}</TooltipContent>
-            </Tooltip>
+              <span
+                className={cn(
+                  'absolute inset-x-0 bottom-0 text-center text-[8px] font-bold leading-none py-0.5',
+                  step.actionPlayer === 0
+                    ? 'bg-blue-950/80 text-blue-300'
+                    : 'bg-rose-950/80 text-rose-300'
+                )}
+              >
+                {step.actionPlayer === 0 ? '我方' : '对方'}
+              </span>
+            </div>
 
             <StepLocationLabel
               player={step.fromController ?? step.actionPlayer}
@@ -212,160 +203,97 @@ export const StepCard: React.FC<StepCardProps> = ({
         )}
 
         {(step.dialogue || step.speaker || step.innerThoughts) && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    openScreenplayWithStep(step.id)
-                  }}
-
-                  className="mt-0.5 p-1.5 rounded bg-background/80 hover:bg-background border border-border/50 hover:border-foreground/30 cursor-pointer text-[11px] leading-relaxed flex flex-col gap-0.5 transition-colors"
-                >
-                  {step.speaker && (
-                    <span className="font-bold text-[10px] text-foreground">
-                      【{step.speaker}】:
-                    </span>
-                  )}
-                  {step.dialogue && (
-                    <span className="text-foreground/90 italic">“{step.dialogue}”</span>
-                  )}
-                  {step.innerThoughts && (
-                    <span className="text-sky-400/90 text-[10px] italic">
-                      （心理：{step.innerThoughts}）
-                    </span>
-                  )}
-                </div>
-              }
-            />
-            <TooltipContent>点击进入大屏决斗台本工作台精修台词与剧情</TooltipContent>
-          </Tooltip>
+          <div
+            onClick={(e) => {
+              e.stopPropagation()
+              openScreenplayWithStep(step.id)
+            }}
+            className="mt-0.5 p-1.5 rounded bg-background/80 hover:bg-background border border-border/50 hover:border-foreground/30 cursor-pointer text-[11px] leading-relaxed flex flex-col gap-0.5 transition-colors"
+          >
+            {step.speaker && (
+              <span className="font-bold text-[10px] text-foreground">【{step.speaker}】:</span>
+            )}
+            {step.dialogue && <span className="text-foreground/90 italic">“{step.dialogue}”</span>}
+            {step.innerThoughts && (
+              <span className="text-sky-400/90 text-[10px] italic">
+                （心理：{step.innerThoughts}）
+              </span>
+            )}
+          </div>
         )}
 
         {!isReplay && (
           <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-background/90 backdrop-blur-xs p-0.5 rounded border border-border shadow-sm">
             {hasBoardSnapshot && playableFromHere && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onRestart(index, step)
-                      }}
-                      className="h-5 w-5 text-emerald-500 hover:text-emerald-400"
-                    >
-                      <PlayCircle className="w-3 h-3" />
-                    </Button>
-                  }
-                />
-                <TooltipContent>
-                  {engineActive
-                    ? '以这一步的场面重开引擎，从这里继续编排'
-                    : '以这一步的场面启动引擎，从这里继续编排'}
-                </TooltipContent>
-              </Tooltip>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRestart(index, step)
+                }}
+                className="h-5 w-5 text-emerald-500 hover:text-emerald-400"
+              >
+                <PlayCircle className="w-3 h-3" />
+              </Button>
             )}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openScreenplayWithStep(step.id)
-                    }}
-
-                    className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                  >
-                    <BookOpen className="w-3 h-3" />
-                  </Button>
-                }
-              />
-              <TooltipContent>在决斗台本工作台中精修台词与剧情</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    disabled={index === 0}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      moveStep(step.id, 'up')
-                    }}
-
-                    className="h-5 w-5"
-                  >
-                    <ChevronUp className="w-3 h-3" />
-                  </Button>
-                }
-              />
-              <TooltipContent>上移此步骤</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    disabled={index === stepsLength - 1}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      moveStep(step.id, 'down')
-                    }}
-
-                    className="h-5 w-5"
-                  >
-                    <ChevronDown className="w-3 h-3" />
-                  </Button>
-                }
-              />
-              <TooltipContent>下移此步骤</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onEdit(step)
-                    }}
-
-                    className="h-5 w-5 text-blue-500 hover:text-blue-400"
-                  >
-                    <MessageSquare className="w-3 h-3" />
-                  </Button>
-                }
-              />
-              <TooltipContent>编辑此步骤</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      deleteStep(step.id)
-                    }}
-
-                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                }
-              />
-              <TooltipContent>删除此步骤</TooltipContent>
-            </Tooltip>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation()
+                openScreenplayWithStep(step.id)
+              }}
+              className="h-5 w-5 text-muted-foreground hover:text-foreground"
+            >
+              <BookOpen className="w-3 h-3" />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              disabled={index === 0}
+              onClick={(e) => {
+                e.stopPropagation()
+                moveStep(step.id, 'up')
+              }}
+              className="h-5 w-5"
+            >
+              <ChevronUp className="w-3 h-3" />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              disabled={index === stepsLength - 1}
+              onClick={(e) => {
+                e.stopPropagation()
+                moveStep(step.id, 'down')
+              }}
+              className="h-5 w-5"
+            >
+              <ChevronDown className="w-3 h-3" />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(step)
+              }}
+              className="h-5 w-5 text-blue-500 hover:text-blue-400"
+            >
+              <MessageSquare className="w-3 h-3" />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation()
+                deleteStep(step.id)
+              }}
+              className="h-5 w-5 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
           </div>
         )}
       </div>

@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React, { useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
@@ -225,38 +224,24 @@ export function ProviderDetailPanel({
             aria-label={provider.enabled !== false ? '禁用供应商' : '启用供应商'}
           />
           {isCustom && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => setRenaming(true)}
-                    className="text-muted-foreground"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
-                }
-              />
-              <TooltipContent>重命名</TooltipContent>
-            </Tooltip>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => setRenaming(true)}
+              className="text-muted-foreground"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
           )}
           <div className="relative" ref={menuRef}>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => setMenuOpen((v) => !v)}
-                    className="text-muted-foreground"
-                  >
-                    <MoreHorizontal className="w-3.5 h-3.5" />
-                  </Button>
-                }
-              />
-              <TooltipContent>更多操作</TooltipContent>
-            </Tooltip>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="text-muted-foreground"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </Button>
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1 w-28 bg-popover border border-border rounded-md shadow-lg z-50 overflow-hidden">
                 {isCustom && (
@@ -349,20 +334,13 @@ export function ProviderDetailPanel({
               spellCheck={false}
               className="w-full px-2.5 py-1.5 pr-8 rounded-lg border border-border bg-background text-[11px] font-mono"
             />
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => setShowKey((v) => !v)}
-                    className="absolute top-1/2 right-1 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                  >
-                    {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                }
-              />
-              <TooltipContent>{showKey ? '隐藏密钥' : '显示密钥'}</TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={() => setShowKey((v) => !v)}
+              className="absolute top-1/2 right-1 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+            >
+              {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
           </div>
           <Button
             size="sm"
@@ -398,24 +376,16 @@ export function ProviderDetailPanel({
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <span className="text-[11px] text-muted-foreground">模型列表</span>
           <div className="flex items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => void pullModels()}
-                    disabled={modelsBusy || !urlDraft.trim()}
-
-                    className="gap-1"
-                  >
-                    <RefreshCw className={cn('w-3 h-3', modelsBusy && 'animate-spin')} />
-                    <span>拉取模型</span>
-                  </Button>
-                }
-              />
-              <TooltipContent>从厂商接口拉取当前可用模型</TooltipContent>
-            </Tooltip>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void pullModels()}
+              disabled={modelsBusy || !urlDraft.trim()}
+              className="gap-1"
+            >
+              <RefreshCw className={cn('w-3 h-3', modelsBusy && 'animate-spin')} />
+              <span>拉取模型</span>
+            </Button>
             <Button
               size="xs"
               variant="secondary"
@@ -444,83 +414,59 @@ export function ProviderDetailPanel({
                   key={model.id}
                   className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-muted/30 transition-colors"
                 >
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          onClick={() => onSelectModel(provider.id, model.id)}
-                          disabled={!canActivate || !model.enabled}
-
-                          className="min-w-0 flex-1 flex items-center gap-1.5 text-left disabled:cursor-not-allowed"
-                        >
-                          <span className="min-w-0 truncate text-[11px] font-medium">
-                            {model.name ?? model.id}
-                          </span>
-                          {model.name && model.name !== model.id && (
-                            <span className="font-mono text-[10px] text-muted-foreground truncate">
-                              {model.id}
-                            </span>
-                          )}
-                          {ctx && (
-                            <span className="text-[9px] px-1 py-0.5 rounded border border-border bg-muted text-muted-foreground shrink-0">
-                              {ctx}
-                            </span>
-                          )}
-                          {model.supportsVision && (
-                            <span className="text-[9px] px-1 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400 shrink-0 inline-flex items-center gap-0.5">
-                              <ImageIcon className="w-2.5 h-2.5" />
-                              视觉
-                            </span>
-                          )}
-                          {model.supportsReasoning && (
-                            <span className="text-[9px] px-1 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
-                              推理
-                            </span>
-                          )}
-                          {isActive && (
-                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 shrink-0 inline-flex items-center gap-0.5">
-                              <Check className="w-3 h-3" />
-                              使用中
-                            </span>
-                          )}
-                        </button>
-                      }
-                    />
-                    <TooltipContent>
-                      {canActivate ? '设为当前使用模型' : '配置 API Key 后可选用'}
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          size="icon-xs"
-                          variant="ghost"
-                          onClick={() => setModelModal({ mode: 'edit', initial: model })}
-                          className="shrink-0 text-muted-foreground"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>编辑模型配置</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          size="icon-xs"
-                          variant="ghost"
-                          onClick={() => removeProviderModel(provider.id, model.id)}
-                          className="shrink-0 text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>删除模型</TooltipContent>
-                  </Tooltip>
+                  <button
+                    type="button"
+                    onClick={() => onSelectModel(provider.id, model.id)}
+                    disabled={!canActivate || !model.enabled}
+                    className="min-w-0 flex-1 flex items-center gap-1.5 text-left disabled:cursor-not-allowed"
+                  >
+                    <span className="min-w-0 truncate text-[11px] font-medium">
+                      {model.name ?? model.id}
+                    </span>
+                    {model.name && model.name !== model.id && (
+                      <span className="font-mono text-[10px] text-muted-foreground truncate">
+                        {model.id}
+                      </span>
+                    )}
+                    {ctx && (
+                      <span className="text-[9px] px-1 py-0.5 rounded border border-border bg-muted text-muted-foreground shrink-0">
+                        {ctx}
+                      </span>
+                    )}
+                    {model.supportsVision && (
+                      <span className="text-[9px] px-1 py-0.5 rounded border border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400 shrink-0 inline-flex items-center gap-0.5">
+                        <ImageIcon className="w-2.5 h-2.5" />
+                        视觉
+                      </span>
+                    )}
+                    {model.supportsReasoning && (
+                      <span className="text-[9px] px-1 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                        推理
+                      </span>
+                    )}
+                    {isActive && (
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 shrink-0 inline-flex items-center gap-0.5">
+                        <Check className="w-3 h-3" />
+                        使用中
+                      </span>
+                    )}
+                  </button>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={() => setModelModal({ mode: 'edit', initial: model })}
+                    className="shrink-0 text-muted-foreground"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={() => removeProviderModel(provider.id, model.id)}
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
                   <Switch
                     checked={model.enabled}
                     onCheckedChange={(v) => setProviderModelEnabled(provider.id, model.id, v)}

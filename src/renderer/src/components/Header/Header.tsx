@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React from 'react'
 import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -87,20 +86,13 @@ export const Header: React.FC = () => {
         <div className="flex-1 h-full" />
 
         <div className="flex items-center gap-2 shrink-0 [-webkit-app-region:no-drag]">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Input
-                  type="text"
-                  value={state.title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="未命名对局"
-                  className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
-                />
-              }
-            />
-            <TooltipContent>对局标题（保存时可配置工程分类和注释）</TooltipContent>
-          </Tooltip>
+          <Input
+            type="text"
+            value={state.title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="未命名对局"
+            className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
+          />
 
           <Separator orientation="vertical" className="h-5" />
 
@@ -121,18 +113,11 @@ export const Header: React.FC = () => {
                 if (val !== null) setMasterRule(val as MasterRule)
               }}
             >
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <SelectTrigger size="sm" className="w-40 h-7 text-xs bg-background/60">
-                      <SelectValue>
-                        {MASTER_RULES[state.masterRule]?.name ?? '大师规则（2020）'}
-                      </SelectValue>
-                    </SelectTrigger>
-                  }
-                />
-                <TooltipContent>选择大师规则</TooltipContent>
-              </Tooltip>
+              <SelectTrigger size="sm" className="w-40 h-7 text-xs bg-background/60">
+                <SelectValue>
+                  {MASTER_RULES[state.masterRule]?.name ?? '大师规则（2020）'}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 {SELECTABLE_MASTER_RULES.map((rule) => {
                   const info = MASTER_RULES[rule]
@@ -163,43 +148,27 @@ export const Header: React.FC = () => {
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>规则校验中</span>
               </span>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      size="xs"
-                      onClick={() => stopEngine()}
-                      className="h-7 px-2 text-[11px] font-bold gap-1 bg-background/60 text-muted-foreground hover:bg-destructive/10 hover:text-destructive border-border"
-                    >
-                      <Square className="w-3 h-3 fill-current" />
-                      <span>退出引擎</span>
-                    </Button>
-                  }
-                />
-                <TooltipContent>退出 ocgcore 规则校验模式，恢复自由编排</TooltipContent>
-              </Tooltip>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => stopEngine()}
+                className="h-7 px-2 text-[11px] font-bold gap-1 bg-background/60 text-muted-foreground hover:bg-destructive/10 hover:text-destructive border-border"
+              >
+                <Square className="w-3 h-3 fill-current" />
+                <span>退出引擎</span>
+              </Button>
             </div>
           ) : (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => void startEngine()}
-                    disabled={isEngineLoading}
-                    className="h-7 px-2 text-[11px] font-bold gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
-                  >
-                    <Play className="w-3 h-3 fill-current" />
-                    <span>{isEngineLoading ? '正在启动...' : '启动规则校验'}</span>
-                  </Button>
-                }
-              />
-              <TooltipContent>
-                使用 ocgcore 原生内核校验决斗规则，锁定场面进入实战推演
-              </TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => void startEngine()}
+              disabled={isEngineLoading}
+              className="h-7 px-2 text-[11px] font-bold gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+            >
+              <Play className="w-3 h-3 fill-current" />
+              <span>{isEngineLoading ? '正在启动...' : '启动规则校验'}</span>
+            </Button>
           )}
         </div>
       </div>

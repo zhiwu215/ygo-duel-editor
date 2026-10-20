@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { DeckData, groupLeafName, groupParentPath, isGroupDescendant } from '@shared/index'
@@ -179,23 +178,16 @@ export const DeckLibraryView: React.FC = () => {
 
         <div className="flex items-center gap-2 [-webkit-app-region:no-drag]">
           <div className="relative">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setImportMenuOpen((v) => !v)}
-                    className="h-8 text-xs gap-1.5 font-medium"
-                  >
-                    <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span>导入 YDK</span>
-                    <ChevronDown className="w-3 h-3 opacity-60" />
-                  </Button>
-                }
-              />
-              <TooltipContent>导入 YDK 卡组</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setImportMenuOpen((v) => !v)}
+              className="h-8 text-xs gap-1.5 font-medium"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>导入 YDK</span>
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </Button>
 
             {importMenuOpen && (
               <div

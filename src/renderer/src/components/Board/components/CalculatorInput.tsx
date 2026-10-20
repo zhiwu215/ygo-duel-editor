@@ -6,7 +6,6 @@ import {
   switchOperator,
   LpOperator
 } from '../../../utils/lpMath'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import { Button } from '../../ui/button'
 import { RotateCcw } from 'lucide-react'
 import { cn } from '../../../lib/utils'
@@ -160,14 +159,7 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
     />
   )
 
-  const inputElement = withTooltips ? (
-    <Tooltip>
-      <TooltipTrigger render={inputNode} />
-      <TooltipContent>{inputTitle}</TooltipContent>
-    </Tooltip>
-  ) : (
-    inputNode
-  )
+  const inputElement = withTooltips ? inputNode : inputNode
 
   const opPanel = isFocused ? (
     <div
@@ -228,14 +220,7 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
                 {btn.label}
               </button>
             )
-            return withTooltips ? (
-              <Tooltip key={btn.op}>
-                <TooltipTrigger render={buttonNode} />
-                <TooltipContent>{`切换为 ${btn.label} 模式`}</TooltipContent>
-              </Tooltip>
-            ) : (
-              buttonNode
-            )
+            return withTooltips ? buttonNode : buttonNode
           })}
         </div>
       </div>
@@ -248,16 +233,9 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
         }
       >
         {withTooltips ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className="text-muted-foreground truncate max-w-[120px]">
-                  {parseResult.formula}
-                </span>
-              }
-            />
-            <TooltipContent>{parseResult.formula}</TooltipContent>
-          </Tooltip>
+          <span className="text-muted-foreground truncate max-w-[120px]">
+            {parseResult.formula}
+          </span>
         ) : (
           <span
             className="text-muted-foreground truncate max-w-[125px]"

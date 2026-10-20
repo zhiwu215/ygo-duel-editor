@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import { Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
@@ -84,37 +83,29 @@ export const MultiHandTray: React.FC<{
             onCancel={() => setRenamingId(null)}
             inputClassName="h-[18px] w-20 px-1 text-[10px] rounded border border-primary bg-background outline-none"
           >
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveDuelistId(d.id)
-                      scrollStripIntoView(d.id)
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      setRenamingId(d.id)
-                      setRenameDraft(d.name)
-                    }}
-
-                    className={cn(
-                      'px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
-                      d.team === 1
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-blue-600 dark:text-blue-400',
-                      activeDuelistId === d.id
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-muted/40 border-border hover:bg-muted'
-                    )}
-                  >
-                    {d.name}
-                  </button>
-                }
-              />
-              <TooltipContent>{`左键查看 ${d.name} 的卡组 · 右键重命名`}</TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveDuelistId(d.id)
+                scrollStripIntoView(d.id)
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setRenamingId(d.id)
+                setRenameDraft(d.name)
+              }}
+              className={cn(
+                'px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
+                d.team === 1
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-blue-600 dark:text-blue-400',
+                activeDuelistId === d.id
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-muted/40 border-border hover:bg-muted'
+              )}
+            >
+              {d.name}
+            </button>
           </EditableNameChip>
         ))}
 
@@ -122,29 +113,18 @@ export const MultiHandTray: React.FC<{
           共 {teamHandCards.length} 张
         </span>
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={toggleSharedLp}
-                className={cn(
-                  'ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
-                  isSharedLp
-                    ? 'bg-primary/15 border-primary/40 text-primary'
-                    : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {isSharedLp ? '✓ 队伍共用 LP' : '独立 LP'}
-              </button>
-            }
-          />
-          <TooltipContent>
-            {isSharedLp
-              ? '当前为队伍共用生命值，点击切换为每位决斗者独立生命值'
-              : '当前为独立生命值，点击切换为全队共用同一生命值'}
-          </TooltipContent>
-        </Tooltip>
+        <button
+          type="button"
+          onClick={toggleSharedLp}
+          className={cn(
+            'ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
+            isSharedLp
+              ? 'bg-primary/15 border-primary/40 text-primary'
+              : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {isSharedLp ? '✓ 队伍共用 LP' : '独立 LP'}
+        </button>
 
         {isSharedLp && (
           <LpInput

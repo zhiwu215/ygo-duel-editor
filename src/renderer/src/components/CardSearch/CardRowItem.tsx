@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React from 'react'
 import { Star } from 'lucide-react'
 import { CdbCard, CardUtils, LIMIT_MARKS, cardPoolLabel, otBadgeIds } from '@shared/index'
@@ -128,30 +127,23 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
       </div>
 
       {onToggleFavorite && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleFavorite(card.id)
-                }}
-                className="p-1 rounded text-muted-foreground hover:text-amber-400 shrink-0 transition-opacity"
-              >
-                <Star
-                  className={cn(
-                    'w-3.5 h-3.5 transition-all',
-                    isFavorite
-                      ? 'fill-amber-400 text-amber-400 opacity-100'
-                      : 'opacity-0 group-hover:opacity-100 hover:text-foreground'
-                  )}
-                />
-              </button>
-            }
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleFavorite(card.id)
+          }}
+          className="p-1 rounded text-muted-foreground hover:text-amber-400 shrink-0 transition-opacity"
+        >
+          <Star
+            className={cn(
+              'w-3.5 h-3.5 transition-all',
+              isFavorite
+                ? 'fill-amber-400 text-amber-400 opacity-100'
+                : 'opacity-0 group-hover:opacity-100 hover:text-foreground'
+            )}
           />
-          <TooltipContent>{isFavorite ? '取消收藏' : '收藏此卡'}</TooltipContent>
-        </Tooltip>
+        </button>
       )}
     </div>
   )

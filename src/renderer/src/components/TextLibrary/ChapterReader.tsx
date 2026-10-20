@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Check, Loader2, Minus, Save, Search } from 'lucide-react'
@@ -159,20 +158,13 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     <div className="flex flex-col h-screen w-screen bg-background text-foreground overflow-hidden">
       <header className="shrink-0 border-b border-border/60 [-webkit-app-region:drag]">
         <div className="flex items-center gap-2 px-4 h-11">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={() => void onBack()}
-                  className="[-webkit-app-region:no-drag] w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-              }
-            />
-            <TooltipContent>返回素材库</TooltipContent>
-          </Tooltip>
+          <button
+            type="button"
+            onClick={() => void onBack()}
+            className="[-webkit-app-region:no-drag] w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
           <div className="min-w-0">
             <div className="font-bold text-sm truncate">{text.title}</div>
             <div className="text-[10px] text-muted-foreground font-mono">
@@ -184,43 +176,27 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             {dirty && (
               <span className="text-[10px] text-amber-600 dark:text-amber-400">未保存</span>
             )}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => void handleSave()}
-                    disabled={!dirty || saving}
-
-                    className="flex items-center gap-1.5 px-2.5 h-8 rounded-md border border-border text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
-                  >
-                    {saving ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Save className="w-3.5 h-3.5" />
-                    )}
-                    <span>保存</span>
-                  </button>
-                }
-              />
-              <TooltipContent>保存本章正文</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => void handleSend()}
-                    disabled={picked.size === 0}
-
-                    className="flex items-center gap-1.5 px-2.5 h-8 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
-                  >
-                    <span>交给背后灵编排（{picked.size} 章）</span>
-                  </button>
-                }
-              />
-              <TooltipContent>把选中的章节交给背后灵编排成对局</TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={!dirty || saving}
+              className="flex items-center gap-1.5 px-2.5 h-8 rounded-md border border-border text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
+            >
+              {saving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+              <span>保存</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSend()}
+              disabled={picked.size === 0}
+              className="flex items-center gap-1.5 px-2.5 h-8 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+            >
+              <span>交给背后灵编排（{picked.size} 章）</span>
+            </button>
             <WindowControls />
           </div>
         </div>

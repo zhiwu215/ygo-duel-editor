@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import { useEffect, useRef, useState, type JSX, type RefObject } from 'react'
 import { BookOpen, ChevronDown, ChevronRight, FilePlus2, Loader2 } from 'lucide-react'
@@ -116,27 +115,19 @@ export function TextSourcePicker({
             <BookOpen className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">文本素材</span>
           </span>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={() => void handleImport()}
-                  disabled={importing}
-
-                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50 shrink-0"
-                >
-                  {importing ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <FilePlus2 className="w-3 h-3" />
-                  )}
-                  <span>导入</span>
-                </button>
-              }
-            />
-            <TooltipContent>导入本地小说文件（txt / md / epub），自动按章节拆分</TooltipContent>
-          </Tooltip>
+          <button
+            type="button"
+            onClick={() => void handleImport()}
+            disabled={importing}
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50 shrink-0"
+          >
+            {importing ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <FilePlus2 className="w-3 h-3" />
+            )}
+            <span>导入</span>
+          </button>
         </div>
 
         <ScrollArea className="max-h-72">

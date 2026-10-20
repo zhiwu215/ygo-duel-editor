@@ -1,5 +1,4 @@
 import React from 'react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { X, RotateCcw, ImageIcon, Check } from 'lucide-react'
 import { Dialog, DialogContent } from '../ui/dialog'
 import { CardImage } from '../ui/CardImage'
@@ -65,58 +64,37 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
           </div>
           <div className="flex flex-col items-center gap-2">
             {onToggleCover && (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      onClick={onToggleCover}
-                      className={cn(
-                        'h-8 px-3 rounded-full bg-black/50 hover:bg-black/80 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors border border-white/15 cursor-pointer',
-                        isCover ? 'text-emerald-400' : 'text-white/80 hover:text-white'
-                      )}
-                    >
-                      {isCover ? (
-                        <Check className="w-3.5 h-3.5" />
-                      ) : (
-                        <ImageIcon className="w-3.5 h-3.5" />
-                      )}
-                      <span>{isCover ? '取消卡组封面' : '设为卡组封面'}</span>
-                    </button>
-                  }
-                />
-                <TooltipContent>{isCover ? '取消卡组封面' : '设为卡组封面'}</TooltipContent>
-              </Tooltip>
+              <button
+                type="button"
+                onClick={onToggleCover}
+                className={cn(
+                  'h-8 px-3 rounded-full bg-black/50 hover:bg-black/80 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors border border-white/15 cursor-pointer',
+                  isCover ? 'text-emerald-400' : 'text-white/80 hover:text-white'
+                )}
+              >
+                {isCover ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <ImageIcon className="w-3.5 h-3.5" />
+                )}
+                <span>{isCover ? '取消卡组封面' : '设为卡组封面'}</span>
+              </button>
             )}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={resetImageView}
-                    disabled={imageZoom === 1 && imageOffset.x === 0 && imageOffset.y === 0}
-                    className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 disabled:opacity-40 disabled:cursor-not-allowed text-white/80 hover:text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-                }
-              />
-              <TooltipContent>复位视图</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                }
-              />
-              <TooltipContent>关闭 (Esc)</TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={resetImageView}
+              disabled={imageZoom === 1 && imageOffset.x === 0 && imageOffset.y === 0}
+              className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 disabled:opacity-40 disabled:cursor-not-allowed text-white/80 hover:text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/80 text-white/80 hover:text-white flex items-center justify-center transition-colors border border-white/15 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
 

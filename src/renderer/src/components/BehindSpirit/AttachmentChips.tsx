@@ -1,5 +1,4 @@
 import type { JSX } from 'react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { CardImage } from '../ui/CardImage'
 import { BookOpen, X } from 'lucide-react'
 import { AgentTextSourceRef, CardUtils, CdbCard } from '@shared/index'
@@ -38,20 +37,13 @@ export function AttachmentChips({
                   {CardUtils.getCardTypeLabel(c.type)} · {c.id}
                 </p>
               </div>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      onClick={() => onRemoveCard(c.id)}
-                      className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  }
-                />
-                <TooltipContent>移除这张卡片</TooltipContent>
-              </Tooltip>
+              <button
+                type="button"
+                onClick={() => onRemoveCard(c.id)}
+                className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </div>
           ))}
         </div>
@@ -69,20 +61,13 @@ export function AttachmentChips({
                 {text.wordCount ? `约 ${text.wordCount} 字` : '文本素材'}
               </p>
             </div>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={onRemoveText}
-                    className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                }
-              />
-              <TooltipContent>移除这本文本素材</TooltipContent>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={onRemoveText}
+              className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+            >
+              <X className="w-3 h-3" />
+            </button>
           </div>
         </div>
       )}

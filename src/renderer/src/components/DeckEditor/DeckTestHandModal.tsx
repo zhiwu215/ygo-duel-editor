@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React from 'react'
 import { CdbCard } from '@shared/index'
 import { CardImage } from '../ui/CardImage'
@@ -66,16 +65,9 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className="text-[11px] font-medium text-foreground text-center truncate w-full">
-                        {card?.name || resolveCardName(code)}
-                      </span>
-                    }
-                  />
-                  <TooltipContent>{card?.name || resolveCardName(code)}</TooltipContent>
-                </Tooltip>
+                <span className="text-[11px] font-medium text-foreground text-center truncate w-full">
+                  {card?.name || resolveCardName(code)}
+                </span>
               </div>
             )
           })}

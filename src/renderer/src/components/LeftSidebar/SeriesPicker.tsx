@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -121,21 +120,14 @@ export const SeriesPicker: React.FC<SeriesPickerProps> = ({
           placeholder="新建分类…"
           className="flex-1 min-w-0 h-6 px-1.5 text-[11px] rounded border border-input bg-background/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => void submitCreate()}
-                disabled={busy || !draft.trim()}
-                className="h-6 w-6 shrink-0 flex items-center justify-center rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-colors"
-              >
-                <Plus className="w-3 h-3" />
-              </button>
-            }
-          />
-          <TooltipContent>新建并归入</TooltipContent>
-        </Tooltip>
+        <button
+          type="button"
+          onClick={() => void submitCreate()}
+          disabled={busy || !draft.trim()}
+          className="h-6 w-6 shrink-0 flex items-center justify-center rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
       </div>
 
       {error && (

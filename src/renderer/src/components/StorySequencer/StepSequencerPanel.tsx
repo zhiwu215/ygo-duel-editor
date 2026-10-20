@@ -6,7 +6,6 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { alertDialog } from '../../stores/useDialogStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
 import { phaseJumpCommand, phaseAdvanceCommand, turnEndCommand } from '../../utils/phaseFlow'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { StepList } from './StepList'
@@ -82,22 +81,15 @@ export const StepSequencerPanel: React.FC = () => {
 
         {!isReplay && (
           <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => openScreenplayWithStep()}
-                    className="h-7 px-2 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
-                  >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>台本</span>
-                  </Button>
-                }
-              />
-              <TooltipContent>打开大屏决斗台本工作台，沉浸式编写角色台词与剧情</TooltipContent>
-            </Tooltip>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => openScreenplayWithStep()}
+              className="h-7 px-2 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>台本</span>
+            </Button>
           </div>
         )}
       </div>
@@ -106,55 +98,39 @@ export const StepSequencerPanel: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <span className="font-extrabold text-xs text-foreground">第 {currentTurn} 回合</span>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Badge
-                    variant="outline"
-                    onClick={
-                      isReplay || isEngine
-                        ? undefined
-                        : () => setActiveTurnPlayer(activeTurnPlayer === 0 ? 1 : 0)
-                    }
-                    className={cn(
-                      'text-[10px] px-1.5 py-0 font-bold transition-colors',
-                      !isReplay && !isEngine && 'cursor-pointer',
-                      activeTurnPlayer === 0
-                        ? 'border-blue-500/50 text-blue-400 bg-blue-500/10'
-                        : 'border-rose-500/50 text-rose-400 bg-rose-500/10',
-                      !isReplay &&
-                        !isEngine &&
-                        (activeTurnPlayer === 0 ? 'hover:bg-blue-500/20' : 'hover:bg-rose-500/20')
-                    )}
-                  >
-                    {activeTurnPlayer === 0 ? '我方行动' : '对方行动'}
-                  </Badge>
-                }
-              />
-              {!isReplay && !isEngine && (
-                <TooltipContent>点击切换当前行动方 (我方 / 对方)</TooltipContent>
+            <Badge
+              variant="outline"
+              onClick={
+                isReplay || isEngine
+                  ? undefined
+                  : () => setActiveTurnPlayer(activeTurnPlayer === 0 ? 1 : 0)
+              }
+              className={cn(
+                'text-[10px] px-1.5 py-0 font-bold transition-colors',
+                !isReplay && !isEngine && 'cursor-pointer',
+                activeTurnPlayer === 0
+                  ? 'border-blue-500/50 text-blue-400 bg-blue-500/10'
+                  : 'border-rose-500/50 text-rose-400 bg-rose-500/10',
+                !isReplay &&
+                  !isEngine &&
+                  (activeTurnPlayer === 0 ? 'hover:bg-blue-500/20' : 'hover:bg-rose-500/20')
               )}
-            </Tooltip>
+            >
+              {activeTurnPlayer === 0 ? '我方行动' : '对方行动'}
+            </Badge>
           </div>
 
           <div className="flex items-center gap-1">
             {!isReplay && currentChain > 0 ? (
               <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-[10px] font-bold text-teal-300">
                 <span className="animate-pulse">⛓ Chain {currentChain}</span>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        onClick={resetChain}
-                        className="ml-0.5 text-[9px] px-1 py-0 bg-teal-500/30 hover:bg-teal-500/50 text-teal-200 rounded font-semibold cursor-pointer"
-                      >
-                        结算
-                      </button>
-                    }
-                  />
-                  <TooltipContent>结算并重置连锁序号</TooltipContent>
-                </Tooltip>
+                <button
+                  type="button"
+                  onClick={resetChain}
+                  className="ml-0.5 text-[9px] px-1 py-0 bg-teal-500/30 hover:bg-teal-500/50 text-teal-200 rounded font-semibold cursor-pointer"
+                >
+                  结算
+                </button>
               </div>
             ) : (
               <span className="text-[10px] text-muted-foreground/60 font-mono">C0 (无连锁)</span>
@@ -175,85 +151,63 @@ export const StepSequencerPanel: React.FC = () => {
                   const command = enginePhaseCommand(p)
                   const engineDisabled = isEngine && !command
                   return (
-                    <Tooltip key={p}>
-                      <TooltipTrigger
-                        render={
-                          <button
-                            type="button"
-                            disabled={engineDisabled}
-                            onClick={() => {
-                              if (isEngine) {
-                                if (command) submitEngine(command)
-                                return
-                              }
-                              insertPhaseJump(p)
-                            }}
-                            className={cn(
-                              'flex-1 text-[10px] font-extrabold py-0.5 rounded transition-all text-center',
-                              engineDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
-                              isActive
-                                ? 'bg-primary text-primary-foreground shadow-xs'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                            )}
-                          >
-                            {p}
-                          </button>
+                    <button
+                      key={p}
+                      type="button"
+                      disabled={engineDisabled}
+                      onClick={() => {
+                        if (isEngine) {
+                          if (command) submitEngine(command)
+                          return
                         }
-                      />
-                      <TooltipContent>{`切换到 ${PHASE_NAMES[p] || p}`}</TooltipContent>
-                    </Tooltip>
+                        insertPhaseJump(p)
+                      }}
+                      className={cn(
+                        'flex-1 text-[10px] font-extrabold py-0.5 rounded transition-all text-center',
+                        engineDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
+                        isActive
+                          ? 'bg-primary text-primary-foreground shadow-xs'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                      )}
+                    >
+                      {p}
+                    </button>
                   )
                 })}
               </div>
 
               <div className="flex items-center gap-0.5 shrink-0">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        disabled={isEngine && (!advanceCommand || engineLoading)}
-                        onClick={() => {
-                          if (isEngine) {
-                            if (advanceCommand) submitEngine(advanceCommand)
-                            return
-                          }
-                          insertPhaseChange()
-                        }}
-                        className="h-6 px-1.5 text-[10px] font-bold gap-0.5 border-border"
-                      >
-                        <span>下阶段</span>
-                        <ArrowRight className="w-2.5 h-2.5" />
-                      </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={isEngine && (!advanceCommand || engineLoading)}
+                  onClick={() => {
+                    if (isEngine) {
+                      if (advanceCommand) submitEngine(advanceCommand)
+                      return
                     }
-                  />
-                  <TooltipContent>
-                    推进到下一个决斗阶段 (DP → SP → M1 → BP → M2 → EP)
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        size="xs"
-                        variant="secondary"
-                        disabled={isEngine && (!turnEndCmd || engineLoading)}
-                        onClick={() => {
-                          if (isEngine) {
-                            if (turnEndCmd) submitEngine(turnEndCmd)
-                            return
-                          }
-                          insertTurnChange()
-                        }}
-                        className="h-6 px-1.5 text-[10px] font-bold text-foreground/90"
-                      >
-                        <span>下回合</span>
-                      </Button>
+                    insertPhaseChange()
+                  }}
+                  className="h-6 px-1.5 text-[10px] font-bold gap-0.5 border-border"
+                >
+                  <span>下阶段</span>
+                  <ArrowRight className="w-2.5 h-2.5" />
+                </Button>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  disabled={isEngine && (!turnEndCmd || engineLoading)}
+                  onClick={() => {
+                    if (isEngine) {
+                      if (turnEndCmd) submitEngine(turnEndCmd)
+                      return
                     }
-                  />
-                  <TooltipContent>回合结束，推进到下一回合并切换回合方</TooltipContent>
-                </Tooltip>
+                    insertTurnChange()
+                  }}
+                  className="h-6 px-1.5 text-[10px] font-bold text-foreground/90"
+                >
+                  <span>下回合</span>
+                </Button>
               </div>
             </>
           )}
@@ -264,63 +218,42 @@ export const StepSequencerPanel: React.FC = () => {
 
       <div className="p-2 border-t border-border/60 bg-muted/20 flex items-center justify-between select-none shrink-0">
         <div className="flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  onClick={handleResetPlayback}
-                  className="h-7 w-7 text-muted-foreground"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                </Button>
-              }
-            />
-            <TooltipContent>复位至开场</TooltipContent>
-          </Tooltip>
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            onClick={handleResetPlayback}
+            className="h-7 w-7 text-muted-foreground"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </Button>
 
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  disabled={
-                    steps.length === 0 ||
-                    (isReplay ? (replayStepIndex ?? -1) <= 0 : currentStepIndex === 0)
-                  }
-                  onClick={handlePrevStep}
-                  className="h-7 w-7 text-muted-foreground"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                </Button>
-              }
-            />
-            <TooltipContent>上一步</TooltipContent>
-          </Tooltip>
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            disabled={
+              steps.length === 0 ||
+              (isReplay ? (replayStepIndex ?? -1) <= 0 : currentStepIndex === 0)
+            }
+            onClick={handlePrevStep}
+            className="h-7 w-7 text-muted-foreground"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+          </Button>
 
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  disabled={
-                    steps.length === 0 ||
-                    (isReplay
-                      ? replayStepIndex === steps.length - 1
-                      : currentStepIndex === steps.length - 1)
-                  }
-                  onClick={handleNextStep}
-                  className="h-7 w-7 text-muted-foreground"
-                >
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Button>
-              }
-            />
-            <TooltipContent>下一步</TooltipContent>
-          </Tooltip>
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            disabled={
+              steps.length === 0 ||
+              (isReplay
+                ? replayStepIndex === steps.length - 1
+                : currentStepIndex === steps.length - 1)
+            }
+            onClick={handleNextStep}
+            className="h-7 w-7 text-muted-foreground"
+          >
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Button>
         </div>
 
         <span className="text-[11px] font-mono font-medium text-muted-foreground">

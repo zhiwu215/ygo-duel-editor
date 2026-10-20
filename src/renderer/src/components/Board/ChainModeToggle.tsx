@@ -3,7 +3,6 @@ import { Check } from 'lucide-react'
 import { TimingPolicy } from '@shared/index'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { Button } from '../ui/button'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,46 +78,36 @@ export const ChainModeToggle: React.FC = () => {
         <DropdownMenuGroup>
           <DropdownMenuLabel>连锁时点</DropdownMenuLabel>
           {CHAIN_MODES.map((mode) => (
-            <Tooltip key={mode.value}>
-              <TooltipTrigger
-                render={
-                  <DropdownMenuItem
-                    className="items-center gap-2"
-                    onClick={() => update({ chain: mode.value })}
-                  >
-                    <ChainModeIcon mode={mode.value} size={14} className="shrink-0" />
-                    <span className="text-xs font-semibold">{mode.label}</span>
-                    {timingPolicy.chain === mode.value ? (
-                      <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
-                    ) : null}
-                  </DropdownMenuItem>
-                }
-              />
-              <TooltipContent side="right">{mode.description}</TooltipContent>
-            </Tooltip>
+            <DropdownMenuItem
+              key={mode.value}
+              title={mode.description}
+              className="items-center gap-2"
+              onClick={() => update({ chain: mode.value })}
+            >
+              <ChainModeIcon mode={mode.value} size={14} className="shrink-0" />
+              <span className="text-xs font-semibold">{mode.label}</span>
+              {timingPolicy.chain === mode.value ? (
+                <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
+              ) : null}
+            </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuLabel>可选发动效果</DropdownMenuLabel>
           {EFFECT_YN_MODES.map((mode) => (
-            <Tooltip key={mode.value}>
-              <TooltipTrigger
-                render={
-                  <DropdownMenuItem
-                    className="items-center gap-2"
-                    onClick={() => update({ effectYn: mode.value })}
-                  >
-                    <span className="w-3.5 shrink-0" />
-                    <span className="text-xs font-semibold">{mode.label}</span>
-                    {timingPolicy.effectYn === mode.value ? (
-                      <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
-                    ) : null}
-                  </DropdownMenuItem>
-                }
-              />
-              <TooltipContent side="right">{mode.description}</TooltipContent>
-            </Tooltip>
+            <DropdownMenuItem
+              key={mode.value}
+              title={mode.description}
+              className="items-center gap-2"
+              onClick={() => update({ effectYn: mode.value })}
+            >
+              <span className="w-3.5 shrink-0" />
+              <span className="text-xs font-semibold">{mode.label}</span>
+              {timingPolicy.effectYn === mode.value ? (
+                <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
+              ) : null}
+            </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>
       </DropdownMenuContent>

@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React from 'react'
 import { FileText, Loader2, RefreshCw, Trash2, Upload } from 'lucide-react'
@@ -62,62 +61,41 @@ export const LibraryGrid: React.FC<LibraryGridProps> = ({
           {texts.map((text) => (
             <div key={text.id} className="group flex flex-col items-center gap-1.5">
               <div className="relative w-full flex justify-center">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        onDoubleClick={() => onOpen(text)}
-                        onClick={() => onOpen(text)}
-                        className="w-full flex flex-col items-center gap-2 rounded-md px-1 py-2 hover:bg-accent/50 transition-colors cursor-pointer"
-                      >
-                        <FileText
-                          className="w-11 h-11 text-foreground/75 group-hover:text-foreground transition-colors shrink-0"
-                          strokeWidth={1.25}
-                        />
-                        <span className="w-full text-[11px] leading-tight text-center break-words line-clamp-3 px-0.5">
-                          {text.title}
-                        </span>
-                      </button>
-                    }
+                <button
+                  type="button"
+                  onDoubleClick={() => onOpen(text)}
+                  onClick={() => onOpen(text)}
+                  className="w-full flex flex-col items-center gap-2 rounded-md px-1 py-2 hover:bg-accent/50 transition-colors cursor-pointer"
+                >
+                  <FileText
+                    className="w-11 h-11 text-foreground/75 group-hover:text-foreground transition-colors shrink-0"
+                    strokeWidth={1.25}
                   />
-                  <TooltipContent>{`${text.title}${text.chapterCount ? ` · ${text.chapterCount} 章` : ''}`}</TooltipContent>
-                </Tooltip>
+                  <span className="w-full text-[11px] leading-tight text-center break-words line-clamp-3 px-0.5">
+                    {text.title}
+                  </span>
+                </button>
                 <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onResplit(text)
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                        </button>
-                      }
-                    />
-                    <TooltipContent>重新按章节拆分</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onDelete(text)
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      }
-                    />
-                    <TooltipContent>删除</TooltipContent>
-                  </Tooltip>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onResplit(text)
+                    }}
+                    className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDelete(text)
+                    }}
+                    className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono">

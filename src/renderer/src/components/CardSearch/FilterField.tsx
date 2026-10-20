@@ -1,5 +1,4 @@
 import React from 'react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { cn } from '../../lib/utils'
 
 interface FilterFieldProps {
@@ -32,14 +31,7 @@ export const FilterField: React.FC<FilterFieldProps> = ({
   )
   return (
     <div className={cn('flex min-w-0 items-center gap-1', className)}>
-      {tooltip ? (
-        <Tooltip>
-          <TooltipTrigger render={labelNode} />
-          <TooltipContent>{tooltip}</TooltipContent>
-        </Tooltip>
-      ) : (
-        labelNode
-      )}
+      {tooltip ? labelNode : labelNode}
       {children}
     </div>
   )

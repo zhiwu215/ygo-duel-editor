@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react'
 import { BookOpen, Check, FolderPlus, Search } from 'lucide-react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { DuelSourceRef } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
@@ -75,36 +74,22 @@ export const DuelArchivesPanel: React.FC = () => {
     <div className="h-full flex flex-col bg-background/50 select-none overflow-hidden">
       <div className="h-10 px-3 border-b border-border/80 flex items-center justify-between shrink-0 bg-muted/20">
         <span className="text-xs font-semibold text-foreground tracking-wide">决斗档案</span>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => setShowTextModal(true)}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>提取对局</span>
-              </button>
-            }
-          />
-          <TooltipContent>从文本（txt / md / epub）提取对局</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={() => setNameDialog({ mode: 'create' })}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <FolderPlus className="w-3.5 h-3.5" />
-                <span>分类</span>
-              </button>
-            }
-          />
-          <TooltipContent>新建分类</TooltipContent>
-        </Tooltip>
+        <button
+          type="button"
+          onClick={() => setShowTextModal(true)}
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>提取对局</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setNameDialog({ mode: 'create' })}
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <FolderPlus className="w-3.5 h-3.5" />
+          <span>分类</span>
+        </button>
       </div>
 
       <div className="p-2 border-b border-border/60 flex flex-col gap-2 shrink-0 bg-card/30">

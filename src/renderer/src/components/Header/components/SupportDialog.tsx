@@ -1,5 +1,4 @@
 import React from 'react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog'
 import { Button } from '../../ui/button'
 import { Coffee, X } from 'lucide-react'
@@ -18,20 +17,13 @@ export const SupportDialog: React.FC<SupportDialogProps> = ({ onClose }) => (
           <Coffee className="w-4 h-4 text-muted-foreground" />
           支持作者
         </DialogTitle>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={onClose}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            }
-          />
-          <TooltipContent>关闭</TooltipContent>
-        </Tooltip>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </DialogHeader>
 
       <p className="text-xs text-muted-foreground leading-relaxed text-center">

@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import React, { useState } from 'react'
 import { DeckData, groupLeafName } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
@@ -45,17 +44,10 @@ export const DeckCardTile: React.FC<DeckCardTileProps> = ({ deck, onContextMenu 
           className="h-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
         />
         {deck.group?.trim() && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <div className="absolute top-1 left-1 right-1 flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-black/65 backdrop-blur-xs px-1 py-0.5 rounded">
-                  <Folder className="w-2 h-2 shrink-0" />
-                  <span className="truncate">{groupLeafName(deck.group.trim())}</span>
-                </div>
-              }
-            />
-            <TooltipContent>{deck.group.trim()}</TooltipContent>
-          </Tooltip>
+          <div className="absolute top-1 left-1 right-1 flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-black/65 backdrop-blur-xs px-1 py-0.5 rounded">
+            <Folder className="w-2 h-2 shrink-0" />
+            <span className="truncate">{groupLeafName(deck.group.trim())}</span>
+          </div>
         )}
       </div>
 
@@ -68,26 +60,14 @@ export const DeckCardTile: React.FC<DeckCardTileProps> = ({ deck, onContextMenu 
       )}
 
       <div className="flex flex-col min-w-0 flex-1">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                {deck.name}
-              </h3>
-            }
-          />
-          <TooltipContent>{deck.name}</TooltipContent>
-        </Tooltip>
+        <h3 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+          {deck.name}
+        </h3>
 
         <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
           <Clock className="w-2.5 h-2.5" />
           <span>{deck.updatedAt ? new Date(deck.updatedAt).toLocaleDateString() : '未同步'}</span>
-          {coverCard && (
-            <Tooltip>
-              <TooltipTrigger render={<span className="truncate ml-1">· {coverCard.name}</span>} />
-              <TooltipContent>{coverCard.name}</TooltipContent>
-            </Tooltip>
-          )}
+          {coverCard && <span className="truncate ml-1">· {coverCard.name}</span>}
         </div>
 
         {deck.tags && deck.tags.length > 0 && (

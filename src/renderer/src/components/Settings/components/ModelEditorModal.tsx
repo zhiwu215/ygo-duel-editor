@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import { ScrollArea } from '../../ui/scroll-area'
 import React, { useState } from 'react'
 import { Check, ChevronRight, Loader2, Lock, X } from 'lucide-react'
@@ -180,20 +179,13 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
           <DialogTitle className="text-xs font-semibold">
             {mode === 'add' ? '添加模型' : '编辑模型'}
           </DialogTitle>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="text-muted-foreground hover:text-foreground rounded p-1 hover:bg-muted/80 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              }
-            />
-            <TooltipContent>关闭 (Esc)</TooltipContent>
-          </Tooltip>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground rounded p-1 hover:bg-muted/80 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </DialogHeader>
 
         <div className="flex items-center gap-1.5 px-5 pt-3">

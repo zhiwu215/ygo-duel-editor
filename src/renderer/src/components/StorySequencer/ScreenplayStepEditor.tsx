@@ -1,6 +1,5 @@
 import React from 'react'
 import { ACTION_TYPE_COLORS, DuelStep, PHASE_NAMES } from '@shared/index'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -94,40 +93,26 @@ export const ScreenplayStepEditor: React.FC<ScreenplayStepEditorProps> = ({
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={activeStepIndex <= 0}
-                        onClick={() => onSelectStep(steps[activeStepIndex - 1].id)}
-                        className="h-8 px-2.5 text-xs font-semibold gap-1"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                        <span>上一步</span>
-                      </Button>
-                    }
-                  />
-                  <TooltipContent>上一动作步骤 (快捷键 Ctrl + ↑)</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        variant="default"
-                        size="sm"
-                        disabled={activeStepIndex >= steps.length - 1}
-                        onClick={() => onSelectStep(steps[activeStepIndex + 1].id)}
-                        className="h-8 px-2.5 text-xs font-semibold gap-1"
-                      >
-                        <span>下一步</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
-                    }
-                  />
-                  <TooltipContent>下一动作步骤 (快捷键 Ctrl + ↓ 或 Ctrl + Enter)</TooltipContent>
-                </Tooltip>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={activeStepIndex <= 0}
+                  onClick={() => onSelectStep(steps[activeStepIndex - 1].id)}
+                  className="h-8 px-2.5 text-xs font-semibold gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>上一步</span>
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={activeStepIndex >= steps.length - 1}
+                  onClick={() => onSelectStep(steps[activeStepIndex + 1].id)}
+                  className="h-8 px-2.5 text-xs font-semibold gap-1"
+                >
+                  <span>下一步</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
               </div>
             </div>
 
@@ -173,21 +158,14 @@ export const ScreenplayStepEditor: React.FC<ScreenplayStepEditorProps> = ({
                   <span>角色台词 / 召唤口播 / 决斗战吼</span>
                 </label>
                 <div className="flex items-center gap-2">
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          onClick={() => onOpenChantPicker(activeStep.cardCode ?? 0)}
-                          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          <span>插入召唤词</span>
-                        </button>
-                      }
-                    />
-                    <TooltipContent>从召唤词库里挑一条填入台词</TooltipContent>
-                  </Tooltip>
+                  <button
+                    type="button"
+                    onClick={() => onOpenChantPicker(activeStep.cardCode ?? 0)}
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>插入召唤词</span>
+                  </button>
                   <span className="text-[11px] text-muted-foreground font-mono">
                     {(activeStep.dialogue || '').length} 字
                   </span>

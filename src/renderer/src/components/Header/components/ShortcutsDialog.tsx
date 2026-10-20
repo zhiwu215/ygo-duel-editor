@@ -1,5 +1,4 @@
 import React from 'react'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog'
 import { Keyboard, X } from 'lucide-react'
 
@@ -15,20 +14,13 @@ export const ShortcutsDialog: React.FC<ShortcutsDialogProps> = ({ onClose }) => 
           <Keyboard className="w-4 h-4 text-muted-foreground" />
           快捷键参考
         </DialogTitle>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={onClose}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            }
-          />
-          <TooltipContent>关闭</TooltipContent>
-        </Tooltip>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </DialogHeader>
       <div className="space-y-1 text-xs">
         {[

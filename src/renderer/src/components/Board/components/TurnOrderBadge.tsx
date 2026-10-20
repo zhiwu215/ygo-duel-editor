@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React from 'react'
 import { Crown } from 'lucide-react'
 import { Duelist } from '@shared/index'
@@ -31,31 +30,24 @@ export const TurnOrderBadge: React.FC<TurnOrderBadgeProps> = ({
       value={String(currentOrder)}
       onValueChange={(v) => setDuelistTurnOrder(duelist.id, Number(v))}
     >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <SelectTrigger
-              className={cn(
-                'relative inline-flex items-center group select-none border-0 bg-transparent p-0 h-auto shadow-none focus-visible:ring-0 [&_svg]:hidden',
-                className
-              )}
-            >
-              <div
-                className={cn(
-                  'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all',
-                  isFirst
-                    ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40 font-bold shadow-xs'
-                    : 'bg-muted/50 text-muted-foreground hover:text-foreground border border-border/70 group-hover:border-primary/50'
-                )}
-              >
-                {isFirst && <Crown className="w-3 h-3 text-amber-500 shrink-0" />}
-                <span>{orderLabel(currentOrder)}</span>
-              </div>
-            </SelectTrigger>
-          }
-        />
-        <TooltipContent>{`行动顺位：第 ${currentOrder} 位（点击可直接切换全场顺位）`}</TooltipContent>
-      </Tooltip>
+      <SelectTrigger
+        className={cn(
+          'relative inline-flex items-center group select-none border-0 bg-transparent p-0 h-auto shadow-none focus-visible:ring-0 [&_svg]:hidden',
+          className
+        )}
+      >
+        <div
+          className={cn(
+            'flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all',
+            isFirst
+              ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40 font-bold shadow-xs'
+              : 'bg-muted/50 text-muted-foreground hover:text-foreground border border-border/70 group-hover:border-primary/50'
+          )}
+        >
+          {isFirst && <Crown className="w-3 h-3 text-amber-500 shrink-0" />}
+          <span>{orderLabel(currentOrder)}</span>
+        </div>
+      </SelectTrigger>
       <SelectContent className="min-w-24 w-auto">
         {orders.map((order) => (
           <SelectItem key={order} value={String(order)} className="text-xs">

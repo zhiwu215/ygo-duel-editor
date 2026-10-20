@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React, { useState } from 'react'
 import { X, Save, Plus } from 'lucide-react'
 import { DuelType, DuelPuzzleState } from '@shared/index'
@@ -144,22 +143,15 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({ open, onClos
                 ))}
               </SelectContent>
             </Select>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-xs"
-                    onClick={() => setShowNewSeries(true)}
-                    className="h-8 w-8 shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </Button>
-                }
-              />
-              <TooltipContent>新建分类</TooltipContent>
-            </Tooltip>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-xs"
+              onClick={() => setShowNewSeries(true)}
+              className="h-8 w-8 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
           </div>
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             按来源归类，例如把同一本小说里的对局都放进同一个作品分类

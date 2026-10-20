@@ -1,6 +1,5 @@
 import React from 'react'
 import { ACTION_TYPE_COLORS, DuelStep, PHASE_SHORT_NAMES } from '@shared/index'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import { Button } from '../ui/button'
 import { CardImage } from '../ui/CardImage'
@@ -123,16 +122,9 @@ export const ScreenplayOutlineList: React.FC<ScreenplayOutlineListProps> = ({
                         </span>
                       </div>
 
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <span className="font-bold text-xs text-foreground truncate">
-                              {stepCardName(s) || '动作事件'}
-                            </span>
-                          }
-                        />
-                        <TooltipContent>{stepCardName(s) || '未指定卡片'}</TooltipContent>
-                      </Tooltip>
+                      <span className="font-bold text-xs text-foreground truncate">
+                        {stepCardName(s) || '动作事件'}
+                      </span>
 
                       <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
                         {hasScript ? (

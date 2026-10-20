@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DeckData } from '@shared/index'
@@ -136,20 +135,13 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
             </span>
           </div>
 
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={closeDeckSwitcher}
-                  className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              }
-            />
-            <TooltipContent>关闭 (Esc)</TooltipContent>
-          </Tooltip>
+          <button
+            type="button"
+            onClick={closeDeckSwitcher}
+            className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/20 shrink-0">
@@ -227,12 +219,7 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
                         className="w-8 h-[46px] object-cover rounded shrink-0 border border-border/60"
                       />
                       <div className="min-w-0 flex-1">
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={<p className="text-xs font-semibold truncate">{deck.name}</p>}
-                          />
-                          <TooltipContent>{deck.name}</TooltipContent>
-                        </Tooltip>
+                        <p className="text-xs font-semibold truncate">{deck.name}</p>
                         <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
                           主 {deck.main.length} / 额外 {deck.extra.length}
                         </p>

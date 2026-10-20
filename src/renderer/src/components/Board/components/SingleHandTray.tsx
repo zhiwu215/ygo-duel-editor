@@ -1,4 +1,3 @@
-import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Edit2 } from 'lucide-react'
@@ -132,20 +131,13 @@ export const SingleHandTray: React.FC<{
           inputClassName="h-5 w-24 px-1 text-xs rounded border border-primary bg-background focus:outline-none"
           withConfirmButton
         >
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <div
-                  onClick={() => setEditingName(duelist.name)}
-                  className="flex items-center gap-1 group cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded"
-                >
-                  <span className="font-semibold text-foreground/90">{duelist.name}</span>
-                  <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
-                </div>
-              }
-            />
-            <TooltipContent>点击修改角色名称</TooltipContent>
-          </Tooltip>
+          <div
+            onClick={() => setEditingName(duelist.name)}
+            className="flex items-center gap-1 group cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded"
+          >
+            <span className="font-semibold text-foreground/90">{duelist.name}</span>
+            <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+          </div>
         </EditableNameChip>
 
         <span className="text-[11px] text-muted-foreground font-mono">({cards.length} 张)</span>

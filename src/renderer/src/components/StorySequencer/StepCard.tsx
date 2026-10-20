@@ -123,11 +123,6 @@ export const StepCard: React.FC<StepCardProps> = ({
           setHoveredInstanceId(step.targetInstanceId ?? step.instanceId ?? null)
         }}
         onMouseLeave={() => setHoveredInstanceId(null)}
-        title={
-          isFutureStep
-            ? `未来步：点击前进到这一步${step.description ? `。${step.description}` : ''}`
-            : step.description
-        }
         className={cn(
           'group relative flex flex-col gap-1.5 p-2 rounded-lg border transition-all cursor-pointer select-none',
           isCurrentPlaying

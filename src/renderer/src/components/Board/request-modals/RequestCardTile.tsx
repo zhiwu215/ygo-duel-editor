@@ -30,18 +30,16 @@ export const RequestCardTile: React.FC<RequestCardTileProps> = ({
       type="button"
       disabled={disabled}
       aria-pressed={selected}
-      title={name}
+      title={locationName ? `${name} · ${locationName}` : name}
       onClick={onClick}
       className={cn(
-        'group flex w-[86px] shrink-0 flex-col items-center gap-1 rounded-md border bg-background/60 p-1.5 text-center transition-colors',
+        'group relative w-[86px] shrink-0 overflow-hidden rounded-sm bg-black/30 transition-shadow',
         onClick ? 'cursor-pointer' : 'cursor-default',
-        selected
-          ? 'border-foreground bg-muted'
-          : 'border-border/70 hover:border-foreground/40 hover:bg-muted/40',
+        selected ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-primary/70',
         disabled && 'pointer-events-none opacity-60'
       )}
     >
-      <div className="relative h-[112px] w-[80px] overflow-hidden rounded-sm border border-border/60 bg-black/30">
+      <div className="relative aspect-[59/86]">
         <img
           src={getCardImageUrl(card.code, true)}
           alt={name}
@@ -63,12 +61,6 @@ export const RequestCardTile: React.FC<RequestCardTileProps> = ({
           </span>
         )}
       </div>
-      <span className="w-full truncate text-[10px] leading-tight text-foreground/90">{name}</span>
-      {locationName && (
-        <span className="w-full truncate text-[9px] leading-none text-muted-foreground">
-          {locationName}
-        </span>
-      )}
     </button>
   )
 }

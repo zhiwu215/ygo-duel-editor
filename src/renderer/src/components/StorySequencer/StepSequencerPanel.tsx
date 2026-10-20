@@ -13,7 +13,7 @@ import { StepList } from './StepList'
 import { StepEditDialog } from './StepEditDialog'
 import { ALL_PHASES } from './stepGrouping'
 import { cn } from '../../lib/utils'
-import { ArrowLeft, ArrowRight, BookOpen, LogOut, PencilLine, Plus, RotateCcw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, LogOut, PencilLine, RotateCcw } from 'lucide-react'
 
 export const StepSequencerPanel: React.FC = () => {
   const {
@@ -57,17 +57,10 @@ export const StepSequencerPanel: React.FC = () => {
 
   const { handlePrevStep, handleNextStep, handleResetPlayback } = useStepPlayback()
 
-  const [dialogOpen, setDialogOpen] = useState<boolean>(false)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
-
-  const handleOpenAdd = (): void => {
-    setEditingStepId(null)
-    setDialogOpen(true)
-  }
 
   const handleOpenEdit = (step: DuelStep): void => {
     setEditingStepId(step.id)
-    setDialogOpen(true)
   }
 
   const handleConvert = (): void => {
@@ -105,16 +98,6 @@ export const StepSequencerPanel: React.FC = () => {
               />
               <TooltipContent>打开大屏决斗台本工作台，沉浸式编写角色台词与剧情</TooltipContent>
             </Tooltip>
-
-            <Button
-              size="xs"
-              variant="default"
-              onClick={handleOpenAdd}
-              className="h-7 px-2.5 text-xs font-semibold gap-1 shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>添加步骤</span>
-            </Button>
           </div>
         )}
       </div>
@@ -277,7 +260,7 @@ export const StepSequencerPanel: React.FC = () => {
         </div>
       </div>
 
-      <StepList steps={steps} onOpenAdd={handleOpenAdd} onEditStep={handleOpenEdit} />
+      <StepList steps={steps} onEditStep={handleOpenEdit} />
 
       <div className="p-2 border-t border-border/60 bg-muted/20 flex items-center justify-between select-none shrink-0">
         <div className="flex items-center gap-1">
@@ -376,8 +359,8 @@ export const StepSequencerPanel: React.FC = () => {
         </div>
       )}
 
-      {dialogOpen && (
-        <StepEditDialog editingStepId={editingStepId} onClose={() => setDialogOpen(false)} />
+      {editingStepId && (
+        <StepEditDialog stepId={editingStepId} onClose={() => setEditingStepId(null)} />
       )}
     </div>
   )

@@ -45,61 +45,43 @@ function StepSelect({
 }
 
 interface StepEditDialogProps {
-  editingStepId: string | null
+  stepId: string
   onClose: () => void
 }
 
-export const StepEditDialog: React.FC<StepEditDialogProps> = ({ editingStepId, onClose }) => {
-  const { state, hoveredCard, addStep, updateStep } = useDuelStore()
+export const StepEditDialog: React.FC<StepEditDialogProps> = ({ stepId, onClose }) => {
+  const { state, updateStep } = useDuelStore()
   const steps = state.steps || []
-  const editingStep = editingStepId ? (steps.find((s) => s.id === editingStepId) ?? null) : null
-  const latestStep = steps[steps.length - 1]
+  const editingStep = steps.find((s) => s.id === stepId)
 
-  const [formTurn, setFormTurn] = useState<number>(
-    editingStep ? editingStep.turn : latestStep?.turn || 1
-  )
-  const [formTurnPlayer, setFormTurnPlayer] = useState<0 | 1>(
-    editingStep ? editingStep.turnPlayer : (latestStep?.turnPlayer ?? 0)
-  )
-  const [formPhase, setFormPhase] = useState<DuelPhase>(
-    editingStep ? editingStep.phase : latestStep?.phase || 'M1'
-  )
-  const [formActionPlayer, setFormActionPlayer] = useState<0 | 1>(
-    editingStep ? editingStep.actionPlayer : (latestStep?.actionPlayer ?? 0)
-  )
+  const [formTurn, setFormTurn] = useState<number>(editingStep?.turn ?? 1)
+  const [formTurnPlayer, setFormTurnPlayer] = useState<0 | 1>(editingStep?.turnPlayer ?? 0)
+  const [formPhase, setFormPhase] = useState<DuelPhase>(editingStep?.phase ?? 'M1')
+  const [formActionPlayer, setFormActionPlayer] = useState<0 | 1>(editingStep?.actionPlayer ?? 0)
   const [formActionType, setFormActionType] = useState<DuelActionType>(
-    editingStep ? editingStep.actionType : 'NORMAL_SUMMON'
+    editingStep?.actionType ?? 'NORMAL_SUMMON'
   )
   const [formCardCode, setFormCardCode] = useState<string>(
-    editingStep
-      ? editingStep.cardCode
-        ? String(editingStep.cardCode)
-        : ''
-      : hoveredCard
-        ? String(hoveredCard.id)
-        : ''
+    editingStep?.cardCode ? String(editingStep.cardCode) : ''
   )
-  const [formCardName, setFormCardName] = useState<string>(
-    editingStep ? editingStep.cardName || '' : hoveredCard?.name || ''
-  )
+  const [formCardName, setFormCardName] = useState<string>(editingStep?.cardName || '')
   const [formFromLoc, setFormFromLoc] = useState<number>(
-    editingStep ? (editingStep.fromLocation ?? CardLocation.HAND) : CardLocation.HAND
+    editingStep?.fromLocation ?? CardLocation.HAND
   )
-  const formFromSeq = editingStep ? (editingStep.fromSequence ?? 0) : 0
-  const [formToLoc, setFormToLoc] = useState<number>(
-    editingStep ? (editingStep.toLocation ?? CardLocation.MZONE) : CardLocation.MZONE
-  )
-  const formToSeq = editingStep ? (editingStep.toSequence ?? 0) : 2
-  const [formChain, setFormChain] = useState<number>(
-    editingStep ? (editingStep.chainIndex ?? 0) : 0
-  )
-  const formDesc = editingStep ? editingStep.description || '' : ''
+  const formFromSeq = editingStep?.fromSequence ?? 0
+  const [formToLoc, setFormToLoc] = useState<number>(editingStep?.toLocation ?? CardLocation.MZONE)
+  const formToSeq = editingStep?.toSequence ?? 0
+  const [formChain, setFormChain] = useState<number>(editingStep?.chainIndex ?? 0)
+  const formDesc = editingStep?.description || ''
 
   const handleSaveStep = (e: React.FormEvent): void => {
     e.preventDefault()
+    if (!editingStep) {
+      onClose()
+      return
+    }
     const codeNum = parseInt(formCardCode, 10)
     const validCode = !isNaN(codeNum) && codeNum > 0 ? codeNum : undefined
-    const existingStep = editingStepId ? steps.find((s) => s.id === editingStepId) : null
 
     const stepPayload = {
       turn: formTurn,
@@ -114,17 +96,13 @@ export const StepEditDialog: React.FC<StepEditDialogProps> = ({ editingStepId, o
       toLocation: formToLoc,
       toSequence: formToSeq,
       chainIndex: formChain > 0 ? formChain : undefined,
-      speaker: existingStep?.speaker,
-      dialogue: existingStep?.dialogue,
-      innerThoughts: existingStep?.innerThoughts,
-      description: formDesc.trim() || existingStep?.description
+      speaker: editingStep.speaker,
+      dialogue: editingStep.dialogue,
+      innerThoughts: editingStep.innerThoughts,
+      description: formDesc.trim() || editingStep.description
     }
 
-    if (editingStepId) {
-      updateStep(editingStepId, stepPayload)
-    } else {
-      addStep(stepPayload)
-    }
+    updateStep(stepId, stepPayload)
     onClose()
   }
 
@@ -137,7 +115,7 @@ export const StepEditDialog: React.FC<StepEditDialogProps> = ({ editingStepId, o
         <DialogHeader className="!flex !flex-row items-center justify-between border-b border-border/60 pb-2 space-y-0">
           <DialogTitle className="font-bold text-sm flex items-center gap-1.5">
             <Film className="w-4 h-4 text-muted-foreground" />
-            <span>{editingStepId ? '编辑对局步骤' : '添加对局新步骤'}</span>
+            <span>编辑对局步骤</span>
           </DialogTitle>
           <Button
             size="icon-xs"
@@ -287,7 +265,7 @@ export const StepEditDialog: React.FC<StepEditDialogProps> = ({ editingStepId, o
               取消
             </Button>
             <Button type="submit" size="sm" className="h-7 px-4 text-xs font-bold">
-              {editingStepId ? '保存修改' : '确认添加'}
+              保存修改
             </Button>
           </DialogFooter>
         </form>

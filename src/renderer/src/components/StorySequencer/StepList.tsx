@@ -5,7 +5,7 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
 import { ScrollArea } from '../ui/scroll-area'
 import { Button } from '../ui/button'
-import { BookOpen, Film, PlayCircle, Plus, X } from 'lucide-react'
+import { Film, PlayCircle, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { StepGroupHeader } from './StepGroupHeader'
 import { StepCard } from './StepCard'
@@ -13,12 +13,11 @@ import { buildStepList, getAttackDamageText, resolveStepCardName } from './stepG
 
 interface StepListProps {
   steps: DuelStep[]
-  onOpenAdd: () => void
   onEditStep: (step: DuelStep) => void
 }
 
-export const StepList: React.FC<StepListProps> = ({ steps, onOpenAdd, onEditStep }) => {
-  const { currentStepIndex, previewReturn, exitPreview, openScreenplayWithStep } = useDuelStore()
+export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
+  const { currentStepIndex, previewReturn, exitPreview } = useDuelStore()
   const { handleStepClick, handleRestartFromStep } = useStepPlayback()
   const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const engineTimeline = useDuelEngineStore((s) => s.timeline)
@@ -138,35 +137,6 @@ export const StepList: React.FC<StepListProps> = ({ steps, onOpenAdd, onEditStep
             <p className="font-semibold text-foreground/80">
               {isReplay ? '该回放没有可显示的步骤' : '暂无编排动作步骤'}
             </p>
-            {!isReplay && (
-              <p className="text-[11px] text-muted-foreground/60 mt-1 leading-relaxed max-w-[220px]">
-                点击右上角「添加步骤」开始规划回合、阶段、动作与角色台词，打造生动决斗故事！
-              </p>
-            )}
-            <div className="flex items-center gap-2 mt-3.5">
-              {!isReplay && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={onOpenAdd}
-                  className="h-7 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>新建第 1 步</span>
-                </Button>
-              )}
-              {!isReplay && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => openScreenplayWithStep()}
-                  className="h-7 text-xs font-semibold gap-1"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>决斗台本工作台</span>
-                </Button>
-              )}
-            </div>
           </div>
         ) : (
           stepList.map((item) => {

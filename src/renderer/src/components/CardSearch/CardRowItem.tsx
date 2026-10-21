@@ -1,6 +1,6 @@
 import React from 'react'
 import { Star } from 'lucide-react'
-import { CdbCard, LIMIT_MARKS, isLegendCard } from '@shared/index'
+import { CdbCard, CardPoolSchema, LIMIT_MARKS, isLegendCard } from '@shared/index'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { CardImage } from '../ui/CardImage'
 import { CardScopeBadge } from '../ui/CardScopeBadge'
@@ -13,6 +13,8 @@ const LIMIT_SPRITE_SCALE = LIMIT_BADGE_SIZE / LIMIT_SPRITE_SIZE
 
 export interface CardRowItemProps {
   card: CdbCard
+  cardPool?: string
+  poolSchema?: CardPoolSchema
   compact?: boolean
   isFavorite?: boolean
   onToggleFavorite?: (code: number) => void
@@ -25,6 +27,8 @@ export interface CardRowItemProps {
 
 const CardRowItemBase: React.FC<CardRowItemProps> = ({
   card,
+  cardPool,
+  poolSchema,
   compact,
   isFavorite,
   onToggleFavorite,
@@ -36,7 +40,8 @@ const CardRowItemBase: React.FC<CardRowItemProps> = ({
 }) => {
   const line2 = formatSearchItemLine2(card)
   const line3 = formatSearchItemLine3(card)
-  const scopeText = card.scopeText ? `[${card.scopeText}]` : ''
+  const showScopeBadge = poolSchema !== 'classic' || (cardPool !== undefined && cardPool !== 'any')
+  const scopeText = showScopeBadge && card.scopeText ? `[${card.scopeText}]` : ''
 
   return (
     <div
@@ -78,7 +83,7 @@ const CardRowItemBase: React.FC<CardRowItemProps> = ({
             />
           )
         })()}
-        <CardScopeBadge scope={card.scopeBadge} />
+        <CardScopeBadge scope={showScopeBadge ? card.scopeBadge : undefined} />
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 select-none">

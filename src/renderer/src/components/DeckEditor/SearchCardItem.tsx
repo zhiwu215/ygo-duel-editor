@@ -1,12 +1,14 @@
 import React from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import { CdbCard, DeckSection } from '@shared/index'
+import { CdbCard, CardPoolSchema, DeckSection } from '@shared/index'
 import { CardRowItem } from '../CardSearch/CardRowItem'
 import { DeckDragSourceData } from './deckDnd'
 import { cn } from '../../lib/utils'
 
 interface SearchCardItemProps {
   card: CdbCard
+  cardPool?: string
+  poolSchema?: CardPoolSchema
   fav: boolean
   onSelectCard: (card: CdbCard | null) => void
   onAddCard: (card: CdbCard, section?: DeckSection) => boolean
@@ -15,6 +17,8 @@ interface SearchCardItemProps {
 
 export const SearchCardItem: React.FC<SearchCardItemProps> = ({
   card,
+  cardPool,
+  poolSchema,
   fav,
   onSelectCard,
   onAddCard,
@@ -40,6 +44,8 @@ export const SearchCardItem: React.FC<SearchCardItemProps> = ({
     >
       <CardRowItem
         card={card}
+        cardPool={cardPool}
+        poolSchema={poolSchema}
         isFavorite={fav}
         onToggleFavorite={onToggleFavorite}
         onHover={onSelectCard}

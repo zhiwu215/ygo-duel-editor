@@ -54,6 +54,8 @@ const TARGET_PLACEMENT: Partial<Record<AddCardTarget, { location: number; top: b
 export const CardSearchPanel: React.FC = () => {
   const {
     keyword,
+    cardPool,
+    filterOptions,
     results,
     total,
     isLoading,
@@ -244,6 +246,8 @@ export const CardSearchPanel: React.FC = () => {
               <CardRowItem
                 key={card.id}
                 card={card}
+                cardPool={cardPool}
+                poolSchema={filterOptions.poolSchema}
                 isFavorite={isFavorite(card.id)}
                 onToggleFavorite={toggleFavorite}
                 onHover={setHoveredCard}

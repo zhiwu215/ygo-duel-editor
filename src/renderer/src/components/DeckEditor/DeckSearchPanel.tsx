@@ -58,9 +58,12 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
     isLoadingMore,
     hasMore,
     hasSearched,
+    cardPool,
+    filterOptions,
     sortField,
     search,
     loadMore,
+    loadFilterOptions,
     setFilters
   } = useCardSearchStore()
 
@@ -72,6 +75,10 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
   useEffect(() => {
     void loadFavorites()
   }, [loadFavorites])
+
+  useEffect(() => {
+    void loadFilterOptions()
+  }, [loadFilterOptions])
 
   useEffect(() => {
     void search({ limit: 40 })
@@ -184,6 +191,8 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
                   <SearchCardItem
                     key={`search_card_${card.id}`}
                     card={card}
+                    cardPool={cardPool}
+                    poolSchema={filterOptions.poolSchema}
                     fav={isFavorite(card.id)}
                     onSelectCard={onSelectCard}
                     onAddCard={onAddCard}

@@ -142,11 +142,11 @@ export function SettingsApp(): JSX.Element {
         </ScrollArea>
       </aside>
 
-      <div className="min-h-0 flex-1 p-1">
+      <div className="min-h-0 flex-1 px-1 pt-10 pb-1">
         <ScrollArea className="size-full">
           <div
             className={cn(
-              'mx-auto px-8 pt-8 pb-14',
+              'mx-auto px-8 pt-3 pb-14',
               section === 'model-settings' ? 'max-w-4xl' : 'max-w-2xl'
             )}
           >

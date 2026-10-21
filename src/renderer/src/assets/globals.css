@@ -138,13 +138,6 @@
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(140, 140, 140, 0.5);
   }
-
-  [data-slot='scroll-area-viewport'] {
-    scrollbar-width: none;
-  }
-  [data-slot='scroll-area-viewport']::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 .animated-gradient-text {

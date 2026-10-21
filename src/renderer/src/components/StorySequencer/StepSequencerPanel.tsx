@@ -11,6 +11,7 @@ import { Button } from '../ui/button'
 import { StepList } from './StepList'
 import { StepEditDialog } from './StepEditDialog'
 import { ALL_PHASES } from './stepGrouping'
+import { resolveTeamLabel } from '../../utils/duelistNames'
 import { cn } from '../../lib/utils'
 import { ArrowLeft, ArrowRight, BookOpen, LogOut, PencilLine, RotateCcw } from 'lucide-react'
 
@@ -26,7 +27,6 @@ export const StepSequencerPanel: React.FC = () => {
     insertPhaseChange,
     insertTurnChange,
     insertPhaseJump,
-    setActiveTurnPlayer,
     openScreenplayWithStep
   } = useDuelStore()
 
@@ -100,42 +100,29 @@ export const StepSequencerPanel: React.FC = () => {
             <span className="font-extrabold text-xs text-foreground">第 {currentTurn} 回合</span>
             <Badge
               variant="outline"
-              onClick={
-                isReplay || isEngine
-                  ? undefined
-                  : () => setActiveTurnPlayer(activeTurnPlayer === 0 ? 1 : 0)
-              }
               className={cn(
-                'text-[10px] px-1.5 py-0 font-bold transition-colors',
-                !isReplay && !isEngine && 'cursor-pointer',
+                'text-[10px] px-1.5 py-0 font-bold',
                 activeTurnPlayer === 0
                   ? 'border-blue-500/50 text-blue-400 bg-blue-500/10'
-                  : 'border-rose-500/50 text-rose-400 bg-rose-500/10',
-                !isReplay &&
-                  !isEngine &&
-                  (activeTurnPlayer === 0 ? 'hover:bg-blue-500/20' : 'hover:bg-rose-500/20')
+                  : 'border-rose-500/50 text-rose-400 bg-rose-500/10'
               )}
             >
-              {activeTurnPlayer === 0 ? '我方行动' : '对方行动'}
+              {resolveTeamLabel(state, activeTurnPlayer, currentTurn)} 行动
             </Badge>
           </div>
 
-          <div className="flex items-center gap-1">
-            {!isReplay && currentChain > 0 ? (
-              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-[10px] font-bold text-teal-300">
-                <span className="animate-pulse">⛓ Chain {currentChain}</span>
-                <button
-                  type="button"
-                  onClick={resetChain}
-                  className="ml-0.5 text-[9px] px-1 py-0 bg-teal-500/30 hover:bg-teal-500/50 text-teal-200 rounded font-semibold cursor-pointer"
-                >
-                  结算
-                </button>
-              </div>
-            ) : (
-              <span className="text-[10px] text-muted-foreground/60 font-mono">C0 (无连锁)</span>
-            )}
-          </div>
+          {!isReplay && currentChain > 0 && (
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-[10px] font-bold text-teal-300">
+              <span className="animate-pulse">⛓ Chain {currentChain}</span>
+              <button
+                type="button"
+                onClick={resetChain}
+                className="ml-0.5 text-[9px] px-1 py-0 bg-teal-500/30 hover:bg-teal-500/50 text-teal-200 rounded font-semibold cursor-pointer"
+              >
+                结算
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-1">

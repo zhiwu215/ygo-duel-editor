@@ -35,7 +35,6 @@ export interface StepsSlice {
   setCurrentPhase: (phase: DuelPhase) => void
   setCurrentChain: (chain: number) => void
   resetChain: () => void
-  setActiveTurnPlayer: (player: 0 | 1) => void
   setTurnPlayer: (player: 0 | 1) => void
   setDuelStarted: (started: boolean) => void
   insertPhaseJump: (target: DuelPhase) => void
@@ -345,14 +344,6 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   setCurrentPhase: (phase) => set({ currentPhase: phase }),
   setCurrentChain: (chain) => set({ currentChain: chain }),
   resetChain: () => set((prev) => (prev.currentChain === 0 ? prev : { currentChain: 0 })),
-  setActiveTurnPlayer: (player) =>
-    set((prev) => ({
-      activeTurnPlayer: player,
-      state: {
-        ...prev.state,
-        turnPlayer: player
-      }
-    })),
 
   setTurnPlayer: (player) =>
     set((prev) => ({

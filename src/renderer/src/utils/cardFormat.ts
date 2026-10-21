@@ -93,8 +93,8 @@ export function formatSearchItemLine2(card: CdbCard): string {
     const attr = ATTRIBUTE_NAMES[card.attribute] || '无'
     const race = RACE_NAMES[card.race] || '未知'
     const star = CardUtils.getStarLevel(card.level)
-    const isLink = CardUtils.isLink(card.type)
-    const starStr = isLink ? `LINK-${star}` : `★${star}`
+    if (CardUtils.isLink(card.type)) return `${attr}/${race}`
+    const starStr = CardUtils.isXyz(card.type) ? `☆${star}` : `★${star}`
     return `${attr}/${race} ${starStr}`
   }
 
@@ -113,7 +113,9 @@ export function formatSearchItemLine2(card: CdbCard): string {
     return '陷阱'
   }
 
-  return '未知'
+  if (CardUtils.isSkill(card.type)) return '技能卡'
+
+  return '???'
 }
 
 export function formatSearchItemLine3(card: CdbCard): string | null {
@@ -123,9 +125,9 @@ export function formatSearchItemLine3(card: CdbCard): string | null {
 
   const isLink = CardUtils.isLink(card.type)
   const atkStr = card.atk === -2 || card.atk < 0 ? '?' : String(card.atk)
-  const defStr = isLink ? '-' : card.def === -2 || card.def < 0 ? '?' : String(card.def)
+  const defStr = card.def === -2 || card.def < 0 ? '?' : String(card.def)
 
-  let line = `${atkStr}/${defStr}`
+  let line = isLink ? `${atkStr}/LINK ${CardUtils.getStarLevel(card.level)}` : `${atkStr}/${defStr}`
 
   if (CardUtils.isPendulum(card.type)) {
     const scale = CardUtils.getPendulumScales(card.level)

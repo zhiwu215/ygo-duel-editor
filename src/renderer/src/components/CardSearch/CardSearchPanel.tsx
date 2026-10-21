@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef } from 'react'
 import {
   Search,
   Loader2,
@@ -6,14 +6,12 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
-  Sparkles,
   Hand,
   ArrowUpToLine,
   ArrowDownToLine,
   Ghost,
   Ban,
   Layers,
-  Star,
   X
 } from 'lucide-react'
 import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
@@ -56,7 +54,6 @@ const TARGET_PLACEMENT: Partial<Record<AddCardTarget, { location: number; top: b
 export const CardSearchPanel: React.FC = () => {
   const {
     keyword,
-    cardPool,
     results,
     total,
     isLoading,
@@ -68,6 +65,7 @@ export const CardSearchPanel: React.FC = () => {
     setKeyword,
     search,
     loadMore,
+    loadFilterOptions,
     resetFilters
   } = useCardSearchStore()
   const activeFilterCount = useCardSearchStore(countActiveFilters)
@@ -95,6 +93,10 @@ export const CardSearchPanel: React.FC = () => {
   }, [search])
 
   useEffect(() => {
+    void loadFilterOptions()
+  }, [loadFilterOptions])
+
+  useEffect(() => {
     if (isLoading) {
       scrollRef.current?.scrollTo({ top: 0 })
     }
@@ -114,28 +116,39 @@ export const CardSearchPanel: React.FC = () => {
     }
   }
 
-  const handleDragStart = (e: React.DragEvent, card: CdbCard): void => {
+  const handleDragStart = useCallback((e: React.DragEvent, card: CdbCard): void => {
     e.dataTransfer.setData('application/json', JSON.stringify(card))
     e.dataTransfer.effectAllowed = 'copy'
     setCardDragImage(e.dataTransfer, e.currentTarget)
-  }
+  }, [])
 
-  const handleRowContextMenu = (e: React.MouseEvent, card: CdbCard): void => {
-    if (!isEngineActive) return
-    e.preventDefault()
-    e.stopPropagation()
-    setInjectMenu({ card, x: e.clientX, y: e.clientY })
-  }
+  const handleRowContextMenu = useCallback(
+    (e: React.MouseEvent, card: CdbCard): void => {
+      if (!isEngineActive) return
+      e.preventDefault()
+      e.stopPropagation()
+      setInjectMenu({ card, x: e.clientX, y: e.clientY })
+    },
+    [isEngineActive]
+  )
 
-  const injectCard = (card: CdbCard, to: AddCardTarget): void => {
-    setInjectMenu(null)
-    const placement = TARGET_PLACEMENT[to]
-    if (stagingActive && placement) {
-      useDuelStore.getState().addCardToZone(card, 0, placement.location, placement.top ? 0 : 999)
-      return
-    }
-    void useDuelEngineStore.getState().inject({ op: 'add-card', player: 0, code: card.id, to })
-  }
+  const injectCard = useCallback(
+    (card: CdbCard, to: AddCardTarget): void => {
+      setInjectMenu(null)
+      const placement = TARGET_PLACEMENT[to]
+      if (stagingActive && placement) {
+        useDuelStore.getState().addCardToZone(card, 0, placement.location, placement.top ? 0 : 999)
+        return
+      }
+      void useDuelEngineStore.getState().inject({ op: 'add-card', player: 0, code: card.id, to })
+    },
+    [stagingActive]
+  )
+
+  const handleRowDoubleClick = useCallback(
+    (card: CdbCard): void => injectCard(card, 'hand'),
+    [injectCard]
+  )
 
   return (
     <div className="w-full h-full flex flex-col shrink-0 select-none overflow-hidden">
@@ -147,7 +160,6 @@ export const CardSearchPanel: React.FC = () => {
               type="text"
               value={localKw}
               onChange={(e) => setLocalKw(e.target.value)}
-              placeholder="搜索卡名、卡密或效果"
               className={`pl-8 ${localKw ? 'pr-7' : 'pr-2.5'} bg-secondary/80 focus:bg-background h-8 text-xs font-medium`}
             />
             {localKw && (
@@ -194,7 +206,7 @@ export const CardSearchPanel: React.FC = () => {
           </Button>
         </div>
         <p className="mt-1.5 px-0.5 text-[10px] leading-tight text-muted-foreground/75">
-          支持空格同时匹配、引号短语、-排除、$仅卡名、@系列
+          空格同时匹配 · 引号短语 · -排除 · $仅卡名 · @系列
         </p>
       </form>
 
@@ -223,22 +235,8 @@ export const CardSearchPanel: React.FC = () => {
 
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto p-2">
         {results.length === 0 && !isLoading && hasSearched ? (
-          <div className="h-48 flex flex-col items-center justify-center text-muted-foreground text-xs p-4 text-center">
-            {onlyFavorites ? (
-              <>
-                <Star className="w-8 h-8 opacity-25 mb-2 text-amber-500" />
-                <p>未找到收藏的卡片</p>
-                <p className="text-[11px] opacity-60 mt-1">
-                  点击卡片右侧星星即可加入收藏，或尝试放宽筛选条件
-                </p>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-8 h-8 opacity-20 mb-2" />
-                <p>未找到符合条件的卡片</p>
-                <p className="text-[11px] opacity-60 mt-1">请尝试放宽检索关键词或重置筛选条件</p>
-              </>
-            )}
+          <div className="h-48 flex items-center justify-center text-muted-foreground text-xs p-4 text-center">
+            {onlyFavorites ? <p>未找到收藏的卡片</p> : <p>未找到符合条件的卡片</p>}
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -246,13 +244,12 @@ export const CardSearchPanel: React.FC = () => {
               <CardRowItem
                 key={card.id}
                 card={card}
-                cardPool={cardPool}
                 isFavorite={isFavorite(card.id)}
                 onToggleFavorite={toggleFavorite}
                 onHover={setHoveredCard}
                 onDragStart={handleDragStart}
                 onContextMenu={handleRowContextMenu}
-                onRowDoubleClick={isEngineActive ? (c) => injectCard(c, 'hand') : undefined}
+                onRowDoubleClick={isEngineActive ? handleRowDoubleClick : undefined}
               />
             ))}
 

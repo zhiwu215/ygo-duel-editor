@@ -44,7 +44,8 @@ export function parseSearchTokens(input: string): SearchToken[] {
       text = input.slice(start, index)
     }
 
-    if (text.trim()) tokens.push({ text: text.trim(), mode, excluded })
+    const trimmed = text.trim()
+    if (trimmed) tokens.push({ text: trimmed, mode, excluded })
   }
 
   return tokens

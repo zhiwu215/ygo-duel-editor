@@ -1,5 +1,6 @@
 export * from './types/rules'
 export * from './types/card'
+export * from './types/cardFilterOptions'
 export * from './types/cardPool'
 export * from './types/customCard'
 export * from './types/story'

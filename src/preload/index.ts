@@ -37,6 +37,7 @@ const api: IpcApi = {
     ipcRenderer.invoke('cdb:set-extra-enabled', cdbPath, enabled),
   searchCards: (params: CardSearchParams) => ipcRenderer.invoke('cdb:search', params),
   getCardSearchFilterOptions: () => ipcRenderer.invoke('cdb:search-filter-options'),
+  setCardBanlist: (name: string | null) => ipcRenderer.invoke('cdb:set-banlist', name),
   getCardsByIds: (ids: number[]) => ipcRenderer.invoke('cdb:get-by-ids', ids),
   getCdbStatus: () => ipcRenderer.invoke('cdb:status'),
 

@@ -97,7 +97,7 @@ export function computeCustomCardKeys(card: CdbCard, keyword: string): CardSortR
   return {
     ...card,
     relKey: keyword.length > 0 && card.name === keyword ? 0 : 1,
-    typeKey: card.type & 7,
+    typeKey: (card.type & CardType.SKILL) !== 0 ? 8 : card.type & 7,
     subKey: isMonster
       ? (card.type & 0x48020c0) !== 0
         ? card.type & 0x48020c1

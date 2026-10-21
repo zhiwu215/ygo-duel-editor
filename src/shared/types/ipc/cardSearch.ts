@@ -5,6 +5,8 @@ export interface CardSearchParams {
 
   searchDesc?: boolean
 
+  showUnofficial?: boolean
+
   type?: number
 
   subType?: number
@@ -42,14 +44,34 @@ export type LimitFilter = 0 | 1 | 2 | 3
 
 export type NumericCompareOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'unknown'
 
+export type CardPoolSchema = 'kcg' | 'classic'
+
 export type CardPoolFilter =
-  'any' | 'ocg' | 'tcg' | 'sc' | 'custom' | 'ocgOnly' | 'tcgOnly' | 'ocgTcg'
+  | 'any'
+  | 'ocg'
+  | 'tcg'
+  | 'ocgTcg'
+  | 'sc'
+  | 'custom'
+  | 'ocgOnly'
+  | 'tcgOnly'
+  | 'common'
+  | 'prerelease'
+  | 'skill'
+  | 'rush'
+  | 'legend'
+  | 'anime'
+  | 'zcg'
+  | 'illegal'
+  | 'tf'
 
 export type CdbLibraryRole = 'data' | 'text'
 
 export interface CardSearchFilterOptions {
   effectCategories: Array<{ mask: number; label: string }>
-  availablePools: string[]
+  poolSchema: CardPoolSchema
+  banlists: string[]
+  banlist: string | null
 }
 
 export interface CardSearchResult {

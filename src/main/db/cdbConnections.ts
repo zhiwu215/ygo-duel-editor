@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
 import path from 'path'
 import { CdbLibraryRole, CdbLibrarySource } from '@shared/index'
 
@@ -13,8 +14,22 @@ export interface CdbConnection {
   searchable: boolean
 }
 
+interface OverlayTextRow {
+  id: number
+  name: string | null
+  desc: string | null
+}
+
 const AUTO_TEXT_OVERLAP_RATIO = 0.9
-const MAX_ATTACHED_DATABASES = 10
+const OVERLAY_ALIAS = 'ov'
+const OVERLAY_FILE_PREFIX = 'yde-text-overlay-'
+const OVERLAY_TABLE_SQL = 'CREATE TABLE texts (id INTEGER PRIMARY KEY, name TEXT, desc TEXT)'
+const OVERLAY_UPSERT_SQL = `
+  INSERT INTO texts (id, name, desc) VALUES (?, ?, ?)
+  ON CONFLICT(id) DO UPDATE SET
+    name = COALESCE(texts.name, excluded.name),
+    desc = COALESCE(texts.desc, excluded.desc)
+`
 
 function openConnection(cdbPath: string, source: CdbLibrarySource): CdbConnection | null {
   try {
@@ -55,8 +70,24 @@ export class CdbConnections {
   private connections: CdbConnection[] = []
   private currentPath: string | null = null
   private languageConnDir: string | undefined
+  private overlayPath: string | null = null
+  private overlaySeq = 0
 
-  constructor(private readonly loadTexts: (paths: string[], languageDirs: string[]) => void) {}
+  constructor(private readonly loadTexts: (paths: string[], languageDirs: string[]) => void) {
+    this.clearStaleOverlays()
+  }
+
+  private clearStaleOverlays(): void {
+    try {
+      const current = `${OVERLAY_FILE_PREFIX}${process.pid}-`
+      for (const entry of readdirSync(tmpdir())) {
+        if (!entry.startsWith(OVERLAY_FILE_PREFIX) || entry.startsWith(current)) continue
+        try {
+          rmSync(path.join(tmpdir(), entry), { force: true })
+        } catch {}
+      }
+    } catch {}
+  }
   private readIdSet(db: Database.Database): Set<number> {
     const ids = new Set<number>()
     try {
@@ -137,19 +168,7 @@ export class CdbConnections {
     this.connections = [...dataConns, ...languageConns, ...otherTextConns]
 
     const attachConns = [...languageConns, ...otherTextConns]
-    attachConns.forEach((textConn, index) => {
-      if (index >= MAX_ATTACHED_DATABASES) return
-      const alias = `ov${index}`
-      const literal = textConn.path.replace(/'/g, "''")
-      for (const conn of searchableConns) {
-        try {
-          conn.db.exec(`ATTACH DATABASE '${literal}' AS ${alias}`)
-          conn.overlayAliases.push(alias)
-        } catch (err) {
-          console.error(`[CdbService] Failed to attach text library ${textConn.path}:`, err)
-        }
-      }
-    })
+    this.attachTextOverlay(attachConns, searchableConns)
 
     const coveredSoFar = new Set<number>()
     for (const conn of this.connections) {
@@ -163,6 +182,87 @@ export class CdbConnections {
         .map((conn) => `${path.basename(conn.path)}=${conn.role}`)
         .join(', ')}`
     )
+  }
+
+  private attachTextOverlay(textConns: CdbConnection[], targets: CdbConnection[]): void {
+    this.releaseOverlayFile()
+    if (textConns.length === 0) return
+
+    const overlayPath = this.buildOverlayDatabase(textConns)
+    if (!overlayPath) {
+      this.attachTextLibraries(textConns, targets)
+      return
+    }
+
+    const literal = overlayPath.replace(/'/g, "''")
+    for (const conn of targets) {
+      try {
+        conn.db.exec(`ATTACH DATABASE '${literal}' AS ${OVERLAY_ALIAS}`)
+        conn.overlayAliases.push(OVERLAY_ALIAS)
+      } catch (err) {
+        console.error('[CdbService] Failed to attach text overlay:', err)
+      }
+    }
+    this.overlayPath = overlayPath
+  }
+
+  private attachTextLibraries(textConns: CdbConnection[], targets: CdbConnection[]): void {
+    textConns.forEach((textConn, index) => {
+      const alias = `ov${index}`
+      const literal = textConn.path.replace(/'/g, "''")
+      for (const conn of targets) {
+        try {
+          conn.db.exec(`ATTACH DATABASE '${literal}' AS ${alias}`)
+          conn.overlayAliases.push(alias)
+        } catch (err) {
+          console.error(`[CdbService] Failed to attach text library ${textConn.path}:`, err)
+        }
+      }
+    })
+  }
+
+  private buildOverlayDatabase(textConns: CdbConnection[]): string | null {
+    const file = path.join(tmpdir(), `${OVERLAY_FILE_PREFIX}${process.pid}-${++this.overlaySeq}.db`)
+    try {
+      rmSync(file, { force: true })
+      const db = new Database(file)
+      try {
+        db.exec(OVERLAY_TABLE_SQL)
+        const upsert = db.prepare(OVERLAY_UPSERT_SQL)
+        const insertAll = db.transaction((rows: OverlayTextRow[]) => {
+          for (const row of rows) upsert.run(row.id, row.name, row.desc)
+        })
+        textConns.forEach((conn, index) => {
+          const alias = `src${index}`
+          db.exec(`ATTACH DATABASE '${conn.path.replace(/'/g, "''")}' AS ${alias}`)
+          try {
+            const rows = db
+              .prepare(`SELECT id, name, desc FROM ${alias}.texts`)
+              .all() as OverlayTextRow[]
+            insertAll(rows)
+          } finally {
+            db.exec(`DETACH DATABASE ${alias}`)
+          }
+        })
+      } finally {
+        db.close()
+      }
+      return file
+    } catch (err) {
+      console.error('[CdbService] Failed to build text overlay:', err)
+      try {
+        rmSync(file, { force: true })
+      } catch {}
+      return null
+    }
+  }
+
+  private releaseOverlayFile(): void {
+    if (!this.overlayPath) return
+    try {
+      rmSync(this.overlayPath, { force: true })
+    } catch {}
+    this.overlayPath = null
   }
 
   public list(): CdbConnection[] {
@@ -280,6 +380,7 @@ export class CdbConnections {
       }
     }
     this.connections = []
+    this.releaseOverlayFile()
   }
 
   public close(): void {

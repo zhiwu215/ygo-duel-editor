@@ -142,35 +142,37 @@ export function SettingsApp(): JSX.Element {
         </ScrollArea>
       </aside>
 
-      <ScrollArea className="flex-1 min-h-0">
-        <div
-          className={cn(
-            'mx-auto px-8 py-8',
-            section === 'model-settings' ? 'max-w-4xl' : 'max-w-2xl'
-          )}
-        >
-          <header className="mb-6">
-            <h1 className="text-lg font-bold">{current.label}</h1>
-            <p className="text-xs text-muted-foreground mt-1">{current.description}</p>
-          </header>
+      <div className="min-h-0 flex-1 p-1">
+        <ScrollArea className="size-full">
+          <div
+            className={cn(
+              'mx-auto px-8 pt-8 pb-14',
+              section === 'model-settings' ? 'max-w-4xl' : 'max-w-2xl'
+            )}
+          >
+            <header className="mb-6">
+              <h1 className="text-lg font-bold">{current.label}</h1>
+              <p className="text-xs text-muted-foreground mt-1">{current.description}</p>
+            </header>
 
-          {!ready ? (
-            <div className="text-xs text-muted-foreground">加载配置中...</div>
-          ) : section === 'appearance' ? (
-            <AppearanceSection />
-          ) : section === 'paths' ? (
-            <div className="flex flex-col gap-4">
-              <DataDirectorySection />
-              <PathsSection />
-              <ExtraCdbSection />
-            </div>
-          ) : section === 'duel-test' ? (
-            <DuelTestSection />
-          ) : (
-            <AgentSettingsContent section={section} />
-          )}
-        </div>
-      </ScrollArea>
+            {!ready ? (
+              <div className="text-xs text-muted-foreground">加载配置中...</div>
+            ) : section === 'appearance' ? (
+              <AppearanceSection />
+            ) : section === 'paths' ? (
+              <div className="flex flex-col gap-4">
+                <DataDirectorySection />
+                <PathsSection />
+                <ExtraCdbSection />
+              </div>
+            ) : section === 'duel-test' ? (
+              <DuelTestSection />
+            ) : (
+              <AgentSettingsContent section={section} />
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
       <GameLanguageDialog />
     </div>

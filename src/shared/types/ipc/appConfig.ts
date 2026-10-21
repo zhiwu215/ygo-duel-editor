@@ -18,6 +18,8 @@ export interface AppConfig {
 
   cdbPath?: string
 
+  banlistName?: string
+
   extraCdbPaths?: string[]
 
   disabledCdbPaths?: string[]

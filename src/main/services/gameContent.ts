@@ -26,6 +26,7 @@ interface GameContentScan {
 }
 
 const SCRIPT_NAME_PATTERN = /(?:^|\/)c(\d+)\.lua$/i
+const CLIENT_EXCLUDED_CDB_NAMES = new Set(['cards-skills-unofficial.cdb'])
 const CDB_QUERY_CHUNK_SIZE = 500
 const SCAN_MAX_DEPTH = 5
 const ZIP_READ_LIMIT = 64 * 1024 * 1024
@@ -69,7 +70,10 @@ export function discoverGameCdbPaths(gameDir: string, gameType: GameType): GameC
     join(gameDir, 'expansions', 'cards.cdb')
   ]
   const primary = preferred.find((p) => scan.cdbPaths.includes(p)) ?? scan.cdbPaths[0] ?? null
-  return { primary, additional: scan.cdbPaths.filter((p) => p !== primary) }
+  const additional = scan.cdbPaths.filter(
+    (p) => p !== primary && !CLIENT_EXCLUDED_CDB_NAMES.has(basename(p).toLowerCase())
+  )
+  return { primary, additional }
 }
 
 export const CUSTOM_CDB_NAME = 'yde-custom.cdb'

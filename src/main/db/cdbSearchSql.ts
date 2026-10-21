@@ -3,7 +3,7 @@ import {
   CardType,
   NumericCompareOp,
   AVAIL_HIDDEN,
-  searchPoolOption
+  SearchPoolOption
 } from '@shared/index'
 import { COMPARATOR } from './cardSort'
 import { CdbConnection } from './cdbConnections'
@@ -29,14 +29,17 @@ function getSetcodesForKeyword(setnameMap: Map<number, string>, keyword: string)
   const normalized = keyword.toLocaleLowerCase()
   const codes: number[] = []
   for (const [code, rawName] of setnameMap) {
-    const names = rawName.split('|').map((name) => name.trim())
-    const matched = names.some((name) => {
-      const candidate = name.toLocaleLowerCase()
-      return normalized.length < 2 ? candidate === normalized : candidate.includes(normalized)
-    })
+    const names = rawName.split('|').map((name) => name.trim().toLocaleLowerCase())
+    const matched = names.some((name) =>
+      normalized.length < 2 ? name === normalized : name.includes(normalized)
+    )
     if (matched) codes.push(code)
   }
   return codes
+}
+
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (char) => `\\${char}`)
 }
 
 export interface SearchSqlPlan {
@@ -53,6 +56,9 @@ export function buildSearchSql(
   fetchLimit: number,
   setnameMap: Map<number, string>,
   limitMap: Map<number, 1 | 2 | 3>,
+  pool: SearchPoolOption | null,
+  officialMask: number | null,
+  matchLimitAlias: boolean,
   favorites?: number[]
 ): SearchSqlPlan {
   const { pick, join: overlayJoin } = textSource(conn)
@@ -72,7 +78,7 @@ export function buildSearchSql(
     ` OR ${descExpr} LIKE '%列表%' OR ${descExpr} LIKE '%常见%' OR ${descExpr} LIKE '%Common%')` +
     ' )'
   if (conn.coveredReady) {
-    baseWhere += ' AND d.id NOT IN (SELECT id FROM __covered)'
+    baseWhere += ' AND NOT EXISTS (SELECT 1 FROM __covered WHERE __covered.id = d.id)'
   }
   const args: (string | number)[] = []
 
@@ -95,13 +101,13 @@ export function buildSearchSql(
   if (exactKeyword.length > 0) {
     for (const token of parseSearchTokens(exactKeyword)) {
       const clauses: string[] = []
-      const like = `%${token.text}%`
+      const pattern = `%${escapeLike(token.text)}%`
       if (token.mode !== 'set') {
-        clauses.push(`${nameExpr} LIKE ?`)
-        args.push(like)
+        clauses.push(`${nameExpr} LIKE ? ESCAPE '\\'`)
+        args.push(pattern)
         if (token.mode === 'any' && params.searchDesc !== false) {
-          clauses.push(`${descExpr} LIKE ?`)
-          args.push(like)
+          clauses.push(`${descExpr} LIKE ? ESCAPE '\\'`)
+          args.push(pattern)
         }
         const code = Number(token.text)
         if (/^\d+$/.test(token.text) && Number.isSafeInteger(code) && code > 0) {
@@ -189,14 +195,21 @@ export function buildSearchSql(
     }
   }
 
+  if (params.showUnofficial === false && officialMask !== null) {
+    baseWhere += ' AND (d.ot & ?) = d.ot'
+    args.push(officialMask)
+  }
+
   if (params.effectCategoryMask !== undefined && params.effectCategoryMask > 0) {
     baseWhere += ' AND (d.category & ?) != 0'
     args.push(params.effectCategoryMask)
   }
 
-  const pool = searchPoolOption(params.cardPool)
   if (pool) {
-    if (pool.match === 'all') {
+    if (pool.match === 'exact') {
+      baseWhere += ' AND d.ot = ?'
+      args.push(pool.mask)
+    } else if (pool.match === 'all') {
       baseWhere += ' AND (d.ot & ?) = ?'
       args.push(pool.mask, pool.mask)
     } else if (pool.match === 'only') {
@@ -216,8 +229,12 @@ export function buildSearchSql(
     if (codes.length === 0) {
       baseWhere += ' AND 0=1'
     } else {
-      baseWhere += ` AND ${duelCodeExpr} IN (${codes.map(() => '?').join(',')})`
+      const placeholders = codes.map(() => '?').join(',')
+      baseWhere += matchLimitAlias
+        ? ` AND (d.id IN (${placeholders}) OR d.alias IN (${placeholders}))`
+        : ` AND d.id IN (${placeholders})`
       args.push(...codes)
+      if (matchLimitAlias) args.push(...codes)
     }
   }
 
@@ -270,7 +287,7 @@ export function buildSearchSql(
     SELECT
       d.id, d.ot, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, d.category,
       ${nameExpr} AS name, ${descExpr} AS desc,
-      (d.type & 7) AS typeKey,
+      (CASE WHEN (d.type & ${CardType.SKILL}) != 0 THEN 8 ELSE (d.type & 7) END) AS typeKey,
       ${subtypeSql} AS subKey,
       CASE WHEN (d.type & 7) = 1 THEN COALESCE(d.level & 255, -3) ELSE 0 END AS levelKey,
       CASE WHEN (d.type & 7) = 1 THEN COALESCE(d.atk, -3) ELSE 0 END AS atkKey,

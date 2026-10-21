@@ -101,7 +101,9 @@ app.whenReady().then(() => {
         return new Response('Invalid card code', { status: 400 })
       }
 
-      const filePath = imageService.findCardImagePath(code, isSmall)
+      const filePath =
+        imageService.findCardImagePath(code, isSmall) ??
+        (await imageService.downloadCardImage(code))
       if (filePath) {
         return await net.fetch(pathToFileURL(filePath).toString())
       }
@@ -133,6 +135,7 @@ app.whenReady().then(() => {
     }
   }
   const bundledCdbPaths = currentBundledCdbPaths()
+  cdbService.setPreferredBanlist(cfg.banlistName)
   if (cfg.cdbPath || extraCdbPaths.length > 0 || bundledCdbPaths.length > 0) {
     cdbService.setGameDirectory(cfg.gameDirectory)
     cdbService.reloadAll(cfg.cdbPath, bundledCdbPaths, extraCdbPaths, currentLanguagePack())

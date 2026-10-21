@@ -1,9 +1,9 @@
 import React from 'react'
 import { Star } from 'lucide-react'
-import { CdbCard, CardUtils, LIMIT_MARKS, cardPoolLabel, otBadgeIds } from '@shared/index'
+import { CdbCard, LIMIT_MARKS, isLegendCard } from '@shared/index'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { CardImage } from '../ui/CardImage'
-import { CardPoolBadges } from './CardPoolBadges'
+import { CardScopeBadge } from '../ui/CardScopeBadge'
 import { cn } from '../../lib/utils'
 import limitSprite from '../../assets/textures/lim.png'
 
@@ -13,7 +13,6 @@ const LIMIT_SPRITE_SCALE = LIMIT_BADGE_SIZE / LIMIT_SPRITE_SIZE
 
 export interface CardRowItemProps {
   card: CdbCard
-  cardPool?: string
   compact?: boolean
   isFavorite?: boolean
   onToggleFavorite?: (code: number) => void
@@ -24,9 +23,8 @@ export interface CardRowItemProps {
   onContextMenu?: (e: React.MouseEvent, card: CdbCard) => void
 }
 
-export const CardRowItem: React.FC<CardRowItemProps> = ({
+const CardRowItemBase: React.FC<CardRowItemProps> = ({
   card,
-  cardPool,
   compact,
   isFavorite,
   onToggleFavorite,
@@ -38,12 +36,7 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
 }) => {
   const line2 = formatSearchItemLine2(card)
   const line3 = formatSearchItemLine3(card)
-  const poolText =
-    card.pools && card.pools.length > 0
-      ? card.pools.map((pool) => `[${cardPoolLabel(pool)}]`).join('')
-      : ''
-  const isMonster = CardUtils.isMonster(card.type)
-  const otBadges = cardPool === 'ocg' || cardPool === 'tcg' ? otBadgeIds(card.ot) : []
+  const scopeText = card.scopeText ? `[${card.scopeText}]` : ''
 
   return (
     <div
@@ -68,7 +61,9 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
           className="w-[42px] h-[60px] object-cover rounded border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
         />
         {(() => {
-          const mark = LIMIT_MARKS.find((m) => m.id === card.limit)
+          const mark =
+            LIMIT_MARKS.find((m) => m.id === card.limit) ??
+            (isLegendCard(card.ot) ? { spriteX: 64, spriteY: 64 } : null)
           if (!mark) return null
           return (
             <span
@@ -83,7 +78,7 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
             />
           )
         })()}
-        <CardPoolBadges pools={card.pools} extraBadges={otBadges} width={26} />
+        <CardScopeBadge scope={card.scopeBadge} />
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 select-none">
@@ -97,26 +92,23 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
         </span>
 
         {compact ? (
-          poolText && (
+          scopeText && (
             <div className="text-[11px] font-mono text-muted-foreground leading-tight truncate">
-              {poolText}
+              {scopeText}
             </div>
           )
         ) : (
           <>
-            <div className="text-[11px] text-foreground/80 leading-tight truncate">
-              {line2}
-              {!isMonster && poolText && (
-                <span className="ml-1.5 text-muted-foreground font-normal">{poolText}</span>
-              )}
-            </div>
+            <div className="text-[11px] text-foreground/80 leading-tight truncate">{line2}</div>
 
-            {line3 && (
+            {(line3 || scopeText) && (
               <div className="text-[11px] font-mono text-foreground/75 leading-tight truncate">
                 {line3}
-                {isMonster && poolText && (
-                  <span className="ml-1.5 font-sans text-muted-foreground font-normal">
-                    {poolText}
+                {scopeText && (
+                  <span
+                    className={cn('font-sans text-muted-foreground font-normal', line3 && 'ml-1.5')}
+                  >
+                    {scopeText}
                   </span>
                 )}
               </div>
@@ -147,3 +139,5 @@ export const CardRowItem: React.FC<CardRowItemProps> = ({
     </div>
   )
 }
+
+export const CardRowItem = React.memo(CardRowItemBase)

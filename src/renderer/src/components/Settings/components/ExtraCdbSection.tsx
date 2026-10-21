@@ -1,7 +1,7 @@
 import { useState, type JSX } from 'react'
 import { Eye, EyeOff, FolderPlus, Loader2 } from 'lucide-react'
 import { useConfigStore } from '../../../stores/useConfigStore'
-import { cdbLibraryLabel } from '../../../utils/cdbLibraryLabel'
+import { cdbLibraryMeta } from '../../../utils/cdbLibraryLabel'
 import { Button } from '../../ui/button'
 import { cn } from '../../../lib/utils'
 
@@ -54,14 +54,18 @@ export function ExtraCdbSection(): JSX.Element {
       </div>
 
       {gameLibraries.length > 0 ? (
-        gameLibraries.map((lib) => (
-          <div key={lib.path} className="px-5 py-3 border-b border-border/60">
-            <div className="text-xs font-medium text-foreground/80">
-              {cdbLibraryLabel(lib.path)}
+        gameLibraries.map((lib) => {
+          const meta = cdbLibraryMeta(lib.path)
+          return (
+            <div key={lib.path} className="px-5 py-3 border-b border-border/60">
+              <div className="text-xs font-medium text-foreground/80">{meta.label}</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">{meta.description}</div>
+              <div className="text-[10px] text-muted-foreground/60 break-all mt-0.5 font-mono">
+                {lib.path}
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground break-all mt-0.5">{lib.path}</div>
-          </div>
-        ))
+          )
+        })
       ) : (
         <div className="px-5 py-3 border-b border-border/60 text-xs text-muted-foreground">
           未加载游戏自带卡库 (先在 路径 中选择游戏主目录)

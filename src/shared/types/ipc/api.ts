@@ -75,6 +75,7 @@ export interface IpcApi {
   ) => Promise<{ success: boolean; paths: string[] }>
   searchCards: (params: CardSearchParams) => Promise<CardSearchResult>
   getCardSearchFilterOptions: () => Promise<CardSearchFilterOptions>
+  setCardBanlist: (name: string | null) => Promise<CardSearchFilterOptions>
   getCardsByIds: (ids: number[]) => Promise<Record<number, CdbCard>>
   getCdbStatus: () => Promise<CdbStatusResult>
 

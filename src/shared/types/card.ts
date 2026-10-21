@@ -15,10 +15,18 @@ export interface CdbCard {
   strings?: string[]
   setnames?: string[]
   pools?: string[]
+  scopeBadge?: string
+  scopeText?: string
   markers?: number
   limit?: 1 | 2 | 3
   isCustom?: boolean
 }
+export const CARD_ARTWORK_VERSIONS_OFFSET = 10
+
+export function isArtworkVariant(id: number, alias: number): boolean {
+  return alias !== 0 && Math.abs(alias - id) < CARD_ARTWORK_VERSIONS_OFFSET
+}
+
 export const CardType = {
   MONSTER: 0x1,
   SPELL: 0x2,
@@ -34,6 +42,7 @@ export const CardType = {
   TUNER: 0x1000,
   SYNCHRO: 0x2000,
   TOKEN: 0x4000,
+  MAXIMUM: 0x8000,
   QUICKPLAY: 0x10000,
   CONTINUOUS: 0x20000,
   EQUIP: 0x40000,
@@ -44,7 +53,8 @@ export const CardType = {
   XYZ: 0x800000,
   PENDULUM: 0x1000000,
   SPECIAL_SUMMON: 0x2000000,
-  LINK: 0x4000000
+  LINK: 0x4000000,
+  SKILL: 0x8000000
 } as const
 export const CardAttribute = {
   EARTH: 0x01,
@@ -53,7 +63,8 @@ export const CardAttribute = {
   WIND: 0x08,
   LIGHT: 0x10,
   DARK: 0x20,
-  DIVINE: 0x40
+  DIVINE: 0x40,
+  HADES: 0x80
 } as const
 
 export const ATTRIBUTE_NAMES: Record<number, string> = {
@@ -63,7 +74,8 @@ export const ATTRIBUTE_NAMES: Record<number, string> = {
   [CardAttribute.WIND]: '风',
   [CardAttribute.LIGHT]: '光',
   [CardAttribute.DARK]: '暗',
-  [CardAttribute.DIVINE]: '神'
+  [CardAttribute.DIVINE]: '神',
+  [CardAttribute.HADES]: '冥'
 }
 export const CardRace = {
   WARRIOR: 0x1,
@@ -91,7 +103,14 @@ export const CardRace = {
   CREATOR_GOD: 0x400000,
   WYRM: 0x800000,
   CYBERSE: 0x1000000,
-  ILLUSION: 0x2000000
+  ILLUSION: 0x2000000,
+  CYBORG: 0x4000000,
+  MAGICAL_KNIGHT: 0x8000000,
+  HIGH_DRAGON: 0x10000000,
+  OMEGA_PSYCHIC: 0x20000000,
+  CELESTIAL_WARRIOR: 0x40000000,
+  GALAXY: 0x80000000,
+  YOKAI: 0x4000000000000000
 } as const
 
 export const RACE_NAMES: Record<number, string> = {
@@ -120,12 +139,20 @@ export const RACE_NAMES: Record<number, string> = {
   [CardRace.CREATOR_GOD]: '创造神',
   [CardRace.WYRM]: '幻龙',
   [CardRace.CYBERSE]: '电子界',
-  [CardRace.ILLUSION]: '幻想魔'
+  [CardRace.ILLUSION]: '幻想魔',
+  [CardRace.CYBORG]: '电子人',
+  [CardRace.MAGICAL_KNIGHT]: '魔导骑士',
+  [CardRace.HIGH_DRAGON]: '多头龙',
+  [CardRace.OMEGA_PSYCHIC]: '欧米伽念动力',
+  [CardRace.CELESTIAL_WARRIOR]: '天界战士',
+  [CardRace.GALAXY]: '银河',
+  [CardRace.YOKAI]: '妖怪'
 }
 export const CardUtils = {
   isMonster: (type: number) => (type & CardType.MONSTER) !== 0,
   isSpell: (type: number) => (type & CardType.SPELL) !== 0,
   isTrap: (type: number) => (type & CardType.TRAP) !== 0,
+  isSkill: (type: number) => (type & CardType.SKILL) !== 0,
   isExtraDeck: (type: number) =>
     (type & (CardType.FUSION | CardType.SYNCHRO | CardType.XYZ | CardType.LINK)) !== 0,
   isXyz: (type: number) => (type & CardType.XYZ) !== 0,
@@ -140,6 +167,7 @@ export const CardUtils = {
     return { lscale, rscale }
   },
   getCardTypeLabel: (type: number): string => {
+    if (CardUtils.isSkill(type)) return '技能卡'
     if (CardUtils.isMonster(type)) {
       if (type & CardType.LINK) return '连接'
       if (type & CardType.XYZ) return '超量'

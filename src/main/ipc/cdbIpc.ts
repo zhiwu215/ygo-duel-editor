@@ -24,12 +24,20 @@ export const enabledExtraPaths = (): string[] => {
 export function registerCdbIpc(): void {
   ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
     const favorites = params.onlyFavorites ? configService.get().favorites || [] : undefined
-    const offset = params.offset || 0
-    const custom = customCardService.searchRows(params, offset + (params.limit || 50), favorites)
-    return cdbService.search(params, favorites, custom)
+    const custom = customCardService.searchRows(params, Number.MAX_SAFE_INTEGER, favorites)
+    return cdbService.search(params, favorites, {
+      ...custom,
+      revision: customCardService.getRevision()
+    })
   })
 
   ipcMain.handle('cdb:search-filter-options', () => cdbService.getSearchFilterOptions())
+
+  ipcMain.handle('cdb:set-banlist', (_, name: string | null) => {
+    cdbService.setPreferredBanlist(name ?? undefined)
+    configService.save({ banlistName: name ?? undefined })
+    return cdbService.getSearchFilterOptions()
+  })
 
   ipcMain.handle('cdb:get-by-ids', async (_, ids: number[]) => {
     return customCardService.mergeCardsByIds(cdbService.getCardsByIds(ids), ids)
@@ -114,6 +122,7 @@ export function registerCdbIpc(): void {
   ipcMain.handle('image:set-card-override', async (_, code: number, variantCode: number | null) => {
     try {
       imageService.setCardImageOverride(code, variantCode)
+      imageService.invalidateCardImageCache()
       broadcastToWindows('image:updated')
       return true
     } catch (err) {

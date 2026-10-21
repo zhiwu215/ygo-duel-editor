@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { CustomCardInput } from '@shared/index'
 import { customCardService } from '../services/customCardService'
+import { imageService } from '../services/imageService'
 import { openCustomScriptDir } from '../services/customCardLibrary'
 import { syncCustomCardsToGame } from '../services/customGameSync'
 import { toErrorMessageOr } from '../utils/errors'
@@ -13,6 +14,7 @@ export function registerCustomCardIpc(): void {
   ipcMain.handle('customcard:save', (_, input: CustomCardInput) => {
     try {
       const card = customCardService.save(input)
+      imageService.invalidateCardImageCache()
       return { success: true, card }
     } catch (err) {
       console.error('[registerIpc] customcard:save failed:', err)
@@ -23,6 +25,7 @@ export function registerCustomCardIpc(): void {
   ipcMain.handle('customcard:delete', (_, id: number) => {
     try {
       customCardService.remove(id)
+      imageService.invalidateCardImageCache()
       return { success: true }
     } catch (err) {
       console.error('[registerIpc] customcard:delete failed:', err)
@@ -35,7 +38,9 @@ export function registerCustomCardIpc(): void {
   })
 
   ipcMain.handle('customcard:apply-image', async (_, id: number) => {
-    return customCardService.pickAndApplyImage(id)
+    const result = await customCardService.pickAndApplyImage(id)
+    if (result.success) imageService.invalidateCardImageCache()
+    return result
   })
 
   ipcMain.handle('customcard:script-info', (_, code: number) => {

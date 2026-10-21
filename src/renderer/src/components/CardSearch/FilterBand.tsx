@@ -6,6 +6,7 @@ import { FilterField } from './FilterField'
 
 interface FilterBandFields {
   mainType: React.ReactNode
+  banlist: React.ReactNode
   limit: React.ReactNode
   attribute: React.ReactNode
   race: React.ReactNode
@@ -94,6 +95,7 @@ export const FilterBand: React.FC<FilterBandProps> = ({
         </div>
 
         <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">{fields.banlist}</div>
           <div className="flex items-center gap-2">
             {fields.limit}
             {headerSlot}

@@ -2,16 +2,19 @@ import { create } from 'zustand'
 import {
   CdbCard,
   CardPoolFilter,
+  CardSearchFilterOptions,
   CardSearchParams,
   LimitFilter,
   NumericCompareOp
 } from '@shared/index'
 import { bumpCardImageVersion } from '../utils/cardImage'
 import { PAGE_SIZE, buildSearchParams } from '../utils/cardSearchQuery'
+import { sanitizeFilters } from '../utils/cardFilterSanitize'
 
 export interface CardSearchFilters {
   keyword: string
   searchDesc: boolean
+  showUnofficial: boolean
   onlyFavorites: boolean
   type: number
   subType: number
@@ -36,6 +39,7 @@ export interface CardSearchFilters {
 export const DEFAULT_FILTERS: CardSearchFilters = {
   keyword: '',
   searchDesc: true,
+  showUnofficial: true,
   onlyFavorites: false,
   type: 0,
   subType: 0,
@@ -72,6 +76,7 @@ export function countActiveFilters(filters: CardSearchFilters): number {
   if (filters.atk !== undefined || filters.atkOp === 'unknown') count++
   if (filters.def !== undefined || filters.defOp === 'unknown') count++
   if (!filters.searchDesc) count++
+  if (!filters.showUnofficial) count++
   if (filters.onlyFavorites) count++
   if (filters.sortField !== 'level') count++
   return count
@@ -85,13 +90,24 @@ export interface CardSearchStoreState extends CardSearchFilters {
   hasMore: boolean
   hasSearched: boolean
   isFilterOpen: boolean
+  filterOptions: CardSearchFilterOptions
+  filterOptionsLoaded: boolean
 
   toggleFilterOpen: () => void
   setKeyword: (keyword: string) => void
   setFilters: (partial: Partial<CardSearchFilters>) => void
   resetFilters: () => void
+  loadFilterOptions: (force?: boolean) => Promise<void>
+  selectBanlist: (name: string | null) => Promise<void>
   search: (customParams?: Partial<CardSearchParams>) => Promise<void>
   loadMore: () => Promise<void>
+}
+
+const DEFAULT_FILTER_OPTIONS: CardSearchFilterOptions = {
+  effectCategories: [],
+  poolSchema: 'classic',
+  banlists: [],
+  banlist: null
 }
 
 export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
@@ -103,14 +119,21 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
   hasMore: true,
   hasSearched: false,
   isFilterOpen: false,
+  filterOptions: DEFAULT_FILTER_OPTIONS,
+  filterOptionsLoaded: false,
 
   toggleFilterOpen: () => set((state) => ({ isFilterOpen: !state.isFilterOpen })),
 
   setKeyword: (keyword) => set({ keyword }),
 
   setFilters: (partial) => {
-    set((state) => ({ ...state, ...partial }))
-    get().search()
+    const state = get()
+    const changed = Object.entries(partial).some(
+      ([key, value]) => state[key as keyof CardSearchFilters] !== value
+    )
+    if (!changed) return
+    set(partial)
+    void get().search()
   },
 
   resetFilters: () => {
@@ -118,7 +141,25 @@ export const useCardSearchStore = create<CardSearchStoreState>((set, get) => ({
       ...DEFAULT_FILTERS,
       keyword: get().keyword
     })
-    get().search()
+    void get().search()
+  },
+
+  loadFilterOptions: async (force = false) => {
+    if (!force && get().filterOptionsLoaded) return
+    try {
+      const options = await window.api.getCardSearchFilterOptions()
+      set({ filterOptions: options, filterOptionsLoaded: true })
+      const patch = sanitizeFilters(get(), options)
+      if (Object.keys(patch).length > 0) get().setFilters(patch)
+    } catch (err) {
+      console.error('[useCardSearchStore] loadFilterOptions failed:', err)
+    }
+  },
+
+  selectBanlist: async (name) => {
+    await window.api.setCardBanlist(name)
+    await get().loadFilterOptions(true)
+    await get().search()
   },
 
   search: async (customParams = {}) => {
@@ -183,6 +224,7 @@ if (typeof window !== 'undefined' && window.api?.onCdbUpdated) {
   window.api.onCdbUpdated(() => {
     bumpCardImageVersion()
     const state = useCardSearchStore.getState()
+    void state.loadFilterOptions(true)
     if (!state.hasSearched) return
     void state.search()
   })

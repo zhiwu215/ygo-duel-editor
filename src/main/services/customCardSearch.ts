@@ -30,9 +30,7 @@ export function matchNumeric(
 }
 
 export function matchKeyword(card: CustomCard, params: CardSearchParams): boolean {
-  const keyword = (params.keyword ?? '').trim()
-  if (keyword.length === 0) return true
-  for (const token of parseSearchTokens(keyword)) {
+  for (const token of parseSearchTokens(params.keyword ?? '')) {
     const inName = card.name.includes(token.text)
     const inDesc = params.searchDesc !== false && card.desc.includes(token.text)
     const inCode = /^\d+$/.test(token.text) && card.id === Number(token.text)
@@ -51,6 +49,7 @@ export function matchFilters(
   if (params.onlyFavorites) {
     if (!favorites || !favorites.includes(card.id)) return false
   }
+  if (params.showUnofficial === false) return false
   const typeMask = params.type ?? 0
   if (typeMask !== 0 && (card.type & typeMask) === 0) return false
 

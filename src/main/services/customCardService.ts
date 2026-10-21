@@ -35,6 +35,11 @@ const LIBRARY_FILE = 'custom_cards.json'
 export class CustomCardService {
   private cards: CustomCard[] = []
   private loaded = false
+  private revision = 0
+
+  public getRevision(): number {
+    return this.revision
+  }
 
   private get filePath(): string {
     return dataDirService.resolve(LIBRARY_FILE)
@@ -47,11 +52,13 @@ export class CustomCardService {
   public resetCache(): void {
     this.cards = []
     this.loaded = false
+    this.revision += 1
   }
 
   private ensureLoaded(): void {
     if (this.loaded) return
     this.loaded = true
+    this.revision += 1
     try {
       if (!existsSync(this.filePath)) return
       const parsed = JSON.parse(readFileSync(this.filePath, 'utf-8'))
@@ -135,6 +142,7 @@ export class CustomCardService {
     this.persist()
     syncCustomCardLibrary(this.cards)
     applyCustomCardImage(card.id, input.imageSourcePath, () => this.imageDir)
+    this.revision += 1
     this.broadcast()
     return card
   }
@@ -151,6 +159,7 @@ export class CustomCardService {
     }
     this.persist()
     syncCustomCardLibrary(this.cards)
+    this.revision += 1
     this.broadcast()
   }
 

@@ -3,12 +3,10 @@ import React from 'react'
 import { RotateCcw, CheckSquare, Square } from 'lucide-react'
 import {
   CardType,
-  CardAttribute,
-  ATTRIBUTE_NAMES,
-  CardRace,
-  RACE_NAMES,
   CardPoolFilter,
+  FILTER_CATALOGS,
   LimitFilter,
+  NONE_LABEL,
   linkMarkerCount
 } from '@shared/index'
 import { CardSearchFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
@@ -20,23 +18,8 @@ import { SORT_OPTIONS } from './sortOptions'
 import { FilterField } from './FilterField'
 import { NumericRow } from './NumericRow'
 import { FilterBand } from './FilterBand'
-import {
-  CARD_POOL_OPTIONS,
-  LIMIT_OPTIONS,
-  MONSTER_SUB_TYPES,
-  NONE_LABEL,
-  SPELL_SUB_TYPES,
-  TRAP_SUB_TYPES
-} from './filterOptions'
-import { useCardFilterOptions } from '../../hooks/useCardFilterOptions'
+import { LIMIT_OPTIONS, cardPoolOptions } from './filterOptions'
 import { cn } from '../../lib/utils'
-
-const MAIN_TYPES = [
-  { label: NONE_LABEL, value: 0 },
-  { label: '怪兽', value: CardType.MONSTER },
-  { label: '魔法', value: CardType.SPELL },
-  { label: '陷阱', value: CardType.TRAP }
-]
 
 const NONE_VALUE = '__none__'
 const LIMIT_VALUE_PREFIX = 'limit:'
@@ -88,12 +71,16 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     def,
     defOp,
     searchDesc,
+    showUnofficial,
     onlyFavorites,
     sortField,
+    filterOptions,
     setKeyword,
     search,
     setFilters,
-    resetFilters
+    resetFilters,
+    loadFilterOptions,
+    selectBanlist
   } = useCardSearchStore()
 
   const [localKw, setLocalKw] = React.useState<string>(keyword)
@@ -107,23 +94,31 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     void search({ keyword: trimmed })
   }
 
-  const filterOptions = useCardFilterOptions()
+  const catalog = FILTER_CATALOGS[filterOptions.poolSchema]
+  const poolSelectOptions = React.useMemo(
+    () => cardPoolOptions(filterOptions.poolSchema),
+    [filterOptions.poolSchema]
+  )
+
+  React.useEffect(() => {
+    void loadFilterOptions()
+  }, [loadFilterOptions])
 
   const currentSubTypes = React.useMemo(() => {
-    if (type === CardType.SPELL) return SPELL_SUB_TYPES
-    if (type === CardType.TRAP) return TRAP_SUB_TYPES
-    return MONSTER_SUB_TYPES
-  }, [type])
+    if (type === CardType.SPELL) return catalog.spellSubTypes
+    if (type === CardType.TRAP) return catalog.trapSubTypes
+    return catalog.monsterSubTypes
+  }, [catalog, type])
 
-  const typeLabel = MAIN_TYPES.find((t) => t.value === type)?.label ?? NONE_LABEL
+  const typeLabel = catalog.mainTypes.find((t) => t.value === type)?.label ?? NONE_LABEL
   const subTypeLabel = currentSubTypes.find((s) => s.value === subType)?.label ?? NONE_LABEL
-  const attributeLabel = attribute !== 0 ? ATTRIBUTE_NAMES[attribute] : NONE_LABEL
-  const raceLabel = race !== 0 ? RACE_NAMES[race] : NONE_LABEL
+  const attributeLabel = catalog.attributes.find((a) => a.value === attribute)?.label ?? NONE_LABEL
+  const raceLabel = catalog.races.find((r) => r.value === race)?.label ?? NONE_LABEL
   const sortLabel = SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? SORT_OPTIONS[0].label
   const cardPoolLabel =
     cardPool === 'any'
       ? '全部'
-      : (CARD_POOL_OPTIONS.find((o) => o.value === cardPool)?.label ?? '全部')
+      : (poolSelectOptions.find((o) => o.value === cardPool)?.label ?? '全部')
   const limitLabel = LIMIT_OPTIONS.find((o) => o.value === limitFilter)?.label ?? '不限'
   const limitPoolValue =
     limitFilter !== 0
@@ -137,31 +132,16 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
   const markerLabel = '连接标记'
 
   const isAllTypes = type === 0
-  const detailDisabled = isAllTypes || type === CardType.SPELL || type === CardType.TRAP
-  const subTypeDisabled = isAllTypes
+  const isSkillType = type === CardType.SKILL
+  const detailDisabled =
+    isAllTypes || isSkillType || type === CardType.SPELL || type === CardType.TRAP
+  const subTypeDisabled = isAllTypes || isSkillType
 
   const isLinkMonster = React.useMemo(
     () => isLinkSelection(type, subType, markers),
     [subType, type, markers]
   )
   const defDisabled = detailDisabled || isLinkMonster
-
-  const availablePools = React.useMemo(
-    () => new Set(filterOptions.availablePools ?? []),
-    [filterOptions.availablePools]
-  )
-
-  const visiblePoolOptions = React.useMemo(
-    () => CARD_POOL_OPTIONS.filter((o) => o.tag === undefined || availablePools.has(o.tag)),
-    [availablePools]
-  )
-
-  React.useEffect(() => {
-    const option = CARD_POOL_OPTIONS.find((o) => o.value === cardPool)
-    if (option?.tag && !availablePools.has(option.tag)) {
-      setFilters({ cardPool: 'any' })
-    }
-  }, [availablePools, cardPool, setFilters])
 
   const mainTypeTriggerClass = isBand
     ? `${controlH} w-[52px] shrink-0 gap-0.5 px-1 text-[11px] [&_svg]:size-3`
@@ -175,7 +155,9 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
       <Select
         value={type}
         onValueChange={(val) => {
-          const num = val ? Number(val) : 0
+          if (val == null) return
+          const num = Number(val)
+          if (num === type) return
           setFilters({
             type: num,
             subType: 0,
@@ -194,7 +176,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
           <SelectValue>{typeLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {MAIN_TYPES.map((t) => (
+          {catalog.mainTypes.map((t) => (
             <SelectItem key={t.value} value={t.value}>
               {t.label}
             </SelectItem>
@@ -206,7 +188,9 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
         value={subType}
         disabled={subTypeDisabled}
         onValueChange={(val) => {
-          const num = val ? Number(val) : 0
+          if (val == null) return
+          const num = Number(val)
+          if (num === subType) return
           setFilters({ subType: num, ...clearDefIfLink(markers, num, type) })
         }}
       >
@@ -224,12 +208,37 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     </FilterField>
   )
 
+  const banlistField = (
+    <FilterField label="卡表：" className={isBand ? 'flex-1 min-w-0' : undefined}>
+      <Select
+        value={filterOptions.banlist ?? ''}
+        disabled={filterOptions.banlists.length === 0}
+        onValueChange={(val) => {
+          if (val == null) return
+          void selectBanlist(val || null)
+        }}
+      >
+        <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
+          <SelectValue>{filterOptions.banlist ?? 'N/A'}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {filterOptions.banlists.map((name) => (
+            <SelectItem key={name} value={name}>
+              {name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  )
+
   const limitField = (
     <FilterField label="禁限：" className={isBand ? 'flex-1 min-w-0' : undefined}>
       <Select
         value={limitPoolValue}
         onValueChange={(val) => {
-          if (!val) {
+          if (val == null) return
+          if (val === NONE_VALUE) {
             setFilters({ limitFilter: 0, cardPool: 'any' })
             return
           }
@@ -237,7 +246,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
             setFilters({ limitFilter: Number(val.slice(LIMIT_VALUE_PREFIX.length)) as LimitFilter })
             return
           }
-          setFilters({ cardPool: val as CardPoolFilter })
+          setFilters({ cardPool: val as CardPoolFilter, limitFilter: 0 })
         }}
       >
         <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
@@ -253,7 +262,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
               {o.label}
             </SelectItem>
           ))}
-          {visiblePoolOptions
+          {poolSelectOptions
             .filter((o) => o.value !== 'any')
             .map((o) => (
               <SelectItem key={o.value} value={o.value}>
@@ -274,16 +283,18 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
       <Select
         value={attribute}
         disabled={detailDisabled}
-        onValueChange={(val) => setFilters({ attribute: val ? Number(val) : 0 })}
+        onValueChange={(val) => {
+          if (val == null) return
+          setFilters({ attribute: Number(val) })
+        }}
       >
         <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
           <SelectValue>{attributeLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={0}>{NONE_LABEL}</SelectItem>
-          {Object.entries(CardAttribute).map(([key, val]) => (
-            <SelectItem key={key} value={val}>
-              {ATTRIBUTE_NAMES[val]}
+          {catalog.attributes.map((a) => (
+            <SelectItem key={a.value} value={a.value}>
+              {a.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -313,16 +324,18 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
       <Select
         value={race}
         disabled={detailDisabled}
-        onValueChange={(val) => setFilters({ race: val ? Number(val) : 0 })}
+        onValueChange={(val) => {
+          if (val == null) return
+          setFilters({ race: Number(val) })
+        }}
       >
         <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
           <SelectValue>{raceLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={0}>{NONE_LABEL}</SelectItem>
-          {Object.entries(CardRace).map(([key, val]) => (
-            <SelectItem key={key} value={val}>
-              {RACE_NAMES[val]}
+          {catalog.races.map((r) => (
+            <SelectItem key={r.value} value={r.value}>
+              {r.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -469,6 +482,22 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     </button>
   )
 
+  const unofficialToggle = (
+    <button
+      type="button"
+      onClick={() => setFilters({ showUnofficial: !showUnofficial })}
+      title="OCG/TCG/先行卡以外的卡：动漫、Rush、卡片力量、自定义等"
+      className="flex items-center gap-1.5 w-full px-1.5 py-1 rounded-md hover:bg-muted/40 cursor-pointer text-muted-foreground hover:text-foreground transition-colors text-left"
+    >
+      {showUnofficial ? (
+        <CheckSquare className="w-3.5 h-3.5 text-primary shrink-0" />
+      ) : (
+        <Square className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      )}
+      <span className="text-[11px]">显示非 OCG/TCG 卡</span>
+    </button>
+  )
+
   const onlyFavoritesToggle = (
     <button
       type="button"
@@ -500,6 +529,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
         }}
         fields={{
           mainType: mainTypeField,
+          banlist: banlistField,
           limit: limitField,
           attribute: attributeField,
           race: raceField,
@@ -541,6 +571,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
           {mainTypeField}
 
           <div className="grid grid-cols-2 gap-1.5">
+            <div className="col-span-2">{banlistField}</div>
             <div className="col-span-2">{limitField}</div>
             {raceField}
             {attributeField}
@@ -557,6 +588,8 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
           {sortRow}
 
           {searchDescToggle}
+
+          {filterOptions.poolSchema === 'kcg' && unofficialToggle}
 
           {onlyFavoritesToggle}
         </div>

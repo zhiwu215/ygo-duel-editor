@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { usePileListStore } from '../../stores/usePileListStore'
-import { useOverlayListStore } from '../../stores/useOverlayListStore'
+import { useDetachMaterialStore } from '../../stores/useDetachMaterialStore'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
@@ -31,7 +31,7 @@ export const CardContextMenu: React.FC = () => {
   const { removeCard, clearPile, state, activeDuelistId } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
-  const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
+  const openDetach = useDetachMaterialStore((s) => s.openDetach)
   const openDeckSwitcher = useDeckSwitcherStore((s) => s.openDeckSwitcher)
   const openProvenance = useEngineCardEditStore((s) => s.openProvenance)
   const openReplace = useEngineCardEditStore((s) => s.openReplace)
@@ -254,7 +254,7 @@ export const CardContextMenu: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={act(() => openOverlayList(card.instanceId))}
+              onClick={act(() => openDetach(card.instanceId))}
               className="w-full justify-between h-7 px-2 text-xs font-normal hover:bg-accent cursor-pointer"
             >
               <span>拔除素材</span>

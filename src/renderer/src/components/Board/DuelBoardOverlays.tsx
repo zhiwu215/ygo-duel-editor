@@ -3,6 +3,7 @@ import { PhaseBanner } from './PhaseBanner'
 import { LpChangeOverlay } from './components/LpChangeOverlay'
 import { PileListModal } from './PileListModal'
 import { OverlayListModal } from './OverlayListModal'
+import { DetachMaterialModal } from './DetachMaterialModal'
 import { EngineFeedbackToast } from './EngineFeedbackToast'
 import { EngineCardEditDialogs } from './EngineCardEditDialogs'
 import { DuelSelectionBar } from './DuelSelectionBar'
@@ -27,6 +28,8 @@ export const DuelBoardOverlays: React.FC = () => {
       <HeldCardOverlay />
 
       <OverlayListModal />
+
+      <DetachMaterialModal />
 
       <EngineFeedbackToast />
 

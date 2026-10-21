@@ -81,9 +81,13 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
     sequence: number,
     position: number
   ): void => {
+    const isPrivatePile =
+      location === CardLocation.HAND ||
+      location === CardLocation.DECK ||
+      location === CardLocation.EXTRA
     state.duel!.newCard({
       code: puzzleCard.code,
-      owner: puzzleCard.owner ?? puzzleCard.controller,
+      owner: isPrivatePile ? puzzleCard.controller : (puzzleCard.owner ?? puzzleCard.controller),
       player: puzzleCard.controller,
       location,
       sequence,

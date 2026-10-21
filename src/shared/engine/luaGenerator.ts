@@ -171,10 +171,15 @@ export function generateLuaScript(state: DuelPuzzleState, options?: LuaScriptOpt
     }
 
     const hasCounters = card.counters && Object.values(card.counters).some((v) => v > 0)
+    const isPrivatePile =
+      location === CardLocation.HAND ||
+      location === CardLocation.DECK ||
+      location === CardLocation.EXTRA
+    const owner = !isTag && isPrivatePile ? targetController : card.owner
 
     if (hasCounters) {
       lines.push(
-        `local c = Debug.AddCard(${card.code}, ${card.owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
+        `local c = Debug.AddCard(${card.code}, ${owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
       )
       for (const [typeIdStr, count] of Object.entries(card.counters!)) {
         const countNum = Number(count)
@@ -187,7 +192,7 @@ export function generateLuaScript(state: DuelPuzzleState, options?: LuaScriptOpt
       }
     } else {
       lines.push(
-        `Debug.AddCard(${card.code}, ${card.owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
+        `Debug.AddCard(${card.code}, ${owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
       )
     }
     if (card.overlayMaterials && card.overlayMaterials.length > 0) {

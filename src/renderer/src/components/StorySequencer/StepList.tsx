@@ -11,6 +11,7 @@ import { StepGroupHeader } from './StepGroupHeader'
 import { StepPhaseHeader } from './StepPhaseHeader'
 import { StepTurnHeader } from './StepTurnHeader'
 import { StepCard } from './StepCard'
+import { StepLpChange } from './StepLpChange'
 import { buildStepList, getAttackDamageText, resolveStepCardName } from './stepGrouping'
 import { resolveTeamLabel } from '../../utils/duelistNames'
 
@@ -75,7 +76,11 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
     return stepIndex === engineCursor
   }
 
-  const renderStepCard = (step: DuelStep, index: number): React.JSX.Element => {
+  const renderStepCard = (
+    step: DuelStep,
+    index: number,
+    showLpChange = true
+  ): React.JSX.Element => {
     const stepEngineIndex = step.actId ? engineIndexById.get(step.actId) : undefined
     const isFutureStep =
       engineCursor >= 0 && stepEngineIndex !== undefined && stepEngineIndex > engineCursor
@@ -90,6 +95,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
         isCurrentPlaying={isCurrentPlaying}
         isFutureStep={isFutureStep}
         stepEngineIndex={stepEngineIndex}
+        showLpChange={showLpChange}
         onEdit={onEditStep}
         onRestart={handleRestartFromStep}
         onClick={handleStepClick}
@@ -167,7 +173,16 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
             const firstEntry = group.entries[0]
 
             if (group.kind === 'single') {
-              return renderStepCard(firstEntry.step, firstEntry.index)
+              const { step, index } = firstEntry
+              const splitLp = step.actionType === 'ATTACK' && Boolean(step.lpChange)
+              return (
+                <div key={step.id} className="flex flex-col gap-1.5">
+                  {renderStepCard(step, index, !splitLp)}
+                  {splitLp && step.lpChange && (
+                    <StepLpChange lpChange={step.lpChange} turn={step.turn} />
+                  )}
+                </div>
+              )
             }
 
             const expanded = expandedGroups.has(group.key)

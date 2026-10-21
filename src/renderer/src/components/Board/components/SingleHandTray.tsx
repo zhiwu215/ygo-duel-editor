@@ -109,10 +109,6 @@ export const SingleHandTray: React.FC<{
       className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1"
     >
       <div className="flex items-center gap-2 text-xs px-1 h-5">
-        <span
-          className={cn('w-2 h-2 rounded-full shrink-0', isOpponent ? 'bg-red-500' : 'bg-blue-500')}
-        />
-
         <EditableNameChip
           editing={isEditingName}
           draft={nameInput}
@@ -129,7 +125,14 @@ export const SingleHandTray: React.FC<{
             }}
             className="flex items-center gap-1 group cursor-default hover:bg-muted/50 px-1 py-0.5 rounded"
           >
-            <span className="font-semibold text-foreground/90">{duelist.name}</span>
+            <span
+              className={cn(
+                'font-semibold',
+                isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+              )}
+            >
+              {duelist.name}
+            </span>
             <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
           </div>
         </EditableNameChip>

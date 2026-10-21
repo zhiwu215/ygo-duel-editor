@@ -40,7 +40,22 @@ export function setCardDragImage(dataTransfer: DataTransfer, source: Element | n
     preview.style.cssText = 'position:fixed;left:0;top:0;opacity:0.01;pointer-events:none'
     const context = preview.getContext('2d')
     if (context) {
-      context.drawImage(image, 0, 0, DRAG_IMAGE_WIDTH, DRAG_IMAGE_HEIGHT)
+      const iw = image.naturalWidth
+      const ih = image.naturalHeight
+      const scale = Math.max(DRAG_IMAGE_WIDTH / iw, DRAG_IMAGE_HEIGHT / ih)
+      const sw = DRAG_IMAGE_WIDTH / scale
+      const sh = DRAG_IMAGE_HEIGHT / scale
+      context.drawImage(
+        image,
+        (iw - sw) / 2,
+        (ih - sh) / 2,
+        sw,
+        sh,
+        0,
+        0,
+        DRAG_IMAGE_WIDTH,
+        DRAG_IMAGE_HEIGHT
+      )
       document.body.appendChild(preview)
       const remove = (): void => {
         preview.remove()

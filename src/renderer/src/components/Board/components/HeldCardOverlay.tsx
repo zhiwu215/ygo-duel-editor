@@ -36,7 +36,7 @@ const HeldCardPreview: React.FC<{ card: FieldCard }> = ({ card }) => {
         code={card.code}
         small
         alt={resolveCardName(card.code)}
-        className="w-full h-full rounded object-cover shadow-2xl ring-2 ring-primary/60"
+        className="w-full h-full rounded object-cover shadow-2xl ring-2 ring-blue-400/80"
       />
     </div>,
     document.body

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
 import { setCardDragImage } from '../../utils/cardImage'
@@ -82,6 +82,17 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const { closeMenu: closeCommandMenu } = useCardCommandMenuStore()
 
   const isSelected = selectedCardId === card.instanceId
+  const [isDragSource, setIsDragSource] = useState(false)
+  const hideSourceFrameRef = useRef<number | null>(null)
+
+  useEffect(
+    () => () => {
+      if (hideSourceFrameRef.current !== null) {
+        window.cancelAnimationFrame(hideSourceFrameRef.current)
+      }
+    },
+    []
+  )
   const isDefense =
     card.position === CardPosition.FACEUP_DEFENSE || card.position === CardPosition.FACEDOWN_DEFENSE
   const isFacedown =
@@ -141,13 +152,27 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         }
         if (card.location === CardLocation.HAND) {
           e.dataTransfer.setData(HAND_REORDER_DRAG_TYPE, card.instanceId)
-          setCardDragImage(e.dataTransfer, e.currentTarget)
         }
+        setCardDragImage(e.dataTransfer, e.currentTarget)
         e.dataTransfer.setData('text/instanceId', card.instanceId)
         if (card.card) {
           e.dataTransfer.setData('application/json', JSON.stringify(card.card))
         }
         e.dataTransfer.effectAllowed = 'copyMove'
+        if (hideSourceFrameRef.current !== null) {
+          window.cancelAnimationFrame(hideSourceFrameRef.current)
+        }
+        hideSourceFrameRef.current = window.requestAnimationFrame(() => {
+          hideSourceFrameRef.current = null
+          setIsDragSource(true)
+        })
+      }}
+      onDragEnd={() => {
+        if (hideSourceFrameRef.current !== null) {
+          window.cancelAnimationFrame(hideSourceFrameRef.current)
+          hideSourceFrameRef.current = null
+        }
+        setIsDragSource(false)
       }}
       onClick={handleCardClick}
       onDoubleClick={(e) => {
@@ -178,7 +203,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       className={cn(
         'w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none',
         role === 'dim' && 'opacity-25',
-        (role === 'legal' || role === 'target') && 'cursor-crosshair'
+        (role === 'legal' || role === 'target') && 'cursor-crosshair',
+        isDragSource && 'invisible'
       )}
     >
       <div

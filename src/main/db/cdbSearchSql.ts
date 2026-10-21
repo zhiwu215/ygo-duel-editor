@@ -58,6 +58,7 @@ export function buildSearchSql(
   const { pick, join: overlayJoin } = textSource(conn)
   const nameExpr = pick('name')
   const descExpr = pick('desc')
+  const duelCodeExpr = 'COALESCE(NULLIF(d.alias, 0), d.id)'
 
   let baseWhere =
     ` FROM datas d JOIN texts t ON d.id = t.id${overlayJoin} WHERE 1=1` +
@@ -74,10 +75,6 @@ export function buildSearchSql(
     baseWhere += ' AND d.id NOT IN (SELECT id FROM __covered)'
   }
   const args: (string | number)[] = []
-  // 排序对齐 ygopro DeckBuilder::SortList：仅卡名与搜索词完全相等时置顶，
-  // 其余结果（含仅描述/系列匹配）同档，只按用户所选排序规则排
-  const exactKeyword = (params.keyword ?? '').trim()
-  const relevanceArgs: (string | number)[] = []
 
   const getSetcodeClause = (codes: number[]): string => {
     const unique = [...new Set(codes.map((code) => code & 0xffff))]
@@ -93,57 +90,55 @@ export function buildSearchSql(
     return `(${parts.join(' OR ')})`
   }
 
-  if (params.keyword && params.keyword.trim().length > 0) {
-    const keyword = params.keyword.trim()
-    if (/^\d+$/.test(keyword)) {
-      baseWhere += ` AND (d.id = ? OR ${nameExpr} LIKE ?)`
-      args.push(parseInt(keyword, 10), `%${keyword}%`)
-    } else {
-      for (const token of parseSearchTokens(keyword)) {
-        const clauses: string[] = []
-        const like = `%${token.text}%`
-        if (token.mode !== 'set') {
-          clauses.push(`${nameExpr} LIKE ?`)
-          args.push(like)
-        }
+  const exactKeyword = (params.keyword ?? '').trim()
+
+  if (exactKeyword.length > 0) {
+    for (const token of parseSearchTokens(exactKeyword)) {
+      const clauses: string[] = []
+      const like = `%${token.text}%`
+      if (token.mode !== 'set') {
+        clauses.push(`${nameExpr} LIKE ?`)
+        args.push(like)
         if (token.mode === 'any' && params.searchDesc !== false) {
           clauses.push(`${descExpr} LIKE ?`)
           args.push(like)
         }
-        if (token.mode !== 'name') {
-          const setcodes = getSetcodesForKeyword(setnameMap, token.text)
-          if (setcodes.length > 0) clauses.push(getSetcodeClause(setcodes))
-          else if (token.mode === 'set') clauses.push('0=1')
+        const code = Number(token.text)
+        if (/^\d+$/.test(token.text) && Number.isSafeInteger(code) && code > 0) {
+          clauses.push(`(${duelCodeExpr} = ? OR d.id = ?)`)
+          args.push(code, code)
         }
-        if (clauses.length === 0) continue
-        const match = `(${clauses.join(' OR ')})`
-        baseWhere += token.excluded ? ` AND NOT ${match}` : ` AND ${match}`
       }
+      if (token.mode !== 'name') {
+        const setcodes = getSetcodesForKeyword(setnameMap, token.text)
+        if (setcodes.length > 0) clauses.push(getSetcodeClause(setcodes))
+        else if (token.mode === 'set') clauses.push('0=1')
+      }
+      if (clauses.length === 0) continue
+      const match = `(${clauses.join(' OR ')})`
+      baseWhere += token.excluded ? ` AND NOT ${match}` : ` AND ${match}`
     }
   }
 
-  if (params.type !== undefined && params.type !== 0) {
+  const typeMask = params.type ?? 0
+  const subType = params.subType ?? 0
+  const monsterQuery = (typeMask & CardType.MONSTER) !== 0
+  const spellQuery = (typeMask & CardType.SPELL) !== 0
+  const trapQuery = (typeMask & CardType.TRAP) !== 0
+
+  if (typeMask !== 0) {
     baseWhere += ' AND (d.type & ?) != 0'
-    args.push(params.type)
+    args.push(typeMask)
   }
 
-  if (params.subType !== undefined && params.subType !== 0) {
-    if (params.type === CardType.SPELL || params.type === CardType.TRAP) {
+  if (subType !== 0) {
+    if (spellQuery || trapQuery) {
       baseWhere += ' AND d.type = ?'
-      args.push(params.subType)
+      args.push(subType)
     } else {
       baseWhere += ' AND (d.type & ?) = ?'
-      args.push(params.subType, params.subType)
+      args.push(subType, subType)
     }
-  }
-
-  if (params.attribute !== undefined && params.attribute !== 0) {
-    baseWhere += ' AND (d.attribute & ?) != 0'
-    args.push(params.attribute)
-  }
-  if (params.race !== undefined && params.race !== 0) {
-    baseWhere += ' AND (d.race & ?) != 0'
-    args.push(params.race)
   }
 
   const addNumericFilter = (
@@ -158,27 +153,41 @@ export function buildSearchSql(
       return
     }
     if (value === undefined || value < 0) return
-    if (compare === 'lt' || compare === 'lte') baseWhere += ` AND ${column} >= 0`
+    if (compare === 'lt' || compare === 'lte') {
+      baseWhere += ` AND ${column} >= 0`
+    }
     baseWhere += ` AND ${column} ${COMPARATOR[compare]} ?`
     args.push(value)
   }
 
-  if (params.level !== undefined && params.level > 0) {
-    addNumericFilter('(d.level & 255)', params.level, params.levelOp)
-  }
+  if (monsterQuery) {
+    if (params.attribute !== undefined && params.attribute !== 0) {
+      baseWhere += ' AND d.attribute = ?'
+      args.push(params.attribute)
+    }
+    if (params.race !== undefined && params.race !== 0) {
+      baseWhere += ' AND d.race = ?'
+      args.push(params.race)
+    }
 
-  if (params.scale !== undefined) {
-    baseWhere += ' AND (d.type & ?) != 0'
-    args.push(CardType.PENDULUM)
-    addNumericFilter('((d.level >> 24) & 255)', params.scale, params.scaleOp)
-  }
+    if (params.level !== undefined && params.level > 0) {
+      addNumericFilter('(d.level & 255)', params.level, params.levelOp)
+    }
 
-  addNumericFilter('d.atk', params.atk, params.atkOp, true)
-  if (params.def !== undefined || params.defOp === 'unknown') {
-    baseWhere += ' AND (d.type & ?) = 0'
-    args.push(CardType.LINK)
+    if (params.scale !== undefined) {
+      baseWhere += ' AND (d.type & ?) != 0'
+      args.push(CardType.PENDULUM)
+      addNumericFilter('((d.level >> 24) & 255)', params.scale, params.scaleOp)
+    }
+
+    addNumericFilter('d.atk', params.atk, params.atkOp, true)
+
+    if (params.def !== undefined || params.defOp === 'unknown') {
+      baseWhere += ' AND (d.type & ?) = 0'
+      args.push(CardType.LINK)
+      addNumericFilter('d.def', params.def, params.defOp, true)
+    }
   }
-  addNumericFilter('d.def', params.def, params.defOp, true)
 
   if (params.effectCategoryMask !== undefined && params.effectCategoryMask > 0) {
     baseWhere += ' AND (d.category & ?) != 0'
@@ -187,8 +196,16 @@ export function buildSearchSql(
 
   const pool = searchPoolOption(params.cardPool)
   if (pool) {
-    baseWhere += pool.exact ? ' AND d.ot = ?' : ' AND (d.ot & ?) != 0'
-    args.push(pool.mask)
+    if (pool.match === 'all') {
+      baseWhere += ' AND (d.ot & ?) = ?'
+      args.push(pool.mask, pool.mask)
+    } else if (pool.match === 'only') {
+      baseWhere += ' AND (d.ot & ?) != 0 AND (d.ot & ?) = 0'
+      args.push(pool.mask, pool.excludeMask ?? 0)
+    } else {
+      baseWhere += ' AND (d.ot & ?) != 0'
+      args.push(pool.mask)
+    }
   }
 
   if (params.limitFilter) {
@@ -199,7 +216,7 @@ export function buildSearchSql(
     if (codes.length === 0) {
       baseWhere += ' AND 0=1'
     } else {
-      baseWhere += ` AND d.id IN (${codes.map(() => '?').join(',')})`
+      baseWhere += ` AND ${duelCodeExpr} IN (${codes.map(() => '?').join(',')})`
       args.push(...codes)
     }
   }
@@ -220,12 +237,16 @@ export function buildSearchSql(
 
   const orderDir = params.sortOrder === 'ASC' ? 'ASC' : 'DESC'
   const groupDir = orderDir === 'ASC' ? 'DESC' : 'ASC'
-  const relCase = exactKeyword.length > 0 ? `CASE WHEN ${nameExpr} = ? THEN 0 ELSE 1 END` : '0'
-  if (exactKeyword.length > 0) relevanceArgs.push(exactKeyword)
+  const relevant = exactKeyword.length > 0
+  const relCase = relevant ? `CASE WHEN ${nameExpr} = ? THEN 0 ELSE 1 END` : '1'
+  const relIdCase = relevant ? `CASE WHEN ${nameExpr} = ? THEN d.id ELSE 0 END` : ''
   const subtypeSql =
     `CASE WHEN (d.type & 7) = 1 THEN` +
     ` CASE WHEN (d.type & 0x48020c0) != 0 THEN (d.type & 0x48020c1) ELSE (d.type & 0x31) END` +
     ` ELSE (d.type & 4294967288) END`
+  const defKeySql =
+    `CASE WHEN (d.type & 7) = 1 AND (d.type & ${CardType.LINK}) = 0` +
+    ' THEN COALESCE(d.def, -3) ELSE 0 END'
   const keyOrder = (keys: string[]): string =>
     keys
       .map((key) => `${key} ${key === 'subKey' || key === 'typeKey' ? groupDir : orderDir}`)
@@ -242,6 +263,9 @@ export function buildSearchSql(
   }
 
   const countSql = `SELECT count(*) as total` + baseWhere
+  const orderSql = relevant
+    ? `ORDER BY relKey ASC, ${relIdCase} ASC, ${orderBy}`
+    : `ORDER BY relKey ASC, ${orderBy}`
   const dataSql = `
     SELECT
       d.id, d.ot, d.alias, d.setcode, d.type, d.atk, d.def, d.level, d.race, d.attribute, d.category,
@@ -250,12 +274,18 @@ export function buildSearchSql(
       ${subtypeSql} AS subKey,
       CASE WHEN (d.type & 7) = 1 THEN COALESCE(d.level & 255, -3) ELSE 0 END AS levelKey,
       CASE WHEN (d.type & 7) = 1 THEN COALESCE(d.atk, -3) ELSE 0 END AS atkKey,
-      CASE WHEN (d.type & 7) = 1 THEN COALESCE(d.def, -3) ELSE 0 END AS defKey,
+      ${defKeySql} AS defKey,
       ${relCase} AS relKey
     ${baseWhere}
-    ORDER BY relKey ASC, ${orderBy}
+    ${orderSql}
     LIMIT ?
   `
 
-  return { countSql, dataSql, args, dataArgs: [...relevanceArgs, ...args], fetchLimit }
+  return {
+    countSql,
+    dataSql,
+    args,
+    dataArgs: relevant ? [exactKeyword, ...args, exactKeyword] : [...args],
+    fetchLimit
+  }
 }

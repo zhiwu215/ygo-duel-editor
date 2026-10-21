@@ -26,6 +26,7 @@ import { setCardDragImage } from '../../utils/cardImage'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
+import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { CardRowItem } from './CardRowItem'
 
 type AddCardTarget = Extract<InjectCommand, { op: 'add-card' }>['to']
@@ -75,6 +76,7 @@ export const CardSearchPanel: React.FC = () => {
   const { isFavorite, toggleFavorite, loadFavorites } = useFavoritesStore()
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
+  const showSearchProgress = useDelayedLoading(isLoading)
   const [localKw, setLocalKw] = useState(keyword)
   const [injectMenu, setInjectMenu] = useState<{ card: CdbCard; x: number; y: number } | null>(null)
   const injectMenuRef = useRef<HTMLDivElement>(null)
@@ -170,7 +172,6 @@ export const CardSearchPanel: React.FC = () => {
             aria-busy={isLoading}
           >
             <span>搜索</span>
-            {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           </Button>
 
           <Button
@@ -202,6 +203,9 @@ export const CardSearchPanel: React.FC = () => {
           <span>
             搜索结果: <strong className="text-foreground font-semibold">{total}</strong> 张
           </span>
+          {showSearchProgress && (
+            <Loader2 className="w-3 h-3 animate-spin text-primary" aria-hidden="true" />
+          )}
         </div>
 
         {activeFilterCount > 0 && (

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { INFINITY_VALUE, isInfiniteVal } from '@shared/index'
 import {
   parseLpExpression,
@@ -41,7 +42,6 @@ export interface CalculatorInputProps {
   size?: 'default' | 'sm'
   density?: 'default' | 'compact'
   popoverPlacement?: 'top' | 'bottom'
-  align?: 'left' | 'right'
   onCommit: (val: number | undefined) => void
 }
 
@@ -54,12 +54,12 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
   size = 'default',
   density = 'default',
   popoverPlacement = 'bottom',
-  align = 'right',
   onCommit
 }) => {
   const [isFocused, setIsFocused] = useState(false)
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const isCommittingRef = useRef(false)
 
   const isCompact = density === 'compact'
@@ -67,6 +67,51 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
   const shownValue = isFocused ? text : isInf ? '无限' : String(displayValue)
   const parseResult = parseLpExpression(shownValue, value)
   const activeOp = detectCurrentOp(shownValue)
+
+  const positionPanel = useCallback((): void => {
+    const input = inputRef.current
+    const panel = panelRef.current
+    if (!input || !panel) return
+    const rect = input.getBoundingClientRect()
+    const w = panel.offsetWidth
+    const h = panel.offsetHeight
+    const margin = 8
+    const gap = 4
+    let left = rect.right - w
+    left = Math.max(margin, Math.min(left, window.innerWidth - w - margin))
+    let top = popoverPlacement === 'top' ? rect.top - h - gap : rect.bottom + gap
+    if (popoverPlacement === 'top' && top < margin) top = rect.bottom + gap
+    if (popoverPlacement === 'bottom' && top + h > window.innerHeight - margin) {
+      const flipped = rect.top - h - gap
+      top = flipped >= margin ? flipped : Math.max(margin, window.innerHeight - h - margin)
+    }
+    panel.style.left = `${left}px`
+    panel.style.top = `${top}px`
+    panel.style.visibility = 'visible'
+  }, [popoverPlacement])
+
+  const panelRefCallback = useCallback(
+    (node: HTMLDivElement | null): void => {
+      panelRef.current = node
+      if (node) positionPanel()
+    },
+    [positionPanel]
+  )
+
+  useEffect(() => {
+    if (!isFocused) return
+    const handle = (): void => positionPanel()
+    window.addEventListener('resize', handle)
+    document.addEventListener('scroll', handle, true)
+    return () => {
+      window.removeEventListener('resize', handle)
+      document.removeEventListener('scroll', handle, true)
+    }
+  }, [isFocused, positionPanel])
+
+  useLayoutEffect(() => {
+    if (isFocused) positionPanel()
+  })
 
   const textRef = useRef(shownValue)
   useEffect(() => {
@@ -101,9 +146,6 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
     setIsFocused(false)
     inputRef.current?.blur()
   }
-
-  const isTop = popoverPlacement === 'top'
-  const isRight = align === 'right'
 
   const inputNode = (
     <input
@@ -153,135 +195,137 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
     />
   )
 
-  const opPanel = isFocused ? (
-    <div
-      onMouseDown={(e) => e.preventDefault()}
-      className={cn(
-        isCompact
-          ? 'absolute z-50 bg-popover/95 text-popover-foreground border border-border/80 shadow-xl rounded-lg px-2 py-1.5 flex flex-col gap-1 backdrop-blur-md min-w-[240px] select-none animate-in fade-in-0 zoom-in-95 duration-100'
-          : 'absolute top-full right-0 mt-1 z-50 bg-popover/95 text-popover-foreground border border-border/80 shadow-2xl rounded-lg p-2.5 flex flex-col gap-2 backdrop-blur-md min-w-[264px] select-none animate-in fade-in-0 zoom-in-95 duration-100',
-        isCompact && (isTop ? 'bottom-full mb-1' : 'top-full mt-1'),
-        isCompact && (isRight ? 'right-0' : 'left-0')
-      )}
-    >
-      <div className="flex flex-col gap-1">
+  const opPanel = isFocused
+    ? createPortal(
         <div
-          className={
-            isCompact
-              ? 'flex items-center justify-between text-[9px] text-muted-foreground font-medium px-0.5'
-              : 'flex items-center justify-between text-[10px] text-muted-foreground font-medium px-0.5'
-          }
+          ref={panelRefCallback}
+          onMouseDown={(e) => e.preventDefault()}
+          style={{ left: -9999, top: -9999, visibility: 'hidden' }}
+          className={cn(
+            'fixed z-[90] bg-popover/95 text-popover-foreground border border-border/80 shadow-2xl rounded-lg flex flex-col backdrop-blur-md select-none animate-in fade-in-0 zoom-in-95 duration-100',
+            isCompact ? 'min-w-[240px] px-2 py-1.5 gap-1' : 'min-w-[264px] p-2.5 gap-2'
+          )}
         >
-          <span>选择运算模式</span>
-          <span>{isCompact ? '输入任意数值或键入 inf' : '输入数值或键入 inf'}</span>
-        </div>
-        <div className="grid grid-cols-6 gap-1">
-          {OP_BUTTONS.map((btn) => {
-            const buttonNode = (
+          <div className="flex flex-col gap-1">
+            <div
+              className={
+                isCompact
+                  ? 'flex items-center justify-between text-[9px] text-muted-foreground font-medium px-0.5'
+                  : 'flex items-center justify-between text-[10px] text-muted-foreground font-medium px-0.5'
+              }
+            >
+              <span>选择运算模式</span>
+              <span>{isCompact ? '输入任意数值或键入 inf' : '输入数值或键入 inf'}</span>
+            </div>
+            <div className="grid grid-cols-6 gap-1">
+              {OP_BUTTONS.map((btn) => {
+                const buttonNode = (
+                  <button
+                    key={btn.op}
+                    type="button"
+                    onClick={() => {
+                      if (btn.op === 'inf') {
+                        setText('无限')
+                        textRef.current = '无限'
+                        commitValue(INFINITY_VALUE)
+                        return
+                      }
+                      const nextText = switchOperator(shownValue, btn.op, value)
+                      setText(nextText)
+                      textRef.current = nextText
+                      inputRef.current?.focus()
+                      setTimeout(() => {
+                        if (inputRef.current) {
+                          const len = inputRef.current.value.length
+                          inputRef.current.setSelectionRange(len, len)
+                        }
+                      }, 0)
+                    }}
+                    className={cn(
+                      isCompact
+                        ? 'py-0.5 text-[10px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap'
+                        : 'py-1 text-[11px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap',
+                      activeOp === btn.op
+                        ? btn.activeClass
+                        : 'border-border/60 bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {btn.label}
+                  </button>
+                )
+                return buttonNode
+              })}
+            </div>
+          </div>
+
+          <div
+            className={
+              isCompact
+                ? 'flex items-center justify-between text-[11px] font-mono px-2 py-0.5 rounded bg-muted/60 border border-border/40'
+                : 'flex items-center justify-between text-xs font-mono px-2 py-1.5 rounded bg-muted/60 border border-border/40'
+            }
+          >
+            <span
+              className={cn(
+                'text-muted-foreground truncate',
+                isCompact ? 'max-w-[120px]' : 'max-w-[125px]'
+              )}
+            >
+              {parseResult.formula}
+            </span>
+            <span
+              className={cn(
+                'font-bold shrink-0 ml-1.5',
+                parseResult.valid
+                  ? 'text-foreground'
+                  : isCompact
+                    ? 'text-muted-foreground text-[10px]'
+                    : 'text-muted-foreground text-[11px]'
+              )}
+            >
+              {parseResult.valid
+                ? `→ ${isInfiniteVal(parseResult.result) ? '无限' : parseResult.result} ${unit}`
+                : '等待输入'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between pt-1 border-t border-border/40 gap-2">
+            <span
+              className={
+                isCompact
+                  ? 'text-[9px] text-muted-foreground/75 truncate'
+                  : 'text-[10px] text-muted-foreground/75 truncate'
+              }
+            >
+              输入后按 Enter 或点击确定
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
               <button
-                key={btn.op}
                 type="button"
-                onClick={() => {
-                  if (btn.op === 'inf') {
-                    setText('无限')
-                    textRef.current = '无限'
-                    commitValue(INFINITY_VALUE)
-                    return
-                  }
-                  const nextText = switchOperator(shownValue, btn.op, value)
-                  setText(nextText)
-                  textRef.current = nextText
-                  inputRef.current?.focus()
-                  setTimeout(() => {
-                    if (inputRef.current) {
-                      const len = inputRef.current.value.length
-                      inputRef.current.setSelectionRange(len, len)
-                    }
-                  }, 0)
-                }}
+                onClick={handleCancel}
+                className="px-2 py-0.5 text-[10px] rounded border border-border/60 hover:bg-muted text-muted-foreground transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleCommit}
+                disabled={!parseResult.valid}
                 className={cn(
-                  isCompact
-                    ? 'py-0.5 text-[10px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap'
-                    : 'py-1 text-[11px] font-mono font-semibold rounded border transition-colors flex items-center justify-center whitespace-nowrap',
-                  activeOp === btn.op
-                    ? btn.activeClass
-                    : 'border-border/60 bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground'
+                  'px-2 py-0.5 text-[10px] font-bold rounded shadow-xs transition-colors',
+                  parseResult.valid
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                    : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
                 )}
               >
-                {btn.label}
+                确定
               </button>
-            )
-            return buttonNode
-          })}
-        </div>
-      </div>
-
-      <div
-        className={
-          isCompact
-            ? 'flex items-center justify-between text-[11px] font-mono px-2 py-0.5 rounded bg-muted/60 border border-border/40'
-            : 'flex items-center justify-between text-xs font-mono px-2 py-1.5 rounded bg-muted/60 border border-border/40'
-        }
-      >
-        <span
-          className={cn(
-            'text-muted-foreground truncate',
-            isCompact ? 'max-w-[120px]' : 'max-w-[125px]'
-          )}
-        >
-          {parseResult.formula}
-        </span>
-        <span
-          className={cn(
-            'font-bold shrink-0 ml-1.5',
-            parseResult.valid
-              ? 'text-foreground'
-              : isCompact
-                ? 'text-muted-foreground text-[10px]'
-                : 'text-muted-foreground text-[11px]'
-          )}
-        >
-          {parseResult.valid
-            ? `→ ${isInfiniteVal(parseResult.result) ? '无限' : parseResult.result} ${unit}`
-            : '等待输入'}
-        </span>
-      </div>
-
-      <div className="flex items-center justify-between pt-1 border-t border-border/40 gap-2">
-        <span
-          className={
-            isCompact
-              ? 'text-[9px] text-muted-foreground/75 truncate'
-              : 'text-[10px] text-muted-foreground/75 truncate'
-          }
-        >
-          输入后按 Enter 或点击确定
-        </span>
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-2 py-0.5 text-[10px] rounded border border-border/60 hover:bg-muted text-muted-foreground transition-colors"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            onClick={handleCommit}
-            disabled={!parseResult.valid}
-            className={cn(
-              'px-2 py-0.5 text-[10px] font-bold rounded shadow-xs transition-colors',
-              parseResult.valid
-                ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
-            )}
-          >
-            确定
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null
+            </div>
+          </div>
+        </div>,
+        document.body
+      )
+    : null
 
   return (
     <>

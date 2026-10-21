@@ -1,4 +1,4 @@
-import { CdbCard, CardSearchParams, NumericCompareOp } from '@shared/index'
+import { CdbCard, CardSearchParams, CardType, NumericCompareOp } from '@shared/index'
 
 export const COMPARATOR: Record<Exclude<NumericCompareOp, 'unknown'>, string> = {
   eq: '=',
@@ -52,6 +52,7 @@ export function sortCards(rows: CardSortRow[], params: CardSearchParams): CdbCar
   const steps = STEPS_BY_SORT_FIELD[params.sortField ?? 'level']
   return [...rows].sort((a, b) => {
     if (a.relKey !== b.relKey) return a.relKey - b.relKey
+    if (a.relKey === 0) return (a.id ?? 0) - (b.id ?? 0)
     if (params.sortField === 'name') {
       const cmp = Buffer.compare(
         Buffer.from(a.name ?? '', 'utf8'),
@@ -104,6 +105,6 @@ export function computeCustomCardKeys(card: CdbCard, keyword: string): CardSortR
       : card.type & 4294967288,
     levelKey: isMonster ? card.level & 255 : 0,
     atkKey: isMonster ? card.atk : 0,
-    defKey: isMonster ? card.def : 0
+    defKey: isMonster && (card.type & CardType.LINK) === 0 ? card.def : 0
   }
 }

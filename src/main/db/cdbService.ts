@@ -6,7 +6,8 @@ import {
   CardType,
   CdbLibraryInfo,
   cardPoolIdsFromOt,
-  SEARCH_POOLS
+  SEARCH_POOLS,
+  SearchPoolOption
 } from '@shared/index'
 import { CdbConnection, CdbConnections } from './cdbConnections'
 import { buildSearchSql, textSource } from './cdbSearchSql'
@@ -104,12 +105,21 @@ export class CdbService {
     }
   }
 
-  private hasPoolMask(db: CdbConnection['db'], mask: number, exact?: boolean): boolean {
-    const sql = exact
-      ? 'SELECT 1 FROM datas WHERE ot = ? LIMIT 1'
-      : 'SELECT 1 FROM datas WHERE (ot & ?) != 0 LIMIT 1'
+  private hasPoolMask(db: CdbConnection['db'], pool: SearchPoolOption): boolean {
+    const sql =
+      pool.match === 'all'
+        ? 'SELECT 1 FROM datas WHERE (ot & ?) = ? LIMIT 1'
+        : pool.match === 'only'
+          ? 'SELECT 1 FROM datas WHERE (ot & ?) != 0 AND (ot & ?) = 0 LIMIT 1'
+          : 'SELECT 1 FROM datas WHERE (ot & ?) != 0 LIMIT 1'
+    const args =
+      pool.match === 'all'
+        ? [pool.mask, pool.mask]
+        : pool.match === 'only'
+          ? [pool.mask, pool.excludeMask ?? 0]
+          : [pool.mask]
     try {
-      const row = db.prepare(sql).get(mask)
+      const row = db.prepare(sql).get(...args)
       return row !== undefined
     } catch (err) {
       console.error('[CdbService] Pool mask probe error:', err)
@@ -125,11 +135,7 @@ export class CdbService {
     }
     const availablePools: string[] = []
     for (const pool of SEARCH_POOLS) {
-      if (
-        this.connections
-          .searchableList()
-          .some((conn) => this.hasPoolMask(conn.db, pool.mask, pool.exact))
-      ) {
+      if (this.connections.searchableList().some((conn) => this.hasPoolMask(conn.db, pool))) {
         availablePools.push(pool.id)
       }
     }
@@ -184,10 +190,10 @@ export class CdbService {
         const setnames = this.getSetnames(card.setcode)
         if (setnames.length > 0) card.setnames = setnames
       }
-      if ((card.type & CardType.LINK) !== 0 && card.def > 0 && card.def <= 0xff) {
+      if ((card.type & CardType.LINK) !== 0 && card.def > 0) {
         card.markers = card.def
       }
-      const limit = this.limitMap.get(card.id)
+      const limit = this.limitMap.get(card.alias || card.id) ?? this.limitMap.get(card.id)
       if (limit) card.limit = limit
     }
     this.applyCardPools(collected)
@@ -248,10 +254,10 @@ export class CdbService {
             const sn = this.getSetnames(card.setcode)
             if (sn.length > 0) card.setnames = sn
           }
-          if ((card.type & CardType.LINK) !== 0 && card.def > 0 && card.def <= 0xff) {
+          if ((card.type & CardType.LINK) !== 0 && card.def > 0) {
             card.markers = card.def
           }
-          const lv = this.limitMap.get(card.id)
+          const lv = this.limitMap.get(card.alias || card.id) ?? this.limitMap.get(card.id)
           if (lv) card.limit = lv
           result[card.id] = card
         }

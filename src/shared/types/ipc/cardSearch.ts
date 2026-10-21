@@ -43,19 +43,7 @@ export type LimitFilter = 0 | 1 | 2 | 3
 export type NumericCompareOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | 'unknown'
 
 export type CardPoolFilter =
-  | 'any'
-  | 'ocg'
-  | 'tcg'
-  | 'ocgTcg'
-  | 'anime'
-  | 'illegal'
-  | 'tf'
-  | 'skill'
-  | 'rush'
-  | 'legend'
-  | 'zcg'
-  | 'prerelease'
-  | 'custom'
+  'any' | 'ocg' | 'tcg' | 'sc' | 'custom' | 'ocgOnly' | 'tcgOnly' | 'ocgTcg'
 
 export type CdbLibraryRole = 'data' | 'text'
 

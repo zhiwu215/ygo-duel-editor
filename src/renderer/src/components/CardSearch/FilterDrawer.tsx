@@ -1,6 +1,6 @@
 import { ScrollArea } from '../ui/scroll-area'
 import React from 'react'
-import { SlidersHorizontal, RotateCcw, CheckSquare, Square } from 'lucide-react'
+import { RotateCcw, CheckSquare, Square } from 'lucide-react'
 import {
   CardType,
   CardAttribute,
@@ -523,7 +523,6 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     >
       <div className="h-10 px-3 border-b border-border/50 flex items-center justify-between gap-1 bg-muted/20 shrink-0">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground min-w-0">
-          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
           <span className="truncate">筛选条件</span>
         </div>
         <Button

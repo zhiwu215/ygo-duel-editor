@@ -51,6 +51,6 @@ export function customCardToCdbCard(card: CustomCard): CdbCard {
     name: card.name,
     desc: card.desc,
     isCustom: true,
-    markers: isLink && card.def > 0 && card.def <= 0xff ? card.def : undefined
+    markers: isLink && card.def > 0 ? card.def : undefined
   }
 }

@@ -1,5 +1,4 @@
 import React from 'react'
-import { Loader2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '../../lib/utils'
@@ -73,7 +72,6 @@ export const FilterBand: React.FC<FilterBandProps> = ({
       className="h-6 min-w-0 flex-1 gap-1 px-2 text-xs font-semibold"
     >
       <span>搜索</span>
-      {isLoading && <Loader2 className="w-3 h-3 animate-spin" />}
     </Button>
   )
 

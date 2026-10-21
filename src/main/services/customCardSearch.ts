@@ -32,13 +32,12 @@ export function matchNumeric(
 export function matchKeyword(card: CustomCard, params: CardSearchParams): boolean {
   const keyword = (params.keyword ?? '').trim()
   if (keyword.length === 0) return true
-  if (/^\d+$/.test(keyword)) {
-    return card.id === parseInt(keyword, 10) || card.name.includes(keyword)
-  }
   for (const token of parseSearchTokens(keyword)) {
     const inName = card.name.includes(token.text)
     const inDesc = params.searchDesc !== false && card.desc.includes(token.text)
-    const matched = token.mode === 'name' ? inName : token.mode === 'set' ? false : inName || inDesc
+    const inCode = /^\d+$/.test(token.text) && card.id === Number(token.text)
+    const matched =
+      token.mode === 'name' ? inName : token.mode === 'set' ? false : inName || inDesc || inCode
     if (token.excluded ? matched : !matched) return false
   }
   return true
@@ -52,40 +51,40 @@ export function matchFilters(
   if (params.onlyFavorites) {
     if (!favorites || !favorites.includes(card.id)) return false
   }
-  if (params.type !== undefined && params.type !== 0 && (card.type & params.type) === 0) {
-    return false
-  }
-  if (params.subType !== undefined && params.subType !== 0) {
-    if (params.type === CardType.SPELL || params.type === CardType.TRAP) {
-      if (card.type !== params.subType) return false
-    } else if ((card.type & params.subType) !== params.subType) {
+  const typeMask = params.type ?? 0
+  if (typeMask !== 0 && (card.type & typeMask) === 0) return false
+
+  const subType = params.subType ?? 0
+  if (subType !== 0) {
+    if ((typeMask & (CardType.SPELL | CardType.TRAP)) !== 0) {
+      if (card.type !== subType) return false
+    } else if ((card.type & subType) !== subType) {
       return false
     }
   }
-  if (params.attribute !== undefined && params.attribute !== 0) {
-    if ((card.attribute & params.attribute) === 0) return false
+
+  if ((typeMask & CardType.MONSTER) !== 0) {
+    if (params.attribute !== undefined && params.attribute !== 0) {
+      if (card.attribute !== params.attribute) return false
+    }
+    if (params.race !== undefined && params.race !== 0) {
+      if (card.race !== params.race) return false
+    }
+    if (params.level !== undefined && params.level > 0) {
+      if (!matchNumeric(card.level & 255, params.levelOp, params.level)) return false
+    }
+    if (params.scale !== undefined) {
+      if ((card.type & CardType.PENDULUM) === 0) return false
+      if (params.scaleOp === 'unknown') return false
+      if (!matchNumeric((card.level >>> 24) & 255, params.scaleOp, params.scale)) return false
+    }
+    if (!matchNumeric(card.atk, params.atkOp, params.atk, true)) return false
+    if (params.def !== undefined || params.defOp === 'unknown') {
+      if ((card.type & CardType.LINK) !== 0) return false
+      if (!matchNumeric(card.def, params.defOp, params.def, true)) return false
+    }
   }
-  if (params.race !== undefined && params.race !== 0) {
-    if ((card.race & params.race) === 0) return false
-  }
-  if (params.level !== undefined && params.level > 0) {
-    if (!matchNumeric(card.level & 255, params.levelOp, params.level)) return false
-  }
-  if (params.scale !== undefined) {
-    if ((card.type & CardType.PENDULUM) === 0) return false
-    if (!matchNumeric((card.level >>> 24) & 255, params.scaleOp, params.scale)) return false
-  }
-  if (
-    !matchNumeric(card.atk, params.atkOp, params.atk, true) ||
-    !matchNumeric(card.def, params.defOp, params.def, true)
-  ) {
-    return false
-  }
-  if (params.atk !== undefined && params.atk >= 0 && card.atk === -2) return false
-  if ((params.def !== undefined && params.def >= 0) || params.defOp === 'unknown') {
-    if ((card.type & CardType.LINK) !== 0) return false
-    if (params.def !== undefined && params.def >= 0 && card.def === -2) return false
-  }
+
   if (params.effectCategoryMask !== undefined && params.effectCategoryMask > 0) return false
   if (params.limitFilter) return false
   if (params.markers !== undefined && params.markers !== 0) {
@@ -96,7 +95,6 @@ export function matchFilters(
   return true
 }
 
-// 自建卡补上排序键后交由 cdbService 统一排序，保持与 SQL 结果同一套规则
 export function searchCustomCardRows(
   cards: CustomCard[],
   params: CardSearchParams,

@@ -245,6 +245,10 @@ export class CdbService {
     }
   }
 
+  public getPoolSchema(): CardPoolSchema {
+    return this.ensurePoolSchema()
+  }
+
   public getSearchFilterOptions(): CardSearchFilterOptions {
     const effectCategories: CardSearchFilterOptions['effectCategories'] = []
     for (let index = 0; index < 32; index++) {
@@ -390,6 +394,9 @@ export class CdbService {
       const total = countRow?.total ?? 0
 
       const rows = db.prepare(plan.dataSql).all(...plan.dataArgs, plan.fetchLimit) as CdbCard[]
+      if (conn.customLibrary) {
+        for (const card of rows) card.isCustom = true
+      }
 
       return { cards: rows, total }
     } catch (err) {
@@ -428,6 +435,7 @@ export class CdbService {
           }
           const lv = this.limitMap.get(card.alias || card.id) ?? this.limitMap.get(card.id)
           if (lv) card.limit = lv
+          if (conn.customLibrary) card.isCustom = true
           result[card.id] = card
         }
       } catch (err) {

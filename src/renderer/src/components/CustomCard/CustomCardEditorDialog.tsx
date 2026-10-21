@@ -107,7 +107,7 @@ const CustomCardEditorBody: React.FC = () => {
     <Dialog open onOpenChange={(open) => (!open ? closeEditor() : undefined)}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto gap-3">
         <DialogHeader>
-          <DialogTitle>{editingId !== null ? '编辑自建卡' : '新建自建卡'}</DialogTitle>
+          <DialogTitle>{editingId !== null ? '编辑自定义卡片' : '新建自定义卡片'}</DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-[140px_1fr] gap-4">
@@ -115,7 +115,7 @@ const CustomCardEditorBody: React.FC = () => {
             <div className="aspect-[59/86] w-[140px] rounded-lg overflow-hidden border border-border/80 bg-black/40 shadow-md">
               <img
                 src={previewSrc}
-                alt={form.name || '自建卡'}
+                alt={form.name || '自定义卡片'}
                 className="size-full object-cover"
                 onError={(e) => {
                   const target = e.currentTarget

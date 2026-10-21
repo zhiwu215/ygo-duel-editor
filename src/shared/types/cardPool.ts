@@ -186,6 +186,10 @@ export function isLegendCard(ot: number): boolean {
   return (ot & SCOPE_LEGEND) !== 0
 }
 
+export function customPoolMask(schema: CardPoolSchema): number {
+  return schema === 'kcg' ? SCOPE_CUSTOM : CLASSIC_CUSTOM
+}
+
 export function cardScopeText(ot: number, schema: CardPoolSchema): string {
   if (ot === (SCOPE_OCG | SCOPE_TCG)) return ''
   const labels = schema === 'classic' ? CLASSIC_SCOPE_TEXT : KCG_SCOPE_TEXT

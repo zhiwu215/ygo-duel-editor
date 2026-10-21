@@ -74,7 +74,9 @@ export function ExtraCdbSection(): JSX.Element {
 
       {customSyncCdb?.exists ? (
         <div className="px-5 py-3 border-b border-border/60">
-          <div className="text-xs font-medium text-foreground/80">自建卡游戏副本（同步生成）</div>
+          <div className="text-xs font-medium text-foreground/80">
+            自定义卡片游戏副本（同步生成）
+          </div>
           <div className="text-xs text-muted-foreground break-all mt-0.5">{customSyncCdb.path}</div>
         </div>
       ) : null}

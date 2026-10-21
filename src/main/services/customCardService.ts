@@ -109,7 +109,7 @@ export class CustomCardService {
       if (cdbService.getCardById(candidate) !== null) continue
       return candidate
     }
-    throw new Error('无法生成未冲突的自建卡卡密')
+    throw new Error('无法生成未冲突的自定义卡片编号')
   }
 
   public save(input: CustomCardInput): CustomCard {
@@ -182,13 +182,13 @@ export class CustomCardService {
 
   public async pickScript(code: number): Promise<CustomCardScriptResult> {
     this.ensureLoaded()
-    if (!this.getById(code)) return { success: false, error: '自建卡不存在' }
+    if (!this.getById(code)) return { success: false, error: '自定义卡片不存在' }
     return importCustomScript(code)
   }
 
   public deleteScript(code: number): CustomCardScriptResult {
     this.ensureLoaded()
-    if (!this.getById(code)) return { success: false, error: '自建卡不存在' }
+    if (!this.getById(code)) return { success: false, error: '自定义卡片不存在' }
     return removeCustomScript(code)
   }
 

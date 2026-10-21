@@ -90,7 +90,9 @@ export function matchFilters(
     if ((card.type & CardType.LINK) === 0) return false
     if ((card.def & params.markers) !== params.markers) return false
   }
-  if (params.cardPool !== undefined && params.cardPool !== 'any') return false
+  if (params.cardPool !== undefined && params.cardPool !== 'any' && params.cardPool !== 'custom') {
+    return false
+  }
   return true
 }
 

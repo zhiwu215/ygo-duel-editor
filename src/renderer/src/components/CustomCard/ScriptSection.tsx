@@ -115,7 +115,7 @@ export const ScriptSection: React.FC<ScriptSectionProps> = ({
         {editingId === null
           ? gameDirectory
             ? '保存后脚本写入游戏目录 expansions/script（c<卡密>.lua），本编辑器与 YGOPro 均可直接读取。'
-            : '保存后可在自建卡脚本目录放置 c<卡密>.lua 让引擎执行效果；配置游戏目录后，游戏目录下的脚本同样会被读取。'
+            : '保存后可在自定义卡片脚本目录放置 c<卡密>.lua 让引擎执行效果；配置游戏目录后，游戏目录下的脚本同样会被读取。'
           : scriptInfo?.exists
             ? gameDirectory
               ? '引擎会加载该脚本，这张卡按脚本效果参与对局；脚本保存在游戏目录 expansions/script，YGOPro 可直接读取。'

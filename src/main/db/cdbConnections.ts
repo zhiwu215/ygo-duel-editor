@@ -3,12 +3,14 @@ import { existsSync, readdirSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import path from 'path'
 import { CdbLibraryRole, CdbLibrarySource } from '@shared/index'
+import { CUSTOM_CDB_NAME } from '../services/gameContent'
 
 export interface CdbConnection {
   path: string
   db: Database.Database
   role: CdbLibraryRole
   source: CdbLibrarySource
+  customLibrary: boolean
   overlayAliases: string[]
   coveredReady: boolean
   searchable: boolean
@@ -56,6 +58,7 @@ function openConnection(cdbPath: string, source: CdbLibrarySource): CdbConnectio
       db,
       role: 'data',
       source,
+      customLibrary: path.basename(cdbPath).toLowerCase() === CUSTOM_CDB_NAME,
       overlayAliases: [],
       coveredReady: false,
       searchable: true

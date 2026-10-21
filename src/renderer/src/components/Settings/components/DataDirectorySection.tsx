@@ -41,7 +41,7 @@ export function DataDirectorySection(): JSX.Element {
         description={
           current
             ? current
-            : `${defaultDir || '默认目录'}：卡组库、卡牌图鉴、自建卡、决斗档案、文本素材都存这里`
+            : `${defaultDir || '默认目录'}：卡组库、卡牌图鉴、自定义卡片、决斗档案、文本素材都存这里`
         }
       >
         <div className="flex items-center gap-1.5">
@@ -83,7 +83,7 @@ export function DataDirectorySection(): JSX.Element {
         <div className="text-xs text-muted-foreground leading-relaxed">
           <div className="font-medium text-foreground">切换时迁移现有数据</div>
           <div>
-            把当前目录里的卡组库、卡牌图鉴、自建卡、决斗档案、文本素材复制到新目录（原文件保留）。
+            把当前目录里的卡组库、卡牌图鉴、自定义卡片、决斗档案、文本素材复制到新目录（原文件保留）。
             关闭则在新目录重新开始，之后切回原目录仍能看到旧数据。
           </div>
         </div>

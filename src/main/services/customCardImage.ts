@@ -51,7 +51,7 @@ export function applyCustomCardImage(
 
 export async function pickCustomCardImage(): Promise<CustomCardPickImageResult> {
   const picked = await dialog.showOpenDialog(BrowserWindow.getFocusedWindow()!, {
-    title: '导入自建卡图',
+    title: '导入自定义卡片图片',
     properties: ['openFile'],
     filters: [
       { name: '图片', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] },
@@ -85,7 +85,7 @@ export async function pickAndApplyCustomCardImage(
   getById: (id: number) => CustomCard | null,
   onApplied: () => void
 ): Promise<CustomCardPickImageResult> {
-  if (!getById(id)) return { success: false, error: '自建卡不存在' }
+  if (!getById(id)) return { success: false, error: '自定义卡片不存在' }
   const picked = await pickCustomCardImage()
   if (!picked.success || !picked.filePath) return picked
   try {

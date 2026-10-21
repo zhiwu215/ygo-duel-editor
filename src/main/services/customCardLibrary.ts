@@ -90,11 +90,11 @@ function loadSqlJs(): Promise<SqlJsStatic> {
   return created
 }
 
-function toCardEntry(card: CustomCard): CardDataEntry {
+function toCardEntry(card: CustomCard, otMask?: number): CardDataEntry {
   const cdbCard = customCardToCdbCard(card)
   return new CardDataEntry().fromPartial({
     code: cdbCard.id,
-    ot: cdbCard.ot,
+    ot: otMask ?? cdbCard.ot,
     alias: cdbCard.alias,
     setcode: [],
     type: cdbCard.type,
@@ -110,17 +110,24 @@ function toCardEntry(card: CustomCard): CardDataEntry {
   })
 }
 
-async function writeCdb(cards: CustomCard[]): Promise<void> {
-  const cdbPath = customCdbPath()
+export async function writeCustomCardsCdb(
+  cards: CustomCard[],
+  cdbPath: string,
+  otMask?: number
+): Promise<void> {
   mkdirSync(dirname(cdbPath), { recursive: true })
   const SQL = await loadSqlJs()
   const cdb = new YGOProCdb(SQL)
   try {
-    for (const card of cards) cdb.addCard(toCardEntry(card))
+    for (const card of cards) cdb.addCard(toCardEntry(card, otMask))
     writeFileSync(cdbPath, Buffer.from(cdb.export()))
   } finally {
     cdb.finalize()
   }
+}
+
+async function writeCdb(cards: CustomCard[]): Promise<void> {
+  await writeCustomCardsCdb(cards, customCdbPath())
 }
 
 let writeQueue: Promise<void> = Promise.resolve()
@@ -207,7 +214,7 @@ export function getCustomScriptInfo(code: number): CustomCardScriptInfo {
 
 export async function importCustomScript(code: number): Promise<CustomCardScriptResult> {
   const picked = await dialog.showOpenDialog(BrowserWindow.getFocusedWindow()!, {
-    title: `导入自建卡脚本（c${code}.lua）`,
+    title: `导入自定义卡片脚本（c${code}.lua）`,
     properties: ['openFile'],
     filters: [
       { name: 'Lua 脚本', extensions: ['lua'] },

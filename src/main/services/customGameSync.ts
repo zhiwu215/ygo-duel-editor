@@ -1,9 +1,10 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from 'fs'
 import { dirname, extname, join } from 'path'
-import { CustomCardSyncResult } from '@shared/index'
+import { CustomCardSyncResult, customPoolMask } from '@shared/index'
 import { configService } from './configService'
 import { customCardService } from './customCardService'
-import { customCdbPath, getCustomScriptInfo } from './customCardLibrary'
+import { getCustomScriptInfo, writeCustomCardsCdb } from './customCardLibrary'
+import { cdbService } from '../db/cdbService'
 import { CUSTOM_CDB_NAME, invalidateGameContentScan } from './gameContent'
 import { broadcastToWindows } from './broadcast'
 
@@ -28,7 +29,7 @@ function gameImageName(code: number, source: string): string {
   return `${code}${ext === '.jpeg' ? '.jpg' : ext}`
 }
 
-export function syncCustomCardsToGame(): CustomCardSyncResult {
+export async function syncCustomCardsToGame(): Promise<CustomCardSyncResult> {
   const gameDirectory = configService.get().gameDirectory
   if (!gameDirectory) {
     return { success: false, error: '未配置游戏目录', cdb: false, scripts: 0, pics: 0 }
@@ -40,12 +41,15 @@ export function syncCustomCardsToGame(): CustomCardSyncResult {
   const result: CustomCardSyncResult = { success: true, cdb: false, scripts: 0, pics: 0 }
 
   try {
-    const sourceCdb = customCdbPath()
-    if (existsSync(sourceCdb)) {
-      result.cdb = placeFile(sourceCdb, join(expansionsDir, CUSTOM_CDB_NAME))
-    }
+    const cards = customCardService.list()
+    await writeCustomCardsCdb(
+      cards,
+      join(expansionsDir, CUSTOM_CDB_NAME),
+      customPoolMask(cdbService.getPoolSchema())
+    )
+    result.cdb = true
 
-    for (const card of customCardService.list()) {
+    for (const card of cards) {
       const script = getCustomScriptInfo(card.id)
       if (script.exists && script.path) {
         if (placeFile(script.path, join(scriptDir, script.fileName))) result.scripts++

@@ -205,7 +205,7 @@ export function buildSearchSql(
     args.push(params.effectCategoryMask)
   }
 
-  if (pool) {
+  if (pool && !(pool.id === 'custom' && conn.customLibrary)) {
     if (pool.match === 'exact') {
       baseWhere += ' AND d.ot = ?'
       args.push(pool.mask)

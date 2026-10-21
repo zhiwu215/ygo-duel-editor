@@ -117,10 +117,10 @@ export const useCardNoteStore = create<CardNoteState>((set, get) => ({
     const entry = get().entries.find((e) => e.cardCode === cardCode)
     const hasNotes = entry && (entry.chants.length > 0 || entry.notes.length > 0)
     const ok = await confirmDialog({
-      title: '删除自建卡',
+      title: '删除自定义卡片',
       description: hasNotes
-        ? `确定删除自建卡「${card.name}」吗？\n其图鉴里的召唤词与备注将一并删除。`
-        : `确定删除自建卡「${card.name}」吗？`,
+        ? `确定删除自定义卡片「${card.name}」吗？\n其图鉴里的召唤词与备注将一并删除。`
+        : `确定删除自定义卡片「${card.name}」吗？`,
       confirmText: '删除',
       destructive: true
     })
@@ -136,7 +136,7 @@ export const useCardNoteStore = create<CardNoteState>((set, get) => ({
     const removed = await remove(cardCode)
     if (removed) {
       await get().fetchAll()
-      get().notify('已删除自建卡')
+      get().notify('已删除自定义卡片')
     }
   },
 

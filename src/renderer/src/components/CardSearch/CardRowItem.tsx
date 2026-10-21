@@ -91,7 +91,7 @@ const CardRowItemBase: React.FC<CardRowItemProps> = ({
           {card.name}
           {card.isCustom && (
             <span className="ml-1 align-middle inline-flex px-1 py-px rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 text-[9px] font-bold leading-none">
-              自建
+              自定义
             </span>
           )}
         </span>

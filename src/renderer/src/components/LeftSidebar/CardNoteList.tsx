@@ -57,8 +57,8 @@ interface CardNoteListProps {
 
 const ENTRY_FILTERS: Array<{ id: EntryFilterId; label: string }> = [
   { id: 'all', label: '全部' },
-  { id: 'custom', label: '自建卡' },
-  { id: 'library', label: '卡库卡' }
+  { id: 'custom', label: '自定义卡片' },
+  { id: 'library', label: '卡库卡片' }
 ]
 
 export const CardNoteList: React.FC<CardNoteListProps> = ({
@@ -101,7 +101,7 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
     if (added.length === 0) return
     const latest = added[added.length - 1]
     setExpanded((prevExpand) => ({ ...prevExpand, [latest]: true }))
-    notify('已新增自建卡，可在下方添加召唤词或备注')
+    notify('已新增自定义卡片，可在下方添加召唤词或备注')
   }, [customCards, notify])
 
   const filtered = useMemo(
@@ -163,7 +163,7 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-foreground hover:bg-muted/70 transition-colors cursor-pointer text-left"
               >
                 <PenLine className="w-3.5 h-3.5 text-violet-500" />
-                <span>新建自建卡</span>
+                <span>新建自定义卡片</span>
               </button>
               <button
                 type="button"
@@ -229,14 +229,14 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                 {search
                   ? '没有匹配的召唤词'
                   : originFilter === 'custom'
-                    ? '还没有自建卡'
+                    ? '还没有自定义卡片'
                     : '还没有录入任何召唤词'}
               </p>
               <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
                 {search
                   ? '换个关键词试试'
                   : originFilter === 'custom'
-                    ? '点右上角「新增卡片」→「新建自建卡」。'
+                    ? '点右上角「新增卡片」→「新建自定义卡片」。'
                     : '卡库里没有召唤词和卡片备注。点右上角「新增卡片」开始。'}
               </p>
             </div>
@@ -289,7 +289,7 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                         </span>
                         {entry.isCustom && (
                           <span className="shrink-0 text-[9px] px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/25">
-                            自建
+                            自定义
                           </span>
                         )}
                         <button

@@ -59,8 +59,8 @@ export const CardDetailPanel: React.FC = () => {
   const handleDelete = async (): Promise<void> => {
     if (!currentCard?.isCustom) return
     const confirmed = await confirmDialog({
-      title: '删除自建卡',
-      description: `确定删除自建卡「${currentCard.name}」吗？已拖上场面的该卡不会受影响。`,
+      title: '删除自定义卡片',
+      description: `确定删除自定义卡片「${currentCard.name}」吗？已拖上场面的该卡不会受影响。`,
       confirmText: '删除',
       destructive: true
     })
@@ -143,7 +143,7 @@ export const CardDetailPanel: React.FC = () => {
               </span>
               {currentCard.isCustom && (
                 <span className="ml-1 px-1 py-px rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 text-[9px] font-bold shrink-0">
-                  自建
+                  自定义
                 </span>
               )}
               <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">

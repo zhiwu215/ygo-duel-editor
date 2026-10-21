@@ -101,7 +101,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const openZoneMenu = useContextMenuStore((s) => s.openZoneMenu)
   const pendingToken = useTokenStore((s) => s.pendingToken)
   const cancelPendingToken = useTokenStore((s) => s.cancelPending)
-  const { heldCardInstanceId, placeHeldCard } = useHeldCardPlacement()
+  const { hasHeldCard, placeHeldCard } = useHeldCardPlacement()
   const [isOver, setIsOver] = useState(false)
   const { cancelDeckDraw, scheduleDeckDraw } = useDeckZoneInteraction(controller)
 
@@ -157,7 +157,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   }
 
   const placeHeldCardOnSlot = (e: React.MouseEvent): boolean => {
-    if (!heldCardInstanceId) return false
+    if (!hasHeldCard) return false
     const toSequence = isPileZone
       ? location === CardLocation.DECK || location === CardLocation.EXTRA
         ? 0
@@ -198,7 +198,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
 
-      if (!isEngineActive && card && location === CardLocation.MZONE && e.altKey) {
+      if (!isEngineActive && card && location === CardLocation.MZONE) {
         if (movedInstanceId && movedInstanceId === card.instanceId) {
           return
         }
@@ -368,7 +368,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           ? 'ring-2 ring-amber-400 bg-amber-500/10 border-amber-400/60 cursor-pointer animate-pulse'
           : ''
       } ${
-        heldCardInstanceId ? 'cursor-pointer hover:ring-2 hover:ring-primary/70' : ''
+        hasHeldCard ? 'cursor-pointer hover:ring-2 hover:ring-primary/70' : ''
       } ${className}`}
     >
       {count !== undefined && count > 0 && (

@@ -2,7 +2,7 @@ import React from 'react'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { useStagingStore } from '../stores/useStagingStore'
-import { useHeldCardStore } from '../stores/useHeldCardStore'
+import { useHeldCardStore, type HeldMaterialRef } from '../stores/useHeldCardStore'
 import { getDropPosOverride } from '../utils/zoneDrop'
 
 export interface HeldCardDropTarget {
@@ -14,22 +14,37 @@ export interface HeldCardDropTarget {
 
 export interface HeldCardPlacement {
   heldCardInstanceId: string | null
+  heldMaterialRef: HeldMaterialRef | null
+  hasHeldCard: boolean
   placeHeldCard: (e: React.MouseEvent, target: HeldCardDropTarget) => boolean
 }
 
 export function useHeldCardPlacement(): HeldCardPlacement {
   const heldCardInstanceId = useHeldCardStore((s) => s.instanceId)
+  const heldMaterialRef = useHeldCardStore((s) => s.materialRef)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
   const canEditLocally = !isEngineActive || stagingActive
 
   const placeHeldCard = (e: React.MouseEvent, target: HeldCardDropTarget): boolean => {
-    const instanceId = useHeldCardStore.getState().instanceId
-    if (!instanceId) return false
+    const { instanceId, materialRef } = useHeldCardStore.getState()
+    if (!instanceId && !materialRef) return false
     e.preventDefault()
     e.stopPropagation()
     useHeldCardStore.getState().release()
     if (!canEditLocally) return true
+    if (materialRef) {
+      useDuelStore
+        .getState()
+        .detachMaterialToLocation(
+          materialRef.hostInstanceId,
+          materialRef.index,
+          target.location,
+          target.sequence
+        )
+      return true
+    }
+    if (!instanceId) return true
     const heldCard = useDuelStore.getState().state.cards.find((c) => c.instanceId === instanceId)
     if (!heldCard) return true
     useDuelStore
@@ -45,5 +60,10 @@ export function useHeldCardPlacement(): HeldCardPlacement {
     return true
   }
 
-  return { heldCardInstanceId, placeHeldCard }
+  return {
+    heldCardInstanceId,
+    heldMaterialRef,
+    hasHeldCard: heldCardInstanceId !== null || heldMaterialRef !== null,
+    placeHeldCard
+  }
 }

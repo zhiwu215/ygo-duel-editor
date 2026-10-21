@@ -14,9 +14,10 @@ interface PileCardTileProps {
   location: number
   isSelected: boolean
   dragDisabled: boolean
+  actionsDisabled?: boolean
   onSelect: (card: FieldCard) => void
   onHoverChange: (card: FieldCard, hovering: boolean) => void
-  onTogglePosition: (card: FieldCard) => void
+  onTogglePosition?: (card: FieldCard) => void
   onHold: (card: FieldCard, point: { x: number; y: number }) => void
   holdEnabled: boolean
   onRemove: (card: FieldCard) => void
@@ -29,6 +30,7 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   location,
   isSelected,
   dragDisabled,
+  actionsDisabled = false,
   onSelect,
   onHoverChange,
   onTogglePosition,
@@ -87,7 +89,7 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                onTogglePosition(card)
+                onTogglePosition?.(card)
               }}
               className={cn(
                 'px-1 rounded font-sans text-[9px] leading-[14px] border transition-colors cursor-pointer',
@@ -101,30 +103,32 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
           </span>
         )}
 
-        <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
-          {holdEnabled && (
+        {!actionsDisabled && (
+          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
+            {holdEnabled && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onHold(card, { x: e.clientX, y: e.clientY })
+                }}
+                className="p-1 rounded text-white/85 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
+              >
+                <Hand className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                onHold(card, { x: e.clientX, y: e.clientY })
+                onRemove(card)
               }}
-              className="p-1 rounded text-white/85 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
+              className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
             >
-              <Hand className="w-3.5 h-3.5" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onRemove(card)
-            }}
-            className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

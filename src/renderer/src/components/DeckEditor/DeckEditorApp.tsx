@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { DndContext, DragOverlay, MeasuringStrategy } from '@dnd-kit/core'
+import { DndContext, DragOverlay } from '@dnd-kit/core'
 import { CardUtils, CdbCard, DeckData, DeckSection } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
@@ -11,8 +11,8 @@ import { DeckSearchPanel } from './DeckSearchPanel'
 import { DeckTestHandModal } from './DeckTestHandModal'
 import { DeckEditorToolbar, NONE_GROUP_VALUE } from './DeckEditorToolbar'
 import { CardImage } from '../ui/CardImage'
-import { DROP_ANIMATION } from '../../utils/dnd'
-import { deckCollisionDetection, useDeckDnd } from '../../hooks/useDeckDnd'
+import { DROP_ANIMATION, SORTABLE_MEASURING, pointerFirstCollisionDetection } from '../../utils/dnd'
+import { useDeckDnd } from '../../hooks/useDeckDnd'
 import { useDeckDirtyGuard } from '../../hooks/useDeckDirtyGuard'
 import { useFlashMessage } from '../../hooks/useFlashMessage'
 import { useDeckFileExport } from '../../hooks/useDeckFileExport'
@@ -231,8 +231,8 @@ export const DeckEditorApp: React.FC = () => {
 
       <DndContext
         sensors={sensors}
-        collisionDetection={deckCollisionDetection}
-        measuring={{ droppable: { strategy: MeasuringStrategy.BeforeDragging } }}
+        collisionDetection={pointerFirstCollisionDetection}
+        measuring={SORTABLE_MEASURING}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}

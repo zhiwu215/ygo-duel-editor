@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { useHeldCardStore } from '../../../stores/useHeldCardStore'
 import { CardImage } from '../../ui/CardImage'
@@ -9,7 +8,7 @@ import { resolveCardName } from '../../../utils/cardNames'
 const PREVIEW_WIDTH = 64
 const PREVIEW_HEIGHT = Math.round((PREVIEW_WIDTH * 86) / 59)
 
-const HeldCardPreview: React.FC<{ card: FieldCard }> = ({ card }) => {
+const HeldCardPreview: React.FC<{ code: number }> = ({ code }) => {
   const point = useHeldCardStore((s) => s.point)
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null)
 
@@ -33,9 +32,9 @@ const HeldCardPreview: React.FC<{ card: FieldCard }> = ({ card }) => {
       }}
     >
       <CardImage
-        code={card.code}
+        code={code}
         small
-        alt={resolveCardName(card.code)}
+        alt={resolveCardName(code)}
         className="w-full h-full rounded object-cover shadow-2xl ring-2 ring-blue-400/80"
       />
     </div>,
@@ -45,13 +44,19 @@ const HeldCardPreview: React.FC<{ card: FieldCard }> = ({ card }) => {
 
 export const HeldCardOverlay: React.FC = () => {
   const instanceId = useHeldCardStore((s) => s.instanceId)
+  const materialRef = useHeldCardStore((s) => s.materialRef)
   const release = useHeldCardStore((s) => s.release)
   const card = useDuelStore((s) =>
     instanceId ? s.state.cards.find((c) => c.instanceId === instanceId) : undefined
   )
+  const materialCode = useDuelStore((s) => {
+    if (!materialRef) return undefined
+    const host = s.state.cards.find((c) => c.instanceId === materialRef.hostInstanceId)
+    return host?.overlayMaterials[materialRef.index]
+  })
 
   useEffect(() => {
-    if (!instanceId) return
+    if (!instanceId && !materialRef) return
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') release()
     }
@@ -66,13 +71,21 @@ export const HeldCardOverlay: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('contextmenu', handleContextMenu, { capture: true })
     }
-  }, [instanceId, release])
+  }, [instanceId, materialRef, release])
 
   useEffect(() => {
     if (instanceId && !card) release()
   }, [instanceId, card, release])
 
-  if (!instanceId || !card) return null
+  useEffect(() => {
+    if (materialRef && materialCode === undefined) release()
+  }, [materialRef, materialCode, release])
 
-  return <HeldCardPreview key={instanceId} card={card} />
+  const code = card?.code ?? materialCode
+  const previewKey =
+    instanceId ?? (materialRef ? `mat_${materialRef.hostInstanceId}_${materialRef.index}` : null)
+
+  if (!previewKey || code === undefined) return null
+
+  return <HeldCardPreview key={previewKey} code={code} />
 }

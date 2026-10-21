@@ -1,10 +1,11 @@
 import type { StateCreator } from 'zustand'
-import { CdbCard, CardLocation, CardPosition, CardUtils, FieldCard } from '@shared/index'
+import { CdbCard, CardLocation, CardPosition, FieldCard } from '@shared/index'
 import type { DuelStore } from './types'
 
 export interface OverlaySlice {
   addOverlayMaterial: (targetInstanceId: string, matCode: number) => void
   removeOverlayMaterial: (targetInstanceId: string, matIndex: number) => void
+  reorderOverlayMaterials: (targetInstanceId: string, fromIndex: number, toIndex: number) => void
 
   overlayOnTop: (
     targetInstanceId: string,
@@ -14,12 +15,11 @@ export interface OverlaySlice {
 
   overlayDropOnto: (hostInstanceId: string, incoming: CdbCard, sourceId?: string | null) => void
 
-  swapHostWithMaterial: (targetInstanceId: string, matIndex: number) => void
-
   detachMaterialToLocation: (
     targetInstanceId: string,
     matIndex: number,
-    targetLocation: number
+    targetLocation: number,
+    targetSequence?: number
   ) => void
 }
 
@@ -51,6 +51,30 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
             return { ...c, overlayMaterials: newMats }
           }
           return c
+        })
+      }
+    })),
+
+  reorderOverlayMaterials: (targetInstanceId, fromIndex, toIndex) =>
+    set((prev) => ({
+      state: {
+        ...prev.state,
+        cards: prev.state.cards.map((c) => {
+          if (c.instanceId !== targetInstanceId) return c
+          const total = c.overlayMaterials.length
+          if (
+            fromIndex < 0 ||
+            toIndex < 0 ||
+            fromIndex >= total ||
+            toIndex >= total ||
+            fromIndex === toIndex
+          ) {
+            return c
+          }
+          const mats = [...c.overlayMaterials]
+          const [moved] = mats.splice(fromIndex, 1)
+          mats.splice(toIndex, 0, moved)
+          return { ...c, overlayMaterials: mats }
         })
       }
     })),
@@ -99,46 +123,10 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
   overlayDropOnto: (hostInstanceId, incoming, sourceId) => {
     const host = get().state.cards.find((c) => c.instanceId === hostInstanceId)
     if (!host) return
-    const isIncomingXyz = CardUtils.isXyz(incoming.type)
-    const isExistingXyz =
-      (host.card ? CardUtils.isXyz(host.card.type) : false) ||
-      (host.overlayMaterials && host.overlayMaterials.length > 0)
-    if (isIncomingXyz || !isExistingXyz) {
-      get().overlayOnTop(hostInstanceId, incoming, sourceId || undefined)
-      return
-    }
-    if (sourceId) {
-      get().removeCard(sourceId)
-    }
-    get().addOverlayMaterial(hostInstanceId, incoming.id)
+    get().overlayOnTop(hostInstanceId, incoming, sourceId || undefined)
   },
 
-  swapHostWithMaterial: (targetInstanceId, matIndex) =>
-    set((prev) => ({
-      state: {
-        ...prev.state,
-        cards: prev.state.cards.map((c) => {
-          if (c.instanceId === targetInstanceId) {
-            if (matIndex < 0 || matIndex >= c.overlayMaterials.length) return c
-            const oldHostCode = c.code
-            const newHostCode = c.overlayMaterials[matIndex]
-            const newMats = [...c.overlayMaterials]
-
-            newMats[matIndex] = oldHostCode
-            return {
-              ...c,
-              code: newHostCode,
-
-              card: undefined,
-              overlayMaterials: newMats
-            }
-          }
-          return c
-        })
-      }
-    })),
-
-  detachMaterialToLocation: (targetInstanceId, matIndex, targetLocation) =>
+  detachMaterialToLocation: (targetInstanceId, matIndex, targetLocation, targetSequence) =>
     set((prev) => {
       const host = prev.state.cards.find((c) => c.instanceId === targetInstanceId)
       if (!host || matIndex < 0 || matIndex >= host.overlayMaterials.length) return prev
@@ -150,7 +138,25 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
       const existingPile = prev.state.cards
         .filter((c) => c.controller === host.controller && c.location === targetLocation)
         .sort((a, b) => a.sequence - b.sequence)
-      const targetSeq = existingPile.length
+      const isFieldZone =
+        targetLocation === CardLocation.MZONE ||
+        targetLocation === CardLocation.SZONE ||
+        targetLocation === CardLocation.FZONE ||
+        targetLocation === CardLocation.PZONE
+      const targetSeq =
+        isFieldZone && targetSequence !== undefined ? targetSequence : existingPile.length
+
+      if (
+        isFieldZone &&
+        prev.state.cards.some(
+          (c) =>
+            c.controller === host.controller &&
+            c.location === targetLocation &&
+            c.sequence === targetSeq
+        )
+      ) {
+        return prev
+      }
 
       const newCard: FieldCard = {
         instanceId: `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,

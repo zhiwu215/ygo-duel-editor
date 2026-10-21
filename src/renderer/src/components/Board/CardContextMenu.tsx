@@ -18,7 +18,7 @@ import {
   type MenuItemConfig
 } from '../../utils/cardMenuItems'
 import { ZoneContextMenu } from './components/ZoneContextMenu'
-import { Ghost, Zap, History, ArrowLeftRight, ListOrdered, Trash2, SquarePen } from 'lucide-react'
+import { Zap, History, ArrowLeftRight, ListOrdered, Trash2, SquarePen } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
 import { resolveDuelistDeck } from '../../utils/duelistNames'
@@ -255,12 +255,9 @@ export const CardContextMenu: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={act(() => openOverlayList(card.instanceId))}
-              className="w-full justify-between h-7 px-2 text-xs font-normal text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+              className="w-full justify-between h-7 px-2 text-xs font-normal hover:bg-accent cursor-pointer"
             >
-              <div className="flex items-center gap-2">
-                <Ghost className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span>拔除素材</span>
-              </div>
+              <span>拔除素材</span>
               <span className="font-mono text-[10px] text-muted-foreground/80">
                 {card.overlayMaterials!.length}张
               </span>
@@ -282,7 +279,7 @@ export const CardContextMenu: React.FC = () => {
               }
               openStatPopover(card.instanceId, initialPos)
             })}
-            className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+            className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal hover:bg-accent cursor-pointer"
           >
             <span>攻守与指示物 (Shift+点击)</span>
           </Button>

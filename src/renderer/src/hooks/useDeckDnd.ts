@@ -1,11 +1,8 @@
 import { useState } from 'react'
 import {
   PointerSensor,
-  pointerWithin,
-  rectIntersection,
   useSensor,
   useSensors,
-  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent
 } from '@dnd-kit/core'
@@ -23,11 +20,6 @@ interface DeckActiveDrag {
   width: number
   height: number
   source: 'search' | 'deck'
-}
-
-export const deckCollisionDetection: CollisionDetection = (args) => {
-  const hits = pointerWithin(args)
-  return hits.length > 0 ? hits : rectIntersection(args)
 }
 
 interface DeckDndActions {

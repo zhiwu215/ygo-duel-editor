@@ -1,24 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { CardLocation, CardPosition, CdbCard, FieldCard, InjectCommand } from '@shared/index'
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  KeyboardSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragOverEvent,
-  type DragStartEvent
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  arrayMove,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates
-} from '@dnd-kit/sortable'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStagingStore } from '../../stores/useStagingStore'
@@ -26,14 +7,12 @@ import { usePileListStore } from '../../stores/usePileListStore'
 import { useHeldCardStore } from '../../stores/useHeldCardStore'
 import { resolveCardName } from '../../utils/cardNames'
 import { getDropPosOverride } from '../../utils/zoneDrop'
-import { getCardImageUrl } from '../../utils/cardImage'
-import { DROP_ANIMATION } from '../../utils/dnd'
 import { useCardDataMap } from '../../hooks/useCardDataMap'
 import { Layers, Ghost, Ban, X, Search } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
-import { PileCardTile } from './components/PileCardTile'
+import { PileCardGrid } from './components/PileCardGrid'
 
 interface LocationMeta {
   name: string
@@ -75,14 +54,6 @@ const PileListContent: React.FC = () => {
   } = useDuelStore()
 
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const activeIdRef = useRef<string | null>(null)
-  const [activeTileSize, setActiveTileSize] = useState<{ width: number; height: number } | null>(
-    null
-  )
-  const [order, setOrder] = useState<string[] | null>(null)
-  const orderRef = useRef<string[] | null>(null)
-  const wasDraggingRef = useRef<boolean>(false)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
@@ -129,80 +100,8 @@ const PileListContent: React.FC = () => {
   const isFiltering = searchQuery.trim().length > 0
   const dragEnabled = !isEngineActive && !isFiltering && !stagingActive
 
-  const ids = useMemo(() => pileCards.map((c) => c.instanceId), [pileCards])
-  const displayCards = useMemo(() => {
-    if (isFiltering || !order) return filteredCards
-    const cardById = new Map(pileCards.map((c) => [c.instanceId, c]))
-    return order.map((id) => cardById.get(id)).filter((c): c is FieldCard => Boolean(c))
-  }, [isFiltering, order, filteredCards, pileCards])
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
-
-  const activeSensors = useMemo(() => (dragEnabled ? sensors : []), [dragEnabled, sensors])
-
-  const updateActiveId = useCallback((id: string | null): void => {
-    activeIdRef.current = id
-    setActiveId(id)
-  }, [])
-
-  const handleDragStart = useCallback(
-    (event: DragStartEvent): void => {
-      wasDraggingRef.current = true
-      updateActiveId(String(event.active.id))
-      const rect = event.active.rect.current.initial
-      setActiveTileSize(rect ? { width: rect.width, height: rect.height } : null)
-    },
-    [updateActiveId]
-  )
-
-  const handleDragOver = useCallback(
-    (event: DragOverEvent): void => {
-      const activeIdStr = String(event.active.id)
-      const overIdStr = event.over ? String(event.over.id) : null
-      if (!overIdStr || activeIdStr === overIdStr) return
-      const base = orderRef.current ?? ids
-      const oldIdx = base.indexOf(activeIdStr)
-      const newIdx = base.indexOf(overIdStr)
-      if (oldIdx === -1 || newIdx === -1) return
-      const next = arrayMove(base, oldIdx, newIdx)
-      orderRef.current = next
-      setOrder(next)
-    },
-    [ids]
-  )
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent): void => {
-      const activeIdStr = String(event.active.id)
-      updateActiveId(null)
-      const current = orderRef.current ?? ids
-      orderRef.current = null
-      setOrder(null)
-      if (!target) return
-      const fromIndex = ids.indexOf(activeIdStr)
-      const toIndex = current.indexOf(activeIdStr)
-      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return
-      reorderPileCards(target.controller, target.location, fromIndex, toIndex, ownerDuelist?.id)
-    },
-    [ids, target, reorderPileCards, ownerDuelist, updateActiveId]
-  )
-
-  const handleDragCancel = useCallback((): void => {
-    wasDraggingRef.current = false
-    updateActiveId(null)
-    orderRef.current = null
-    setOrder(null)
-  }, [updateActiveId])
-
   const handleSelect = useCallback(
     (card: FieldCard): void => {
-      if (wasDraggingRef.current) {
-        wasDraggingRef.current = false
-        return
-      }
       setSelectedCardId(card.instanceId)
       const detail = card.card || cardDataMap[card.code]
       if (detail) setHoveredCard(detail)
@@ -212,7 +111,6 @@ const PileListContent: React.FC = () => {
 
   const handleHoverChange = useCallback(
     (card: FieldCard, hovering: boolean): void => {
-      if (activeIdRef.current) return
       if (hovering) {
         setHoveredInstanceId(card.instanceId)
         const detail = card.card || cardDataMap[card.code]
@@ -248,8 +146,6 @@ const PileListContent: React.FC = () => {
     },
     [removeCard]
   )
-
-  const activeCard = activeId ? (state.cards.find((c) => c.instanceId === activeId) ?? null) : null
 
   useEffect(() => {
     useHeldCardStore.getState().release()
@@ -430,60 +326,28 @@ const PileListContent: React.FC = () => {
               </p>
             </div>
           ) : (
-            <DndContext
-              sensors={activeSensors}
-              collisionDetection={closestCenter}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
-              onDragCancel={handleDragCancel}
-            >
-              <SortableContext
-                items={displayCards.map((c) => c.instanceId)}
-                strategy={rectSortingStrategy}
-              >
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2.5">
-                  {displayCards.map((card, idx) => (
-                    <PileCardTile
-                      key={card.instanceId}
-                      card={card}
-                      cardName={getCardName(card.code)}
-                      index={idx}
-                      location={target.location}
-                      isSelected={selectedCardId === card.instanceId}
-                      dragDisabled={!dragEnabled}
-                      onSelect={handleSelect}
-                      onHoverChange={handleHoverChange}
-                      onTogglePosition={handleTogglePosition}
-                      onHold={handleHold}
-                      holdEnabled={!isEngineActive || stagingActive}
-                      onRemove={handleRemoveCard}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-              {createPortal(
-                <DragOverlay dropAnimation={DROP_ANIMATION} style={{ pointerEvents: 'none' }}>
-                  {activeCard ? (
-                    <div
-                      style={{
-                        width: activeTileSize?.width ?? 120,
-                        height: activeTileSize?.height ?? 176
-                      }}
-                      className="rounded overflow-hidden shadow-2xl"
-                    >
-                      <img
-                        src={getCardImageUrl(activeCard.code, true)}
-                        alt=""
-                        draggable={false}
-                        className="w-full h-full object-cover pointer-events-none"
-                      />
-                    </div>
-                  ) : null}
-                </DragOverlay>,
-                document.body
-              )}
-            </DndContext>
+            <PileCardGrid
+              cards={filteredCards}
+              dragEnabled={dragEnabled}
+              location={target.location}
+              holdEnabled={!isEngineActive || stagingActive}
+              selectedCardId={selectedCardId}
+              getCardName={(card) => getCardName(card.code)}
+              onSelect={handleSelect}
+              onHoverChange={handleHoverChange}
+              onTogglePosition={handleTogglePosition}
+              onHold={handleHold}
+              onRemove={handleRemoveCard}
+              onReorder={(fromIndex, toIndex) => {
+                reorderPileCards(
+                  target.controller,
+                  target.location,
+                  fromIndex,
+                  toIndex,
+                  ownerDuelist?.id
+                )
+              }}
+            />
           )}
         </div>
 

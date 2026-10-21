@@ -4,6 +4,7 @@ import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import { CdbCard, DeckData, DeckSection, DeckStats } from '@shared/index'
 import { DeckCardItem } from './DeckCardItem'
 import { cn } from '../../lib/utils'
+import { getCodeOccurrences } from '../../utils/cardOccurrences'
 import { useDeckGridLayout, ZONE_STACK_GAP } from '../../hooks/useDeckGridLayout'
 import { DeckZone, ZoneHeader, type TypeTally } from './DeckZoneHeader'
 import { DeckZoneFeedback } from './DeckZoneFeedback'
@@ -21,12 +22,11 @@ interface SortableCard {
 }
 
 const getSortableCards = (section: DeckSection, codes: number[]): SortableCard[] => {
-  const occurrences = new Map<number, number>()
-  return codes.map((code) => {
-    const occurrence = occurrences.get(code) ?? 0
-    occurrences.set(code, occurrence + 1)
-    return { id: `${section}:${code}:${occurrence}`, code }
-  })
+  const occurrences = getCodeOccurrences(codes)
+  return codes.map((code, index) => ({
+    id: `${section}:${code}:${occurrences[index]}`,
+    code
+  }))
 }
 
 export interface DeckFlashTarget {

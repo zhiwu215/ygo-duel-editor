@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { CardLocation, CdbCard } from '@shared/index'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { CdbCard, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { useHeldCardStore } from '../../stores/useHeldCardStore'
 import { useCardDataMap } from '../../hooks/useCardDataMap'
 import { resolveCardName } from '../../utils/cardNames'
-import { Layers, Ghost, Ban, X, Trash2, Search, ArrowUpCircle, ArrowDownToLine } from 'lucide-react'
+import { buildOverlayMaterialCards } from '../../utils/overlayMaterialCards'
+import { Layers, X, Search } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
-import { CardImage } from '../ui/CardImage'
+import { Badge } from '../ui/badge'
+import { PileCardGrid } from './components/PileCardGrid'
 
 export const OverlayListModal: React.FC = () => {
   const { hostInstanceId, closeOverlayList } = useOverlayListStore()
@@ -18,18 +20,71 @@ export const OverlayListModal: React.FC = () => {
     state,
     setHoveredCard,
     setHoveredInstanceId,
-    addOverlayMaterial,
     removeOverlayMaterial,
-    swapHostWithMaterial,
-    detachMaterialToLocation
+    reorderOverlayMaterials
   } = useDuelStore()
 
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const hostCard = hostInstanceId ? state.cards.find((c) => c.instanceId === hostInstanceId) : null
   const materials = useMemo(() => hostCard?.overlayMaterials || [], [hostCard?.overlayMaterials])
   const cardDataMap = useCardDataMap(materials)
+
+  const materialCards = useMemo<FieldCard[]>(
+    () => (hostCard ? buildOverlayMaterialCards(materials, cardDataMap, hostCard) : []),
+    [materials, cardDataMap, hostCard]
+  )
+
+  const isFiltering = searchQuery.trim().length > 0
+  const dragEnabled = !isEngineActive && !isFiltering
+
+  const filteredCards = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return materialCards
+    return materialCards.filter((c) => {
+      const name = (c.card?.name || resolveCardName(c.code)).toLowerCase()
+      return name.includes(query) || String(c.code).includes(query)
+    })
+  }, [materialCards, searchQuery])
+
+  const handleSelect = useCallback(
+    (card: FieldCard): void => {
+      const detail = card.card || cardDataMap[card.code]
+      if (detail) setHoveredCard(detail)
+    },
+    [cardDataMap, setHoveredCard]
+  )
+
+  const handleHoverChange = useCallback(
+    (card: FieldCard, hovering: boolean): void => {
+      if (hovering) {
+        const detail = card.card || cardDataMap[card.code]
+        if (detail) setHoveredCard(detail)
+      }
+    },
+    [cardDataMap, setHoveredCard]
+  )
+
+  const handleHold = useCallback(
+    (card: FieldCard, point: { x: number; y: number }): void => {
+      if (!hostCard) return
+      const index = materialCards.findIndex((c) => c.instanceId === card.instanceId)
+      if (index < 0) return
+      useHeldCardStore.getState().holdMaterial(hostCard.instanceId, index, point)
+      closeOverlayList()
+    },
+    [hostCard, materialCards, closeOverlayList]
+  )
+
+  const handleRemoveCard = useCallback(
+    (card: FieldCard): void => {
+      if (!hostCard) return
+      const index = materialCards.findIndex((c) => c.instanceId === card.instanceId)
+      if (index < 0) return
+      removeOverlayMaterial(hostCard.instanceId, index)
+    },
+    [hostCard, materialCards, removeOverlayMaterial]
+  )
 
   useEffect(() => {
     return () => {
@@ -41,13 +96,9 @@ export const OverlayListModal: React.FC = () => {
 
   const hostName = cardDataMap[hostCard.code]?.name || resolveCardName(hostCard.code)
 
-  const filteredMaterials = materials
-    .map((code, index) => ({ code, index, name: cardDataMap[code]?.name || resolveCardName(code) }))
-    .filter((item) => {
-      const q = searchQuery.trim().toLowerCase()
-      if (!q) return true
-      return item.name.toLowerCase().includes(q) || String(item.code).includes(q)
-    })
+  const isExternalDrop = (e: React.DragEvent): boolean =>
+    e.dataTransfer.types.includes('application/json') ||
+    e.dataTransfer.types.includes('text/instanceid')
 
   const handleDropNewMaterial = (e: React.DragEvent): void => {
     e.preventDefault()
@@ -59,13 +110,13 @@ export const OverlayListModal: React.FC = () => {
         const movedCard = state.cards.find((c) => c.instanceId === movedInstanceId)
         if (movedCard) {
           useDuelStore.getState().removeCard(movedInstanceId)
-          addOverlayMaterial(hostCard.instanceId, movedCard.code)
+          useDuelStore.getState().addOverlayMaterial(hostCard.instanceId, movedCard.code)
         }
       } else {
         const dataStr = e.dataTransfer.getData('application/json')
         if (dataStr) {
           const droppedCard = JSON.parse(dataStr) as CdbCard
-          addOverlayMaterial(hostCard.instanceId, droppedCard.id)
+          useDuelStore.getState().addOverlayMaterial(hostCard.instanceId, droppedCard.id)
         }
       }
     } catch (err) {
@@ -73,193 +124,99 @@ export const OverlayListModal: React.FC = () => {
     }
   }
 
-  const handleSwapHost = async (matIndex: number, matCode: number): Promise<void> => {
-    swapHostWithMaterial(hostCard.instanceId, matIndex)
-    try {
-      const cardMap = await window.api.getCardsByIds([matCode])
-      const cardData = cardMap[matCode]
-      if (cardData) {
-        useDuelStore.getState().setCardData(hostCard.instanceId, cardData)
-        setHoveredCard(cardData)
-      }
-    } catch (err) {
-      void err
-    }
-  }
-
   return (
-    <Dialog open onOpenChange={(open) => !open && closeOverlayList()}>
-      <DialogContent
-        showCloseButton={false}
-        className="w-[94vw] max-w-5xl bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] p-0"
-        onDragOver={(e) => {
-          e.preventDefault()
-          e.dataTransfer.dropEffect = 'copy'
-        }}
-        onDrop={handleDropNewMaterial}
+    <div
+      className="absolute inset-0 z-40 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-in fade-in"
+      onClick={closeOverlayList}
+    >
+      <div
+        className="bg-popover text-popover-foreground border border-border rounded-lg shadow-2xl w-full max-w-6xl max-h-[92%] flex flex-col overflow-hidden animate-in zoom-in-95 duration-100"
+        onClick={(e) => e.stopPropagation()}
       >
-        <DialogHeader className="px-5 py-3 border-b border-border bg-muted/40 flex flex-row items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30">
-              <Layers className="w-4 h-4" />
-            </div>
-            <div>
-              <DialogTitle className="font-bold text-sm text-foreground">
-                超量素材列表 — {hostName}
-              </DialogTitle>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {isEngineActive
-                  ? '引擎校验中：素材仅供查看，退出引擎后可编辑'
-                  : '可自由选择任意素材拔除至墓地、手牌或直接删除；点击「设为主怪兽」可切换置顶'}
-              </p>
-            </div>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold text-sm tracking-tight flex items-center gap-1.5">
+              <span>超量素材 — {hostName}</span>
+              <Badge variant="secondary" className="font-mono text-xs px-1.5 py-0 h-5">
+                {materials.length}
+              </Badge>
+            </h2>
+            {isEngineActive && (
+              <span className="text-[11px] text-muted-foreground">引擎校验中，素材仅供查看</span>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
-            {materials.length > 4 && (
+            {materials.length > 3 && (
               <div className="relative w-44">
-                <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="搜索素材卡名..."
-                  className="h-7 pl-8 text-xs bg-secondary/80"
+                  placeholder="搜索卡名或卡密..."
+                  className="h-7 text-xs pl-8 pr-2"
                 />
               </div>
             )}
 
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
+              type="button"
               onClick={closeOverlayList}
-              className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
-        </DialogHeader>
+        </div>
 
         <div
-          ref={scrollContainerRef}
-          className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-6 flex items-center gap-4 bg-background/50"
+          onDragOver={(e) => {
+            if (isEngineActive) return
+            if (!isExternalDrop(e)) return
+            e.preventDefault()
+            e.stopPropagation()
+            e.dataTransfer.dropEffect = 'copy'
+          }}
+          onDrop={(e) => {
+            if (isEngineActive) return
+            if (!isExternalDrop(e)) return
+            handleDropNewMaterial(e)
+          }}
+          className="relative flex-1 min-h-[300px] max-h-[66vh] overflow-y-auto overflow-x-hidden p-4 bg-muted/10"
         >
-          {materials.length === 0 ? (
-            <div className="w-full py-16 flex flex-col items-center justify-center text-muted-foreground gap-2">
-              <Layers className="w-10 h-10 opacity-30 text-amber-400" />
-              <p className="text-sm font-medium">当前怪兽暂无超量素材</p>
-              <p className="text-xs opacity-60">
-                可从右侧搜索栏拖拽卡片至此窗口，或在场上按住 Alt 键将卡片拖拽叠放
+          {filteredCards.length === 0 ? (
+            <div className="h-full min-h-[260px] w-full flex flex-col items-center justify-center text-muted-foreground py-16 text-xs gap-2 border-2 border-dashed border-border/40 rounded-lg">
+              <Layers className="w-10 h-10 opacity-30 stroke-[1.5]" />
+              <p>
+                {searchQuery
+                  ? '未找到符合条件的卡片'
+                  : '当前怪兽暂无超量素材（可从右侧搜索栏拖入卡片）'}
               </p>
             </div>
           ) : (
-            filteredMaterials.map((item) => {
-              return (
-                <div
-                  key={`mat_${item.code}_${item.index}`}
-                  onMouseEnter={() => {
-                    const card = cardDataMap[item.code]
-                    if (card) setHoveredCard(card)
-                  }}
-                  className="flex flex-col items-center gap-2 p-2.5 rounded-lg border border-border/80 bg-card/70 hover:border-amber-400/50 hover:bg-card shadow-sm transition-all shrink-0 w-[140px] group"
-                >
-                  <div className="w-full flex items-center text-[10px] px-0.5">
-                    <span className="font-mono text-muted-foreground font-semibold">
-                      #{item.index + 1}
-                    </span>
-                  </div>
-
-                  <div
-                    onClick={() => {
-                      if (isEngineActive) return
-                      detachMaterialToLocation(hostCard.instanceId, item.index, CardLocation.GRAVE)
-                    }}
-                    className="relative w-[110px] h-[160px] rounded overflow-hidden shadow border border-border bg-black/40 cursor-pointer group/img hover:ring-2 hover:ring-amber-500/80 hover:scale-[1.02] transition-all"
-                  >
-                    <CardImage
-                      code={item.code}
-                      small
-                      alt={item.name}
-                      className="w-full h-full object-cover select-none"
-                    />
-                    {!isEngineActive && (
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity backdrop-blur-[1px]">
-                        <Ghost className="w-5 h-5 text-amber-400 drop-shadow" />
-                        <span className="text-[10px] font-bold text-amber-300 drop-shadow px-1.5 py-0.5 bg-black/60 rounded">
-                          拔除至墓地
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <span className="text-xs font-semibold text-center truncate w-full text-foreground group-hover:text-primary transition-colors leading-tight">
-                    {item.name}
-                  </span>
-
-                  <div className="w-full flex flex-col gap-1 pt-1 border-t border-border/50">
-                    <div className="grid grid-cols-3 gap-1">
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        disabled={isEngineActive}
-                        onClick={() =>
-                          detachMaterialToLocation(
-                            hostCard.instanceId,
-                            item.index,
-                            CardLocation.HAND
-                          )
-                        }
-                        className="h-5 px-1 text-[9px] gap-0.5"
-                      >
-                        <ArrowDownToLine className="w-2.5 h-2.5 text-muted-foreground" />
-                        <span>手牌</span>
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        disabled={isEngineActive}
-                        onClick={() =>
-                          detachMaterialToLocation(
-                            hostCard.instanceId,
-                            item.index,
-                            CardLocation.REMOVED
-                          )
-                        }
-                        className="h-5 px-1 text-[9px] gap-0.5"
-                      >
-                        <Ban className="w-2.5 h-2.5 text-muted-foreground" />
-                        <span>除外</span>
-                      </Button>
-
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        disabled={isEngineActive}
-                        onClick={() => removeOverlayMaterial(hostCard.instanceId, item.index)}
-                        className="h-5 px-1 text-[9px] text-muted-foreground hover:text-rose-400 gap-0.5"
-                      >
-                        <Trash2 className="w-2.5 h-2.5" />
-                        <span>删除</span>
-                      </Button>
-                    </div>
-
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      disabled={isEngineActive}
-                      onClick={() => handleSwapHost(item.index, item.code)}
-                      className="w-full h-5 text-[9px] text-muted-foreground hover:text-foreground gap-1"
-                    >
-                      <ArrowUpCircle className="w-2.5 h-2.5" />
-                      <span>设为主怪兽</span>
-                    </Button>
-                  </div>
-                </div>
-              )
-            })
+            <PileCardGrid
+              cards={filteredCards}
+              dragEnabled={dragEnabled}
+              location={hostCard.location}
+              holdEnabled={!isEngineActive}
+              actionsDisabled={isEngineActive}
+              onSelect={handleSelect}
+              onHoverChange={handleHoverChange}
+              onHold={handleHold}
+              onRemove={handleRemoveCard}
+              onReorder={(fromIndex, toIndex) => {
+                reorderOverlayMaterials(hostCard.instanceId, fromIndex, toIndex)
+              }}
+            />
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <div className="flex items-center justify-end px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
+          <Button size="sm" onClick={closeOverlayList} className="px-5 h-7 text-xs">
+            确定
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -139,7 +139,7 @@ export const DuelBoard: React.FC = () => {
               </div>
 
               {ruleInfo.hasEMZ ? (
-                <div className="flex items-center gap-2 px-2.5 my-0.5">
+                <div className="flex items-center gap-2 px-2.5 my-0.5 w-[512px] justify-center shrink-0">
                   {showPhaseControls && (
                     <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
                       <PhaseStatusButton />
@@ -171,7 +171,11 @@ export const DuelBoard: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="flex items-center gap-2 px-2.5 my-0.5 w-[512px] h-[92px] justify-between px-6 shrink-0 relative">
+                <div
+                  className={`flex items-center gap-2 my-0.5 w-[512px] h-[92px] px-6 shrink-0 relative ${
+                    showPhaseControls ? 'justify-between' : 'justify-center'
+                  }`}
+                >
                   <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-border dark:bg-white/15" />
                   {showPhaseControls && (
                     <div className="relative z-10 w-[92px] flex items-center justify-center">

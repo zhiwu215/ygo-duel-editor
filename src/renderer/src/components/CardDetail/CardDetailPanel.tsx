@@ -6,8 +6,10 @@ import { confirmDialog } from '../../stores/useDialogStore'
 import {
   formatCardTypeLine,
   formatCardStatsLine,
-  formatCardSeriesLine
+  formatCardSeriesLine,
+  getLinkMarkerMask
 } from '../../utils/cardFormat'
+import { LinkMarkerArrows } from './LinkMarkerArrows'
 import { CardImage } from '../ui/CardImage'
 import { useCopyFeedback } from '../../hooks/useCopyFeedback'
 import { HelpCircle, ZoomIn, Copy, Check, Pencil, Trash2 } from 'lucide-react'
@@ -81,6 +83,7 @@ export const CardDetailPanel: React.FC = () => {
   }
 
   const statsLine = formatCardStatsLine(currentCard)
+  const linkMarkers = getLinkMarkerMask(currentCard)
   const seriesLine = formatCardSeriesLine(currentCard)
 
   return (
@@ -155,7 +158,12 @@ export const CardDetailPanel: React.FC = () => {
             <div className="flex flex-col gap-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 select-text leading-snug">
               <div>{formatCardTypeLine(currentCard)}</div>
 
-              {statsLine && <div>{statsLine}</div>}
+              {statsLine && (
+                <div className="flex items-center flex-wrap gap-x-1">
+                  <span>{statsLine}</span>
+                  {linkMarkers > 0 && <LinkMarkerArrows markers={linkMarkers} />}
+                </div>
+              )}
 
               {seriesLine && <div>{seriesLine}</div>}
             </div>

@@ -1,5 +1,7 @@
 import React, { useRef, useState } from 'react'
+import { LINK_MARKERS } from '@shared/index'
 import { cn } from '../../lib/utils'
+import { LINK_MARKER_ICONS } from '../../utils/linkMarkerIcons'
 import { usePopoverDismiss } from './usePopoverDismiss'
 
 interface LinkMarkerPopoverProps {
@@ -9,8 +11,17 @@ interface LinkMarkerPopoverProps {
   anchorRef: React.RefObject<HTMLElement | null>
 }
 
-const ORDER: number[] = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]
-const GLYPHS = ['\u2196', '\u2191', '\u2197', '\u2190', '\u2192', '\u2199', '\u2193', '\u2198']
+const GRID: Array<{ mask: number } | null> = [
+  LINK_MARKERS[0],
+  LINK_MARKERS[1],
+  LINK_MARKERS[2],
+  LINK_MARKERS[3],
+  null,
+  LINK_MARKERS[4],
+  LINK_MARKERS[5],
+  LINK_MARKERS[6],
+  LINK_MARKERS[7]
+]
 const CELL = 30
 const GAP = 2
 
@@ -21,58 +32,9 @@ export const LinkMarkerPopover: React.FC<LinkMarkerPopoverProps> = ({
   anchorRef
 }) => {
   const rootRef = useRef<HTMLDivElement>(null)
-  const [pressed, setPressed] = useState<boolean[]>(() => ORDER.map((m) => (value & m) !== 0))
+  const [pressed, setPressed] = useState<number>(value)
 
   usePopoverDismiss(rootRef, anchorRef, onClose)
-
-  const confirm = (): void => {
-    let mask = 0
-    for (let i = 0; i < ORDER.length; i += 1) {
-      if (pressed[i]) mask |= ORDER[i]
-    }
-    onConfirm(mask >>> 0)
-  }
-
-  const cellClass = (active: boolean): string =>
-    cn(
-      'flex items-center justify-center rounded-sm text-[15px] leading-none transition-colors',
-      active
-        ? 'bg-primary/20 text-primary font-bold'
-        : 'bg-neutral-500/10 text-foreground/70 hover:bg-neutral-500/25'
-    )
-
-  const cells: React.ReactNode[] = []
-  for (let row = 0; row < 3; row += 1) {
-    for (let col = 0; col < 3; col += 1) {
-      if (row === 1 && col === 1) {
-        cells.push(
-          <button
-            key="ok"
-            type="button"
-            onClick={confirm}
-            className="flex items-center justify-center rounded-sm bg-primary/15 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/25"
-            style={{ width: CELL, height: CELL }}
-          >
-            确定
-          </button>
-        )
-        continue
-      }
-      const index = row * 3 + col > 4 ? row * 3 + col - 1 : row * 3 + col
-      cells.push(
-        <button
-          key={`mark-${index}`}
-          type="button"
-          aria-pressed={pressed[index]}
-          onClick={() => setPressed((prev) => prev.map((p, i) => (i === index ? !p : p)))}
-          className={cellClass(pressed[index])}
-          style={{ width: CELL, height: CELL }}
-        >
-          {GLYPHS[index]}
-        </button>
-      )
-    }
-  }
 
   return (
     <div
@@ -80,7 +42,41 @@ export const LinkMarkerPopover: React.FC<LinkMarkerPopoverProps> = ({
       className="absolute right-0 top-full z-50 mt-1 rounded-md border border-border/70 bg-popover p-1.5 shadow-lg animate-in fade-in zoom-in-95 duration-100"
     >
       <div className="grid" style={{ gridTemplateColumns: `repeat(3, ${CELL}px)`, gap: GAP }}>
-        {cells}
+        {GRID.map((cell) =>
+          cell === null ? (
+            <button
+              key="confirm"
+              type="button"
+              onClick={() => onConfirm(pressed >>> 0)}
+              className="flex items-center justify-center rounded-sm bg-primary/15 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/25"
+              style={{ width: CELL, height: CELL }}
+            >
+              确定
+            </button>
+          ) : (
+            (() => {
+              const Icon = LINK_MARKER_ICONS[cell.mask]
+              const active = (pressed & cell.mask) !== 0
+              return (
+                <button
+                  key={cell.mask}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setPressed((prev) => prev ^ cell.mask)}
+                  className={cn(
+                    'flex items-center justify-center rounded-sm transition-colors',
+                    active
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'bg-neutral-500/10 text-foreground/70 hover:bg-neutral-500/25'
+                  )}
+                  style={{ width: CELL, height: CELL }}
+                >
+                  {Icon && <Icon className="w-4 h-4" strokeWidth={2} />}
+                </button>
+              )
+            })()
+          )
+        )}
       </div>
     </div>
   )

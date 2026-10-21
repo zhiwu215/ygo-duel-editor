@@ -6,8 +6,10 @@ import { CardImage } from '../ui/CardImage'
 import {
   formatCardTypeLine,
   formatCardStatsLine,
-  formatCardSeriesLine
+  formatCardSeriesLine,
+  getLinkMarkerMask
 } from '../../utils/cardFormat'
+import { LinkMarkerArrows } from '../CardDetail/LinkMarkerArrows'
 import { cn } from '../../lib/utils'
 import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { confirmDialog } from '../../stores/useDialogStore'
@@ -39,6 +41,7 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
 
   const typeLine = card ? formatCardTypeLine(card) : ''
   const statsLine = card && CardUtils.isMonster(card.type) ? formatCardStatsLine(card) : ''
+  const linkMarkers = card ? getLinkMarkerMask(card) : 0
   const seriesLine = card ? formatCardSeriesLine(card) : ''
 
   const handleCopyName = async (): Promise<void> => {
@@ -152,7 +155,12 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
 
                 <div className="flex flex-col gap-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 select-text leading-snug">
                   {typeLine && <div>{typeLine}</div>}
-                  {statsLine && <div>{statsLine}</div>}
+                  {statsLine && (
+                    <div className="flex items-center flex-wrap gap-x-1">
+                      <span>{statsLine}</span>
+                      {linkMarkers > 0 && <LinkMarkerArrows markers={linkMarkers} />}
+                    </div>
+                  )}
                   {seriesLine && <div>{seriesLine}</div>}
                 </div>
 

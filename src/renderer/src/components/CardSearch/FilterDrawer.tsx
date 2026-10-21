@@ -9,7 +9,7 @@ import {
   RACE_NAMES,
   CardPoolFilter,
   LimitFilter,
-  LINK_MARKERS
+  linkMarkerCount
 } from '@shared/index'
 import { CardSearchFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { Button } from '../ui/button'
@@ -133,7 +133,8 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
         : cardPool
   const limitPoolLabel =
     limitFilter !== 0 ? limitLabel : cardPool === 'any' ? NONE_LABEL : cardPoolLabel
-  const markerCount = LINK_MARKERS.filter((m) => (markers & m.mask) !== 0).length
+  const markerCount = linkMarkerCount(markers)
+  const markerLabel = '连接标记'
 
   const isAllTypes = type === 0
   const detailDisabled = isAllTypes || type === CardType.SPELL || type === CardType.TRAP
@@ -374,16 +375,15 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
         aria-pressed={markerCount > 0}
         onClick={() => setMarkerOpen((v) => !v)}
         className={cn(
-          'rounded text-[11px] leading-none transition-colors disabled:pointer-events-none disabled:opacity-35 flex items-center justify-center px-2',
+          'rounded text-[11px] leading-none transition-colors disabled:pointer-events-none disabled:opacity-35 flex items-center justify-center px-2 whitespace-nowrap overflow-hidden text-ellipsis',
           `${controlH} w-full`,
           markerCount > 0
             ? 'bg-primary/20 text-primary font-semibold'
             : 'bg-neutral-500/10 text-muted-foreground hover:bg-neutral-500/25 hover:text-foreground'
         )}
       >
-        连接标记
+        {markerLabel}
       </button>
-
       {markerOpen && (
         <LinkMarkerPopover
           value={markers}

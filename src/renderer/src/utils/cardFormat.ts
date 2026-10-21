@@ -83,6 +83,11 @@ export function formatCardSeriesLine(card: CdbCard): string | null {
   return null
 }
 
+export function getLinkMarkerMask(card: CdbCard): number {
+  if (!CardUtils.isMonster(card.type) || !CardUtils.isLink(card.type)) return 0
+  return card.markers ?? card.def ?? 0
+}
+
 export function formatSearchItemLine2(card: CdbCard): string {
   if (CardUtils.isMonster(card.type)) {
     const attr = ATTRIBUTE_NAMES[card.attribute] || '无'

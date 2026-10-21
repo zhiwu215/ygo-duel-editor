@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import { basename, join } from 'path'
 import { YGOProYrp } from 'ygopro-yrp-encode'
 import { YGOProYrp3d } from 'ygopro-yrp3d-encode'
-import { YGOProMessages, YGOProStocReplay } from 'ygopro-msg-encode'
+import { YGOProStocReplay } from 'ygopro-msg-encode'
 import {
   DuelPuzzleState,
   DuelTestSettings,
@@ -17,6 +17,7 @@ import { configService } from './configService'
 import { duelDirector } from './duel/duel-director'
 import { checkGameContentCoverage, collectStateCardIds, isGameProgramName } from './gameContent'
 import { buildYrpSingleFile, DUEL_PSEUDO_SHUFFLE } from './yrpWriter'
+import { buildYrp3dMessages } from './yrp3dMessages'
 import { sanitizeFileName, sanitizeProjectFileName } from '../utils/fileName'
 import { toErrorMessage } from '../utils/errors'
 import { completeCardDetails } from './completeCardDetails'
@@ -259,10 +260,7 @@ export class YgoproLauncher {
         yrp3d.name0 = names[0]
         yrp3d.name1 = names[1]
         yrp3d.masterRule = Number(params.state.masterRule)
-        for (const payload of messages) {
-          const message = YGOProMessages.getInstanceFromPayload(payload)
-          if (message) yrp3d.messages.push(message)
-        }
+        yrp3d.messages.push(...buildYrp3dMessages(messages))
         const stocReplay = new YGOProStocReplay()
         stocReplay.replay = embeddedYrp
         yrp3d.messages.push(stocReplay)

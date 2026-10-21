@@ -7,7 +7,8 @@ import {
   MasterRule,
   createDefaultDuelists,
   createInitialDuelState,
-  normalizeDuelState
+  normalizeDuelState,
+  swapDuelSides
 } from '@shared/index'
 import { isDuelStarted } from '../../utils/duelStart'
 import type { DuelStore } from './types'
@@ -81,26 +82,11 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
     }),
 
   swapSides: () =>
-    set((prev) => {
-      const duelists = (prev.state.duelists || []).map((d) => ({
-        ...d,
-        team: (d.team === 0 ? 1 : 0) as 0 | 1
-      }))
-      return {
-        state: {
-          ...prev.state,
-          cards: prev.state.cards.map((c) => ({
-            ...c,
-            controller: (c.controller === 0 ? 1 : 0) as 0 | 1
-          })),
-          duelists,
-          players: [prev.state.players[1], prev.state.players[0]],
-          turnPlayer: (prev.state.turnPlayer === 0 ? 1 : 0) as 0 | 1
-        },
-        selectedCardId: null,
-        expandedDuelistId: null
-      }
-    }),
+    set((prev) => ({
+      state: swapDuelSides(prev.state),
+      selectedCardId: null,
+      expandedDuelistId: null
+    })),
 
   setMasterRule: (rule) =>
     set((prev) => {

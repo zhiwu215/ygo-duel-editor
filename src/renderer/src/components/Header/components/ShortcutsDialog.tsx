@@ -25,11 +25,7 @@ export const ShortcutsDialog: React.FC<ShortcutsDialogProps> = ({ onClose }) => 
       <div className="space-y-1 text-xs">
         {[
           ['删除卡片', 'Delete / Del'],
-          ['超量叠放', '拖放到有卡的怪兽区'],
-          ['战术透视', 'Tab'],
-          ['使用 ygo 测试该局', 'Ctrl + T'],
-          ['攻守与指示物', 'Shift + 鼠标左键'],
-          ['双击卡堆', '查看卡组列表（额外/卡组/墓地/除外）'],
+          ['双击卡堆', '查看卡组列表'],
           ['切换默认放置状态', 'Ctrl + 拖放']
         ].map(([name, key]) => (
           <div key={name} className="flex justify-between py-1 border-b border-border/40">

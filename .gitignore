@@ -6,3 +6,4 @@ out
 *.log*
 *.tsbuildinfo
 scripts/smoke/*.bundle.*
+AGENTS.local.md

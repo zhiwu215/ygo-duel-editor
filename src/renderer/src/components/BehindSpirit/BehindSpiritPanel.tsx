@@ -5,6 +5,7 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { confirmDialog } from '../../stores/useDialogStore'
 import { DuelProposalSummaryCard } from './DuelProposalSummaryCard'
 import { MarkdownContent } from './MarkdownContent'
+import { MessageCopyButton } from './MessageCopyButton'
 import { ReasoningRow } from './ReasoningRow'
 import { StreamingStatus } from './StreamingStatus'
 import { ToolCallList } from './ToolCallList'
@@ -210,6 +211,12 @@ export function BehindSpiritPanel(): JSX.Element {
                         </div>
                       </div>
                     )}
+
+                    {hasContent && (
+                      <div className="flex items-center px-1">
+                        <MessageCopyButton text={msg.content} />
+                      </div>
+                    )}
                   </div>
                 )
               }
@@ -263,6 +270,12 @@ export function BehindSpiritPanel(): JSX.Element {
                         error={proposalError?.msgId === msg.id ? proposalError.text : null}
                         onApply={() => void handleApplyProposal(msg.id)}
                       />
+                    </div>
+                  )}
+
+                  {hasContent && !isActive && (
+                    <div className="flex max-w-[95%] items-center px-1">
+                      <MessageCopyButton text={msg.content} />
                     </div>
                   )}
 

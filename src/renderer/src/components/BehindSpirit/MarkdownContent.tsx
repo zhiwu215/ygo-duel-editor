@@ -1,6 +1,8 @@
-import { memo, type JSX } from 'react'
+import { memo, useMemo, type JSX } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
+import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
+import { normalizeMarkdown } from '../../utils/normalizeMarkdown'
 import { usePacedText } from './usePacedText'
 
 interface MarkdownContentProps {
@@ -152,11 +154,16 @@ function MarkdownContentImpl({
   isStreaming = false
 }: MarkdownContentProps): JSX.Element {
   const rendered = usePacedText(content, isStreaming)
+  const normalized = useMemo(() => normalizeMarkdown(rendered), [rendered])
 
   return (
     <div className={className}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>
-        {rendered}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkCjkFriendly]}
+        components={components}
+        skipHtml
+      >
+        {normalized}
       </ReactMarkdown>
     </div>
   )

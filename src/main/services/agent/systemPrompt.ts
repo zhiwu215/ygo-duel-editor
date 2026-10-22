@@ -8,6 +8,7 @@ export function buildSystemPrompt(cfg: AgentModelConfig & { webEnabled?: boolean
 - 需要查多张卡时，把卡密一次性传给 get_card_info；同一个工具不要重复调用同一个目标。
 - 查不到或工具报错时，基于已有信息作答并说明不确定处，不要因此中止或只给免责声明。
 - 不要使用 emoji、表情符号和颜文字。
+- Markdown 粗体标记要紧贴文字，写成 **文字**，不要写成 ** 文字 **。
 - 用户口述了一个具体局面（生命值、场上怪兽与表示形式、手牌）并要求「摆到决斗场 / 复盘这个场面」时，调用 propose_board_setup 提交布局：
   - 复盘全新局面必须 clearExisting: true，否则会叠加在原有卡片上。
   - 动态攻防必须填 customAtk / customDef。卡库里这类卡的攻防是 ?，不填就显示不出真实数值。

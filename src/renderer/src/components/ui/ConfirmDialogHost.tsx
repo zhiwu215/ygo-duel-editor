@@ -18,6 +18,7 @@ export const ConfirmDialogHost: React.FC<{ children: React.ReactNode }> = ({ chi
             title={request.title}
             placeholder={request.placeholder}
             confirmText={request.confirmText}
+            initialValue={request.initialValue}
             onConfirm={(text) => settle(request.id, text)}
             onCancel={() => settle(request.id, null)}
           />

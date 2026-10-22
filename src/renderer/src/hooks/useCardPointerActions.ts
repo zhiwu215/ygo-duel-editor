@@ -1,6 +1,7 @@
 import React from 'react'
-import { CardLocation, CardPosition, FieldCard, isCustomCardCode } from '@shared/index'
+import { CardLocation, CardPosition, FieldCard } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
+import { useCustomCardStore } from '../stores/useCustomCardStore'
 import { useCardCommandMenuStore } from '../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { useStagingStore } from '../stores/useStagingStore'
@@ -35,6 +36,7 @@ export function useCardPointerActions({
   const activeStatPopoverCardId = useDuelStore((s) => s.activeStatPopoverCardId)
   const statPopoverPosition = useDuelStore((s) => s.statPopoverPosition)
   const currentPhase = useDuelStore((s) => s.currentPhase)
+  const customCards = useCustomCardStore((s) => s.cards)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const stagingActive = useStagingStore((s) => s.session !== null)
@@ -113,7 +115,7 @@ export function useCardPointerActions({
     } else if (
       isEngineActive &&
       !stagingActive &&
-      isCustomCardCode(card.code) &&
+      customCards.some((entry) => entry.id === card.code) &&
       !hasCardEngineActivate(pendingRequest, card)
     ) {
       if (menuCard?.instanceId === card.instanceId) {

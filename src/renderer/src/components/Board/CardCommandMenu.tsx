@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Answer, CardLocation, CardPosition, isCustomCardCode } from '@shared/index'
+import { Answer, CardLocation, CardPosition } from '@shared/index'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStagingStore } from '../../stores/useStagingStore'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { useAttackTargetingStore } from '../../stores/useAttackTargetingStore'
 import { executeEditorAttack } from '../../utils/editorBattle'
 import { promptDialog } from '../../stores/useDialogStore'
@@ -44,6 +45,7 @@ export const CardCommandMenu: React.FC = () => {
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const cards = useDuelStore((s) => s.state.cards)
   const currentPhase = useDuelStore((s) => s.currentPhase)
+  const customCards = useCustomCardStore((s) => s.cards)
 
   const requestActions = React.useMemo(
     () => deriveCardEngineActions(pendingRequest, card),
@@ -57,7 +59,7 @@ export const CardCommandMenu: React.FC = () => {
   const canManualActivate =
     isEngine &&
     card !== null &&
-    isCustomCardCode(card.code) &&
+    customCards.some((entry) => entry.id === card.code) &&
     !hasCardEngineActivate(pendingRequest, card)
 
   const isEditorAttackable =

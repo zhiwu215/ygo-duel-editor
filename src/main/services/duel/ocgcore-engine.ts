@@ -10,7 +10,7 @@ import {
 } from 'koishipro-core.js'
 import { configService } from '../configService'
 import { readEngineCardData } from './card-reader'
-import { readCustomScript } from '../customCardLibrary'
+import { readCustomScript } from '../customCardScript'
 
 let ocgcoreInstance: OcgcoreWrapper | null = null
 let cachedScriptReaders: ScriptReader[] | null = null

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { cn } from '../../lib/utils'
+import { EffectCategoryGrid } from '../common/EffectCategoryGrid'
 import { usePopoverDismiss } from './usePopoverDismiss'
 
 interface EffectCategoryPopoverProps {
@@ -10,8 +10,6 @@ interface EffectCategoryPopoverProps {
   anchorRef: React.RefObject<HTMLElement | null>
 }
 
-const COLUMNS = 4
-
 export const EffectCategoryPopover: React.FC<EffectCategoryPopoverProps> = ({
   categories,
   value,
@@ -20,19 +18,9 @@ export const EffectCategoryPopover: React.FC<EffectCategoryPopoverProps> = ({
   anchorRef
 }) => {
   const rootRef = useRef<HTMLDivElement>(null)
-  const [checked, setChecked] = useState<boolean[]>(() =>
-    categories.map((c) => (value & c.mask) !== 0)
-  )
+  const [mask, setMask] = useState<number>(value)
 
   usePopoverDismiss(rootRef, anchorRef, onClose)
-
-  const confirm = (): void => {
-    let mask = 0
-    for (let i = 0; i < categories.length; i += 1) {
-      if (checked[i]) mask |= categories[i].mask
-    }
-    onConfirm(mask >>> 0)
-  }
 
   return (
     <div
@@ -41,47 +29,15 @@ export const EffectCategoryPopover: React.FC<EffectCategoryPopoverProps> = ({
     >
       {categories.length > 0 ? (
         <>
-          <div
-            className="grid gap-x-3 gap-y-1"
-            style={{ gridTemplateColumns: `repeat(${COLUMNS}, minmax(0, 1fr))` }}
-          >
-            {categories.map((category, index) => (
-              <button
-                key={category.mask}
-                type="button"
-                role="checkbox"
-                aria-checked={checked[index]}
-                onClick={() => setChecked((prev) => prev.map((c, i) => (i === index ? !c : c)))}
-                className="flex items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] text-foreground/85 transition-colors hover:bg-neutral-500/15"
-              >
-                <span
-                  className={cn(
-                    'flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border transition-colors',
-                    checked[index] ? 'border-primary bg-primary' : 'border-border bg-background'
-                  )}
-                >
-                  {checked[index] && (
-                    <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 text-primary-foreground">
-                      <path
-                        d="M1.5 5.2 L4 7.6 L8.5 2.6"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                </span>
-                <span className="truncate">{category.label}</span>
-              </button>
-            ))}
-          </div>
-
+          <EffectCategoryGrid
+            categories={categories}
+            value={mask}
+            onToggle={(bit) => setMask((previous) => previous ^ bit)}
+          />
           <div className="mt-2 flex justify-center border-t border-border/50 pt-2">
             <button
               type="button"
-              onClick={confirm}
+              onClick={() => onConfirm(mask >>> 0)}
               className="h-7 w-24 rounded-md bg-neutral-500/15 text-xs font-semibold text-foreground transition-colors hover:bg-neutral-500/30"
             >
               确定

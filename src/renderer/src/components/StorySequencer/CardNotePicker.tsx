@@ -1,13 +1,14 @@
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Search, Sparkles, X, Plus, Check } from 'lucide-react'
-import { CardNote, CdbCard } from '@shared/index'
+import { Check, Loader2, Plus, Search, Sparkles, X } from 'lucide-react'
+import { CardNote } from '@shared/index'
 import { CardImage } from '../ui/CardImage'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { CardNoteEditor } from '../LeftSidebar/CardNoteEditor'
 import { cn } from '../../lib/utils'
 import { useBackdropClose } from '../../hooks/useBackdropClose'
+import { useCardPickerSearch } from '../../hooks/useCardPickerSearch'
 import { alertDialog } from '../../stores/useDialogStore'
 
 interface CardNotePickerProps {
@@ -33,15 +34,8 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
   const [loading, setLoading] = useState(Boolean(cardCode))
   const [showEditor, setShowEditor] = useState(false)
   const [showSearch, setShowSearch] = useState(!cardCode)
-
-  const [keyword, setKeyword] = useState('')
-
-  const [resultState, setResultState] = useState<{ kw: string; list: CdbCard[] }>({
-    kw: '',
-    list: []
-  })
-  const [searching, setSearching] = useState(false)
-  const results = resultState.kw === keyword.trim() ? resultState.list : []
+  const { keyword, setKeyword, results, searching, loadingMore, hasSearched, loadMore } =
+    useCardPickerSearch()
 
   useEffect(() => {
     if (!code) return
@@ -63,31 +57,6 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
   }, [code])
 
   useEffect(() => {
-    if (!showSearch) return
-    const kw = keyword.trim()
-    if (!kw) return
-    let cancelled = false
-    const timer = setTimeout(() => {
-      setSearching(true)
-      window.api
-        .searchCards({ keyword: kw, limit: 20, offset: 0 })
-        .then((res) => {
-          if (!cancelled) setResultState({ kw, list: res.cards || [] })
-        })
-        .catch((err) => {
-          console.error('[CardNotePicker] 搜索卡牌失败:', err)
-        })
-        .finally(() => {
-          if (!cancelled) setSearching(false)
-        })
-    }, 250)
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [keyword, showSearch])
-
-  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.stopPropagation()
@@ -97,6 +66,11 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
+
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>): void => {
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget
+    if (scrollHeight - scrollTop - clientHeight < 240) void loadMore()
+  }
 
   const handlePick = useCallback(
     (text: string): void => {
@@ -157,51 +131,62 @@ export const CardNotePicker: React.FC<CardNotePickerProps> = ({
                     autoFocus
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
-                    placeholder="输入卡名搜索"
+                    placeholder="搜索卡名、卡密、描述、系列"
                     className="h-8 pl-8 text-xs bg-muted/40"
                   />
                 </div>
+                <p className="mt-1.5 px-0.5 text-[10px] leading-tight text-muted-foreground/75">
+                  空格同时匹配、引号短语、-排除、$仅卡名、@系列
+                </p>
               </div>
-              <ScrollArea className="flex-1 min-h-40 max-h-80">
+              <div className="flex-1 min-h-40 max-h-80 overflow-y-auto" onScroll={handleScroll}>
                 <div className="p-2">
                   {searching ? (
                     <p className="text-[11px] text-muted-foreground text-center py-8">搜索中…</p>
                   ) : results.length === 0 ? (
                     <p className="text-[11px] text-muted-foreground text-center py-8">
-                      {keyword.trim() ? '没有匹配的卡' : '先搜索卡名'}
+                      {!keyword.trim() ? '先搜索卡牌' : hasSearched ? '没有匹配的卡' : '搜索中…'}
                     </p>
                   ) : (
-                    results.map((card) => (
-                      <button
-                        key={card.id}
-                        type="button"
-                        onClick={() => {
-                          setCode(card.id)
-                          setName(`${card.name} [${card.id}]`)
-                          setShowSearch(false)
-                          setLoading(true)
-                        }}
-                        className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-primary/10 transition-colors cursor-pointer text-left"
-                      >
-                        <CardImage
-                          code={card.id}
-                          small
-                          alt={card.name}
-                          className="w-7 h-10 object-cover rounded-sm shrink-0 border border-border/60"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11px] font-medium text-foreground truncate">
-                            {card.name}
+                    <>
+                      {results.map((card) => (
+                        <button
+                          key={card.id}
+                          type="button"
+                          onClick={() => {
+                            setCode(card.id)
+                            setName(`${card.name} [${card.id}]`)
+                            setShowSearch(false)
+                            setLoading(true)
+                          }}
+                          className="w-full flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-primary/10 transition-colors cursor-pointer text-left"
+                        >
+                          <CardImage
+                            code={card.id}
+                            small
+                            alt={card.name}
+                            className="w-7 h-10 object-cover rounded-sm shrink-0 border border-border/60"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11px] font-medium text-foreground truncate">
+                              {card.name}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono">
+                              {card.id}
+                            </div>
                           </div>
-                          <div className="text-[10px] text-muted-foreground font-mono">
-                            {card.id}
-                          </div>
+                        </button>
+                      ))}
+                      {loadingMore && (
+                        <div className="py-2 flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>加载更多卡片...</span>
                         </div>
-                      </button>
-                    ))
+                      )}
+                    </>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </>
           ) : (
             <ScrollArea className="max-h-80">

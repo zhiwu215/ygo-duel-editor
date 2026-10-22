@@ -105,6 +105,7 @@ export interface CardSearchStoreState extends CardSearchFilters {
 
 const DEFAULT_FILTER_OPTIONS: CardSearchFilterOptions = {
   effectCategories: [],
+  setnames: [],
   poolSchema: 'classic',
   banlists: [],
   banlist: null

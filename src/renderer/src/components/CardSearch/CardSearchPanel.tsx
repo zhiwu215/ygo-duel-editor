@@ -208,7 +208,7 @@ export const CardSearchPanel: React.FC = () => {
           </Button>
         </div>
         <p className="mt-1.5 px-0.5 text-[10px] leading-tight text-muted-foreground/75">
-          空格同时匹配 · 引号短语 · -排除 · $仅卡名 · @系列
+          空格同时匹配、引号短语、-排除、$仅卡名、@系列
         </p>
       </form>
 

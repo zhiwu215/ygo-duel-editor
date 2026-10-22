@@ -1,9 +1,14 @@
 import { ipcMain } from 'electron'
 import { CustomCardInput } from '@shared/index'
 import { customCardService } from '../services/customCardService'
+import { customSetcodeService } from '../services/customSetcodeService'
 import { imageService } from '../services/imageService'
-import { openCustomScriptDir } from '../services/customCardLibrary'
-import { syncCustomCardsToGame } from '../services/customGameSync'
+import { openCustomScriptDir } from '../services/customCardScript'
+import {
+  cleanCustomCardsFromGame,
+  openCustomCardSyncDirectory,
+  syncCustomCardsToGame
+} from '../services/customGameSync'
 import { toErrorMessageOr } from '../utils/errors'
 
 export function registerCustomCardIpc(): void {
@@ -13,9 +18,9 @@ export function registerCustomCardIpc(): void {
 
   ipcMain.handle('customcard:save', (_, input: CustomCardInput) => {
     try {
-      const card = customCardService.save(input)
+      const result = customCardService.save(input)
       imageService.invalidateCardImageCache()
-      return { success: true, card }
+      return { success: true, ...result }
     } catch (err) {
       console.error('[registerIpc] customcard:save failed:', err)
       return { success: false, error: toErrorMessageOr(err, '保存失败') }
@@ -47,8 +52,12 @@ export function registerCustomCardIpc(): void {
     return customCardService.scriptInfo(code)
   })
 
-  ipcMain.handle('customcard:pick-script', async (_, code: number) => {
-    return customCardService.pickScript(code)
+  ipcMain.handle('customcard:pick-script-file', async () => {
+    return customCardService.pickScriptFile()
+  })
+
+  ipcMain.handle('customcard:import-script', (_, code: number, filePath: string) => {
+    return customCardService.importScript(code, filePath)
   })
 
   ipcMain.handle('customcard:delete-script', (_, code: number) => {
@@ -59,7 +68,28 @@ export function registerCustomCardIpc(): void {
     await openCustomScriptDir()
   })
 
+  ipcMain.handle('customcard:open-sync-dir', () => {
+    return openCustomCardSyncDirectory()
+  })
+
+  ipcMain.handle('customcard:list-setcodes', () => {
+    return customSetcodeService.list()
+  })
+
+  ipcMain.handle('customcard:rename-setcode', (_, codeHex: string, name: string) => {
+    try {
+      return { success: true, names: customSetcodeService.rename(codeHex, name) }
+    } catch (err) {
+      console.error('[registerIpc] customcard:rename-setcode failed:', err)
+      return { success: false, error: toErrorMessageOr(err, '保存字段名称失败') }
+    }
+  })
+
   ipcMain.handle('customcard:sync-to-game', () => {
     return syncCustomCardsToGame()
+  })
+
+  ipcMain.handle('customcard:clean-from-game', () => {
+    return cleanCustomCardsFromGame()
   })
 }

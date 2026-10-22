@@ -255,8 +255,12 @@ export class CdbService {
       const label = this.systemStringMap.get(1100 + index)
       if (label) effectCategories.push({ mask: 2 ** index, label })
     }
+    const setnames = [...this.setnameMap.entries()]
+      .map(([code, name]) => ({ code, name }))
+      .sort((left, right) => left.code - right.code)
     return {
       effectCategories,
+      setnames,
       poolSchema: this.ensurePoolSchema(),
       banlists: this.lfLists.map((list) => list.name),
       banlist: this.activeBanlist

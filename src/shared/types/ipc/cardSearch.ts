@@ -69,6 +69,7 @@ export type CdbLibraryRole = 'data' | 'text'
 
 export interface CardSearchFilterOptions {
   effectCategories: Array<{ mask: number; label: string }>
+  setnames: Array<{ code: number; name: string }>
   poolSchema: CardPoolSchema
   banlists: string[]
   banlist: string | null

@@ -1,16 +1,9 @@
-import { BrowserWindow, dialog, shell } from 'electron'
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs'
-import { basename, dirname, extname, join } from 'path'
+import { mkdirSync, writeFileSync } from 'fs'
+import { basename, dirname, join } from 'path'
 import * as sqlJsNamespace from 'sql.js'
 import type { SqlJsStatic } from 'sql.js'
 import { CardDataEntry, YGOProCdb } from 'ygopro-cdb-encode'
-import { DirScriptReader } from 'koishipro-core.js'
-import {
-  CustomCard,
-  CustomCardScriptInfo,
-  CustomCardScriptResult,
-  customCardToCdbCard
-} from '@shared/index'
+import { CustomCard, customCardToCdbCard } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
 import { CUSTOM_CDB_NAME, currentBundledCdbPaths, currentLanguagePack } from './gameContent'
@@ -18,47 +11,13 @@ import { dataDirService } from './dataDirService'
 import { broadcastToWindows } from './broadcast'
 
 const LIBRARY_DIR = 'custom'
-const SCRIPT_DIR = 'script'
-const SCRIPT_EXTENSION = '.lua'
 
-export function customLibraryDir(): string {
+function customLibraryDir(): string {
   return dataDirService.ensureDirectory(LIBRARY_DIR)
 }
 
 export function customCdbPath(): string {
   return join(customLibraryDir(), CUSTOM_CDB_NAME)
-}
-
-export function customScriptDir(): string {
-  return dataDirService.ensureDirectory(join(LIBRARY_DIR, SCRIPT_DIR))
-}
-
-export function customScriptName(code: number): string {
-  return `c${code}${SCRIPT_EXTENSION}`
-}
-
-function primaryCustomScriptDir(): string {
-  const gameDirectory = configService.get().gameDirectory
-  return gameDirectory ? join(gameDirectory, 'expansions', 'script') : customScriptDir()
-}
-
-function customScriptDirs(): string[] {
-  return configService.get().gameDirectory
-    ? [primaryCustomScriptDir(), customScriptDir()]
-    : [customScriptDir()]
-}
-
-export function customScriptPath(code: number): string {
-  return join(primaryCustomScriptDir(), customScriptName(code))
-}
-
-function findCustomScriptPath(code: number): string | null {
-  const name = customScriptName(code)
-  for (const dir of customScriptDirs()) {
-    const path = join(dir, name)
-    if (existsSync(path)) return path
-  }
-  return null
 }
 
 export function isCustomCdbPath(cdbPath: string): boolean {
@@ -90,36 +49,39 @@ function loadSqlJs(): Promise<SqlJsStatic> {
   return created
 }
 
-function toCardEntry(card: CustomCard, otMask?: number): CardDataEntry {
+function toCardEntry(card: CustomCard, customOtMask = 0): CardDataEntry {
   const cdbCard = customCardToCdbCard(card)
   return new CardDataEntry().fromPartial({
     code: cdbCard.id,
-    ot: otMask ?? cdbCard.ot,
+    ot: cdbCard.ot | customOtMask,
     alias: cdbCard.alias,
-    setcode: [],
+    setcode: card.setcode,
     type: cdbCard.type,
     attack: cdbCard.atk,
-    defense: cdbCard.def,
-    level: cdbCard.level,
+    defense: card.def,
+    level: card.level,
+    lscale: card.lscale,
+    rscale: card.rscale,
+    linkMarker: card.linkMarkers,
     race: cdbCard.race,
     attribute: cdbCard.attribute,
     category: Number(cdbCard.category),
     name: cdbCard.name,
     desc: cdbCard.desc,
-    strings: []
+    strings: card.strings
   })
 }
 
 export async function writeCustomCardsCdb(
   cards: CustomCard[],
   cdbPath: string,
-  otMask?: number
+  customOtMask?: number
 ): Promise<void> {
   mkdirSync(dirname(cdbPath), { recursive: true })
   const SQL = await loadSqlJs()
   const cdb = new YGOProCdb(SQL)
   try {
-    for (const card of cards) cdb.addCard(toCardEntry(card, otMask))
+    for (const card of cards) cdb.addCard(toCardEntry(card, customOtMask))
     writeFileSync(cdbPath, Buffer.from(cdb.export()))
   } finally {
     cdb.finalize()
@@ -171,97 +133,4 @@ function registerCustomCdb(): void {
 export function isCustomCdbLoaded(): boolean {
   const target = customCdbPath().toLowerCase()
   return cdbService.getLoadedPaths().some((p) => p.toLowerCase() === target)
-}
-
-let cachedReader: { dir: string; read: (path: string) => Uint8Array | null } | null = null
-
-export function readCustomScript(scriptPath: string): Uint8Array | null {
-  const dir = customScriptDir()
-  const root = customLibraryDir()
-  if (!cachedReader || cachedReader.dir !== dir) {
-    const raw = DirScriptReader(dir, root) as unknown as (
-      path: string
-    ) => string | Uint8Array | null | undefined
-    cachedReader = {
-      dir,
-      read: (path) => {
-        const content = raw(path)
-        if (content == null) return null
-        return typeof content === 'string' ? new TextEncoder().encode(content) : content
-      }
-    }
-  }
-  return cachedReader.read(scriptPath)
-}
-
-export function getCustomScriptInfo(code: number): CustomCardScriptInfo {
-  const path = findCustomScriptPath(code) ?? customScriptPath(code)
-  const info: CustomCardScriptInfo = {
-    code,
-    fileName: customScriptName(code),
-    path,
-    exists: false
-  }
-  try {
-    if (!existsSync(path)) return info
-    const stat = statSync(path)
-    return { ...info, exists: true, size: stat.size, updatedAt: stat.mtimeMs }
-  } catch (err) {
-    console.error('[CustomCardLibrary] Failed to stat script:', err)
-    return info
-  }
-}
-
-export async function importCustomScript(code: number): Promise<CustomCardScriptResult> {
-  const picked = await dialog.showOpenDialog(BrowserWindow.getFocusedWindow()!, {
-    title: `导入自定义卡片脚本（c${code}.lua）`,
-    properties: ['openFile'],
-    filters: [
-      { name: 'Lua 脚本', extensions: ['lua'] },
-      { name: '所有文件', extensions: ['*'] }
-    ]
-  })
-  if (picked.canceled || picked.filePaths.length === 0) return { success: false, canceled: true }
-
-  const source = picked.filePaths[0]
-  if (!existsSync(source)) return { success: false, error: '文件不存在' }
-  if (extname(source).toLowerCase() !== SCRIPT_EXTENSION) {
-    return { success: false, error: '只支持 .lua 脚本文件' }
-  }
-
-  try {
-    const content = readFileSync(source, 'utf-8').replace(/^\uFEFF/, '')
-    if (!content.trim()) return { success: false, error: '脚本内容为空' }
-    const target = customScriptPath(code)
-    mkdirSync(dirname(target), { recursive: true })
-    writeFileSync(target, content, 'utf-8')
-    return { success: true, info: getCustomScriptInfo(code) }
-  } catch (err) {
-    console.error('[CustomCardLibrary] Failed to import script:', err)
-    return { success: false, error: '脚本导入失败' }
-  }
-}
-
-export function removeCustomScript(code: number): CustomCardScriptResult {
-  try {
-    const name = customScriptName(code)
-    for (const dir of customScriptDirs()) {
-      const path = join(dir, name)
-      if (existsSync(path)) rmSync(path)
-    }
-    return { success: true, info: getCustomScriptInfo(code) }
-  } catch (err) {
-    console.error('[CustomCardLibrary] Failed to remove script:', err)
-    return { success: false, error: '脚本删除失败' }
-  }
-}
-
-export async function openCustomScriptDir(): Promise<void> {
-  try {
-    const dir = primaryCustomScriptDir()
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    await shell.openPath(dir)
-  } catch (err) {
-    console.error('[CustomCardLibrary] Failed to open script dir:', err)
-  }
 }

@@ -119,8 +119,8 @@ export const useCardNoteStore = create<CardNoteState>((set, get) => ({
     const ok = await confirmDialog({
       title: '删除自定义卡片',
       description: hasNotes
-        ? `确定删除自定义卡片「${card.name}」吗？\n其图鉴里的召唤词与备注将一并删除。`
-        : `确定删除自定义卡片「${card.name}」吗？`,
+        ? `确定删除自定义卡片「${card.name}」吗？\n其图鉴里的召唤词与备注将一并删除。\n游戏目录中的卡库和卡图会在下次同步或清理时移除。`
+        : `确定删除自定义卡片「${card.name}」吗？\n游戏目录中的卡库和卡图会在下次同步或清理时移除。`,
       confirmText: '删除',
       destructive: true
     })

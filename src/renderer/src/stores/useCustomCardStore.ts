@@ -1,19 +1,5 @@
 import { create } from 'zustand'
-import { CardType, CustomCard, CustomCardInput } from '@shared/index'
-
-export interface CustomCardEditorForm {
-  name: string
-  desc: string
-  type: number
-  attribute: number
-  race: number
-  level: string
-  scaleLeft: string
-  scaleRight: string
-  atk: string
-  def: string
-  markers: number
-}
+import { CustomCard, CustomCardInput, CustomCardSaveResult } from '@shared/index'
 
 interface CustomCardStoreState {
   cards: CustomCard[]
@@ -25,46 +11,8 @@ interface CustomCardStoreState {
   openCreate: (prefillName?: string) => void
   openEdit: (id: number) => void
   closeEditor: () => void
-  save: (input: CustomCardInput) => Promise<boolean>
+  save: (input: CustomCardInput) => Promise<CustomCardSaveResult>
   remove: (id: number) => Promise<boolean>
-}
-
-const BLANK_FORM: CustomCardEditorForm = {
-  name: '',
-  desc: '',
-  type: CardType.MONSTER | CardType.EFFECT,
-  attribute: 1,
-  race: 1,
-  level: '4',
-  scaleLeft: '',
-  scaleRight: '',
-  atk: '1000',
-  def: '1000',
-  markers: 0
-}
-
-export function editorFormFromCard(
-  card: CustomCard | undefined,
-  prefillName: string
-): CustomCardEditorForm {
-  if (!card) {
-    return { ...BLANK_FORM, name: prefillName }
-  }
-  const isLink = (card.type & CardType.LINK) !== 0
-  const isPendulum = (card.type & CardType.PENDULUM) !== 0
-  return {
-    name: card.name,
-    desc: card.desc,
-    type: card.type,
-    attribute: card.attribute,
-    race: card.race,
-    level: String(card.level & 255),
-    scaleLeft: isPendulum ? String((card.level >>> 24) & 255) : '',
-    scaleRight: isPendulum ? String((card.level >>> 16) & 255) : '',
-    atk: String(card.atk),
-    def: isLink ? '' : String(card.def),
-    markers: isLink ? card.def : 0
-  }
 }
 
 export const useCustomCardStore = create<CustomCardStoreState>((set, get) => ({
@@ -86,7 +34,7 @@ export const useCustomCardStore = create<CustomCardStoreState>((set, get) => ({
     set({ editorOpen: true, editingId: null, prefillName: prefillName }),
 
   openEdit: (id) => {
-    if (!get().cards.some((c) => c.id === id)) return
+    if (!get().cards.some((card) => card.id === id)) return
     set({ editorOpen: true, editingId: id, prefillName: '' })
   },
 
@@ -94,33 +42,33 @@ export const useCustomCardStore = create<CustomCardStoreState>((set, get) => ({
 
   save: async (input) => {
     try {
-      const res = await window.api.saveCustomCard(input)
-      if (!res.success || !res.card) {
-        console.error('[useCustomCardStore] save failed:', res.error)
-        return false
+      const result = await window.api.saveCustomCard(input)
+      if (!result.success || !result.card) {
+        console.error('[useCustomCardStore] save failed:', result.error)
+        return { success: false, error: result.error || '保存失败' }
       }
-      const card = res.card
+      const card = result.card
       set((state) => {
-        const cards = state.cards.some((c) => c.id === card.id)
-          ? state.cards.map((c) => (c.id === card.id ? card : c))
+        const cards = state.cards.some((item) => item.id === card.id)
+          ? state.cards.map((item) => (item.id === card.id ? card : item))
           : [...state.cards, card]
         return { cards }
       })
-      return true
+      return result
     } catch (err) {
       console.error('[useCustomCardStore] save failed:', err)
-      return false
+      return { success: false, error: err instanceof Error ? err.message : '保存失败' }
     }
   },
 
   remove: async (id) => {
     try {
-      const res = await window.api.deleteCustomCard(id)
-      if (!res.success) {
-        console.error('[useCustomCardStore] delete failed:', res.error)
+      const result = await window.api.deleteCustomCard(id)
+      if (!result.success) {
+        console.error('[useCustomCardStore] delete failed:', result.error)
         return false
       }
-      set((state) => ({ cards: state.cards.filter((c) => c.id !== id) }))
+      set((state) => ({ cards: state.cards.filter((card) => card.id !== id) }))
       return true
     } catch (err) {
       console.error('[useCustomCardStore] delete failed:', err)

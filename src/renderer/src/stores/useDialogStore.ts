@@ -17,6 +17,7 @@ interface DialogRequest {
   confirmText?: string
   destructive?: boolean
   extraAction?: DialogExtraAction
+  initialValue?: string
   resolve: (value: DialogValue) => void
 }
 
@@ -77,6 +78,7 @@ interface PromptDialogOptions {
   title: string
   placeholder?: string
   confirmText?: string
+  initialValue?: string
 }
 
 export function promptDialog(options: PromptDialogOptions): Promise<string | null> {

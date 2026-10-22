@@ -1,5 +1,5 @@
 import React from 'react'
-import { LINK_MARKERS } from '@shared/index'
+import { LINK_MARKERS, linkMarkerCount } from '@shared/index'
 import { Label } from '../ui/label'
 import { cn } from '../../lib/utils'
 
@@ -21,9 +21,14 @@ export const LinkArrowGrid: React.FC<LinkArrowGridProps> = ({
   onClear
 }) => {
   return (
-    <div className="flex flex-col gap-1">
-      <Label className="text-[11px] text-muted-foreground">连接箭头（至少一个）</Label>
-      <div className="grid grid-cols-3 gap-1 w-fit">
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-3">
+        <Label className="text-[11px] text-muted-foreground">连接箭头</Label>
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {linkMarkerCount(markers)} / 8
+        </span>
+      </div>
+      <div className="grid w-fit grid-cols-3 gap-1">
         {LINK_ARROW_GRID.flat().map((cell) =>
           cell === null ? (
             <button
@@ -31,11 +36,12 @@ export const LinkArrowGrid: React.FC<LinkArrowGridProps> = ({
               type="button"
               onClick={onClear}
               disabled={markers === 0}
+              title="清空连接箭头"
               className={cn(
-                'w-8 h-8 rounded border text-[10px] font-semibold transition-colors',
+                'h-9 w-9 rounded-md border text-[10px] font-semibold transition-colors',
                 markers === 0
-                  ? 'bg-secondary/40 text-muted-foreground/50 border-border cursor-not-allowed'
-                  : 'bg-secondary/60 text-muted-foreground hover:text-foreground cursor-pointer'
+                  ? 'cursor-not-allowed border-border bg-secondary/40 text-muted-foreground/50'
+                  : 'cursor-pointer border-border bg-secondary/60 text-muted-foreground hover:text-foreground'
               )}
             >
               清空
@@ -44,12 +50,13 @@ export const LinkArrowGrid: React.FC<LinkArrowGridProps> = ({
             <button
               key={cell.mask}
               type="button"
+              aria-pressed={(markers & cell.mask) !== 0}
               onClick={() => onToggleMarker(cell.mask)}
               className={cn(
-                'w-8 h-8 rounded border text-xs transition-colors',
+                'h-9 w-9 rounded-md border text-sm transition-colors',
                 (markers & cell.mask) !== 0
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-secondary/60 text-muted-foreground hover:text-foreground'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-secondary/60 text-muted-foreground hover:text-foreground'
               )}
             >
               {cell.label}

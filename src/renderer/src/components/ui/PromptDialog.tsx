@@ -16,6 +16,7 @@ interface PromptDialogProps {
   placeholder?: string
   confirmText?: string
   cancelText?: string
+  initialValue?: string
   onConfirm: (text: string) => void
   onCancel: () => void
 }
@@ -26,10 +27,11 @@ export const PromptDialog: React.FC<PromptDialogProps> = ({
   placeholder,
   confirmText = '确定',
   cancelText = '取消',
+  initialValue = '',
   onConfirm,
   onCancel
 }) => {
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initialValue)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {

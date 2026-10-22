@@ -10,7 +10,13 @@ import {
   Upload,
   Download,
   PenLine,
-  Library
+  Library,
+  ChevronDown,
+  FolderOpen,
+  Gamepad2,
+  Loader2,
+  Eraser,
+  RefreshCw
 } from 'lucide-react'
 import {
   DndContext,
@@ -31,6 +37,7 @@ import { CardImage } from '../ui/CardImage'
 import { useCardNoteStore } from '../../stores/useCardNoteStore'
 import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { useCopyFeedback } from '../../hooks/useCopyFeedback'
+import { useCustomCardGameSync } from '../../hooks/useCustomCardGameSync'
 import {
   buildDisplayEntries,
   buildSortId,
@@ -80,9 +87,11 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
     exportLibrary,
     importLibrary
   } = useCardNoteStore()
+  const { canSync, syncing, cleaning, sync, openSyncDirectory, clean } = useCustomCardGameSync()
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [gameMenuOpen, setGameMenuOpen] = useState(false)
   const [originFilter, setOriginFilter] = useState<EntryFilterId>('all')
   const { copiedField, copy } = useCopyFeedback('CardNoteApp')
 
@@ -141,6 +150,64 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
           >
             <Upload className="w-4 h-4" />
           </button>
+          <Popover open={gameMenuOpen} onOpenChange={setGameMenuOpen}>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  disabled={!canSync}
+                  title={canSync ? '自定义卡同步' : '未配置游戏目录'}
+                  aria-label="自定义卡同步"
+                  className="flex items-center gap-0.5 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:pointer-events-none disabled:opacity-40"
+                >
+                  {syncing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Gamepad2 className="w-4 h-4" />
+                  )}
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              }
+            />
+            <PopoverContent align="end" className="w-64 p-1">
+              <button
+                type="button"
+                disabled={syncing}
+                onClick={() => {
+                  setGameMenuOpen(false)
+                  void sync()
+                }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-foreground outline-none hover:bg-muted/70 focus-visible:bg-muted/70 transition-colors cursor-pointer text-left disabled:pointer-events-none disabled:opacity-40"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                <span>{syncing ? '同步中…' : '同步到游戏目录'}</span>
+              </button>
+              <button
+                type="button"
+                title="打开游戏目录下的 expansions 同步目录"
+                onClick={() => {
+                  setGameMenuOpen(false)
+                  void openSyncDirectory()
+                }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-foreground outline-none hover:bg-muted/70 focus-visible:bg-muted/70 transition-colors cursor-pointer text-left"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span>打开同步目录（expansions）</span>
+              </button>
+              <button
+                type="button"
+                disabled={cleaning}
+                onClick={() => {
+                  setGameMenuOpen(false)
+                  void clean()
+                }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-destructive outline-none hover:bg-destructive/10 focus-visible:bg-destructive/10 transition-colors cursor-pointer text-left disabled:pointer-events-none disabled:opacity-40"
+              >
+                <Eraser className={`w-3.5 h-3.5 ${cleaning ? 'animate-pulse' : ''}`} />
+                <span>{cleaning ? '清理中…' : '清理同步内容...'}</span>
+              </button>
+            </PopoverContent>
+          </Popover>
           <Popover open={addMenuOpen} onOpenChange={setAddMenuOpen}>
             <PopoverTrigger
               render={

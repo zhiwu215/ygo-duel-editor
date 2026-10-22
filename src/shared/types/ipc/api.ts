@@ -28,11 +28,14 @@ import {
 } from './cardSearch'
 import {
   CustomCardDeleteResult,
+  CustomCardOpenDirResult,
   CustomCardPickImageResult,
   CustomCardSaveResult,
   CustomCardScriptInfo,
+  CustomCardScriptPickResult,
   CustomCardScriptResult,
-  CustomCardSyncResult
+  CustomCardSyncResult,
+  CustomSetcodeNamesResult
 } from './customCard'
 import {
   AgentFetchModelsParams,
@@ -85,10 +88,15 @@ export interface IpcApi {
   pickCustomCardImage: () => Promise<CustomCardPickImageResult>
   applyCustomCardImage: (id: number) => Promise<CustomCardPickImageResult>
   getCustomCardScript: (code: number) => Promise<CustomCardScriptInfo>
-  pickCustomCardScript: (code: number) => Promise<CustomCardScriptResult>
+  pickCustomCardScriptFile: () => Promise<CustomCardScriptPickResult>
+  importCustomCardScript: (code: number, filePath: string) => Promise<CustomCardScriptResult>
   deleteCustomCardScript: (code: number) => Promise<CustomCardScriptResult>
   openCustomCardScriptDir: () => Promise<void>
+  openCustomCardSyncDir: () => Promise<CustomCardOpenDirResult>
+  getCustomSetcodeNames: () => Promise<Record<string, string>>
+  renameCustomSetcode: (codeHex: string, name: string) => Promise<CustomSetcodeNamesResult>
   syncCustomCardsToGame: () => Promise<CustomCardSyncResult>
+  cleanCustomCardsFromGame: () => Promise<CustomCardSyncResult>
   onCustomCardsUpdated: (callback: () => void) => () => void
 
   exportLuaFile: (

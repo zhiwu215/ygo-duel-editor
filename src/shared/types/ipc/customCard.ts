@@ -7,12 +7,25 @@ export interface CustomCardScriptInfo {
   exists: boolean
   size?: number
   updatedAt?: number
+  stringIds: number[]
+}
+
+export interface CustomCardScriptPickResult {
+  success: boolean
+  canceled?: boolean
+  error?: string
+  filePath?: string
+  fileName?: string
+  suggestedId?: number
+  stringIds?: number[]
+  size?: number
 }
 
 export interface CustomCardScriptResult {
   success: boolean
   canceled?: boolean
   error?: string
+  warning?: string
   info?: CustomCardScriptInfo
 }
 
@@ -20,6 +33,7 @@ export interface CustomCardSaveResult {
   success: boolean
   card?: CustomCard
   error?: string
+  warning?: string
 }
 
 export interface CustomCardDeleteResult {
@@ -35,10 +49,22 @@ export interface CustomCardPickImageResult {
   error?: string
 }
 
+export interface CustomCardOpenDirResult {
+  success: boolean
+  error?: string
+}
+
+export interface CustomSetcodeNamesResult {
+  success: boolean
+  error?: string
+  names?: Record<string, string>
+}
+
 export interface CustomCardSyncResult {
   success: boolean
   error?: string
   cdb: boolean
   scripts: number
   pics: number
+  removed: number
 }

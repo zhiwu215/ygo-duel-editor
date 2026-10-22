@@ -47,10 +47,17 @@ const api: IpcApi = {
   pickCustomCardImage: () => ipcRenderer.invoke('customcard:pick-image'),
   applyCustomCardImage: (id) => ipcRenderer.invoke('customcard:apply-image', id),
   getCustomCardScript: (code) => ipcRenderer.invoke('customcard:script-info', code),
-  pickCustomCardScript: (code) => ipcRenderer.invoke('customcard:pick-script', code),
+  pickCustomCardScriptFile: () => ipcRenderer.invoke('customcard:pick-script-file'),
+  importCustomCardScript: (code, filePath) =>
+    ipcRenderer.invoke('customcard:import-script', code, filePath),
   deleteCustomCardScript: (code) => ipcRenderer.invoke('customcard:delete-script', code),
   openCustomCardScriptDir: () => ipcRenderer.invoke('customcard:open-script-dir'),
+  openCustomCardSyncDir: () => ipcRenderer.invoke('customcard:open-sync-dir'),
+  getCustomSetcodeNames: () => ipcRenderer.invoke('customcard:list-setcodes'),
+  renameCustomSetcode: (codeHex, name) =>
+    ipcRenderer.invoke('customcard:rename-setcode', codeHex, name),
   syncCustomCardsToGame: () => ipcRenderer.invoke('customcard:sync-to-game'),
+  cleanCustomCardsFromGame: () => ipcRenderer.invoke('customcard:clean-from-game'),
   onCustomCardsUpdated: (callback) => {
     const handler = (): void => callback()
     ipcRenderer.on('custom-cards:updated', handler)

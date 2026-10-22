@@ -1,6 +1,7 @@
 import { CardSearchParams, CardType, CustomCard, CdbCard, customCardToCdbCard } from '@shared/index'
 import { parseSearchTokens } from '../db/searchTokens'
 import { computeCustomCardKeys, type CardSortRow } from '../db/cardSort'
+import { cdbService } from '../db/cdbService'
 import { isCustomCdbLoaded } from './customCardLibrary'
 
 export function matchNumeric(
@@ -34,8 +35,13 @@ export function matchKeyword(card: CustomCard, params: CardSearchParams): boolea
     const inName = card.name.includes(token.text)
     const inDesc = params.searchDesc !== false && card.desc.includes(token.text)
     const inCode = /^\d+$/.test(token.text) && card.id === Number(token.text)
+    const inSet =
+      token.mode === 'set' &&
+      cdbService
+        .getSetnames(customCardToCdbCard(card).setcode)
+        .some((name) => name.includes(token.text))
     const matched =
-      token.mode === 'name' ? inName : token.mode === 'set' ? false : inName || inDesc || inCode
+      token.mode === 'name' ? inName : token.mode === 'set' ? inSet : inName || inDesc || inCode
     if (token.excluded ? matched : !matched) return false
   }
   return true
@@ -70,12 +76,12 @@ export function matchFilters(
       if (card.race !== params.race) return false
     }
     if (params.level !== undefined && params.level > 0) {
-      if (!matchNumeric(card.level & 255, params.levelOp, params.level)) return false
+      if (!matchNumeric(card.level, params.levelOp, params.level)) return false
     }
     if (params.scale !== undefined) {
       if ((card.type & CardType.PENDULUM) === 0) return false
       if (params.scaleOp === 'unknown') return false
-      if (!matchNumeric((card.level >>> 24) & 255, params.scaleOp, params.scale)) return false
+      if (!matchNumeric(card.lscale, params.scaleOp, params.scale)) return false
     }
     if (!matchNumeric(card.atk, params.atkOp, params.atk, true)) return false
     if (params.def !== undefined || params.defOp === 'unknown') {
@@ -84,11 +90,13 @@ export function matchFilters(
     }
   }
 
-  if (params.effectCategoryMask !== undefined && params.effectCategoryMask > 0) return false
+  if (params.effectCategoryMask !== undefined && params.effectCategoryMask > 0) {
+    if ((card.category & params.effectCategoryMask) === 0) return false
+  }
   if (params.limitFilter) return false
   if (params.markers !== undefined && params.markers !== 0) {
     if ((card.type & CardType.LINK) === 0) return false
-    if ((card.def & params.markers) !== params.markers) return false
+    if ((card.linkMarkers & params.markers) !== params.markers) return false
   }
   if (params.cardPool !== undefined && params.cardPool !== 'any' && params.cardPool !== 'custom') {
     return false

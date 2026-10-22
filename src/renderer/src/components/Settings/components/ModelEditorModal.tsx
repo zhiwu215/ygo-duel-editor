@@ -1,6 +1,6 @@
 import { ScrollArea } from '../../ui/scroll-area'
 import React, { useState } from 'react'
-import { Check, ChevronRight, Loader2, Lock, X } from 'lucide-react'
+import { Check, ChevronRight, Loader2, Lock, RotateCcw, X } from 'lucide-react'
 import { AgentProviderConfig, AgentProviderModelConfig, cleanAgentApiKey } from '@shared/index'
 import { useAgentModelFetch } from '../../../hooks/useAgentModelFetch'
 import { buildAgentModelFormModel } from '../../../utils/agentModelForm'
@@ -327,19 +327,28 @@ export const ModelEditorModal: React.FC<ModelEditorModalProps> = ({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="!flex !flex-row !border-0 !bg-transparent !p-0 items-center justify-between gap-2 px-5 pb-4 pt-1">
-          <button
+        <DialogFooter className="!m-0 !flex !flex-row !bg-transparent items-center !justify-between gap-2 border-t border-border/60 !px-5 !py-3">
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={handleReset}
-            className="text-[11px] text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors"
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
           >
+            <RotateCcw className="w-3.5 h-3.5" />
             重置表单
-          </button>
+          </Button>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="h-7 px-3.5 text-xs"
+            >
               取消
             </Button>
-            <Button size="sm" onClick={handleSubmit}>
+            <Button type="button" size="sm" onClick={handleSubmit} className="h-7 px-4 text-xs">
               保存
             </Button>
           </div>

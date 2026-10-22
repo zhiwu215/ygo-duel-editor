@@ -1,6 +1,5 @@
 import type { StateCreator } from 'zustand'
 import { Duelist, MatchConfig, PlayerState, createDefaultDuelists } from '@shared/index'
-import { useStagingStore } from '../useStagingStore'
 import type { DuelStore } from './types'
 
 export interface LpFlash {
@@ -42,7 +41,6 @@ export const createLpSlice: StateCreator<DuelStore, [], [], LpSlice> = (set) => 
   lpFlash: null,
 
   setPlayerLp: (player, lp) => {
-    useStagingStore.getState().pushOp({ type: 'lp', player, value: Math.max(0, lp) })
     set((prev) => {
       const updatedLp = Math.max(0, lp)
       const previousLp = prev.state.players[player]?.lp

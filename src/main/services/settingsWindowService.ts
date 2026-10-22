@@ -7,7 +7,7 @@ import icon from '../../../resources/icon.png?asset'
 class SettingsWindowService {
   private settingsWindow: BrowserWindow | null = null
 
-  public openSettingsWindow(section: SettingsSectionId = 'appearance'): void {
+  public openSettingsWindow(section: SettingsSectionId = 'general'): void {
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
       if (this.settingsWindow.isMinimized()) {
         this.settingsWindow.restore()

@@ -12,6 +12,7 @@ import {
 import { CardSearchFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { Button } from '../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { SearchableSelect } from '../ui/searchable-select'
 import { LinkMarkerPopover } from './LinkMarkerPopover'
 import { EffectCategoryPopover } from './EffectCategoryPopover'
 import { SORT_OPTIONS } from './sortOptions'
@@ -112,8 +113,6 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
   const typeLabel = catalog.mainTypes.find((t) => t.value === type)?.label ?? NONE_LABEL
   const subTypeLabel = currentSubTypes.find((s) => s.value === subType)?.label ?? NONE_LABEL
-  const attributeLabel = catalog.attributes.find((a) => a.value === attribute)?.label ?? NONE_LABEL
-  const raceLabel = catalog.races.find((r) => r.value === race)?.label ?? NONE_LABEL
   const sortLabel = SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? SORT_OPTIONS[0].label
   const cardPoolLabel =
     cardPool === 'any'
@@ -210,25 +209,16 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
   const banlistField = (
     <FilterField label="卡表：" className={isBand ? 'flex-1 min-w-0' : undefined}>
-      <Select
+      <SearchableSelect
+        ariaLabel="卡表"
+        options={filterOptions.banlists.map((name) => ({ value: name, label: name }))}
         value={filterOptions.banlist ?? ''}
         disabled={filterOptions.banlists.length === 0}
+        className={cn(controlH, 'min-w-0 flex-1 text-xs')}
         onValueChange={(val) => {
-          if (val == null) return
           void selectBanlist(val || null)
         }}
-      >
-        <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
-          <SelectValue>{filterOptions.banlist ?? 'N/A'}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {filterOptions.banlists.map((name) => (
-            <SelectItem key={name} value={name}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      />
     </FilterField>
   )
 
@@ -280,25 +270,14 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
       disabled={detailDisabled}
       className={isBand ? 'flex-1 min-w-0' : undefined}
     >
-      <Select
+      <SearchableSelect
+        ariaLabel="属性"
+        options={catalog.attributes}
         value={attribute}
         disabled={detailDisabled}
-        onValueChange={(val) => {
-          if (val == null) return
-          setFilters({ attribute: Number(val) })
-        }}
-      >
-        <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
-          <SelectValue>{attributeLabel}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {catalog.attributes.map((a) => (
-            <SelectItem key={a.value} value={a.value}>
-              {a.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        className={cn(controlH, 'min-w-0 flex-1 text-xs')}
+        onValueChange={(next) => setFilters({ attribute: Number(next) })}
+      />
     </FilterField>
   )
 
@@ -321,25 +300,14 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
       disabled={detailDisabled}
       className={isBand ? 'flex-1 min-w-0' : undefined}
     >
-      <Select
+      <SearchableSelect
+        ariaLabel="种族"
+        options={catalog.races}
         value={race}
         disabled={detailDisabled}
-        onValueChange={(val) => {
-          if (val == null) return
-          setFilters({ race: Number(val) })
-        }}
-      >
-        <SelectTrigger size="sm" className={`${controlH} min-w-0 flex-1 text-xs`}>
-          <SelectValue>{raceLabel}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {catalog.races.map((r) => (
-            <SelectItem key={r.value} value={r.value}>
-              {r.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        className={cn(controlH, 'min-w-0 flex-1 text-xs')}
+        onValueChange={(next) => setFilters({ race: Number(next) })}
+      />
     </FilterField>
   )
 

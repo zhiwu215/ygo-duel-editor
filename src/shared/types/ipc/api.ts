@@ -1,5 +1,6 @@
 import { CdbCard } from '../card'
 import { CustomCard, CustomCardInput } from '../customCard'
+import type { CustomCardScriptGenerateResult, CustomScriptTestReport } from '../customCardScript'
 import { DuelPuzzleState } from '../duel'
 import { DuelStep } from '../story'
 import { DeckData, DeckLibrary } from '../deck'
@@ -84,13 +85,25 @@ export interface IpcApi {
 
   listCustomCards: () => Promise<CustomCard[]>
   saveCustomCard: (input: CustomCardInput) => Promise<CustomCardSaveResult>
+  allocateCustomCardId: () => Promise<number>
   deleteCustomCard: (id: number) => Promise<CustomCardDeleteResult>
   pickCustomCardImage: () => Promise<CustomCardPickImageResult>
   applyCustomCardImage: (id: number) => Promise<CustomCardPickImageResult>
   getCustomCardScript: (code: number) => Promise<CustomCardScriptInfo>
+  readCustomCardScriptContent: (code: number) => Promise<string | null>
   pickCustomCardScriptFile: () => Promise<CustomCardScriptPickResult>
   importCustomCardScript: (code: number, filePath: string) => Promise<CustomCardScriptResult>
   deleteCustomCardScript: (code: number) => Promise<CustomCardScriptResult>
+  testCustomCardScript: (input: {
+    card: CustomCard
+    script: string
+    plan?: unknown
+  }) => Promise<CustomScriptTestReport>
+  generateCustomCardScript: (input: {
+    card: CustomCard
+    existingScript?: string
+  }) => Promise<CustomCardScriptGenerateResult>
+  saveCustomCardScriptContent: (code: number, content: string) => Promise<CustomCardScriptResult>
   openCustomCardScriptDir: () => Promise<void>
   openCustomCardSyncDir: () => Promise<CustomCardOpenDirResult>
   getCustomSetcodeNames: () => Promise<Record<string, string>>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-const DEFAULT_INTERVAL_MS = 60
+const DEFAULT_INTERVAL_MS = 50
 
 export function usePacedText(
   value: string,
@@ -8,20 +8,19 @@ export function usePacedText(
   intervalMs = DEFAULT_INTERVAL_MS
 ): string {
   const [paced, setPaced] = useState(value)
-  const lastFlushRef = useRef(0)
+  const latestRef = useRef(value)
 
   useEffect(() => {
-    if (!active || value === paced) return
-    const elapsed = Date.now() - lastFlushRef.current
-    const timer = window.setTimeout(
-      () => {
-        lastFlushRef.current = Date.now()
-        setPaced(value)
-      },
-      elapsed >= intervalMs ? 0 : intervalMs - elapsed
-    )
-    return () => window.clearTimeout(timer)
-  }, [active, intervalMs, paced, value])
+    latestRef.current = value
+  }, [value])
+
+  useEffect(() => {
+    if (!active) return
+    const timer = window.setInterval(() => {
+      setPaced((current) => (current === latestRef.current ? current : latestRef.current))
+    }, intervalMs)
+    return () => window.clearInterval(timer)
+  }, [active, intervalMs])
 
   return active ? paced : value
 }

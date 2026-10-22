@@ -12,14 +12,16 @@ import {
   Ghost,
   Ban,
   Layers,
-  X
+  X,
+  Plus,
+  Swords
 } from 'lucide-react'
 import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
+import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { useStagingStore } from '../../stores/useStagingStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { InjectCommand, CdbCard, CardLocation } from '@shared/index'
+import { InjectCommand, CdbCard, CardType, CardUtils } from '@shared/index'
 import { setCardDragImage } from '../../utils/cardImage'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
@@ -42,13 +44,17 @@ const INJECT_MENU_ITEMS: {
   { label: '加入额外卡组', to: 'extra', icon: Layers }
 ]
 
-const TARGET_PLACEMENT: Partial<Record<AddCardTarget, { location: number; top: boolean }>> = {
-  hand: { location: CardLocation.HAND, top: false },
-  'deck-top': { location: CardLocation.DECK, top: true },
-  'deck-bottom': { location: CardLocation.DECK, top: false },
-  'grave-top': { location: CardLocation.GRAVE, top: true },
-  removed: { location: CardLocation.REMOVED, top: false },
-  extra: { location: CardLocation.EXTRA, top: false }
+function fieldTargetFor(card: CdbCard): AddCardTarget | null {
+  if (CardUtils.isMonster(card.type)) return 'mzone'
+  if (CardUtils.isSpell(card.type) || CardUtils.isTrap(card.type)) {
+    return card.type & CardType.FIELD ? 'fzone' : 'szone'
+  }
+  return null
+}
+
+function fieldTargetLabel(target: AddCardTarget): string {
+  if (target === 'mzone') return '放置到场上'
+  return target === 'fzone' ? '放置到场地魔法区' : '放置到魔陷区'
 }
 
 export const CardSearchPanel: React.FC = () => {
@@ -71,16 +77,17 @@ export const CardSearchPanel: React.FC = () => {
     resetFilters
   } = useCardSearchStore()
   const activeFilterCount = useCardSearchStore(countActiveFilters)
+  const openCreate = useCustomCardStore((state) => state.openCreate)
 
   const { setHoveredCard } = useDuelStore()
   const { isFavorite, toggleFavorite, loadFavorites } = useFavoritesStore()
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
-  const stagingActive = useStagingStore((s) => s.session !== null)
   const showSearchProgress = useDelayedLoading(isLoading)
   const [localKw, setLocalKw] = useState(keyword)
   const [injectMenu, setInjectMenu] = useState<{ card: CdbCard; x: number; y: number } | null>(null)
   const injectMenuRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fieldTarget = injectMenu ? fieldTargetFor(injectMenu.card) : null
 
   const closeInjectMenu = (): void => setInjectMenu(null)
 
@@ -134,18 +141,10 @@ export const CardSearchPanel: React.FC = () => {
     [isEngineActive]
   )
 
-  const injectCard = useCallback(
-    (card: CdbCard, to: AddCardTarget): void => {
-      setInjectMenu(null)
-      const placement = TARGET_PLACEMENT[to]
-      if (stagingActive && placement) {
-        useDuelStore.getState().addCardToZone(card, 0, placement.location, placement.top ? 0 : 999)
-        return
-      }
-      void useDuelEngineStore.getState().inject({ op: 'add-card', player: 0, code: card.id, to })
-    },
-    [stagingActive]
-  )
+  const injectCard = useCallback((card: CdbCard, to: AddCardTarget): void => {
+    setInjectMenu(null)
+    void useDuelEngineStore.getState().inject({ op: 'add-card', player: 0, code: card.id, to })
+  }, [])
 
   const handleRowDoubleClick = useCallback(
     (card: CdbCard): void => injectCard(card, 'hand'),
@@ -237,8 +236,18 @@ export const CardSearchPanel: React.FC = () => {
 
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto p-2">
         {results.length === 0 && !isLoading && hasSearched ? (
-          <div className="h-48 flex items-center justify-center text-muted-foreground text-xs p-4 text-center">
+          <div className="h-48 flex flex-col items-center justify-center gap-3 text-muted-foreground text-xs p-4 text-center">
             {onlyFavorites ? <p>未找到收藏的卡片</p> : <p>未找到符合条件的卡片</p>}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => openCreate(localKw.trim())}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              新建自定义卡片
+            </Button>
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -272,7 +281,7 @@ export const CardSearchPanel: React.FC = () => {
           ref={injectMenuRef}
           style={{
             left: Math.max(8, Math.min(injectMenu.x, window.innerWidth - 176)),
-            top: Math.max(8, Math.min(injectMenu.y, window.innerHeight - 244))
+            top: Math.max(8, Math.min(injectMenu.y, window.innerHeight - 270))
           }}
           className="fixed z-[70] min-w-40 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
           onContextMenu={(e) => e.preventDefault()}
@@ -280,6 +289,21 @@ export const CardSearchPanel: React.FC = () => {
           <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate">
             剧情安排：{injectMenu.card.name}
           </div>
+          {fieldTarget && (
+            <button
+              type="button"
+              title="直接放到场上，不走召唤流程"
+              onClick={() => injectCard(injectMenu.card, fieldTarget)}
+              className="w-full flex items-center gap-2 h-7 px-2 rounded-md text-xs text-left text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+            >
+              {fieldTarget === 'mzone' ? (
+                <Swords className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span>{fieldTargetLabel(fieldTarget)}</span>
+            </button>
+          )}
           {INJECT_MENU_ITEMS.map((item) => (
             <button
               key={item.to}

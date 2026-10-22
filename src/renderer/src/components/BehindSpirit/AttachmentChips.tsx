@@ -20,29 +20,34 @@ export function AttachmentChips({
     <>
       {cards.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {cards.map((c) => (
+          {cards.map((card) => (
             <div
-              key={c.id}
-              className="group flex items-center gap-1.5 rounded border border-border bg-muted/60 pl-1.5 pr-1 py-1 max-w-full"
+              key={card.id}
+              className="group flex w-[220px] max-w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card/80 p-1.5 shadow-xs"
+              title={card.name}
             >
               <CardImage
-                code={c.id}
+                code={card.id}
                 small
-                alt={c.name}
-                className="w-6 h-8 object-cover rounded-sm shrink-0 border border-border/60"
+                alt={card.name}
+                className="h-10 w-7 shrink-0 rounded-[3px] border border-border/50 object-cover"
               />
-              <div className="min-w-0">
-                <p className="text-[11px] font-medium leading-tight truncate max-w-32">{c.name}</p>
-                <p className="text-[9px] text-muted-foreground font-mono leading-tight">
-                  {CardUtils.getCardTypeLabel(c.type)} · {c.id}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs leading-tight font-medium text-foreground">
+                  {card.name}
+                </p>
+                <p className="mt-0.5 truncate text-[10px] leading-tight text-muted-foreground">
+                  {CardUtils.getCardTypeLabel(card.type)} · {card.id}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => onRemoveCard(c.id)}
-                className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                aria-label={`移除 ${card.name}`}
+                title="移除"
+                onClick={() => onRemoveCard(card.id)}
+                className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
-                <X className="w-3 h-3" />
+                <X className="h-3 w-3" />
               </button>
             </div>
           ))}
@@ -51,22 +56,27 @@ export function AttachmentChips({
 
       {text && (
         <div className="flex flex-wrap gap-1.5">
-          <div className="group flex items-center gap-1.5 rounded border border-border bg-muted/60 pl-2 pr-1 py-1 max-w-full">
-            <BookOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium leading-tight truncate max-w-52">
+          <div
+            className="group flex w-[220px] max-w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card/80 p-2 shadow-xs"
+            title={text.title}
+          >
+            <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs leading-tight font-medium text-foreground">
                 {text.title}
               </p>
-              <p className="text-[9px] text-muted-foreground font-mono leading-tight">
-                {text.wordCount ? `约 ${text.wordCount} 字` : '文本素材'}
+              <p className="mt-0.5 truncate text-[10px] leading-tight text-muted-foreground">
+                文本素材{text.wordCount ? ` · 约 ${text.wordCount} 字` : ''}
               </p>
             </div>
             <button
               type="button"
+              aria-label={`移除 ${text.title}`}
+              title="移除"
               onClick={onRemoveText}
-              className="p-0.5 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+              className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
             >
-              <X className="w-3 h-3" />
+              <X className="h-3 w-3" />
             </button>
           </div>
         </div>

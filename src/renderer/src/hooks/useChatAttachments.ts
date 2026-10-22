@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import type { DragEvent, RefObject } from 'react'
+import { useState } from 'react'
+import type { DragEvent } from 'react'
 import { AgentTextSourceRef, countWords, CdbCard } from '@shared/index'
 import { alertDialog } from '../stores/useDialogStore'
 
@@ -14,22 +14,13 @@ export interface ChatAttachments {
   handleCardDrop: (e: DragEvent) => void
   removeAttachedCard: (cardId: number) => void
   removeAttachedText: () => void
-  attachText: (selection: AgentTextSourceRef) => void
   clearAttachments: () => void
-  textPickerOpen: boolean
-  textPickerPos: { right: number; bottom: number } | null
-  textPickerAnchorRef: RefObject<HTMLDivElement | null>
-  openTextPicker: () => void
-  closeTextPicker: () => void
 }
 
 export function useChatAttachments(): ChatAttachments {
   const [attachedCards, setAttachedCards] = useState<CdbCard[]>([])
   const [isCardDragOver, setIsCardDragOver] = useState(false)
   const [attachedText, setAttachedText] = useState<AgentTextSourceRef | null>(null)
-  const [textPickerOpen, setTextPickerOpen] = useState(false)
-  const [textPickerPos, setTextPickerPos] = useState<{ right: number; bottom: number } | null>(null)
-  const textPickerAnchorRef = useRef<HTMLDivElement>(null)
 
   const handleDragOver = (e: DragEvent): void => {
     e.preventDefault()
@@ -101,34 +92,9 @@ export function useChatAttachments(): ChatAttachments {
     setAttachedText(null)
   }
 
-  const attachText = (selection: AgentTextSourceRef): void => {
-    setAttachedText(selection)
-    setTextPickerOpen(false)
-  }
-
   const clearAttachments = (): void => {
     setAttachedCards([])
     setAttachedText(null)
-  }
-
-  const openTextPicker = (): void => {
-    if (textPickerOpen) {
-      setTextPickerOpen(false)
-      return
-    }
-    const anchor = textPickerAnchorRef.current
-    if (anchor) {
-      const rect = anchor.getBoundingClientRect()
-      setTextPickerPos({
-        right: window.innerWidth - rect.right,
-        bottom: window.innerHeight - rect.top
-      })
-    }
-    setTextPickerOpen(true)
-  }
-
-  const closeTextPicker = (): void => {
-    setTextPickerOpen(false)
   }
 
   return {
@@ -140,12 +106,6 @@ export function useChatAttachments(): ChatAttachments {
     handleCardDrop,
     removeAttachedCard,
     removeAttachedText,
-    attachText,
-    clearAttachments,
-    textPickerOpen,
-    textPickerPos,
-    textPickerAnchorRef,
-    openTextPicker,
-    closeTextPicker
+    clearAttachments
   }
 }

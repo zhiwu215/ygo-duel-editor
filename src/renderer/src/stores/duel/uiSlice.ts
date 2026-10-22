@@ -19,10 +19,8 @@ export interface UiSlice {
 
   activeLeftTab: 'archives' | 'library' | 'card' | 'agent'
   isLeftOpen: boolean
-  leftWidth: number
   setActiveLeftTab: (tab: 'archives' | 'library' | 'card' | 'agent') => void
   toggleLeftTab: (tab: 'archives' | 'library' | 'card' | 'agent') => void
-  setLeftWidth: (width: number) => void
 
   setSelectedCardId: (id: string | null) => void
   setHoveredCard: (card: CdbCard | null) => void
@@ -50,14 +48,12 @@ export const createUiSlice: StateCreator<DuelStore, [], [], UiSlice> = (set) => 
 
   activeLeftTab: 'card',
   isLeftOpen: true,
-  leftWidth: 340,
   setActiveLeftTab: (tab) => set({ activeLeftTab: tab, isLeftOpen: true }),
   toggleLeftTab: (tab) =>
     set((prev) => ({
       activeLeftTab: tab,
       isLeftOpen: prev.activeLeftTab === tab ? !prev.isLeftOpen : true
     })),
-  setLeftWidth: (width) => set({ leftWidth: Math.max(280, Math.min(width, 600)) }),
 
   setSelectedCardId: (id) => set({ selectedCardId: id }),
   setHoveredCard: (card) => set({ hoveredCard: card }),

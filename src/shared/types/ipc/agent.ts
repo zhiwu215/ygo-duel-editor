@@ -1,22 +1,29 @@
 import { DuelPuzzleState } from '../duel'
 import { AgentBoardSetupProposal, AgentStepProposal } from './agentProposal'
+import type { AgentReasoningEffort, AgentReasoningEfforts } from '../../constants/reasoningEffort'
+import type { AgentModelInput } from '../../constants/modelInput'
 
-export type AgentApiFormat = 'openai-chat-completions' | 'anthropic-messages' | 'openai-responses'
+export type AgentApiFormat =
+  | 'openai-chat-completions'
+  | 'openai-responses'
+  | 'anthropic-messages'
+  | 'google-generative-ai'
+  | 'google-vertex'
+  | 'azure-openai-responses'
+  | 'bedrock-converse-stream'
+  | 'openai-codex-responses'
+  | 'mistral-conversations'
+  | 'pi-messages'
 
 export interface AgentProviderModelConfig {
   id: string
   name?: string
-  supportsReasoning?: boolean
-  supportsVision?: boolean
+  input?: AgentModelInput[]
   contextWindow?: number
-
   maxTokens?: number
-
+  reasoningEfforts?: AgentReasoningEfforts
   supportsStructuredOutput?: boolean
-
   supportsMidConversationSystem?: boolean
-  enabled: boolean
-  custom?: boolean
 }
 
 export interface AgentProviderConfig {
@@ -25,7 +32,6 @@ export interface AgentProviderConfig {
   baseUrl: string
   apiFormat?: AgentApiFormat
   apiKey: string
-  enabled: boolean
   presetId?: string
   models: AgentProviderModelConfig[]
 }
@@ -38,30 +44,32 @@ export interface AgentModelConfig {
   model: string
   apiFormat?: AgentApiFormat
   systemPrompt?: string
-  enableReasoning?: boolean
-  contextWindow?: number
-  maxTokens?: number
+  reasoningEffort?: AgentReasoningEffort
 
-  providersSeeded?: boolean
+  defaultsVersion?: number
 }
-
-export type AgentProviderCategory = 'cn' | 'global' | 'local'
 
 export interface AgentProviderPreset {
   id: string
   name: string
   baseUrl: string
   apiFormat?: AgentApiFormat
-  apiKeyUrl?: string
+  note?: string
 
-  category?: AgentProviderCategory
+  models?: AgentProviderModelConfig[]
 }
 
 export type AgentStreamEvent =
   | { type: 'thinking_delta'; delta: string }
   | { type: 'text_delta'; delta: string }
   | { type: 'tool_call_start'; id: string; toolName: string; params: Record<string, unknown> }
-  | { type: 'tool_call_end'; id: string; toolName: string; resultSummary: string }
+  | {
+      type: 'tool_call_end'
+      id: string
+      toolName: string
+      resultSummary: string
+      details?: AgentWebToolDetails
+    }
   | { type: 'proposals_ready'; proposals: AgentStepProposal[] }
   | { type: 'board_setup_ready'; setup: AgentBoardSetupProposal }
   | { type: 'status'; message: string }
@@ -97,6 +105,8 @@ export interface AgentHandoffRequest {
 export interface AgentSendMessageParams {
   prompt: string
 
+  question?: string
+
   boardState?: DuelPuzzleState
 
   textSource?: AgentTextSourceRef
@@ -122,10 +132,33 @@ export interface AgentModelInfo {
   id: string
   ownedBy?: string
   name?: string
-  supportsReasoning?: boolean
-  supportsVision?: boolean
   contextWindow?: number
+  maxTokens?: number
+  input?: AgentModelInput[]
 }
+
+export interface AgentWebSource {
+  url: string
+  title?: string
+  snippet?: string
+  publishedAt?: string
+}
+
+export interface AgentWebSearchDetails {
+  kind: 'search'
+  answer?: string
+  sources: AgentWebSource[]
+  truncated: boolean
+}
+
+export interface AgentWebFetchDetails {
+  kind: 'fetch'
+  url: string
+  statusCode: number
+  truncated: boolean
+}
+
+export type AgentWebToolDetails = AgentWebSearchDetails | AgentWebFetchDetails
 
 export interface AgentFetchModelsParams {
   baseUrl: string

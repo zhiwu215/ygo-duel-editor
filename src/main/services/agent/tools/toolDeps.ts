@@ -20,4 +20,5 @@ export interface AgentToolDeps {
   getProposals: () => AgentStepProposal[]
   appendProposals: (steps: AgentStepProposal[]) => void
   setBoardSetup: (setup: AgentBoardSetupProposal) => void
+  getCurrentQuestion: () => string | undefined
 }

@@ -21,6 +21,7 @@ export interface SessionState {
   ocgcore: OcgcoreWrapper | null
   duel: OcgcoreDuel | null
   ownedWrapper: OcgcoreWrapper | null
+  requestSnapshot: Uint8Array | null
   fieldReader: FieldReader
   timeline: EngineTimelineManager
   pendingQueries: PendingQuery[]
@@ -51,6 +52,7 @@ export function createSessionState(): SessionState {
     ocgcore: null,
     duel: null,
     ownedWrapper: null,
+    requestSnapshot: null,
     fieldReader: new FieldReader(),
     timeline: new EngineTimelineManager(),
     pendingQueries: [],

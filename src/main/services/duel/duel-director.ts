@@ -62,7 +62,7 @@ export class DuelDirector {
     return duelSession.setTimingPolicy(policy)
   }
 
-  inject(command: InjectCommand): EngineInjectResult {
+  inject(command: InjectCommand): Promise<EngineInjectResult> {
     return duelSession.inject(command)
   }
 

@@ -12,42 +12,42 @@ interface MarkdownContentProps {
 const components: Components = {
   h1({ children }) {
     return (
-      <h1 className="text-sm font-bold mt-3 mb-2 first:mt-0 text-foreground leading-snug">
+      <h1 className="text-[1.25em] font-bold mt-3 mb-2 first:mt-0 text-foreground leading-snug">
         {children}
       </h1>
     )
   },
   h2({ children }) {
     return (
-      <h2 className="text-xs font-bold mt-2.5 mb-1.5 first:mt-0 text-foreground leading-snug">
+      <h2 className="text-[1.15em] font-bold mt-2.5 mb-1.5 first:mt-0 text-foreground leading-snug">
         {children}
       </h2>
     )
   },
   h3({ children }) {
     return (
-      <h3 className="text-xs font-bold mt-2 mb-1 first:mt-0 text-foreground leading-snug">
+      <h3 className="text-[1.05em] font-bold mt-2 mb-1 first:mt-0 text-foreground leading-snug">
         {children}
       </h3>
     )
   },
   h4({ children }) {
     return (
-      <h4 className="text-xs font-semibold mt-2 mb-1 first:mt-0 text-foreground leading-snug">
+      <h4 className="text-[1em] font-semibold mt-2 mb-1 first:mt-0 text-foreground leading-snug">
         {children}
       </h4>
     )
   },
   h5({ children }) {
     return (
-      <h5 className="text-xs font-semibold mt-2 mb-1 first:mt-0 text-foreground leading-snug">
+      <h5 className="text-[1em] font-semibold mt-2 mb-1 first:mt-0 text-foreground leading-snug">
         {children}
       </h5>
     )
   },
   h6({ children }) {
     return (
-      <h6 className="text-xs font-semibold mt-2 mb-1 first:mt-0 text-muted-foreground leading-snug">
+      <h6 className="text-[1em] font-semibold mt-2 mb-1 first:mt-0 text-muted-foreground leading-snug">
         {children}
       </h6>
     )
@@ -102,14 +102,14 @@ const components: Components = {
     if (isBlock) {
       return (
         <code
-          className={`${className} font-mono text-[10px] block break-words [overflow-wrap:anywhere]`}
+          className={`${className} font-mono text-[length:var(--code-font-size)] block break-words [overflow-wrap:anywhere]`}
         >
           {children}
         </code>
       )
     }
     return (
-      <code className="font-mono text-[10px] px-1 py-0.5 rounded bg-muted text-foreground break-words [overflow-wrap:anywhere]">
+      <code className="font-mono text-[length:var(--code-font-size)] px-1 py-0.5 rounded bg-muted text-foreground break-words [overflow-wrap:anywhere]">
         {children}
       </code>
     )
@@ -123,7 +123,7 @@ const components: Components = {
   },
   table({ children }) {
     return (
-      <table className="w-full text-[10px] border-collapse border border-border my-2">
+      <table className="w-full text-[0.85em] border-collapse border border-border my-2">
         {children}
       </table>
     )

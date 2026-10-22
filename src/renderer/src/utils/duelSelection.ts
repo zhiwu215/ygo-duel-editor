@@ -46,19 +46,21 @@ export function requestCardKey(card: {
   controller: number
   location: number
   sequence: number
+  subsequence?: number
 }): string {
-  return `${card.controller}:${card.location}:${card.sequence}:${card.code}`
+  return `${card.controller}:${card.location}:${card.sequence}:${card.subsequence ?? 0}:${card.code}`
 }
 
 export function isSameRequestCard(
-  a: { code: number; controller: number; location: number; sequence: number },
-  b: { code: number; controller: number; location: number; sequence: number }
+  a: { code: number; controller: number; location: number; sequence: number; subsequence?: number },
+  b: { code: number; controller: number; location: number; sequence: number; subsequence?: number }
 ): boolean {
   return (
     a.code === b.code &&
     a.controller === b.controller &&
     a.location === b.location &&
-    a.sequence === b.sequence
+    a.sequence === b.sequence &&
+    (a.subsequence ?? 0) === (b.subsequence ?? 0)
   )
 }
 

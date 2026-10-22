@@ -1,39 +1,76 @@
 import {
+  AGENT_REASONING_EFFORTS,
   AgentModelInfo,
   AgentProviderConfig,
   AgentProviderModelConfig,
-  isProviderReady
+  isLocalEndpoint
 } from '@shared/index'
 
-export type ProviderStatus = 'ready' | 'unavailable' | 'disabled'
+export type ProviderStatus = 'ready' | 'unavailable'
 
 export function resolveProviderStatus(provider: AgentProviderConfig): ProviderStatus {
-  if (!provider.enabled) return 'disabled'
-  return isProviderReady(provider) ? 'ready' : 'unavailable'
+  return provider.apiKey.trim().length > 0 || isLocalEndpoint(provider.baseUrl)
+    ? 'ready'
+    : 'unavailable'
 }
 
-export function formatContextWindow(tokens?: number): string | null {
-  if (!tokens || tokens <= 0) return null
-  if (tokens >= 1_000_000) return `${Math.round(tokens / 100_000) / 10}M`
-  if (tokens >= 1024) return `${Math.round(tokens / 1024)}K`
-  return String(tokens)
+export function providerLabel(provider: AgentProviderConfig): string {
+  return provider.name === provider.id ? provider.name : `${provider.name} (${provider.id})`
+}
+
+export function adoptFetchedModel(info: AgentModelInfo): AgentProviderModelConfig {
+  return {
+    id: info.id,
+    ...(info.name ? { name: info.name } : {}),
+    ...(info.input ? { input: [...info.input] } : {}),
+    ...(info.contextWindow ? { contextWindow: info.contextWindow } : {}),
+    ...(info.maxTokens ? { maxTokens: info.maxTokens } : {})
+  }
 }
 
 export function mergeFetchedModels(
   existing: AgentProviderModelConfig[],
   fetched: AgentModelInfo[]
 ): AgentProviderModelConfig[] {
-  const known = new Set(existing.map((m) => m.id))
+  const known = new Set(existing.map((model) => model.id))
   const added = fetched
-    .filter((m) => !known.has(m.id))
-    .map<AgentProviderModelConfig>((m) => ({
-      id: m.id,
-      name: m.name,
-      supportsReasoning: m.supportsReasoning,
-      supportsVision: m.supportsVision,
-      contextWindow: m.contextWindow,
-      enabled: true,
-      custom: true
-    }))
+    .filter((model) => !known.has(model.id))
+    .map((model) => adoptFetchedModel(model))
   return [...existing, ...added]
+}
+
+export function modelSignature(model: AgentProviderModelConfig): string {
+  return JSON.stringify([
+    model.id,
+    model.name ?? '',
+    model.input ?? [],
+    model.contextWindow ?? null,
+    model.maxTokens ?? null,
+    AGENT_REASONING_EFFORTS.map((level) => [level, model.reasoningEfforts?.[level] ?? null]),
+    Boolean(model.supportsStructuredOutput),
+    Boolean(model.supportsMidConversationSystem)
+  ])
+}
+
+export function providerModelsEqual(
+  left: AgentProviderModelConfig[],
+  right: AgentProviderModelConfig[]
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((model, index) => {
+      const other = right[index]
+      return other !== undefined && modelSignature(model) === modelSignature(other)
+    })
+  )
+}
+
+export function cloneProviderModels(
+  models: AgentProviderModelConfig[]
+): AgentProviderModelConfig[] {
+  return models.map((model) => ({
+    ...model,
+    ...(model.input ? { input: [...model.input] } : {}),
+    ...(model.reasoningEfforts ? { reasoningEfforts: { ...model.reasoningEfforts } } : {})
+  }))
 }

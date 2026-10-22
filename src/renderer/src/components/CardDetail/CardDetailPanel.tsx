@@ -51,6 +51,13 @@ export const CardDetailPanel: React.FC = () => {
     void copy('name', currentCard.name)
   }
 
+  const handleCopyCode = (e: React.MouseEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!currentCard) return
+    void copy('code', String(currentCard.id))
+  }
+
   const handleEdit = (): void => {
     if (!currentCard?.isCustom) return
     openEdit(currentCard.id)
@@ -136,6 +143,7 @@ export const CardDetailPanel: React.FC = () => {
           <div className="p-3 flex flex-col gap-2 select-text">
             <div
               onClick={handleCopyName}
+              onContextMenu={handleCopyCode}
               className="group relative flex items-center justify-center px-2 py-1 rounded border border-border/70 bg-muted/60 dark:bg-muted/30 shadow-inner text-center cursor-pointer hover:bg-muted/80 transition-colors select-none"
             >
               <span className="font-bold text-xs text-foreground truncate">
@@ -146,8 +154,12 @@ export const CardDetailPanel: React.FC = () => {
                   自定义
                 </span>
               )}
-              <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">
-                {copiedField === 'name' ? (
+              <span
+                className={`absolute right-2 transition-opacity text-muted-foreground ${
+                  copiedField ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                }`}
+              >
+                {copiedField ? (
                   <Check className="w-3 h-3 text-emerald-500" />
                 ) : (
                   <Copy className="w-3 h-3" />

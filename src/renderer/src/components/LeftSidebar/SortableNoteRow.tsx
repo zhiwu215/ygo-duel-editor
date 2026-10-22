@@ -102,7 +102,10 @@ export function SortableNoteRow({
           </>
         )}
       </div>
-      <p className="text-[11px] text-foreground/90 leading-relaxed whitespace-pre-wrap mt-1">
+      <p
+        style={{ fontSize: 'var(--content-font-size)' }}
+        className="text-foreground/90 leading-relaxed whitespace-pre-wrap mt-1"
+      >
         {item.text}
       </p>
       {kind === 'chant' && (item.user || item.source) && (

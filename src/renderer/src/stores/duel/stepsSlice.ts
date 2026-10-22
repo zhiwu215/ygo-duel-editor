@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand'
 import {
   CardLocation,
   CardPosition,
+  CardUtils,
   DuelPhase,
   DuelStep,
   DuelPuzzleState,
@@ -76,15 +77,16 @@ function restoreCardsFromSnapshot(
   })
 }
 
-function insertDeckTop(
+function insertPileTop(
   cards: FieldCard[],
   extra: FieldCard,
-  defaultDuelistId: string
+  defaultDuelistId: string,
+  location: number
 ): FieldCard[] {
   const duelistId = extra.duelistId || defaultDuelistId
   const shifted = cards.map((c) =>
     c.controller === extra.controller &&
-    c.location === CardLocation.DECK &&
+    c.location === location &&
     (c.duelistId || defaultDuelistId) === duelistId
       ? { ...c, sequence: c.sequence + 1 }
       : c
@@ -93,13 +95,20 @@ function insertDeckTop(
     ...shifted,
     {
       ...extra,
-      location: CardLocation.DECK,
+      location,
       sequence: 0,
       position: CardPosition.FACEDOWN,
       overlayMaterials: [],
       duelistId
     }
   ]
+}
+
+function homePileLocation(card: FieldCard): number {
+  const isExtraType = Boolean(card.card && CardUtils.isExtraDeck(card.card.type))
+  return isExtraType || card.location === CardLocation.EXTRA
+    ? CardLocation.EXTRA
+    : CardLocation.DECK
 }
 
 export { createStepId } from '@shared/index'
@@ -178,12 +187,7 @@ function anchorLpAt(steps: DuelStep[], from: number, finalLp: [number, number]):
   const lp: [number, number] = [finalLp[0], finalLp[1]]
   for (let i = steps.length - 1; i >= from; i--) {
     const lpChange = steps[i].lpChange
-    if (lpChange) {
-      lp[lpChange.player] = lpChange.oldLp
-      continue
-    }
-    const lpOp = steps[i].manualOps?.find((op) => op.type === 'lp')
-    if (lpOp) lp[lpOp.player] = lpOp.value
+    if (lpChange) lp[lpChange.player] = lpChange.oldLp
   }
   return lp
 }
@@ -596,7 +600,12 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
       }
       let finalCards = restoredCards
       for (const extra of extras) {
-        finalCards = insertDeckTop(finalCards, extra, teamDuelistId(extra.controller))
+        finalCards = insertPileTop(
+          finalCards,
+          extra,
+          teamDuelistId(extra.controller),
+          homePileLocation(extra)
+        )
       }
 
       const firstPlayer = ((prev.state.steps || [])[0]?.turnPlayer ?? 0) as 0 | 1

@@ -1,10 +1,8 @@
 import React from 'react'
 import { CardLocation, CardPosition, FieldCard } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
-import { useCustomCardStore } from '../stores/useCustomCardStore'
 import { useCardCommandMenuStore } from '../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
-import { useStagingStore } from '../stores/useStagingStore'
 import { useDropHintStore } from '../stores/useDropHintStore'
 import { useSelectionStore } from '../stores/useSelectionStore'
 import { useAttackTargetingStore } from '../stores/useAttackTargetingStore'
@@ -15,7 +13,7 @@ import {
   type CardSelectionMatch,
   type CardSelectionRole
 } from '../utils/duelSelection'
-import { hasCardEngineActions, hasCardEngineActivate } from '../utils/engineActions'
+import { hasCardEngineActions } from '../utils/engineActions'
 import { canShowPositionHint } from '../utils/zoneDrop'
 
 interface CardPointerActionsInput {
@@ -36,10 +34,8 @@ export function useCardPointerActions({
   const activeStatPopoverCardId = useDuelStore((s) => s.activeStatPopoverCardId)
   const statPopoverPosition = useDuelStore((s) => s.statPopoverPosition)
   const currentPhase = useDuelStore((s) => s.currentPhase)
-  const customCards = useCustomCardStore((s) => s.cards)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
-  const stagingActive = useStagingStore((s) => s.session !== null)
   const hintZone = useDropHintStore((s) => s.zone)
   const showHint = useDropHintStore((s) => s.show)
   const closeHint = useDropHintStore((s) => s.close)
@@ -112,20 +108,9 @@ export function useCardPointerActions({
       } else {
         openCommandMenu(card, e.currentTarget.getBoundingClientRect())
       }
-    } else if (
-      isEngineActive &&
-      !stagingActive &&
-      customCards.some((entry) => entry.id === card.code) &&
-      !hasCardEngineActivate(pendingRequest, card)
-    ) {
-      if (menuCard?.instanceId === card.instanceId) {
-        closeCommandMenu()
-      } else {
-        openCommandMenu(card, e.currentTarget.getBoundingClientRect())
-      }
     } else {
       closeCommandMenu()
-      if (isEngineActive && !stagingActive) {
+      if (isEngineActive) {
         closeHint()
         return
       }

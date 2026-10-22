@@ -48,6 +48,9 @@
 
 :root {
   --radius: 0.625rem;
+  --chat-font-size: 14px;
+  --content-font-size: 14px;
+  --code-font-size: 12px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -170,24 +173,8 @@
   }
 }
 
-.markdown-streaming > div > :last-child::after {
-  content: '';
-  display: inline-block;
-  width: 2px;
-  height: 0.9em;
-  margin-left: 3px;
-  vertical-align: text-bottom;
-  background-color: var(--muted-foreground);
-  animation: caret-blink 1s steps(2, jump-none) infinite;
-}
-
-@keyframes caret-blink {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0.15;
-  }
+.reasoning-preview[data-streaming] {
+  mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
 }
 
 .message-enter {
@@ -209,9 +196,6 @@
   .animated-gradient-text {
     animation: none;
     -webkit-text-fill-color: var(--ag-strong);
-  }
-  .markdown-streaming > div > :last-child::after {
-    animation: none;
   }
   .message-enter {
     animation: none;

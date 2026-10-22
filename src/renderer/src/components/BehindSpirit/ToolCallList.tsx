@@ -3,6 +3,9 @@ import {
   BookOpen,
   CheckCheck,
   ChevronRight,
+  ExternalLink,
+  FileText,
+  Globe2,
   Info,
   Layers,
   LayoutGrid,
@@ -11,12 +14,13 @@ import {
   Play,
   Search,
   ShieldCheck,
-  Sliders,
   Sparkles,
   Swords,
-  Wand2
+  Wand2,
+  Wrench
 } from 'lucide-react'
 import type { AgentToolCallItem } from '../../stores/useAgentStore'
+import type { AgentWebSearchDetails, AgentWebToolDetails } from '@shared/index'
 import { cn } from '../../lib/utils'
 
 type ToolStatus = 'running' | 'done' | 'failed' | 'stopped'
@@ -38,10 +42,12 @@ const TOOL_LABELS: Record<string, string> = {
   duel_engine_commit: '提交对局步骤',
   screenplay_submit_outline: '提交剧本大纲',
   screenplay_submit_act: '提交本幕步骤',
-  duel_export_replay: '导出回放'
+  duel_export_replay: '导出回放',
+  web_search: '网页搜索',
+  web_fetch: '网页抓取'
 }
 
-const FALLBACK_ICON = <Sliders className="h-3 w-3 shrink-0 text-muted-foreground" />
+const FALLBACK_ICON = <Wrench className="h-3 w-3 shrink-0 text-muted-foreground" />
 
 const TOOL_ICONS: Record<string, JSX.Element> = {
   get_current_board: <LayoutGrid className="h-3 w-3 shrink-0 text-muted-foreground" />,
@@ -60,7 +66,9 @@ const TOOL_ICONS: Record<string, JSX.Element> = {
   duel_engine_commit: <CheckCheck className="h-3 w-3 shrink-0 text-muted-foreground" />,
   screenplay_submit_outline: <BookOpen className="h-3 w-3 shrink-0 text-muted-foreground" />,
   screenplay_submit_act: <ListOrdered className="h-3 w-3 shrink-0 text-muted-foreground" />,
-  duel_export_replay: <Play className="h-3 w-3 shrink-0 text-muted-foreground" />
+  duel_export_replay: <Play className="h-3 w-3 shrink-0 text-muted-foreground" />,
+  web_search: <Globe2 className="h-3 w-3 shrink-0 text-muted-foreground" />,
+  web_fetch: <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
 }
 
 const STATUS_TEXT: Record<ToolStatus, string> = {
@@ -126,6 +134,19 @@ function getToolParamsSummary(tool: AgentToolCallItem): string | null {
   ) {
     return tool.params.summary
   }
+  if (tool.toolName === 'web_search' && Array.isArray(tool.params.queries)) {
+    const queries = tool.params.queries.filter(
+      (query): query is string => typeof query === 'string' && query.length > 0
+    )
+    return queries.length > 0 ? `关键词：${queries.join(' / ')}` : null
+  }
+  if (tool.toolName === 'web_fetch' && typeof tool.params.url === 'string') {
+    try {
+      return `网址：${new URL(tool.params.url).hostname}`
+    } catch {
+      return `网址：${tool.params.url}`
+    }
+  }
   return null
 }
 
@@ -137,6 +158,93 @@ function formatParams(params: Record<string, unknown>): string | null {
   } catch {
     return null
   }
+}
+
+function openExternalLink(url: string): void {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
+  } catch {
+    return
+  }
+  void window.api.openExternal(url)
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
+
+function WebSearchSources({ details }: { details: AgentWebSearchDetails }): JSX.Element {
+  return (
+    <div className="space-y-0.5">
+      {details.answer && (
+        <p className="mb-1 whitespace-pre-wrap break-words text-[10px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+          {details.answer}
+        </p>
+      )}
+      {details.sources.map((source, index) => (
+        <button
+          key={`${source.url}:${index}`}
+          type="button"
+          title={source.url}
+          onClick={() => openExternalLink(source.url)}
+          className="flex w-full min-w-0 items-start gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-muted/60"
+        >
+          <span className="w-3 shrink-0 text-right text-[10px] leading-relaxed text-muted-foreground/70">
+            {index + 1}.
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-1 text-[10px] leading-relaxed font-medium text-foreground/85">
+              <span className="truncate">{source.title || hostOf(source.url)}</span>
+              <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-40" />
+            </span>
+            {source.snippet && (
+              <span className="mt-0.5 line-clamp-2 block text-[10px] leading-relaxed text-muted-foreground">
+                {source.snippet}
+              </span>
+            )}
+            {source.publishedAt && (
+              <span className="mt-0.5 block text-[9px] leading-relaxed text-muted-foreground/70">
+                {source.publishedAt}
+              </span>
+            )}
+          </span>
+        </button>
+      ))}
+      {details.truncated && (
+        <p className="px-1 pt-0.5 text-[10px] leading-relaxed text-muted-foreground/70">
+          来源较多，已按上限截断。
+        </p>
+      )}
+    </div>
+  )
+}
+
+function WebToolDetails({ details }: { details: AgentWebToolDetails }): JSX.Element {
+  if (details.kind === 'fetch') {
+    return (
+      <div className="space-y-0.5 px-0.5">
+        <button
+          type="button"
+          title={details.url}
+          onClick={() => openExternalLink(details.url)}
+          className="flex w-full min-w-0 items-center gap-1 rounded text-left text-[10px] leading-relaxed text-foreground/85 transition-colors hover:bg-muted/60"
+        >
+          <span className="truncate">{details.url}</span>
+          <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-40" />
+        </button>
+        <span className="text-[10px] text-muted-foreground">
+          HTTP {details.statusCode}
+          {details.truncated ? ' · 内容已截断' : ''}
+        </span>
+      </div>
+    )
+  }
+  return <WebSearchSources details={details} />
 }
 
 function StatusWord({ status }: { status: ToolStatus }): JSX.Element {
@@ -164,7 +272,7 @@ function ToolCallRow({
   const paramsSummary = getToolParamsSummary(call)
   const secondary = call.resultSummary ?? paramsSummary ?? null
   const paramsText = formatParams(call.params)
-  const canToggle = Boolean(call.resultSummary || paramsText)
+  const canToggle = Boolean(call.resultSummary || paramsText || call.details)
 
   return (
     <div className="min-w-0">
@@ -209,8 +317,9 @@ function ToolCallRow({
               {call.resultSummary}
             </div>
           )}
-          {paramsText && (
-            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/60 px-1.5 py-1 font-mono text-[10px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+          {call.details && <WebToolDetails details={call.details} />}
+          {paramsText && !call.details && (
+            <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/60 px-1.5 py-1 font-mono text-[length:var(--code-font-size)] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
               {paramsText}
             </pre>
           )}
@@ -241,7 +350,7 @@ function ToolCallGroup({
         onClick={() => setOpen((current) => !current)}
         className="flex w-full min-w-0 items-center gap-1.5 rounded px-1 py-1 text-left text-[11px] transition-colors hover:bg-muted/60"
       >
-        <Sliders className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <Wrench className="h-3 w-3 shrink-0 text-muted-foreground" />
         <span className="shrink-0 whitespace-nowrap font-medium text-foreground/80">工具调用</span>
         {runningCall ? (
           <>

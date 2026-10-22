@@ -1,5 +1,7 @@
 import { AgentModelConfig } from './agent'
 import { TimingPolicy } from '../../engine/protocol'
+import type { FontSizes } from '../../constants/fontSize'
+import type { WebSearchConfig } from '../../engine/webSearch'
 
 export interface DataDirectoryResult {
   directory: string
@@ -26,11 +28,15 @@ export interface AppConfig {
 
   theme: 'dark' | 'light' | 'system'
 
+  fontSizes: FontSizes
+
   favorites?: number[]
 
   cardImageOverrides?: Record<string, number>
 
   agentConfig?: AgentModelConfig
+
+  webSearch?: WebSearchConfig
 
   recentProjectPaths?: string[]
 
@@ -55,4 +61,4 @@ export const DEFAULT_DUEL_TEST_SETTINGS: DuelTestSettings = {
   deckOrder: 'fixed'
 }
 
-export type SettingsSectionId = 'appearance' | 'paths' | 'duel-test' | 'model-settings' | 'chat'
+export type SettingsSectionId = 'general' | 'paths' | 'duel-test' | 'model-settings' | 'web-search'

@@ -1,6 +1,56 @@
-import { AgentModelInfo, cleanAgentApiKey } from '@shared/index'
+import {
+  AgentModelInfo,
+  AgentModelInput,
+  cleanAgentApiKey,
+  normalizeAgentModelInputs
+} from '@shared/index'
 
 const MODEL_LIST_TIMEOUT_MS = 15_000
+
+interface RawModel {
+  [key: string]: unknown
+}
+
+function textField(model: RawModel, key: string): string | undefined {
+  const value = model[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function numberField(model: RawModel, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = model[key]
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  }
+  return undefined
+}
+
+function inputField(model: RawModel): AgentModelInput[] | undefined {
+  const direct = normalizeAgentModelInputs(model.input)
+  if (direct) return direct
+  const modalities = normalizeAgentModelInputs(model.input_modalities)
+  if (modalities) return modalities
+  const capabilities = model.capabilities
+  if (capabilities && typeof capabilities === 'object' && !Array.isArray(capabilities)) {
+    const vision = (capabilities as Record<string, unknown>).vision
+    if (vision === true) return ['text', 'image']
+  }
+  return undefined
+}
+
+function toModelInfo(model: RawModel): AgentModelInfo | null {
+  const id = textField(model, 'id') ?? textField(model, 'name')
+  if (!id) return null
+  const rawName = textField(model, 'display_name') ?? textField(model, 'name')
+  const info: AgentModelInfo = { id }
+  if (rawName && rawName !== id) info.name = rawName
+  const contextWindow = numberField(model, ['context_window', 'context_length', 'max_input_tokens'])
+  if (contextWindow) info.contextWindow = contextWindow
+  const maxTokens = numberField(model, ['max_tokens', 'max_output_tokens'])
+  if (maxTokens) info.maxTokens = maxTokens
+  const input = inputField(model)
+  if (input) info.input = input
+  return info
+}
 
 export async function fetchModels(
   baseUrl: string,
@@ -45,8 +95,8 @@ export async function fetchModels(
       return { success: false, error: msg }
     }
     const json = (await res.json()) as {
-      data?: { id?: unknown; owned_by?: unknown }[]
-      models?: { name?: unknown }[]
+      data?: unknown[]
+      models?: unknown[]
     }
     const rawList = Array.isArray(json.data)
       ? json.data
@@ -54,15 +104,12 @@ export async function fetchModels(
         ? json.models
         : []
     const models = rawList
-      .map((m) => ({
-        id:
-          typeof m.id === 'string'
-            ? m.id
-            : typeof (m as { name?: unknown }).name === 'string'
-              ? String((m as { name?: unknown }).name)
-              : ''
-      }))
-      .filter((m) => m.id)
+      .map((entry) =>
+        entry && typeof entry === 'object' && !Array.isArray(entry)
+          ? toModelInfo(entry as RawModel)
+          : null
+      )
+      .filter((model): model is AgentModelInfo => model !== null)
       .sort((a, b) => a.id.localeCompare(b.id))
     return { success: true, models }
   } catch (err) {

@@ -24,8 +24,8 @@ import {
   TimingPolicy,
   normalizeTimingPolicy
 } from '@shared/engine/protocol'
-import { createDuelFromYrp } from 'koishipro-core.js'
-import { getOcgcoreEngine, setScriptErrorListener } from './ocgcore-engine'
+import { createDuelFromYrp, createOcgcoreDuelFromSnapshot } from 'koishipro-core.js'
+import { bindEngineCapabilities, getOcgcoreEngine, setScriptErrorListener } from './ocgcore-engine'
 import { computeDiff } from './diff-resolver'
 import { encodeAnswer, describeAnswer } from './answer-encoder'
 import { describeInject, executeInject, injectCardName, verifyInject } from './injector'
@@ -485,7 +485,27 @@ export class DuelSession {
     }
   }
 
-  inject(command: InjectCommand): EngineInjectResult {
+  private async rebaseDuelFromRequestSnapshot(): Promise<void> {
+    const state = this.state
+    const snapshot = state.requestSnapshot
+    if (!snapshot) {
+      throw new Error('当前请求没有可用的引擎快照，无法重新校验剧情安排。')
+    }
+    const duel = await createOcgcoreDuelFromSnapshot(snapshot)
+    await bindEngineCapabilities(duel.ocgcoreWrapper)
+    this.disposeDuel()
+    state.duel = duel
+    state.ocgcore = duel.ocgcoreWrapper
+    state.ownedWrapper = duel.ocgcoreWrapper
+    state.pendingQueries = []
+    state.requestSnapshot = null
+    state.accumulatedLogs = []
+    state.accumulatedEvents = []
+    state.lastHintDesc = undefined
+    state.replaying = false
+  }
+
+  async inject(command: InjectCommand): Promise<EngineInjectResult> {
     const state = this.state
     if (state.replay) {
       throw new Error('回放模式为只读，请先退出回放。')
@@ -496,7 +516,9 @@ export class DuelSession {
 
     const before = this.readBoard()
     this.truncateToCurrentStep()
-    const outcome = executeInject(state.duel, command, before)
+    await this.rebaseDuelFromRequestSnapshot()
+    const outcome = executeInject(state.duel!, command, before)
+    advanceEngine(state)
     const boardState = this.readBoard()
     const warning = outcome.warning ?? verifyInject(command, before, boardState)
 

@@ -16,7 +16,7 @@ interface MasterRuleInfo {
 export const MASTER_RULES: Record<MasterRule, MasterRuleInfo> = {
   2: {
     rule: 2,
-    name: '经典',
+    name: '大师规则2',
     hasEMZ: false,
     hasIndependentPZones: false,
     pendulumInSZone: false,

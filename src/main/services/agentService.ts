@@ -12,6 +12,7 @@ import {
   AgentStreamEvent,
   DuelPuzzleState,
   isLocalEndpoint,
+  normalizeWebSearchConfig,
   resolveActiveRuntime
 } from '@shared/index'
 import { fetchModels as fetchModelList } from './agent/modelCatalog'
@@ -29,6 +30,8 @@ import { createProposeStepsTool } from './agent/tools/proposeSteps'
 import { createReadTextSourceTool } from './agent/tools/readTextSource'
 import { createSearchCardsTool } from './agent/tools/searchCards'
 import { createValidateWithOcgcoreTool } from './agent/tools/validateWithOcgcore'
+import { createWebFetchTool } from './agent/tools/webFetch'
+import { createWebSearchTool } from './agent/tools/webSearch'
 import type { AgentToolDeps, AgentTextSource } from './agent/tools/toolDeps'
 import { configService } from './configService'
 import { libraryService } from './libraryService'
@@ -52,6 +55,7 @@ export class AgentService {
 
   private streamText = ''
   private streamThought = ''
+  private currentQuestion: string | undefined
 
   private emitEvent(event: AgentStreamEvent): void {
     const windows = BrowserWindow.getAllWindows()
@@ -103,6 +107,7 @@ export class AgentService {
   }
   public async sendMessage(params: AgentSendMessageParams): Promise<AgentSendMessageResult> {
     await this.abort()
+    this.currentQuestion = params.question ?? params.prompt
     this.currentBoardState = params.boardState || null
     this.collectedProposals = []
     this.collectedBoardSetup = null
@@ -143,6 +148,8 @@ export class AgentService {
       ...(params.configOverride ?? {})
     } as AgentModelConfig
     const runtime = resolveActiveRuntime(merged)
+    const webConfig = normalizeWebSearchConfig(appConfig.webSearch)
+    const webEnabled = webConfig.enabled
     const cfg: SessionConfig = {
       providers: merged.providers,
       provider: runtime.providerId,
@@ -151,16 +158,18 @@ export class AgentService {
       model: runtime.model || 'deepseek-chat',
       apiFormat: runtime.apiFormat,
       systemPrompt: merged.systemPrompt || '',
-      enableReasoning: runtime.enableReasoning,
+      webEnabled,
+      reasoningEfforts: runtime.reasoningEfforts,
+      reasoningEffort: runtime.reasoningEffort,
       contextWindow: runtime.contextWindow,
       maxTokens: runtime.maxTokens,
-      supportsVision: runtime.supportsVision,
+      input: runtime.input,
       supportsStructuredOutput: runtime.supportsStructuredOutput,
       supportsMidConversationSystem: runtime.supportsMidConversationSystem
     }
 
     if (!cfg.apiKey && !isLocalEndpoint(cfg.baseUrl)) {
-      const errMsg = '请先在「设置 → 背后灵 → 模型设置」中配置 API Key'
+      const errMsg = '请先在「设置 → 模型」中配置 API Key'
       this.emitEvent({ type: 'error', message: errMsg })
       return { success: false, error: errMsg }
     }
@@ -175,7 +184,8 @@ export class AgentService {
       },
       setBoardSetup: (setup) => {
         this.collectedBoardSetup = setup
-      }
+      },
+      getCurrentQuestion: () => this.currentQuestion
     }
     const tools: ToolDefinition[] = [
       createSearchCardsTool(deps),
@@ -186,6 +196,9 @@ export class AgentService {
       createProposeBoardSetupTool(deps),
       createValidateWithOcgcoreTool(deps)
     ]
+    if (webEnabled) {
+      tools.push(createWebSearchTool(deps), createWebFetchTool(deps))
+    }
 
     try {
       const session = await acquireSession(cfg, tools, {

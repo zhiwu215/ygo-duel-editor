@@ -1,7 +1,6 @@
 import React from 'react'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
-import { useStagingStore } from '../stores/useStagingStore'
 import { useHeldCardStore, type HeldMaterialRef } from '../stores/useHeldCardStore'
 import { getDropPosOverride } from '../utils/zoneDrop'
 
@@ -23,8 +22,7 @@ export function useHeldCardPlacement(): HeldCardPlacement {
   const heldCardInstanceId = useHeldCardStore((s) => s.instanceId)
   const heldMaterialRef = useHeldCardStore((s) => s.materialRef)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
-  const stagingActive = useStagingStore((s) => s.session !== null)
-  const canEditLocally = !isEngineActive || stagingActive
+  const canEditLocally = !isEngineActive
 
   const placeHeldCard = (e: React.MouseEvent, target: HeldCardDropTarget): boolean => {
     const { instanceId, materialRef } = useHeldCardStore.getState()

@@ -12,7 +12,7 @@ import { CardFieldStats } from './components/CardFieldStats'
 import { OverlayMaterialStack } from './components/OverlayMaterialStack'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { useStagingStore } from '../../stores/useStagingStore'
+import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { useSelectionStore } from '../../stores/useSelectionStore'
 import { useAttackTargetingStore } from '../../stores/useAttackTargetingStore'
 import { isFaceupMonster } from '../../utils/battleDamage'
@@ -39,8 +39,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const { selectedCardId, setSelectedCardId, setHoveredCard, setHoveredInstanceId } = useDuelStore()
   const tacticalView = useDuelStore((s) => s.tacticalView)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
-  const stagingActive = useStagingStore((s) => s.session !== null)
-  const canDrag = !isEngineActive || stagingActive
+  const canDrag = !isEngineActive
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const selectedKeys = useSelectionStore((s) => s.selectedKeys)
 
@@ -83,7 +82,11 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
 
   const isSelected = selectedCardId === card.instanceId
   const [isDragSource, setIsDragSource] = useState(false)
+  const [imageMissingCode, setImageMissingCode] = useState<number | null>(null)
+  const imageMissing = imageMissingCode === card.code
   const hideSourceFrameRef = useRef<number | null>(null)
+  const customCards = useCustomCardStore((s) => s.cards)
+  const customCard = customCards.find((entry) => entry.id === card.code)
 
   useEffect(
     () => () => {
@@ -129,6 +132,9 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const isSetOnField = isFacedown && !isDeckPile && !isHand
   const showFacedownVeil = isSetOnField || isPileFacedown
   const isPublicHand = isHand && card.position === CardPosition.FACEUP
+  const showImageFallbackName =
+    (imageMissing || customCard !== undefined) &&
+    (!isFacedown || isPublicHand || (isHand && card.controller === 0))
 
   const badgePos = squareCell
     ? isDefense
@@ -245,8 +251,14 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
               small
               alt={resolveCardName(card.code)}
               fallback={getCardBack(card.controller)}
+              onFallback={() => setImageMissingCode(card.code)}
               className="w-full h-full object-cover select-none pointer-events-none"
             />
+            {showImageFallbackName && (
+              <div className="pointer-events-none absolute inset-x-1 top-1 z-10 max-h-[24px] overflow-hidden rounded bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold leading-[10px] text-white break-words">
+                {resolveCardName(card.code)}
+              </div>
+            )}
             {showFacedownVeil && (
               <div className="absolute inset-0 bg-black/30 border border-amber-400/50 rounded pointer-events-none" />
             )}

@@ -343,7 +343,8 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                   onChange={(e) => setDraft(e.target.value)}
                   spellCheck={false}
                   placeholder="本章正文为空"
-                  className="h-full resize-none border-0 bg-transparent px-4 py-3 text-[13px] leading-[1.9] shadow-none outline-none focus-visible:ring-0 placeholder:text-muted-foreground/50"
+                  style={{ fontSize: 'var(--content-font-size)' }}
+                  className="h-full resize-none border-0 bg-transparent px-4 py-3 leading-[1.9] shadow-none outline-none focus-visible:ring-0 placeholder:text-muted-foreground/50"
                 />
               </div>
             </>

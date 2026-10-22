@@ -138,19 +138,21 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       useDuelStore.getState().exitPreview()
       const { kept, dropped } = splitTimeline(prevTimeline, get().currentStepId)
       const discarded = discardFutureSteps(kept, dropped)
+      const notice = {
+        kind: res.warning ? ('warning' as const) : ('success' as const),
+        message: `${appendDiscardNotice(
+          res.warning ? `${res.node.title}：${res.warning}` : res.node.title,
+          discarded
+        )}${previewExited ? '（已退出步骤预览）' : ''}`
+      }
       set({
         loading: false,
         error: null,
         boardState: res.boardState,
+        pendingRequest: res.node.pendingRequest ?? null,
         timeline: [...kept, res.node],
         currentStepId: res.node.id,
-        injectNotice: {
-          kind: res.warning ? 'warning' : 'success',
-          message: `${appendDiscardNotice(
-            res.warning ? `${res.node.title}：${res.warning}` : res.node.title,
-            discarded
-          )}${previewExited ? '（已退出步骤预览）' : ''}`
-        }
+        injectNotice: notice
       })
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(get().timeline)

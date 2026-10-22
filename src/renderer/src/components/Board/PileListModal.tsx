@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { CardLocation, CardPosition, CdbCard, FieldCard, InjectCommand } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { useStagingStore } from '../../stores/useStagingStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useHeldCardStore } from '../../stores/useHeldCardStore'
 import { resolveCardName } from '../../utils/cardNames'
@@ -38,7 +37,6 @@ export const PileListModal: React.FC = () => {
 const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
-  const stagingActive = useStagingStore((s) => s.session !== null)
   const {
     state,
     activeDuelistId,
@@ -98,7 +96,7 @@ const PileListContent: React.FC = () => {
     state.duelists?.find((d) => d.id === activeDuelistId && d.team === target?.controller) || null
 
   const isFiltering = searchQuery.trim().length > 0
-  const dragEnabled = !isEngineActive && !isFiltering && !stagingActive
+  const dragEnabled = !isFiltering && !isEngineActive
 
   const handleSelect = useCallback(
     (card: FieldCard): void => {
@@ -191,7 +189,7 @@ const PileListContent: React.FC = () => {
         if (!dataStr) return
         const droppedCard = JSON.parse(dataStr) as CdbCard
         const engine = useDuelEngineStore.getState()
-        if (engine.isInitialized && !stagingActive) {
+        if (engine.isInitialized) {
           const to: Extract<InjectCommand, { op: 'add-card' }>['to'] | null =
             target.location === CardLocation.DECK
               ? insertIndex <= 0
@@ -330,7 +328,7 @@ const PileListContent: React.FC = () => {
               cards={filteredCards}
               dragEnabled={dragEnabled}
               location={target.location}
-              holdEnabled={!isEngineActive || stagingActive}
+              holdEnabled={!isEngineActive}
               selectedCardId={selectedCardId}
               getCardName={(card) => getCardName(card.code)}
               onSelect={handleSelect}

@@ -25,6 +25,7 @@ export interface CustomCardEditorForm {
   alias: string
   setcode: string[]
   strings: string[]
+  category: number
 }
 
 export interface CustomCardValidation {
@@ -47,7 +48,8 @@ const EMPTY_FORM: CustomCardEditorForm = {
   markers: 0,
   alias: '0',
   setcode: ['', '', '', ''],
-  strings: Array.from({ length: 16 }, () => '')
+  strings: Array.from({ length: 16 }, () => ''),
+  category: 0
 }
 
 function formatSetcodeSlot(value: number): string {
@@ -126,7 +128,8 @@ export function formFromCard(
     markers: card.linkMarkers,
     alias: String(card.alias),
     setcode: Array.from({ length: 4 }, (_, index) => formatSetcodeSlot(card.setcode[index] ?? 0)),
-    strings: normalizeCardStrings(card.strings)
+    strings: normalizeCardStrings(card.strings),
+    category: card.category
   }
 }
 
@@ -160,10 +163,39 @@ export function buildCustomCardInput(
     alias: parseAlias(form.alias),
     ot: 0,
     setcode: Array.from({ length: 4 }, (_, index) => parseSetcodeInput(form.setcode[index] ?? '')),
-    category: 0,
+    category: form.category,
     strings: normalizeCardStrings(form.strings),
     imageSourcePath,
     scriptSourcePath
+  }
+}
+
+export function buildCustomCardDraft(
+  editingId: number | null,
+  form: CustomCardEditorForm
+): CustomCard {
+  const input = buildCustomCardInput(editingId, form)
+  return {
+    schemaVersion: 2,
+    id: input.id ?? 0,
+    alias: input.alias,
+    ot: input.ot,
+    setcode: input.setcode,
+    type: input.type,
+    attribute: input.attribute,
+    race: input.race,
+    level: input.level,
+    lscale: input.lscale,
+    rscale: input.rscale,
+    atk: input.atk,
+    def: input.def,
+    linkMarkers: input.linkMarkers,
+    category: input.category,
+    name: input.name,
+    desc: input.desc,
+    strings: input.strings,
+    createdAt: 0,
+    updatedAt: 0
   }
 }
 

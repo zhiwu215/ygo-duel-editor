@@ -6,7 +6,6 @@ import { useDetachMaterialStore } from '../../stores/useDetachMaterialStore'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
-import { useStagingStore } from '../../stores/useStagingStore'
 import { CardLocation, LOCATION_NAMES } from '@shared/index'
 import { deriveCardEngineActions } from '../../utils/engineActions'
 import {
@@ -26,7 +25,6 @@ import { resolveDuelistDeck } from '../../utils/duelistNames'
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
-  const stagingActive = useStagingStore((s) => s.session !== null)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const { removeCard, clearPile, state, activeDuelistId } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
@@ -119,12 +117,11 @@ export const CardContextMenu: React.FC = () => {
       ? resolveDuelistDeck(state.duelists, card.controller, activeDuelistId, card.duelistId)
       : null
 
-  const engineActions = isEngine && !stagingActive ? requestActions : null
+  const engineActions = isEngine ? requestActions : null
 
   const ctx: CardMenuItemContext = {
     card,
     isEngine,
-    stagingActive,
     engineActions,
     act,
     submitAnswer: (answer) => {
@@ -165,7 +162,7 @@ export const CardContextMenu: React.FC = () => {
   const showOverlayBranch =
     isMonsterZone && !isEngine && !!(card.overlayMaterials && card.overlayMaterials.length > 0)
   const showStatBranch = isMonsterZone || isSpellTrapZone
-  const showRemoveBranch = (!isEngine || stagingActive) && !isModalOpenForThisZone
+  const showRemoveBranch = !isEngine && !isModalOpenForThisZone
   const hasAnyContent =
     duelActionItems.length > 0 ||
     engineEditItems.length > 0 ||
@@ -287,7 +284,7 @@ export const CardContextMenu: React.FC = () => {
         </>
       )}
 
-      {(!isEngine || stagingActive) && !isModalOpenForThisZone && (
+      {!isEngine && !isModalOpenForThisZone && (
         <Button
           variant="destructive"
           size="sm"

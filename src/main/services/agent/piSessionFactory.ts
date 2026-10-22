@@ -7,6 +7,8 @@ import {
   AgentRuntimeConfig,
   AgentStreamEvent,
   cleanAgentApiKey,
+  defaultAgentReasoningEffort,
+  hasAgentReasoning,
   toPiApiType
 } from '@shared/index'
 import { buildSystemPrompt } from './systemPrompt'
@@ -28,8 +30,14 @@ export function getPiAgent(): Promise<PiAgentModule> {
 export type SessionConfig = AgentModelConfig &
   Pick<
     AgentRuntimeConfig,
-    'supportsVision' | 'supportsStructuredOutput' | 'supportsMidConversationSystem'
-  >
+    | 'reasoningEfforts'
+    | 'reasoningEffort'
+    | 'contextWindow'
+    | 'maxTokens'
+    | 'input'
+    | 'supportsStructuredOutput'
+    | 'supportsMidConversationSystem'
+  > & { webEnabled?: boolean }
 
 const PROVIDER_TIMEOUT_MS = 60_000
 
@@ -56,10 +64,16 @@ export function disposeSession(): boolean {
   return true
 }
 
+export interface AcquireSessionOptions {
+  cache?: boolean
+  systemPrompt?: string
+}
+
 export async function acquireSession(
   cfg: SessionConfig,
   tools: ToolDefinition[],
-  deps: PiSessionStreamDeps
+  deps: PiSessionStreamDeps,
+  options: AcquireSessionOptions = {}
 ): Promise<AgentSession> {
   const signature = JSON.stringify([
     cfg.provider,
@@ -67,18 +81,22 @@ export async function acquireSession(
     cfg.apiKey,
     cfg.model,
     cfg.apiFormat,
-    cfg.enableReasoning,
+    cfg.reasoningEfforts,
+    cfg.reasoningEffort,
     cfg.contextWindow,
     cfg.maxTokens,
-    cfg.supportsVision,
+    cfg.input,
     cfg.supportsStructuredOutput,
     cfg.supportsMidConversationSystem,
-    cfg.systemPrompt
+    cfg.webEnabled,
+    tools.map((tool) => tool.name),
+    options.systemPrompt ?? cfg.systemPrompt
   ])
-  if (cachedSession && cachedSession.signature === signature) {
+  const useCache = options.cache !== false
+  if (useCache && cachedSession && cachedSession.signature === signature) {
     return cachedSession.session
   }
-  if (cachedSession) {
+  if (useCache && cachedSession) {
     cachedSession.session.dispose()
     cachedSession = null
   }
@@ -93,6 +111,7 @@ export async function acquireSession(
   if (cfg.supportsStructuredOutput) compat.supportsStrictMode = true
   if (cfg.supportsMidConversationSystem) compat.supportsMidConvoSystemMessages = true
 
+  const reasoning = hasAgentReasoning(cfg.reasoningEfforts)
   const modelsConfig = {
     providers: {
       [cfg.provider || 'custom-openai']: {
@@ -103,10 +122,11 @@ export async function acquireSession(
           {
             id: cfg.model,
             name: cfg.model,
-            reasoning: Boolean(cfg.enableReasoning),
+            reasoning,
+            ...(cfg.reasoningEfforts ? { thinkingLevelMap: cfg.reasoningEfforts } : {}),
             contextWindow: cfg.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
             ...(cfg.maxTokens ? { maxTokens: cfg.maxTokens } : {}),
-            ...(cfg.supportsVision ? { input: ['text', 'image'] } : {}),
+            input: cfg.input && cfg.input.length > 0 ? cfg.input : ['text'],
             ...(Object.keys(compat).length > 0 ? { compat } : {})
           }
         ]
@@ -133,7 +153,7 @@ export async function acquireSession(
   const loader = new DefaultResourceLoader({
     cwd: agentDir,
     agentDir,
-    systemPromptOverride: () => buildSystemPrompt(cfg),
+    systemPromptOverride: () => options.systemPrompt ?? buildSystemPrompt(cfg),
     appendSystemPromptOverride: () => []
   })
   await loader.reload()
@@ -143,6 +163,9 @@ export async function acquireSession(
     agentDir,
     model: targetModel,
     modelRuntime,
+    thinkingLevel: reasoning
+      ? (cfg.reasoningEffort ?? defaultAgentReasoningEffort(cfg.reasoningEfforts) ?? 'medium')
+      : 'off',
     resourceLoader: loader,
     sessionManager: SessionManager.create(agentDir, path.join(agentDir, 'sessions')),
     settingsManager: SettingsManager.inMemory({
@@ -171,6 +194,6 @@ export async function acquireSession(
     }
   })
 
-  cachedSession = { session, signature }
+  if (useCache) cachedSession = { session, signature }
   return session
 }

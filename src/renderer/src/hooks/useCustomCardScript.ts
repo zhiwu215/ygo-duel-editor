@@ -21,6 +21,7 @@ export function useCustomCardScript({ editingId }: UseCustomCardScriptParams): {
   scriptNotice: string
   usedStringIds: number[]
   pickScript: () => Promise<CustomCardScriptPickResult | null>
+  reloadScript: () => Promise<void>
   removeScript: () => Promise<void>
 } {
   const [stagedScript, setStagedScript] = useState<StagedScript | null>(null)
@@ -79,6 +80,12 @@ export function useCustomCardScript({ editingId }: UseCustomCardScriptParams): {
     }
   }
 
+  const reloadScript = async (): Promise<void> => {
+    if (editingId === null) return
+    const info = await window.api.getCustomCardScript(editingId)
+    setScriptInfo(info)
+  }
+
   const removeScript = async (): Promise<void> => {
     if (editingId === null) {
       setStagedScript(null)
@@ -109,6 +116,7 @@ export function useCustomCardScript({ editingId }: UseCustomCardScriptParams): {
     scriptNotice,
     usedStringIds: scriptInfo?.stringIds ?? stagedScript?.stringIds ?? [],
     pickScript,
+    reloadScript,
     removeScript
   }
 }

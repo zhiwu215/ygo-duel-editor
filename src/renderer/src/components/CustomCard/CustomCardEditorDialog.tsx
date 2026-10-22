@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ATTRIBUTE_NAMES, RACE_NAMES } from '@shared/index'
+import type { CardPoolSchema, CustomCardScriptGenerateResult } from '@shared/index'
 import { ImageUp, Loader2, Save } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
 import { Button } from '../ui/button'
@@ -11,6 +12,7 @@ import { useCustomCardImage } from '../../hooks/useCustomCardImage'
 import { useCustomCardScript } from '../../hooks/useCustomCardScript'
 import { useCustomSetcodeNames } from '../../hooks/useCustomSetcodeNames'
 import {
+  buildCustomCardDraft,
   buildCustomCardInput,
   formFromCard,
   validateCustomCardForm,
@@ -28,6 +30,7 @@ import { CardIdentityFields } from './CardIdentityFields'
 import { CardKindFields } from './CardKindFields'
 import { MonsterStatsFields } from './MonsterStatsFields'
 import { CardScriptField } from './CardScriptField'
+import { AiScriptPanel } from './AiScriptPanel'
 import { CardAdvancedFields } from './CardAdvancedFields'
 import { alertDialog } from '../../stores/useDialogStore'
 
@@ -58,10 +61,12 @@ const CustomCardEditorBody: React.FC = () => {
   const [saving, setSaving] = useState<boolean>(false)
   const [imageFailed, setImageFailed] = useState<boolean>(false)
   const [setnames, setSetnames] = useState<Array<{ code: number; name: string }>>([])
+  const [poolSchema, setPoolSchema] = useState<CardPoolSchema>('classic')
   const { copiedField, copy } = useCopyFeedback('CustomCardEditorDialog')
   const { stagedImage, pickingImage, pickImage } = useCustomCardImage(setError)
   const script = useCustomCardScript({ editingId })
   const customSetcodes = useCustomSetcodeNames()
+  const [aiScriptApplied, setAiScriptApplied] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -70,6 +75,7 @@ const CustomCardEditorBody: React.FC = () => {
       .then((options) => {
         if (cancelled) return
         setSetnames(options.setnames ?? [])
+        setPoolSchema(options.poolSchema)
       })
       .catch((err) => {
         console.error('[CustomCardEditorDialog] load filter options failed:', err)
@@ -84,7 +90,8 @@ const CustomCardEditorBody: React.FC = () => {
   const isPendulum = hasPendulum(form.type)
   const isFlavorText = isMonster && !hasEffect(form.type)
   const hasScript =
-    editingId !== null ? Boolean(script.scriptInfo?.exists) : script.stagedScript !== null
+    aiScriptApplied ||
+    (editingId !== null ? Boolean(script.scriptInfo?.exists) : script.stagedScript !== null)
   const validation = useMemo(
     () => validateCustomCardForm(editingId, form, hasScript),
     [editingId, form, hasScript]
@@ -103,6 +110,7 @@ const CustomCardEditorBody: React.FC = () => {
     Number(form.id) !== script.stagedScript.suggestedId
 
   const scriptNotice =
+    (aiScriptApplied ? 'AI 脚本已应用，保存卡片后生效。' : '') ||
     script.scriptNotice ||
     (scriptIdMismatch
       ? `脚本文件名建议卡密 ${script.stagedScript?.suggestedId}，当前卡密为 ${form.id}；保存后会关联为 c${form.id}.lua`
@@ -113,6 +121,17 @@ const CustomCardEditorBody: React.FC = () => {
     if (picked?.suggestedId !== undefined && editingId === null && !form.id.trim()) {
       setForm((current) => ({ ...current, id: String(picked.suggestedId) }))
     }
+  }
+
+  const handleAiApplied = (result: CustomCardScriptGenerateResult): void => {
+    setAiScriptApplied(true)
+    setForm((current) => ({
+      ...current,
+      category: result.category ?? current.category,
+      strings:
+        result.strings?.some((text) => text.trim()) === true ? result.strings : current.strings
+    }))
+    if (editingId !== null) void script.reloadScript()
   }
 
   const handleSave = async (): Promise<void> => {
@@ -221,7 +240,7 @@ const CustomCardEditorBody: React.FC = () => {
 
                   {isMonster && (
                     <EditorSection title="属性与数值">
-                      <MonsterStatsFields form={form} setForm={setForm} />
+                      <MonsterStatsFields form={form} setForm={setForm} poolSchema={poolSchema} />
                     </EditorSection>
                   )}
 
@@ -235,6 +254,14 @@ const CustomCardEditorBody: React.FC = () => {
                       className="min-h-[160px] resize-y text-xs leading-relaxed"
                     />
                   </EditorSection>
+
+                  {!isFlavorText && (
+                    <AiScriptPanel
+                      card={buildCustomCardDraft(editingId, form)}
+                      onEnsureId={(id) => setForm((current) => ({ ...current, id: String(id) }))}
+                      onApplied={handleAiApplied}
+                    />
+                  )}
 
                   <CardScriptField
                     editingId={editingId}

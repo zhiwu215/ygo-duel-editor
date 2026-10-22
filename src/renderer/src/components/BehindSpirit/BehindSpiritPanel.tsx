@@ -1,25 +1,14 @@
-import { ScrollArea } from '../ui/scroll-area'
 import React, { useState, useEffect, useRef, JSX } from 'react'
-import { createPortal } from 'react-dom'
-import {
-  Send,
-  Square,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-  BrainCircuit,
-  Bot,
-  Loader2,
-  Paperclip,
-  BookOpen
-} from 'lucide-react'
+import { Send, Square, Trash2, Bot, CircleAlert, Info } from 'lucide-react'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { confirmDialog } from '../../stores/useDialogStore'
 import { DuelProposalSummaryCard } from './DuelProposalSummaryCard'
 import { MarkdownContent } from './MarkdownContent'
-import { TextSourcePicker } from './TextSourcePicker'
+import { ReasoningRow } from './ReasoningRow'
+import { StreamingStatus } from './StreamingStatus'
 import { ToolCallList } from './ToolCallList'
+import { UserMessageAttachments } from './UserMessageAttachments'
 import { ModelPickerMenu } from './ModelPickerMenu'
 import { AttachmentChips } from './AttachmentChips'
 import { Button } from '../ui/button'
@@ -31,7 +20,6 @@ import { useChatAttachments } from '../../hooks/useChatAttachments'
 export function BehindSpiritPanel(): JSX.Element {
   const {
     isGenerating,
-    config,
     messages,
     loadConfig,
     resetSession,
@@ -44,7 +32,6 @@ export function BehindSpiritPanel(): JSX.Element {
 
   const [inputPrompt, setInputPrompt] = useState('')
   const [appliedMessageId, setAppliedMessageId] = useState<string | null>(null)
-  const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({})
 
   const [applyingProposalMsgId, setApplyingProposalMsgId] = useState<string | null>(null)
   const [proposalError, setProposalError] = useState<{ msgId: string; text: string } | null>(null)
@@ -58,18 +45,11 @@ export function BehindSpiritPanel(): JSX.Element {
     handleCardDrop,
     removeAttachedCard,
     removeAttachedText,
-    attachText,
-    clearAttachments,
-    textPickerOpen,
-    textPickerPos,
-    textPickerAnchorRef,
-    openTextPicker,
-    closeTextPicker
+    clearAttachments
   } = useChatAttachments()
 
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
-  const toolbarRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void loadConfig()
@@ -98,7 +78,7 @@ export function BehindSpiritPanel(): JSX.Element {
       inputPrompt.trim() || (attachedText ? '请把附加的对局原文整理成可演示的对局流程' : ''),
       currentBoardState,
       buildInjectedPrompt(inputPrompt.trim(), attachedCards, attachedText),
-      attachedCards.map((c) => ({ id: c.id, name: c.name })),
+      attachedCards.map((card) => ({ id: card.id, name: card.name, type: card.type })),
       attachedText ?? undefined
     )
     setInputPrompt('')
@@ -141,13 +121,6 @@ export function BehindSpiritPanel(): JSX.Element {
     } else {
       setProposalError({ msgId: messageId, text: res.error ?? '应用失败' })
     }
-  }
-
-  const toggleThought = (msgId: string): void => {
-    setExpandedThoughts((prev) => ({
-      ...prev,
-      [msgId]: !prev[msgId]
-    }))
   }
 
   return (
@@ -198,128 +171,105 @@ export function BehindSpiritPanel(): JSX.Element {
                 <Bot className="w-7 h-7" />
               </div>
               <h3 className="text-xs font-bold text-foreground">我是您的决斗创作者背后灵</h3>
-              {!config.apiKey && (
-                <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-                  尚未连接模型提供商：点击窗口左下角的「设置」补全 Key，
-                  或在下方工具栏直接切换已配好的提供商与模型。
-                </p>
-              )}
             </div>
           ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex flex-col gap-1.5 ${
-                  msg.role === 'user' ? 'items-end' : 'items-start'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground px-1 select-none">
-                  {msg.role === 'user' ? (
-                    <span>创作者</span>
-                  ) : (
-                    <span className="font-bold text-foreground">背后灵</span>
-                  )}
-                  <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
-                </div>
+            messages.map((msg, index) => {
+              const isLast = index === messages.length - 1
+              const isActive = isGenerating && isLast && msg.role === 'assistant'
+              const toolCalls = msg.toolCalls ?? []
+              const hasThought = Boolean(msg.thought?.trim())
+              const hasContent = msg.content.length > 0
+              const hasProposal = Boolean(
+                msg.boardSetup || (msg.proposals && msg.proposals.length > 0)
+              )
+              const statusLabel = hasContent
+                ? '正在生成'
+                : toolCalls.some((call) => !call.resultSummary)
+                  ? '正在调用工具'
+                  : hasThought
+                    ? '正在思考'
+                    : '正在准备'
 
-                <div
-                  className={`rounded-lg p-2.5 max-w-[95%] min-w-0 text-xs leading-relaxed break-words ${
-                    msg.role === 'user'
-                      ? 'bg-muted text-foreground font-medium'
-                      : 'bg-card border border-border/80 text-foreground shadow-xs'
-                  }`}
-                >
-                  {msg.thought && (
-                    <div className="mb-2 border-b border-border/40 pb-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleThought(msg.id)}
-                        className="flex items-center gap-1 text-[10px] text-muted-foreground font-semibold hover:text-foreground hover:underline"
-                      >
-                        <BrainCircuit className="w-3.5 h-3.5" />
-                        <span>{expandedThoughts[msg.id] ? '收起思考过程' : '展开深度思考链'}</span>
-                        {expandedThoughts[msg.id] ? (
-                          <ChevronDown className="w-3 h-3" />
-                        ) : (
-                          <ChevronRight className="w-3 h-3" />
-                        )}
-                      </button>
-                      {expandedThoughts[msg.id] && (
-                        <ScrollArea className="mt-1.5 rounded bg-neutral-100 max-h-48 border border-border/30">
-                          <div className="p-2 dark:bg-neutral-900/80 font-mono text-[11px] text-muted-foreground whitespace-pre-wrap">
-                            {msg.thought}
-                          </div>
-                        </ScrollArea>
-                      )}
+              if (msg.role === 'user') {
+                return (
+                  <div key={msg.id} className="message-enter flex flex-col items-end gap-1.5">
+                    <div className="flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground select-none">
+                      <span>创作者</span>
+                      <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
                     </div>
+
+                    <UserMessageAttachments
+                      cards={msg.attachedCards}
+                      text={msg.textSource ?? null}
+                    />
+
+                    {hasContent && (
+                      <div className="max-w-[95%] min-w-0 rounded-lg bg-muted p-2.5 text-[length:var(--chat-font-size)] leading-relaxed font-medium break-words text-foreground">
+                        <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                          {msg.content}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
+              return (
+                <div key={msg.id} className="message-enter flex flex-col items-start gap-1.5">
+                  <div className="flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground select-none">
+                    <span className="font-bold text-foreground">背后灵</span>
+                    <span>{new Date(msg.createdAt).toLocaleTimeString()}</span>
+                  </div>
+
+                  {hasThought && (
+                    <ReasoningRow text={msg.thought ?? ''} running={isActive && !hasContent} />
                   )}
 
-                  {msg.toolCalls && msg.toolCalls.length > 0 && (
-                    <ToolCallList calls={msg.toolCalls} isStreaming={isGenerating} />
+                  {toolCalls.length > 0 && (
+                    <div className="w-full min-w-0 max-w-[95%]">
+                      <ToolCallList calls={toolCalls} isStreaming={isActive} />
+                    </div>
                   )}
 
                   {msg.status && (
-                    <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <Loader2 className="w-3 h-3 animate-spin shrink-0" />
-                      <span>{msg.status}</span>
+                    <div className="flex max-w-[95%] items-center gap-1.5 px-1 text-[10px] leading-4 text-muted-foreground">
+                      <Info className="h-3 w-3 shrink-0" />
+                      <span className="min-w-0">{msg.status}</span>
                     </div>
                   )}
 
-                  {msg.role === 'user' && msg.textSource && (
-                    <div className="mb-1.5 flex items-center gap-1.5">
-                      <span className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground min-w-0">
-                        <BookOpen className="w-3 h-3 shrink-0" />
-                        <span className="truncate max-w-64">{msg.textSource.title}</span>
-                        {msg.textSource.wordCount ? (
-                          <span className="shrink-0 font-mono">
-                            约 {msg.textSource.wordCount} 字
-                          </span>
-                        ) : null}
+                  {hasContent && (
+                    <div className="max-w-[95%] min-w-0 rounded-lg border border-border/80 bg-card p-2.5 text-[length:var(--chat-font-size)] leading-relaxed break-words text-foreground shadow-xs">
+                      <MarkdownContent content={msg.content} isStreaming={isActive} />
+                    </div>
+                  )}
+
+                  {msg.error && (
+                    <div className="flex max-w-[95%] items-start gap-1.5 rounded-md border border-destructive/20 bg-destructive/5 px-2 py-1.5 text-[11px] leading-relaxed text-destructive">
+                      <CircleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                        {msg.error}
                       </span>
                     </div>
                   )}
 
-                  {msg.attachedCards && msg.attachedCards.length > 0 && (
-                    <div className="mb-1.5 flex flex-wrap items-center gap-1">
-                      <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
-                      {msg.attachedCards.map((c) => (
-                        <span
-                          key={c.id}
-                          className="rounded bg-muted/70 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                        >
-                          {c.name}
-                        </span>
-                      ))}
+                  {hasProposal && (
+                    <div className="w-full min-w-0 max-w-[95%]">
+                      <DuelProposalSummaryCard
+                        setup={msg.boardSetup}
+                        proposals={msg.proposals ?? []}
+                        applied={appliedMessageId === msg.id}
+                        applying={applyingProposalMsgId === msg.id}
+                        error={proposalError?.msgId === msg.id ? proposalError.text : null}
+                        onApply={() => void handleApplyProposal(msg.id)}
+                      />
                     </div>
                   )}
 
-                  {msg.role === 'user' ? (
-                    <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                      {msg.content}
-                    </div>
-                  ) : (
-                    <MarkdownContent content={msg.content} />
-                  )}
-
-                  {isGenerating &&
-                    msg.role === 'assistant' &&
-                    msg === messages[messages.length - 1] && (
-                      <span className="inline-block w-1.5 h-3 ml-1 bg-foreground animate-pulse" />
-                    )}
-
-                  {(msg.boardSetup || (msg.proposals && msg.proposals.length > 0)) && (
-                    <DuelProposalSummaryCard
-                      setup={msg.boardSetup}
-                      proposals={msg.proposals ?? []}
-                      applied={appliedMessageId === msg.id}
-                      applying={applyingProposalMsgId === msg.id}
-                      error={proposalError?.msgId === msg.id ? proposalError.text : null}
-                      onApply={() => void handleApplyProposal(msg.id)}
-                    />
-                  )}
+                  {isActive && <StreamingStatus startTime={msg.createdAt} label={statusLabel} />}
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 
@@ -348,24 +298,10 @@ export function BehindSpiritPanel(): JSX.Element {
             />
           </div>
 
-          <div className="flex items-center justify-between gap-1.5" ref={toolbarRef}>
+          <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1 min-w-0 flex-1">
-              <div ref={textPickerAnchorRef} className="shrink-0">
-                <button
-                  type="button"
-                  onClick={openTextPicker}
-                  className={cn(
-                    'w-6 h-6 rounded flex items-center justify-center transition-colors',
-                    textPickerOpen
-                      ? 'bg-muted text-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                  )}
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                </button>
-              </div>
               <div className="relative min-w-0 flex-1">
-                <ModelPickerMenu toolbarRef={toolbarRef} />
+                <ModelPickerMenu />
               </div>
             </div>
 
@@ -393,17 +329,6 @@ export function BehindSpiritPanel(): JSX.Element {
           </div>
         </div>
       </div>
-
-      {textPickerOpen &&
-        createPortal(
-          <TextSourcePicker
-            pos={textPickerPos}
-            anchorRef={textPickerAnchorRef}
-            onClose={closeTextPicker}
-            onAttach={attachText}
-          />,
-          document.body
-        )}
     </div>
   )
 }

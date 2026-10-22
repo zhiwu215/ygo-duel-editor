@@ -40,6 +40,7 @@ function toRequestCard(info: {
   controller: number
   location: number
   sequence: number
+  subsequence?: number
   desc?: number
   directAttack?: number
   opParam?: number
@@ -50,6 +51,7 @@ function toRequestCard(info: {
     controller: normalizePlayer(info.controller, 0),
     location: info.location,
     sequence: info.sequence,
+    subsequence: info.subsequence,
     desc: info.desc,
     directAttackable: info.directAttack === undefined ? undefined : info.directAttack === 1,
     opParam: info.opParam,

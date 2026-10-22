@@ -1,9 +1,11 @@
 import { ipcMain } from 'electron'
-import { CustomCardInput } from '@shared/index'
+import { CustomCard, CustomCardInput } from '@shared/index'
 import { customCardService } from '../services/customCardService'
 import { customSetcodeService } from '../services/customSetcodeService'
 import { imageService } from '../services/imageService'
 import { openCustomScriptDir } from '../services/customCardScript'
+import { runCustomCardScriptTest } from '../services/customCardScriptTest'
+import { generateCustomCardScript } from '../services/customCardScriptAgent'
 import {
   cleanCustomCardsFromGame,
   openCustomCardSyncDirectory,
@@ -50,6 +52,32 @@ export function registerCustomCardIpc(): void {
 
   ipcMain.handle('customcard:script-info', (_, code: number) => {
     return customCardService.scriptInfo(code)
+  })
+
+  ipcMain.handle('customcard:allocate-id', () => {
+    return customCardService.allocateId()
+  })
+
+  ipcMain.handle('customcard:read-script-content', (_, code: number) => {
+    return customCardService.scriptContent(code)
+  })
+
+  ipcMain.handle(
+    'customcard:test-script',
+    async (_, input: { card: CustomCard; script: string; plan?: unknown }) => {
+      return runCustomCardScriptTest(input)
+    }
+  )
+
+  ipcMain.handle(
+    'customcard:generate-script',
+    async (_, input: { card: CustomCard; existingScript?: string }) => {
+      return generateCustomCardScript(input.card, input.existingScript)
+    }
+  )
+
+  ipcMain.handle('customcard:save-script-content', (_, code: number, content: string) => {
+    return customCardService.saveScriptContent(code, content)
   })
 
   ipcMain.handle('customcard:pick-script-file', async () => {

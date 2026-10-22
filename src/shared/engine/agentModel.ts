@@ -5,20 +5,69 @@ import type {
   AgentProviderModelConfig,
   AgentProviderPreset
 } from '../types/ipc'
+import { normalizeAgentModelInputs, type AgentModelInput } from '../constants/modelInput'
+import {
+  normalizeAgentReasoningEffort,
+  normalizeAgentReasoningEfforts,
+  resolveAgentReasoningEffort,
+  type AgentReasoningEffort,
+  type AgentReasoningEfforts
+} from '../constants/reasoningEffort'
 
 export const DEFAULT_AGENT_API_FORMAT: AgentApiFormat = 'openai-chat-completions'
 
+const AGENT_DEFAULTS_VERSION = 3
+
+const DEFAULT_AGENT_PROVIDER_PRESET_ID = 'deepseek'
+
+const LEGACY_DEFAULT_MODEL_IDS = new Set(['deepseek-chat', 'deepseek-reasoner'])
+
+const LEGACY_REASONING_EFFORTS: AgentReasoningEfforts = {
+  off: null,
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  max: 'max'
+}
+
 export const AGENT_API_FORMAT_LABELS: Record<AgentApiFormat, string> = {
-  'anthropic-messages': 'Anthropic Messages (/v1/messages)',
-  'openai-chat-completions': 'Chat Completions (/chat/completions)',
-  'openai-responses': 'Responses (/responses)'
+  'anthropic-messages': 'Anthropic Messages',
+  'openai-chat-completions': 'OpenAI Chat Completions',
+  'openai-responses': 'OpenAI Responses',
+  'google-generative-ai': 'Google Generative AI',
+  'google-vertex': 'Google Vertex AI',
+  'azure-openai-responses': 'Azure OpenAI Responses',
+  'bedrock-converse-stream': 'Amazon Bedrock',
+  'openai-codex-responses': 'OpenAI Codex Responses',
+  'mistral-conversations': 'Mistral Conversations',
+  'pi-messages': 'Pi Messages'
 }
 
 export const AGENT_API_FORMAT_VALUES: AgentApiFormat[] = [
   'anthropic-messages',
   'openai-chat-completions',
-  'openai-responses'
+  'openai-responses',
+  'google-generative-ai',
+  'google-vertex',
+  'azure-openai-responses',
+  'bedrock-converse-stream',
+  'openai-codex-responses',
+  'mistral-conversations',
+  'pi-messages'
 ]
+
+export const AGENT_CUSTOM_API_FORMAT_VALUES: AgentApiFormat[] = [
+  'openai-chat-completions',
+  'openai-responses',
+  'anthropic-messages'
+]
+
+interface LegacyModelFields {
+  enabled?: unknown
+  custom?: unknown
+  supportsReasoning?: unknown
+  supportsVision?: unknown
+}
 
 export function toPiApiType(format?: AgentApiFormat): string {
   switch (format) {
@@ -26,15 +75,27 @@ export function toPiApiType(format?: AgentApiFormat): string {
       return 'anthropic-messages'
     case 'openai-responses':
       return 'openai-responses'
+    case 'google-generative-ai':
+      return 'google-generative-ai'
+    case 'google-vertex':
+      return 'google-vertex'
+    case 'azure-openai-responses':
+      return 'azure-openai-responses'
+    case 'bedrock-converse-stream':
+      return 'bedrock-converse-stream'
+    case 'openai-codex-responses':
+      return 'openai-codex-responses'
+    case 'mistral-conversations':
+      return 'mistral-conversations'
+    case 'pi-messages':
+      return 'pi-messages'
     default:
       return 'openai-completions'
   }
 }
 
 export function normalizeAgentApiFormat(format?: string | null): AgentApiFormat {
-  return format === 'anthropic-messages' || format === 'openai-responses'
-    ? format
-    : DEFAULT_AGENT_API_FORMAT
+  return AGENT_API_FORMAT_VALUES.find((value) => value === format) ?? DEFAULT_AGENT_API_FORMAT
 }
 
 export function createProviderFromPreset(preset: AgentProviderPreset): AgentProviderConfig {
@@ -44,9 +105,67 @@ export function createProviderFromPreset(preset: AgentProviderPreset): AgentProv
     baseUrl: preset.baseUrl,
     apiFormat: preset.apiFormat ?? DEFAULT_AGENT_API_FORMAT,
     apiKey: '',
-    enabled: true,
     presetId: preset.id,
-    models: []
+    models: (preset.models ?? []).map((model) => cloneModel(model))
+  }
+}
+
+function cloneModel(model: AgentProviderModelConfig): AgentProviderModelConfig {
+  return {
+    ...model,
+    ...(model.input ? { input: [...model.input] } : {}),
+    ...(model.reasoningEfforts ? { reasoningEfforts: { ...model.reasoningEfforts } } : {})
+  }
+}
+
+function normalizeModel(
+  value: AgentProviderModelConfig & LegacyModelFields
+): AgentProviderModelConfig {
+  const model: AgentProviderModelConfig = {
+    id: typeof value.id === 'string' ? value.id.trim() : ''
+  }
+  if (typeof value.name === 'string' && value.name.trim().length > 0) model.name = value.name.trim()
+  const input =
+    normalizeAgentModelInputs(value.input) ??
+    (value.supportsVision === true ? (['text', 'image'] as AgentModelInput[]) : undefined)
+  if (input) model.input = input
+  if (
+    typeof value.contextWindow === 'number' &&
+    Number.isInteger(value.contextWindow) &&
+    value.contextWindow > 0
+  ) {
+    model.contextWindow = value.contextWindow
+  }
+  if (
+    typeof value.maxTokens === 'number' &&
+    Number.isInteger(value.maxTokens) &&
+    value.maxTokens > 0
+  ) {
+    model.maxTokens = value.maxTokens
+  }
+  const efforts =
+    normalizeAgentReasoningEfforts(value.reasoningEfforts) ??
+    (value.supportsReasoning === true ? { ...LEGACY_REASONING_EFFORTS } : undefined)
+  if (efforts) model.reasoningEfforts = efforts
+  if (value.supportsStructuredOutput === true) model.supportsStructuredOutput = true
+  if (value.supportsMidConversationSystem === true) model.supportsMidConversationSystem = true
+  return model
+}
+
+function normalizeProvider(value: AgentProviderConfig): AgentProviderConfig {
+  const id = typeof value.id === 'string' ? value.id.trim() : ''
+  return {
+    id,
+    name: typeof value.name === 'string' && value.name.trim().length > 0 ? value.name.trim() : id,
+    baseUrl: (value.baseUrl || '').trim(),
+    apiFormat: normalizeAgentApiFormat(value.apiFormat),
+    apiKey: cleanAgentApiKey(value.apiKey),
+    ...(typeof value.presetId === 'string' && value.presetId.length > 0
+      ? { presetId: value.presetId }
+      : {}),
+    models: (value.models ?? [])
+      .map((model) => normalizeModel(model as AgentProviderModelConfig & LegacyModelFields))
+      .filter((model) => model.id.length > 0)
   }
 }
 
@@ -55,18 +174,11 @@ function findAgentProvider(
   providerId?: string | null
 ): AgentProviderConfig | null {
   if (!providerId || !config.providers) return null
-  return config.providers.find((p) => p.id === providerId) ?? null
+  return config.providers.find((provider) => provider.id === providerId) ?? null
 }
 
-function firstEnabledModel(
-  provider: AgentProviderConfig | null | undefined
-): AgentProviderModelConfig | null {
-  if (!provider) return null
-  return provider.models.find((m) => m.enabled) ?? null
-}
-
-function hasEnabledModel(provider: AgentProviderConfig): boolean {
-  return provider.models.some((m) => m.enabled)
+function hasModels(provider: AgentProviderConfig): boolean {
+  return provider.models.length > 0
 }
 
 export interface AgentRuntimeConfig {
@@ -75,12 +187,11 @@ export interface AgentRuntimeConfig {
   apiKey: string
   model: string
   apiFormat: AgentApiFormat
-  enableReasoning: boolean
+  reasoningEffort?: AgentReasoningEffort
+  reasoningEfforts?: AgentReasoningEfforts
   contextWindow?: number
   maxTokens?: number
-
-  supportsVision?: boolean
-
+  input: AgentModelInput[]
   supportsStructuredOutput?: boolean
   supportsMidConversationSystem?: boolean
 }
@@ -99,20 +210,15 @@ export function resolveActiveRuntime(
       apiKey: (config.apiKey || '').trim(),
       model: (config.model || '').trim(),
       apiFormat: normalizeAgentApiFormat(config.apiFormat),
-      enableReasoning: Boolean(config.enableReasoning),
-      contextWindow: config.contextWindow,
-      maxTokens: config.maxTokens
+      input: ['text']
     }
   }
 
-  const requestedModel = override?.modelId ?? (providerId === config.provider ? config.model : '')
+  const requestedModel = override?.modelId ?? (provider.id === config.provider ? config.model : '')
   const model =
-    provider.models.find((m) => m.id === requestedModel && m.enabled) ?? firstEnabledModel(provider)
-
-  const enableReasoning =
-    providerId === config.provider && requestedModel === config.model
-      ? Boolean(config.enableReasoning)
-      : Boolean(model?.supportsReasoning)
+    provider.models.find((item) => item.id === requestedModel) ?? provider.models[0] ?? null
+  const reasoningEfforts = normalizeAgentReasoningEfforts(model?.reasoningEfforts)
+  const reasoningEffort = resolveAgentReasoningEffort(reasoningEfforts, config.reasoningEffort)
 
   return {
     providerId: provider.id,
@@ -120,11 +226,11 @@ export function resolveActiveRuntime(
     apiKey: (provider.apiKey || '').trim(),
     model: model?.id ?? '',
     apiFormat: normalizeAgentApiFormat(provider.apiFormat),
-    enableReasoning,
-    contextWindow: model?.contextWindow ?? config.contextWindow,
-
-    maxTokens: model?.maxTokens ?? config.maxTokens,
-    supportsVision: model?.supportsVision,
+    reasoningEffort,
+    reasoningEfforts,
+    contextWindow: model?.contextWindow,
+    maxTokens: model?.maxTokens,
+    input: model?.input ?? ['text'],
     supportsStructuredOutput: model?.supportsStructuredOutput,
     supportsMidConversationSystem: model?.supportsMidConversationSystem
   }
@@ -133,8 +239,12 @@ export function resolveActiveRuntime(
 function firstRunnableProvider(config: AgentModelConfig): AgentProviderConfig | null {
   if (!config.providers) return null
   return (
-    config.providers.find((p) => p.enabled && p.apiKey.trim() && hasEnabledModel(p)) ??
-    config.providers.find((p) => p.enabled && hasEnabledModel(p)) ??
+    config.providers.find(
+      (provider) =>
+        hasModels(provider) &&
+        (provider.apiKey.trim().length > 0 || isLocalEndpoint(provider.baseUrl))
+    ) ??
+    config.providers.find((provider) => hasModels(provider)) ??
     config.providers[0] ??
     null
   )
@@ -142,9 +252,7 @@ function firstRunnableProvider(config: AgentModelConfig): AgentProviderConfig | 
 
 export function isProviderReady(provider: AgentProviderConfig): boolean {
   return Boolean(
-    provider.enabled &&
-    (provider.apiKey.trim() || isLocalEndpoint(provider.baseUrl)) &&
-    hasEnabledModel(provider)
+    (provider.apiKey.trim() || isLocalEndpoint(provider.baseUrl)) && hasModels(provider)
   )
 }
 
@@ -176,28 +284,108 @@ export function syncActiveFields(
     apiKey: runtime.apiKey,
     model: runtime.model,
     apiFormat: runtime.apiFormat,
-    enableReasoning: runtime.enableReasoning,
-    contextWindow: runtime.contextWindow
+    reasoningEffort: runtime.reasoningEffort
   }
 }
 
 export function normalizeAgentConfig(config: AgentModelConfig): AgentModelConfig {
-  const providers = (config.providers ?? []).map((provider) => ({
-    ...provider,
-    apiFormat: normalizeAgentApiFormat(provider.apiFormat),
-    apiKey: cleanAgentApiKey(provider.apiKey),
-    baseUrl: (provider.baseUrl || '').trim(),
-    enabled: provider.enabled !== false,
-    models: (provider.models ?? [])
-      .filter((model) => model.custom === true)
-      .map((model) => ({
-        ...model,
-        id: model.id.trim(),
-        enabled: model.enabled !== false
-      }))
-  }))
+  const providers = (config.providers ?? [])
+    .map((provider) => normalizeProvider(provider))
+    .filter((provider) => provider.id.length > 0)
 
-  return syncActiveFields({ ...config, providers })
+  return syncActiveFields({
+    providers,
+    provider: config.provider,
+    baseUrl: (config.baseUrl || '').trim(),
+    apiKey: cleanAgentApiKey(config.apiKey),
+    model: (config.model || '').trim(),
+    apiFormat: normalizeAgentApiFormat(config.apiFormat),
+    systemPrompt: config.systemPrompt,
+    reasoningEffort: normalizeAgentReasoningEffort(config.reasoningEffort),
+    defaultsVersion: config.defaultsVersion
+  })
+}
+
+function mergePresetModels(
+  models: AgentProviderModelConfig[],
+  presetModels: AgentProviderModelConfig[] | undefined
+): AgentProviderModelConfig[] {
+  if (!presetModels || presetModels.length === 0) return models
+  const usesLegacyDefaults =
+    models.length === 0 || models.every((model) => LEGACY_DEFAULT_MODEL_IDS.has(model.id))
+  if (usesLegacyDefaults) return presetModels.map((model) => cloneModel(model))
+  return models.map((model) => {
+    const presetModel = presetModels.find((item) => item.id === model.id)
+    return presetModel ? { ...cloneModel(presetModel), ...model } : model
+  })
+}
+
+export function applyAgentProviderDefaults(
+  config: AgentModelConfig,
+  presets: AgentProviderPreset[]
+): AgentModelConfig {
+  if ((config.defaultsVersion ?? 0) >= AGENT_DEFAULTS_VERSION) return config
+
+  const providers = (config.providers ?? []).map((provider) => {
+    const preset = presets.find((item) => item.id === (provider.presetId ?? provider.id))
+    if (!preset) return provider
+    return {
+      ...provider,
+      presetId: preset.id,
+      models: mergePresetModels(provider.models, preset.models)
+    }
+  })
+
+  const preset = presets.find((item) => item.id === DEFAULT_AGENT_PROVIDER_PRESET_ID)
+  const existingIndex = providers.findIndex(
+    (provider) =>
+      provider.presetId === DEFAULT_AGENT_PROVIDER_PRESET_ID ||
+      provider.id === DEFAULT_AGENT_PROVIDER_PRESET_ID
+  )
+
+  let defaultProvider: AgentProviderConfig | null = null
+  if (existingIndex >= 0) {
+    const existing = providers[existingIndex]
+    defaultProvider = existing
+    const usesLegacyDefaults =
+      existing.models.length === 0 ||
+      existing.models.every((model) => LEGACY_DEFAULT_MODEL_IDS.has(model.id))
+    if (usesLegacyDefaults && preset?.models?.length) {
+      defaultProvider = {
+        ...existing,
+        models: preset.models.map((model) => cloneModel(model))
+      }
+      providers[existingIndex] = defaultProvider
+    }
+  } else if (preset) {
+    defaultProvider = createProviderFromPreset(preset)
+    providers.unshift(defaultProvider)
+  }
+
+  const keepSelection = Boolean(
+    config.provider &&
+    providers.some(
+      (provider) =>
+        provider.id === config.provider &&
+        provider.models.some((model) => model.id === config.model)
+    )
+  )
+  const nextSelection =
+    defaultProvider && !keepSelection
+      ? {
+          providerId: defaultProvider.id,
+          modelId: defaultProvider.models[0]?.id
+        }
+      : undefined
+
+  return syncActiveFields(
+    {
+      ...config,
+      providers,
+      defaultsVersion: AGENT_DEFAULTS_VERSION
+    },
+    nextSelection
+  )
 }
 
 export function cleanAgentApiKey(key: string | undefined): string {

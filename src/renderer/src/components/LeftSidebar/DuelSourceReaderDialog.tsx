@@ -141,7 +141,10 @@ export const DuelSourceReaderDialog: React.FC<DuelSourceReaderDialogProps> = ({
                   <Loader2 className="w-4 h-4 animate-spin" />
                 </div>
               ) : (
-                <div className="text-[11.5px] leading-relaxed text-foreground/90 whitespace-pre-wrap font-sans select-text cursor-text">
+                <div
+                  style={{ fontSize: 'var(--content-font-size)' }}
+                  className="leading-relaxed text-foreground/90 whitespace-pre-wrap font-sans select-text cursor-text"
+                >
                   {activeChapter.content}
                 </div>
               )}

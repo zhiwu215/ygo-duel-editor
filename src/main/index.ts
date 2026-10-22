@@ -101,9 +101,7 @@ app.whenReady().then(() => {
         return new Response('Invalid card code', { status: 400 })
       }
 
-      const filePath =
-        imageService.findCardImagePath(code, isSmall) ??
-        (await imageService.downloadCardImage(code))
+      const filePath = imageService.findCardImagePath(code, isSmall)
       if (filePath) {
         return await net.fetch(pathToFileURL(filePath).toString())
       }

@@ -139,8 +139,6 @@ export function buildTurnStartLp(steps: DuelStep[], startLp: LpPair): Map<number
       map.set(turn, [lp[0], lp[1]])
     }
     if (step.lpChange) lp[step.lpChange.player] = step.lpChange.newLp
-    const lpOp = step.manualOps?.find((op) => op.type === 'lp')
-    if (lpOp) lp[lpOp.player] = lpOp.value
   }
   return map
 }

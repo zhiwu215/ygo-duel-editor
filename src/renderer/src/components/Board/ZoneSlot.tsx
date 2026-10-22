@@ -7,7 +7,6 @@ import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useTokenStore } from '../../stores/useTokenStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { useStagingStore } from '../../stores/useStagingStore'
 import { useHeldCardPlacement } from '../../hooks/useHeldCardPlacement'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { DropHintPopover } from './components/DropHintPopover'
@@ -122,8 +121,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
 
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
-  const stagingActive = useStagingStore((s) => s.session !== null)
-  const canEditLocally = !isEngineActive || stagingActive
+  const canEditLocally = !isEngineActive
   const masterRule = useDuelStore((s) => s.state.masterRule)
   const enginePlaceMatch =
     pendingRequest !== null &&

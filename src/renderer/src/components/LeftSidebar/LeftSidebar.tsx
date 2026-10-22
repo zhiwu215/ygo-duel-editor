@@ -2,18 +2,15 @@ import { JSX } from 'react'
 import { BookOpen, Bot, FolderKanban, Settings } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useAgentStore } from '../../stores/useAgentStore'
-import { usePanelResize } from '../../hooks/usePanelResize'
 import { CardDetailPanel } from '../CardDetail/CardDetailPanel'
 import { BehindSpiritPanel } from '../BehindSpirit/BehindSpiritPanel'
 import { DuelArchivesPanel } from './DuelArchivesPanel'
 import { cn } from '../../lib/utils'
 
 export function LeftSidebar(): JSX.Element {
-  const { activeLeftTab, isLeftOpen, leftWidth, toggleLeftTab, setLeftWidth } = useDuelStore()
+  const { activeLeftTab, isLeftOpen, toggleLeftTab } = useDuelStore()
 
-  const { isGenerating, setOpen: setAgentStoreOpen } = useAgentStore()
-
-  const handleResizeMouseDown = usePanelResize(() => leftWidth, setLeftWidth)
+  const { isGenerating } = useAgentStore()
 
   const handleArchivesClick = (): void => {
     toggleLeftTab('archives')
@@ -25,9 +22,6 @@ export function LeftSidebar(): JSX.Element {
 
   const handleAgentClick = (): void => {
     toggleLeftTab('agent')
-    if (!isLeftOpen || activeLeftTab !== 'agent') {
-      setAgentStoreOpen(true)
-    }
   }
 
   return (
@@ -107,15 +101,7 @@ export function LeftSidebar(): JSX.Element {
       </div>
 
       {isLeftOpen && (
-        <div
-          style={{ width: leftWidth }}
-          className="h-full flex flex-col shrink-0 overflow-hidden relative border-r border-border bg-card/40 transition-[width] duration-75"
-        >
-          <div
-            onMouseDown={handleResizeMouseDown}
-            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:w-1.5 hover:bg-primary/60 active:bg-primary transition-all z-30"
-          />
-
+        <div className="w-[340px] h-full flex flex-col shrink-0 overflow-hidden border-r border-border bg-card/40">
           {activeLeftTab === 'archives' ? (
             <DuelArchivesPanel />
           ) : activeLeftTab === 'card' ? (

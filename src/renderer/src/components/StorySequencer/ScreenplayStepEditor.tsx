@@ -176,7 +176,8 @@ export const ScreenplayStepEditor: React.FC<ScreenplayStepEditorProps> = ({
                 rows={5}
                 value={activeStep.dialogue || ''}
                 onChange={(e) => onUpdateStep(activeStep.id, { dialogue: e.target.value })}
-                className="w-full rounded-xl border border-border/80 bg-background/80 p-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-all font-serif leading-relaxed"
+                style={{ fontSize: 'var(--content-font-size)' }}
+                className="w-full rounded-xl border border-border/80 bg-background/80 p-3.5 text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring transition-all font-serif leading-relaxed"
               />
             </div>
 

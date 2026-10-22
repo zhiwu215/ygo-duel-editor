@@ -26,9 +26,7 @@ function splitAlias(card: CdbCard): { alias: number; ruleCode: number } {
   return { alias: 0, ruleCode: alias }
 }
 
-export function readEngineCardData(code: number): Partial<CardData> | null {
-  const card = cdbService.getCardById(code)
-  if (!card) return null
+export function engineCardDataFromCdbCard(card: CdbCard): Partial<CardData> {
   const type = Number(card.type ?? 0)
   const isLink = (type & CardType.LINK) !== 0
   const level = Number(card.level ?? 0) >>> 0
@@ -53,4 +51,10 @@ export function readEngineCardData(code: number): Partial<CardData> | null {
     linkMarker: isLink ? Number(card.markers ?? card.def ?? 0) : 0,
     ruleCode: resolvedRuleCode
   }
+}
+
+export function readEngineCardData(code: number): Partial<CardData> | null {
+  const card = cdbService.getCardById(code)
+  if (!card) return null
+  return engineCardDataFromCdbCard(card)
 }

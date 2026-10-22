@@ -1,234 +1,449 @@
-import { useEffect, useMemo, useRef, useState, type JSX, type RefObject } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type JSX,
+  type KeyboardEvent
+} from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import {
+  AGENT_REASONING_EFFORT_LABELS,
+  AgentReasoningEffort,
+  agentReasoningLevels,
+  isProviderReady,
+  resolveAgentReasoningEffort
+} from '@shared/index'
 import { useAgentStore } from '../../stores/useAgentStore'
-import { AgentProviderModelConfig, isProviderReady } from '@shared/index'
-import { ScrollArea } from '../ui/scroll-area'
 import { cn } from '../../lib/utils'
+import { rankModels } from '../../utils/rankModels'
+import { ModelPickerEffortList } from './ModelPickerEffortList'
+import { ModelPickerModelList, type ModelPickerGroup } from './ModelPickerModelList'
+import { PICKER_CELL, PICKER_MENU } from './modelPickerStyles'
 
-const MANAGE_KEY = 'action:manage'
+type Pane = 'root' | 'model' | 'effort'
 
-interface MenuProvider {
-  id: string
-  name: string
-  ready: boolean
-  models: AgentProviderModelConfig[]
-}
+const MENU_MARGIN = 12
 
-interface ModelPickerMenuProps {
-  toolbarRef: RefObject<HTMLDivElement | null>
-}
+const MENU_ITEM_SELECTOR =
+  '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])'
 
-export function ModelPickerMenu({ toolbarRef }: ModelPickerMenuProps): JSX.Element {
-  const config = useAgentStore((s) => s.config)
-  const selectModel = useAgentStore((s) => s.selectModel)
+export function ModelPickerMenu(): JSX.Element {
+  const config = useAgentStore((state) => state.config)
+  const selectModel = useAgentStore((state) => state.selectModel)
+  const setReasoningEffort = useAgentStore((state) => state.setReasoningEffort)
 
-  const [modelMenuOpen, setModelMenuOpen] = useState(false)
-  const [openProviderKey, setOpenProviderKey] = useState<string | null>(null)
-  const [modelMenuPos, setModelMenuPos] = useState<{ right: number; bottom: number } | null>(null)
-  const modelMenuRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [pane, setPane] = useState<Pane>('root')
+  const [query, setQuery] = useState('')
+  const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null)
+  const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const paneFocus = useRef<'drill' | 'model' | 'effort' | null>(null)
+  const previousShowSearch = useRef(false)
+  const id = useId()
 
-  const providers = useMemo(() => config.providers ?? [], [config.providers])
-  const activeProvider = useMemo(
-    () => providers.find((p) => p.id === config.provider) ?? null,
-    [providers, config.provider]
+  const groups = useMemo<ModelPickerGroup[]>(
+    () =>
+      (config.providers ?? [])
+        .filter((provider) => isProviderReady(provider))
+        .map((provider) => ({
+          id: provider.id,
+          name: provider.name,
+          models: provider.models
+        }))
+        .filter((group) => group.models.length > 0),
+    [config.providers]
   )
-  const activeModel = useMemo(
-    () => activeProvider?.models.find((m) => m.id === config.model) ?? null,
-    [activeProvider, config.model]
+  const total = groups.reduce((sum, group) => sum + group.models.length, 0)
+  const showSearch = total > 4
+  const effectiveQuery = showSearch ? query : ''
+  const activeGroup = groups.find((group) => group.id === config.provider)
+  const activeModel = activeGroup?.models.find((model) => model.id === config.model) ?? null
+  const effortLevels = agentReasoningLevels(activeModel?.reasoningEfforts)
+  const currentEffort = resolveAgentReasoningEffort(
+    activeModel?.reasoningEfforts,
+    config.reasoningEffort
   )
+  const modelLabel = activeModel?.name ?? activeModel?.id ?? ''
+  const effortLabel =
+    effortLevels.length > 0 && currentEffort
+      ? AGENT_REASONING_EFFORT_LABELS[currentEffort]
+      : undefined
+  const triggerLabel = effortLabel ? `${modelLabel} · ${effortLabel}` : modelLabel
+  const triggerAria = activeModel
+    ? effortLabel
+      ? `选择模型，当前 ${modelLabel}，推理等级 ${effortLabel}`
+      : `选择模型，当前 ${modelLabel}`
+    : '请选择模型'
 
-  const chipLabel = activeProvider
-    ? `${activeProvider.name}/${activeModel?.name ?? config.model}`
-    : config.model || '未配置模型'
+  const filteredGroups = useMemo<ModelPickerGroup[]>(() => {
+    const trimmed = effectiveQuery.trim()
+    if (!showSearch || trimmed.length === 0) return groups
+    return groups
+      .map((group) => ({
+        ...group,
+        models: [
+          ...rankModels(group.models, trimmed, (model) => [model.name ?? model.id, model.id])
+        ]
+      }))
+      .filter((group) => group.models.length > 0)
+  }, [groups, effectiveQuery, showSearch])
 
-  const menuProviders = useMemo(
-    (): MenuProvider[] =>
-      providers
-        .filter((p) => p.enabled !== false && p.models.some((m) => m.enabled))
-        .map((p) => ({
-          id: p.id,
-          name: p.name,
-          ready: isProviderReady(p),
-          models: p.models.filter((m) => m.enabled)
-        })),
-    [providers]
+  const visibleModels = useMemo(
+    () =>
+      filteredGroups.flatMap((group) =>
+        group.models.map((model) => ({ providerId: group.id, modelId: model.id }))
+      ),
+    [filteredGroups]
   )
-
-  const openProviderModels = useMemo(
-    () => menuProviders.find((p) => p.id === openProviderKey)?.models ?? [],
-    [menuProviders, openProviderKey]
+  const currentVisibleIndex = visibleModels.findIndex(
+    (model) => model.providerId === config.provider && model.modelId === config.model
   )
+  const activeIndex =
+    visibleModels.length === 0
+      ? -1
+      : Math.min(highlightedIndex ?? Math.max(0, currentVisibleIndex), visibleModels.length - 1)
 
   useEffect(() => {
-    if (!modelMenuOpen) return
-    const handler = (e: MouseEvent): void => {
-      const target = e.target as Node
+    if (!open) return
+    const closeOutside = (event: MouseEvent): void => {
+      const target = event.target as Node
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      setOpen(false)
+      setPane('root')
+      setQuery('')
+      setHighlightedIndex(null)
+      setMenuPos(null)
+    }
+    document.addEventListener('mousedown', closeOutside)
+    return () => document.removeEventListener('mousedown', closeOutside)
+  }, [open])
 
-      if (
-        toolbarRef.current &&
-        !toolbarRef.current.contains(target) &&
-        !modelMenuRef.current?.contains(target)
-      ) {
-        setModelMenuOpen(false)
+  useLayoutEffect(() => {
+    const changedSearchMode = previousShowSearch.current !== showSearch
+    previousShowSearch.current = showSearch
+    const intent = paneFocus.current ?? (changedSearchMode && pane === 'model' ? 'drill' : null)
+    paneFocus.current = null
+    if (!open || intent === null) return
+    if (intent === 'drill') {
+      if (pane === 'model' && showSearch) {
+        searchRef.current?.focus()
+        return
       }
+      const checked = menuRef.current?.querySelector<HTMLElement>(
+        '[role="menuitemradio"][aria-checked="true"]:not([disabled])'
+      )
+      const first = menuRef.current?.querySelector<HTMLElement>(MENU_ITEM_SELECTOR)
+      ;(checked ?? first)?.focus()
+      return
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [modelMenuOpen, toolbarRef])
+    const cells = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    const cell = cells?.[intent === 'effort' ? 1 : 0]
+    cell?.focus()
+  }, [open, pane, showSearch])
 
-  const openMenu = (): void => {
-    const anchor = toolbarRef.current
-    if (anchor) {
-      const rect = anchor.getBoundingClientRect()
-      setModelMenuPos({
-        right: window.innerWidth - rect.right,
-        bottom: window.innerHeight - rect.top
-      })
+  useLayoutEffect(() => {
+    if (!open || pane !== 'model' || activeIndex < 0) return
+    const active = document.getElementById(`${id}-model-${activeIndex}`)
+    active?.scrollIntoView({ block: 'nearest' })
+  }, [open, pane, activeIndex, filteredGroups, id])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const place = (): void => {
+      const trigger = triggerRef.current?.getBoundingClientRect()
+      if (!trigger) return
+      const width = menuRef.current?.offsetWidth ?? 0
+      const height = menuRef.current?.offsetHeight ?? 0
+      const left = Math.min(
+        Math.max(MENU_MARGIN, trigger.right - width),
+        window.innerWidth - width - MENU_MARGIN
+      )
+      const top = Math.min(
+        Math.max(MENU_MARGIN, trigger.top - 8 - height),
+        window.innerHeight - height - MENU_MARGIN
+      )
+      setMenuPos({ left, top })
     }
-    setOpenProviderKey(null)
-    setModelMenuOpen(true)
+    place()
+    const observer =
+      typeof ResizeObserver !== 'undefined' && menuRef.current ? new ResizeObserver(place) : null
+    if (menuRef.current) observer?.observe(menuRef.current)
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open, pane, filteredGroups, showSearch])
+
+  const close = (restoreFocus = false): void => {
+    setOpen(false)
+    setPane('root')
+    setQuery('')
+    setHighlightedIndex(null)
+    setMenuPos(null)
+    if (restoreFocus) queueMicrotask(() => triggerRef.current?.focus())
   }
 
-  const closeMenu = (): void => {
-    setModelMenuOpen(false)
-    setOpenProviderKey(null)
+  const openMenu = (): void => {
+    setQuery('')
+    setHighlightedIndex(null)
+    setMenuPos(null)
+    paneFocus.current = activeModel ? null : 'drill'
+    setPane(activeModel ? 'root' : 'model')
+    setOpen(true)
+  }
+
+  const closeAfterSelection = (): void => {
+    close(true)
+  }
+
+  const drill = (next: Pane): void => {
+    setQuery('')
+    setHighlightedIndex(null)
+    paneFocus.current = 'drill'
+    setPane(next)
+  }
+
+  const back = (from: Exclude<Pane, 'root'>): void => {
+    paneFocus.current = from
+    setPane('root')
+  }
+
+  const moveFocus = (offset: number): void => {
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR) ?? []
+    )
+    if (items.length === 0) return
+    const active = items.findIndex((item) => item === document.activeElement)
+    const next =
+      active === -1
+        ? offset > 0
+          ? 0
+          : items.length - 1
+        : (active + offset + items.length) % items.length
+    items[next]?.focus()
   }
 
   const pickModel = (providerId: string, modelId: string): void => {
+    if (providerId === config.provider && modelId === config.model) {
+      closeAfterSelection()
+      return
+    }
     selectModel(providerId, modelId)
-    closeMenu()
+    closeAfterSelection()
   }
 
-  const openManage = (): void => {
-    closeMenu()
-    void window.api.openSettingsWindow('model-settings')
+  const pickEffort = (effort: AgentReasoningEffort): void => {
+    if (effort === currentEffort) {
+      closeAfterSelection()
+      return
+    }
+    setReasoningEffort(effort)
+    closeAfterSelection()
+  }
+
+  const changeQuery = (next: string): void => {
+    setQuery(next)
+    setHighlightedIndex(0)
+  }
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.nativeEvent.isComposing) return
+    if (event.key === 'Escape' && open) {
+      event.preventDefault()
+      if (pane !== 'root' && activeModel) back(pane)
+      else close(true)
+      return
+    }
+    if (!open) return
+
+    if (pane === 'model' && showSearch && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      event.preventDefault()
+      if (visibleModels.length > 0) {
+        const direction = event.key === 'ArrowDown' ? 1 : -1
+        setHighlightedIndex((activeIndex + direction + visibleModels.length) % visibleModels.length)
+        searchRef.current?.focus()
+      }
+      return
+    }
+
+    if (
+      pane === 'model' &&
+      showSearch &&
+      event.target instanceof HTMLInputElement &&
+      (event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey))
+    ) {
+      if (event.key === 'Tab' && visibleModels.length === 0) return
+      event.preventDefault()
+      const highlighted = visibleModels[activeIndex]
+      if (highlighted) pickModel(highlighted.providerId, highlighted.modelId)
+      return
+    }
+
+    if (event.key === 'Tab') {
+      if (event.shiftKey) {
+        event.preventDefault()
+        if (pane !== 'root' && activeModel) back(pane)
+        else close(true)
+        return
+      }
+      const focused = document.activeElement
+      const rows = Array.from(
+        menuRef.current?.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR) ?? []
+      )
+      if (focused instanceof HTMLElement && rows.includes(focused)) {
+        event.preventDefault()
+        focused.click()
+        return
+      }
+      if (focused !== triggerRef.current) return
+      event.preventDefault()
+      if (pane === 'model' && showSearch) {
+        setHighlightedIndex(null)
+        searchRef.current?.focus()
+        return
+      }
+      const checked = menuRef.current?.querySelector<HTMLElement>(
+        '[role="menuitemradio"][aria-checked="true"]:not([disabled])'
+      )
+      ;(checked ?? rows.find((item) => !item.hasAttribute('disabled')))?.focus()
+      return
+    }
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      moveFocus(event.key === 'ArrowDown' ? 1 : -1)
+    }
+  }
+
+  const onBlur = (event: FocusEvent<HTMLDivElement>): void => {
+    const next = event.relatedTarget
+    if (
+      next instanceof Node &&
+      (rootRef.current?.contains(next) || menuRef.current?.contains(next))
+    ) {
+      return
+    }
+    close()
+  }
+
+  const hoverOption = (index: number, node: HTMLButtonElement): void => {
+    if (showSearch) setHighlightedIndex(index)
+    else node.focus()
   }
 
   return (
-    <>
+    <div ref={rootRef} className="relative min-w-0" onKeyDown={onKeyDown} onBlur={onBlur}>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => (modelMenuOpen ? closeMenu() : openMenu())}
-        className={cn(
-          'h-6 w-full min-w-0 px-1.5 rounded flex items-center gap-1 text-[11px] transition-colors',
-          modelMenuOpen
-            ? 'bg-muted text-foreground'
-            : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-        )}
+        onClick={() => (open ? close(true) : openMenu())}
+        title={triggerLabel || '选择模型'}
+        aria-label={triggerAria}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? `${id}-menu` : undefined}
+        className="flex h-7 max-w-[220px] min-w-0 items-center gap-1 rounded-[8px] px-1 pl-2 text-[13px] leading-5 font-normal text-[#61666b] transition-colors hover:bg-[rgba(38,49,72,0.06)] hover:text-[#0f1115] outline-none focus-visible:ring-2 focus-visible:ring-ring/40 dark:text-[#cfd3d6] dark:hover:bg-[rgba(255,255,255,0.08)] dark:hover:text-[#f9fafb]"
       >
-        <span
+        <span className="min-w-0 truncate">{modelLabel || '请选择模型'}</span>
+        {effortLabel && (
+          <span className="min-w-0 shrink-[1000] truncate text-[13px] text-[#81858c] dark:text-[#979da6]">
+            {effortLabel}
+          </span>
+        )}
+        <ChevronDown
           className={cn(
-            'w-1.5 h-1.5 rounded-full shrink-0',
-            activeProvider && isProviderReady(activeProvider)
-              ? 'bg-emerald-500'
-              : 'bg-muted-foreground'
+            'h-3.5 w-3.5 shrink-0 text-[#81858c] transition-transform dark:text-[#979da6]',
+            open && 'rotate-180'
           )}
         />
-        <span className="font-medium truncate min-w-0">{chipLabel}</span>
-        <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
       </button>
 
-      {modelMenuOpen &&
-        modelMenuPos &&
+      {open &&
         createPortal(
           <div
-            ref={modelMenuRef}
-            style={{ right: modelMenuPos.right, bottom: modelMenuPos.bottom }}
-            className="fixed z-[70] mb-1 w-52 max-w-[calc(100vw-1.5rem)]"
+            ref={menuRef}
+            id={`${id}-menu`}
+            role={pane === 'model' ? 'group' : 'menu'}
+            aria-label="模型与推理等级"
+            style={{
+              left: menuPos?.left ?? 0,
+              top: menuPos?.top ?? 0,
+              visibility: menuPos ? 'visible' : 'hidden'
+            }}
+            className={PICKER_MENU}
           >
-            <div className="bg-popover border border-border rounded-md overflow-hidden shadow-lg py-1">
-              {menuProviders.length === 0 ? (
-                <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
-                  尚未配置可用模型，去「管理模型」连接供应商并拉取
-                </div>
-              ) : (
-                menuProviders.map((provider) => {
-                  const isCurrent = provider.id === config.provider
-                  const open = openProviderKey === provider.id
-                  return (
-                    <button
-                      key={provider.id}
-                      type="button"
-                      onMouseEnter={() => setOpenProviderKey(provider.id)}
-                      onClick={() => setOpenProviderKey(provider.id)}
-                      className={cn(
-                        'w-full px-2.5 py-1.5 flex items-center gap-2 text-left transition-colors',
-                        open && 'bg-muted/60'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'w-1.5 h-1.5 rounded-full shrink-0',
-                          provider.ready ? 'bg-emerald-500' : 'bg-muted-foreground'
-                        )}
-                      />
-                      <span className="flex-1 min-w-0 truncate text-[11px] font-medium">
-                        {provider.name}
-                      </span>
-                      {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
-                      <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-                    </button>
-                  )
-                })
-              )}
-
-              <div className="my-1 border-t border-border" />
-              <button
-                type="button"
-                onMouseEnter={() => setOpenProviderKey(MANAGE_KEY)}
-                onClick={openManage}
-                className={cn(
-                  'w-full px-2.5 py-1.5 flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors',
-                  openProviderKey === MANAGE_KEY && 'bg-muted/60'
+            {pane === 'root' && (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={PICKER_CELL}
+                  onClick={() => drill('model')}
+                >
+                  <span className="shrink-0">模型</span>
+                  <span className="min-w-0 flex-1 truncate text-right text-[#81858c] dark:text-[#979da6]">
+                    {modelLabel || '未配置'}
+                  </span>
+                  <ChevronRight className="h-3 w-3 shrink-0 text-[#81858c] dark:text-[#979da6]" />
+                </button>
+                {effortLevels.length > 0 && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={PICKER_CELL}
+                    onClick={() => drill('effort')}
+                  >
+                    <span className="shrink-0">推理等级</span>
+                    <span className="min-w-0 flex-1 truncate text-right text-[#81858c] dark:text-[#979da6]">
+                      {effortLabel}
+                    </span>
+                    <ChevronRight className="h-3 w-3 shrink-0 text-[#81858c] dark:text-[#979da6]" />
+                  </button>
                 )}
-              >
-                <span className="flex-1 text-left">管理模型</span>
-              </button>
-            </div>
+              </>
+            )}
 
-            {openProviderKey && openProviderKey !== MANAGE_KEY && (
-              <ScrollArea className="absolute bottom-0 left-full ml-0.5 w-52 max-w-[calc(100vw-2rem)] max-h-72 bg-popover border border-border rounded-md shadow-lg">
-                <div className="py-1">
-                  {openProviderModels.length === 0 ? (
-                    <div className="px-3 py-2 text-[11px] text-muted-foreground leading-4">
-                      该供应商暂无可用模型，去「管理模型」拉取后即可选用
-                    </div>
-                  ) : (
-                    openProviderModels.map((model) => {
-                      const isCurrent =
-                        openProviderKey === config.provider && config.model === model.id
-                      return (
-                        <button
-                          key={model.id}
-                          type="button"
-                          onClick={() => pickModel(openProviderKey, model.id)}
-                          className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left hover:bg-muted/60 transition-colors"
-                        >
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-[11px] font-medium truncate">
-                              {model.name ?? model.id}
-                            </span>
-                            <span className="block font-mono text-[10px] text-muted-foreground truncate">
-                              {model.id}
-                            </span>
-                          </span>
-                          {model.supportsReasoning && (
-                            <span className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
-                              推理
-                            </span>
-                          )}
-                          {isCurrent && <Check className="w-3 h-3 text-foreground shrink-0" />}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              </ScrollArea>
+            {pane === 'model' && (
+              <ModelPickerModelList
+                groups={filteredGroups}
+                total={total}
+                showSearch={showSearch}
+                query={effectiveQuery}
+                onQueryChange={changeQuery}
+                activeProviderId={config.provider}
+                activeModelId={config.model}
+                activeIndex={activeIndex}
+                onHighlight={setHighlightedIndex}
+                onHover={hoverOption}
+                onPick={pickModel}
+                searchRef={searchRef}
+                listId={`${id}-models`}
+                optionIdPrefix={id}
+              />
+            )}
+
+            {pane === 'effort' && (
+              <ModelPickerEffortList
+                efforts={activeModel?.reasoningEfforts}
+                value={currentEffort}
+                onPick={pickEffort}
+              />
             )}
           </div>,
           document.body
         )}
-    </>
+    </div>
   )
 }

@@ -108,7 +108,10 @@ export const ScreenplayDocumentView: React.FC<ScreenplayDocumentViewProps> = ({ 
                               【{s.speaker}】:
                             </span>
                           )}
-                          <span className="italic text-foreground/90 font-serif text-[13px]">
+                          <span
+                            style={{ fontSize: 'var(--content-font-size)' }}
+                            className="italic text-foreground/90 font-serif"
+                          >
                             “{s.dialogue || ''}”
                           </span>
                         </div>

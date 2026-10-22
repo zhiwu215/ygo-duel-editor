@@ -24,6 +24,7 @@ export interface RequestCard {
   controller: 0 | 1
   location: number
   sequence: number
+  subsequence?: number
   desc?: number
   directAttackable?: boolean
   opParam?: number

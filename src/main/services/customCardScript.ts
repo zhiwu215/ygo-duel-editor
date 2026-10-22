@@ -16,6 +16,10 @@ function customScriptDir(): string {
   return dataDirService.ensureDirectory(join('custom', 'script'))
 }
 
+export function getCustomScriptDirectory(): string {
+  return customScriptDir()
+}
+
 function customScriptName(code: number): string {
   return `c${code}${SCRIPT_EXTENSION}`
 }
@@ -70,6 +74,16 @@ function hardcodedScriptId(content: string): number | undefined {
   if (!match) return undefined
   const id = Number(match[1])
   return Number.isSafeInteger(id) && id > 0 ? id : undefined
+}
+
+export function readCustomScriptContent(code: number): string | null {
+  const found = findCustomScriptPath(code)
+  if (!found) return null
+  try {
+    return readText(found)
+  } catch {
+    return null
+  }
 }
 
 export function getCustomScriptInfo(code: number): CustomCardScriptInfo {
@@ -171,6 +185,19 @@ export function importCustomScript(code: number, sourcePath: string): CustomCard
   } catch (err) {
     console.error('[CustomCardScript] Failed to import script:', err)
     return { success: false, error: '脚本导入失败' }
+  }
+}
+
+export function writeCustomScriptContent(code: number, content: string): CustomCardScriptResult {
+  if (!content.trim()) return { success: false, error: '脚本内容为空' }
+  try {
+    const target = customScriptPath(code)
+    mkdirSync(dirname(target), { recursive: true })
+    writeFileSync(target, content, 'utf-8')
+    return { success: true, info: getCustomScriptInfo(code) }
+  } catch (err) {
+    console.error('[CustomCardScript] Failed to write script:', err)
+    return { success: false, error: '脚本保存失败' }
   }
 }
 

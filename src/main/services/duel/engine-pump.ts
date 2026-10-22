@@ -115,6 +115,13 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
       throw new Error('引擎推进步数超出上限，可能陷入死循环。')
     }
 
+    const snapshot = (() => {
+      try {
+        return duel.snapshot()
+      } catch {
+        return null
+      }
+    })()
     const res: ProcessResultLike = duel.process()
     const msgs = res.messages ?? []
     const retried = msgs.some((msg) => msg instanceof YGOProMsgRetry)
@@ -170,6 +177,7 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
       }
       if (batchQueries.length > 0) {
         state.pendingQueries = batchQueries
+        if (snapshot) state.requestSnapshot = snapshot
       }
 
       if (retried) {

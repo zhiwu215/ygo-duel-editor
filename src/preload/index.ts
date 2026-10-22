@@ -43,13 +43,19 @@ const api: IpcApi = {
 
   listCustomCards: () => ipcRenderer.invoke('customcard:list'),
   saveCustomCard: (input) => ipcRenderer.invoke('customcard:save', input),
+  allocateCustomCardId: () => ipcRenderer.invoke('customcard:allocate-id'),
   deleteCustomCard: (id) => ipcRenderer.invoke('customcard:delete', id),
   pickCustomCardImage: () => ipcRenderer.invoke('customcard:pick-image'),
   applyCustomCardImage: (id) => ipcRenderer.invoke('customcard:apply-image', id),
   getCustomCardScript: (code) => ipcRenderer.invoke('customcard:script-info', code),
+  readCustomCardScriptContent: (code) => ipcRenderer.invoke('customcard:read-script-content', code),
   pickCustomCardScriptFile: () => ipcRenderer.invoke('customcard:pick-script-file'),
   importCustomCardScript: (code, filePath) =>
     ipcRenderer.invoke('customcard:import-script', code, filePath),
+  testCustomCardScript: (input) => ipcRenderer.invoke('customcard:test-script', input),
+  generateCustomCardScript: (input) => ipcRenderer.invoke('customcard:generate-script', input),
+  saveCustomCardScriptContent: (code, content) =>
+    ipcRenderer.invoke('customcard:save-script-content', code, content),
   deleteCustomCardScript: (code) => ipcRenderer.invoke('customcard:delete-script', code),
   openCustomCardScriptDir: () => ipcRenderer.invoke('customcard:open-script-dir'),
   openCustomCardSyncDir: () => ipcRenderer.invoke('customcard:open-sync-dir'),

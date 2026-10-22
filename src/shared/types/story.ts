@@ -26,6 +26,10 @@ export type DuelActionType =
   | 'SPECIAL_SUMMON'
   | 'FLIP_SUMMON'
   | 'XYZ_SUMMON'
+  | 'FUSION_SUMMON'
+  | 'SYNCHRO_SUMMON'
+  | 'LINK_SUMMON'
+  | 'RITUAL_SUMMON'
   | 'DETACH_MATERIAL'
   | 'SET_MONSTER'
   | 'SET_SPELL_TRAP'
@@ -57,6 +61,10 @@ export const ACTION_TYPE_NAMES: Record<DuelActionType, string> = {
   SPECIAL_SUMMON: '特殊召唤',
   FLIP_SUMMON: '反转召唤',
   XYZ_SUMMON: '超量召唤',
+  FUSION_SUMMON: '融合召唤',
+  SYNCHRO_SUMMON: '同调召唤',
+  LINK_SUMMON: '连接召唤',
+  RITUAL_SUMMON: '仪式召唤',
   DETACH_MATERIAL: '取除素材',
   SET_MONSTER: '盖放怪兽',
   SET_SPELL_TRAP: '盖放魔陷',
@@ -96,6 +104,26 @@ export const ACTION_TYPE_COLORS: Record<
   },
   FLIP_SUMMON: { bg: 'bg-yellow-500/15', text: 'text-yellow-400', border: 'border-yellow-500/30' },
   XYZ_SUMMON: { bg: 'bg-slate-500/20', text: 'text-slate-300', border: 'border-slate-400/40' },
+  FUSION_SUMMON: {
+    bg: 'bg-violet-500/15',
+    text: 'text-violet-300',
+    border: 'border-violet-500/30'
+  },
+  SYNCHRO_SUMMON: {
+    bg: 'bg-sky-500/15',
+    text: 'text-sky-300',
+    border: 'border-sky-500/30'
+  },
+  LINK_SUMMON: {
+    bg: 'bg-teal-500/15',
+    text: 'text-teal-300',
+    border: 'border-teal-500/30'
+  },
+  RITUAL_SUMMON: {
+    bg: 'bg-blue-500/15',
+    text: 'text-blue-300',
+    border: 'border-blue-500/30'
+  },
   DETACH_MATERIAL: { bg: 'bg-zinc-500/20', text: 'text-zinc-300', border: 'border-zinc-400/40' },
   SET_MONSTER: { bg: 'bg-stone-500/15', text: 'text-stone-300', border: 'border-stone-500/30' },
   SET_SPELL_TRAP: { bg: 'bg-stone-500/15', text: 'text-stone-300', border: 'border-stone-500/30' },
@@ -196,7 +224,6 @@ export interface DuelStep {
   boardAfter?: LightweightCardSnapshot[]
   lpChange?: { player: 0 | 1; oldLp: number; newLp: number }
   actId?: string
-  manual?: boolean
   manualOps?: ManualOp[]
   afterActId?: string
   intent?: string

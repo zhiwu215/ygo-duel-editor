@@ -9,7 +9,6 @@ import {
   createStepId
 } from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
-import { isManualCapturePaused } from './manualCaptureGate'
 import { useDuelStore } from './index'
 
 export interface EditorStepInput {
@@ -43,7 +42,6 @@ export interface StepLabel {
 
 export function recordEditorStep(input: EditorStepInput): void {
   if (useDuelEngineStore.getState().isInitialized) return
-  if (isManualCapturePaused()) return
   const duel = useDuelStore.getState()
   const step: DuelStep = {
     id: createStepId(),

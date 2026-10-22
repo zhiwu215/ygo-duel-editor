@@ -7,7 +7,6 @@ import {
   getMatchScenarioKey
 } from '@shared/index'
 import { createLpFlash } from './lpSlice'
-import { useStagingStore } from '../useStagingStore'
 import type { DuelStore } from './types'
 import { turnOrderOf } from '../../utils/duelistNames'
 import { isDuelStarted } from '../../utils/duelStart'
@@ -139,9 +138,6 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
       const targetId = target ? target.id : duelistId
       const targetTeam: 0 | 1 = target ? target.team : duelistId.includes('_1_') ? 1 : 0
       const updatedLp = patch.lp !== undefined ? Math.max(0, patch.lp) : undefined
-      if (updatedLp !== undefined) {
-        useStagingStore.getState().pushOp({ type: 'lp', player: targetTeam, value: updatedLp })
-      }
 
       const duelists = baseDuelists.map((d) => {
         if (d.id === targetId) {

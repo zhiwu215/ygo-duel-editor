@@ -1,13 +1,21 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
-import { AppConfig } from '@shared/index'
+import {
+  AppConfig,
+  DEFAULT_FONT_SIZES,
+  DEFAULT_WEB_SEARCH_CONFIG,
+  normalizeFontSizes,
+  normalizeWebSearchConfig
+} from '@shared/index'
 import { broadcastToWindows } from './broadcast'
 
 export class ConfigService {
   private configPath: string
   private config: AppConfig = {
-    theme: 'system'
+    theme: 'system',
+    fontSizes: DEFAULT_FONT_SIZES,
+    webSearch: { ...DEFAULT_WEB_SEARCH_CONFIG }
   }
 
   constructor() {
@@ -20,6 +28,8 @@ export class ConfigService {
       if (existsSync(this.configPath)) {
         const raw = readFileSync(this.configPath, 'utf-8')
         this.config = { ...this.config, ...JSON.parse(raw) }
+        this.config.fontSizes = normalizeFontSizes(this.config.fontSizes)
+        this.config.webSearch = normalizeWebSearchConfig(this.config.webSearch)
       }
     } catch (err) {
       console.error('[ConfigService] Failed to load config:', err)

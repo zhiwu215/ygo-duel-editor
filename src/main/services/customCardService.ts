@@ -33,7 +33,9 @@ import {
   getCustomScriptInfo,
   importCustomScript,
   pickCustomCardScriptFile,
-  removeCustomScript
+  readCustomScriptContent,
+  removeCustomScript,
+  writeCustomScriptContent
 } from './customCardScript'
 
 const LIBRARY_FILE = 'custom_cards.json'
@@ -325,6 +327,17 @@ export class CustomCardService {
     return getCustomScriptInfo(code)
   }
 
+  public scriptContent(code: number): string | null {
+    this.ensureLoaded()
+    if (!this.getById(code)) return null
+    return readCustomScriptContent(code)
+  }
+
+  public allocateId(): number {
+    this.ensureLoaded()
+    return this.generateId()
+  }
+
   public async pickScriptFile(): Promise<CustomCardScriptPickResult> {
     return pickCustomCardScriptFile()
   }
@@ -333,6 +346,12 @@ export class CustomCardService {
     this.ensureLoaded()
     if (!this.getById(code)) return { success: false, error: '自定义卡片不存在' }
     return importCustomScript(code, filePath)
+  }
+
+  public saveScriptContent(code: number, content: string): CustomCardScriptResult {
+    this.ensureLoaded()
+    if (!this.getById(code)) return { success: false, error: '自定义卡片不存在' }
+    return writeCustomScriptContent(code, content)
   }
 
   public deleteScript(code: number): CustomCardScriptResult {

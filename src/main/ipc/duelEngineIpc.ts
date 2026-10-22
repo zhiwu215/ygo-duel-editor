@@ -41,9 +41,9 @@ export function registerDuelEngineIpc(): void {
     }
   })
 
-  ipcMain.handle('duel-engine:inject', (_, command: InjectCommand) => {
+  ipcMain.handle('duel-engine:inject', async (_, command: InjectCommand) => {
     try {
-      return duelDirector.inject(command)
+      return await duelDirector.inject(command)
     } catch (err: unknown) {
       console.error('[duelEngineIpc] Error in duel-engine:inject:', err)
       throw new Error(err instanceof Error ? err.message : String(err))

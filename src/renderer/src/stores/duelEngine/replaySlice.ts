@@ -23,13 +23,11 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
   preReplay: null,
 
   importReplay: async () => {
-    if (get().replayInfo) {
-      get().stopEngine()
-    }
+    const hadReplay = get().replayInfo !== null
     set({ loading: true, error: null })
     try {
       const duel = useDuelStore.getState()
-      const preReplay: PreviewReturn = {
+      const preReplay: PreviewReturn = get().preReplay ?? {
         state: structuredClone(duel.state),
         currentTurn: duel.currentTurn,
         currentPhase: duel.currentPhase,
@@ -38,7 +36,11 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       }
       const res = await window.api.duelEngineImportReplay()
       if (!res.success || !res.payload) {
-        set({ loading: false, error: res.error ?? '导入 YRP 录像失败' })
+        if (!res.canceled && hadReplay) get().stopEngine()
+        set({
+          loading: false,
+          error: res.canceled ? null : (res.error ?? '导入 YRP 录像失败')
+        })
         return false
       }
       const { info, boardState, timeline, currentStepId } = res.payload

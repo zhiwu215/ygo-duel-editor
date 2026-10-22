@@ -10,6 +10,7 @@ export interface ReplayPuzzleMeta {
   title: string
   hostName?: string
   clientName?: string
+  masterRule?: DuelPuzzleState['masterRule']
 }
 
 export function buildPuzzleStateFromEngineBoard(
@@ -42,7 +43,7 @@ export function buildPuzzleStateFromEngineBoard(
     title: meta.title,
     hint: '',
     duelType: 'puzzle',
-    masterRule: 5,
+    masterRule: meta.masterRule ?? 5,
     players: [
       { lp: board.players[0].lp, maxHand: 5, startHand: 0 },
       { lp: board.players[1].lp, maxHand: 5, startHand: 0 }

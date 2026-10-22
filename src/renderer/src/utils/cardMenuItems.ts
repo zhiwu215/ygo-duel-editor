@@ -31,7 +31,6 @@ export interface CardMenuEditTarget {
 export interface CardMenuItemContext {
   card: FieldCard
   isEngine: boolean
-  stagingActive: boolean
   engineActions: CardEngineActions | null
   act: (fn: () => void) => () => void
   submitAnswer: (answer: Answer) => void

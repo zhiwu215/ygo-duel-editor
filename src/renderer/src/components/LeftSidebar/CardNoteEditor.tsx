@@ -216,7 +216,8 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
               setError(null)
             }}
             rows={5}
-            className="w-full resize-none rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
+            style={{ fontSize: 'var(--content-font-size)' }}
+            className="w-full resize-none rounded-md border border-border bg-muted/40 px-2.5 py-1.5 leading-relaxed focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
 

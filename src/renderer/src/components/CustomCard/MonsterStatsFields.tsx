@@ -1,8 +1,8 @@
 import React from 'react'
-import { ATTRIBUTE_NAMES, RACE_NAMES } from '@shared/index'
+import { FILTER_CATALOGS, type CardPoolSchema } from '@shared/index'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { SearchableSelect } from '../ui/searchable-select'
 import type { CustomCardEditorForm } from '../../utils/customCardForm'
 import { getCardKind, getLevelLabel, hasLink, hasPendulum } from '../../utils/customCardType'
 import { LinkArrowGrid } from './LinkArrowGrid'
@@ -10,6 +10,7 @@ import { LinkArrowGrid } from './LinkArrowGrid'
 interface MonsterStatsFieldsProps {
   form: CustomCardEditorForm
   setForm: React.Dispatch<React.SetStateAction<CustomCardEditorForm>>
+  poolSchema: CardPoolSchema
 }
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
@@ -19,11 +20,16 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
   </div>
 )
 
-export const MonsterStatsFields: React.FC<MonsterStatsFieldsProps> = ({ form, setForm }) => {
+export const MonsterStatsFields: React.FC<MonsterStatsFieldsProps> = ({
+  form,
+  setForm,
+  poolSchema
+}) => {
   const type = form.type
   if (getCardKind(type) !== 'monster') return null
   const isLink = hasLink(type)
   const isPendulum = hasPendulum(type)
+  const catalog = FILTER_CATALOGS[poolSchema]
 
   const update = (patch: Partial<CustomCardEditorForm>): void => {
     setForm((current) => ({ ...current, ...patch }))
@@ -33,39 +39,21 @@ export const MonsterStatsFields: React.FC<MonsterStatsFieldsProps> = ({ form, se
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <Field label="属性">
-          <Select
-            value={String(form.attribute)}
-            onValueChange={(value) => update({ attribute: Number(value) })}
-          >
-            <SelectTrigger size="sm" className="h-8 w-full text-xs">
-              <SelectValue>{ATTRIBUTE_NAMES[form.attribute] ?? '无'}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(ATTRIBUTE_NAMES).map(([mask, label]) => (
-                <SelectItem key={mask} value={mask}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            ariaLabel="属性"
+            options={catalog.attributes}
+            value={form.attribute}
+            onValueChange={(attribute) => update({ attribute })}
+          />
         </Field>
 
         <Field label="种族">
-          <Select
-            value={String(form.race)}
-            onValueChange={(value) => update({ race: Number(value) })}
-          >
-            <SelectTrigger size="sm" className="h-8 w-full text-xs">
-              <SelectValue>{RACE_NAMES[form.race] ?? '未知'}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(RACE_NAMES).map(([mask, label]) => (
-                <SelectItem key={mask} value={mask}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            ariaLabel="种族"
+            options={catalog.races}
+            value={form.race}
+            onValueChange={(race) => update({ race })}
+          />
         </Field>
 
         <Field label={getLevelLabel(type)}>

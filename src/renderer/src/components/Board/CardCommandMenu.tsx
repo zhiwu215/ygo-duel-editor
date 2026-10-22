@@ -2,15 +2,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Answer, CardLocation, CardPosition } from '@shared/index'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { useStagingStore } from '../../stores/useStagingStore'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { useAttackTargetingStore } from '../../stores/useAttackTargetingStore'
 import { executeEditorAttack } from '../../utils/editorBattle'
-import { promptDialog } from '../../stores/useDialogStore'
-import { deriveCardEngineActions, hasCardEngineActivate } from '../../utils/engineActions'
+import { deriveCardEngineActions } from '../../utils/engineActions'
 import { buildCardEngineActionMap, reposActionLabel } from '../../utils/cardMenuActions'
-import { resolveCardName } from '../../utils/cardNames'
 import { cn } from '../../lib/utils'
 
 export const CardCommandMenu: React.FC = () => {
@@ -45,7 +41,6 @@ export const CardCommandMenu: React.FC = () => {
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const cards = useDuelStore((s) => s.state.cards)
   const currentPhase = useDuelStore((s) => s.currentPhase)
-  const customCards = useCustomCardStore((s) => s.cards)
 
   const requestActions = React.useMemo(
     () => deriveCardEngineActions(pendingRequest, card),
@@ -56,11 +51,6 @@ export const CardCommandMenu: React.FC = () => {
     [requestActions, card]
   )
   const useRequestActions = Boolean(isEngine && actionMap)
-  const canManualActivate =
-    isEngine &&
-    card !== null &&
-    customCards.some((entry) => entry.id === card.code) &&
-    !hasCardEngineActivate(pendingRequest, card)
 
   const isEditorAttackable =
     !isEngine &&
@@ -147,25 +137,6 @@ export const CardCommandMenu: React.FC = () => {
     }
   }
 
-  const handleManualActivate = (): void => {
-    const staged = card
-    onClose()
-    void promptDialog({
-      title: `发动效果【${resolveCardName(staged.code)}】`,
-      placeholder: '这一跳效果做了什么（可留空）',
-      confirmText: '进入演出'
-    }).then((text) => {
-      if (text === null) return
-      useStagingStore.getState().begin({
-        instanceId: staged.instanceId,
-        cardCode: staged.code,
-        cardName: resolveCardName(staged.code),
-        controller: staged.controller,
-        description: text.trim()
-      })
-    })
-  }
-
   const reposLabel = reposActionLabel(card.position)
 
   const attackLabel = useRequestActions
@@ -187,7 +158,6 @@ export const CardCommandMenu: React.FC = () => {
     : isEditorAttackable
       ? 1
       : 0
-  const manualButtonCount = canManualActivate ? 1 : 0
 
   const activateOptionList: { id: string; label: string }[] =
     actionMap?.activate.map((spec, i) => ({
@@ -195,12 +165,12 @@ export const CardCommandMenu: React.FC = () => {
       label: spec.label
     })) ?? []
 
-  if (buttonCount + manualButtonCount === 0 && !showOptions) return null
+  if (buttonCount === 0 && !showOptions) return null
 
   const menuWidth = showOptions ? 220 : 96
   const menuHeight = showOptions
     ? Math.min(220, activateOptionList.length * 36 + 36)
-    : Math.max(26, (buttonCount + manualButtonCount) * 26)
+    : Math.max(26, buttonCount * 26)
 
   const x = Math.min(
     Math.max(8, anchorRect.left + (anchorRect.width - menuWidth) / 2),
@@ -257,11 +227,6 @@ export const CardCommandMenu: React.FC = () => {
         <>
           {actionMap?.activate.length ? (
             <button type="button" onClick={handleActivate} className={buttonClass}>
-              发动
-            </button>
-          ) : null}
-          {canManualActivate ? (
-            <button type="button" onClick={handleManualActivate} className={buttonClass}>
               发动
             </button>
           ) : null}

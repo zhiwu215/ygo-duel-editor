@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react'
 import { CardLocation, CdbCard, FieldCard } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
-import { useStagingStore } from '../stores/useStagingStore'
 import { getDropPosOverride } from '../utils/zoneDrop'
 import { buildInjectCommand } from '../utils/engineInject'
 import { HAND_REORDER_DRAG_TYPE } from '../components/Board/CardItem'
@@ -63,7 +62,6 @@ export function useHandReorderDrag(options: HandReorderDragOptions): HandReorder
   const reorderHandCards = useDuelStore((s) => s.reorderHandCards)
   const moveCard = useDuelStore((s) => s.moveCard)
   const addCardToZone = useDuelStore((s) => s.addCardToZone)
-  const stagingActive = useStagingStore((s) => s.session !== null)
 
   const [isDragOver, setIsDragOver] = useState(false)
   const [draggedHandCardId, setDraggedHandCardId] = useState<string | null>(null)
@@ -241,7 +239,7 @@ export function useHandReorderDrag(options: HandReorderDragOptions): HandReorder
         throw parseErr
       }
       const engine = useDuelEngineStore.getState()
-      if (engine.isInitialized && !stagingActive) {
+      if (engine.isInitialized) {
         const command = buildInjectCommand({
           card: droppedCard,
           controller,

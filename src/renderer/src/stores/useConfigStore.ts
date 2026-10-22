@@ -6,9 +6,16 @@ import {
   CdbSelectResult,
   CustomSyncCdbInfo,
   DEFAULT_DUEL_TEST_SETTINGS,
-  DuelTestSettings
+  DEFAULT_FONT_SIZES,
+  DuelTestSettings,
+  FontSizeRole,
+  WebSearchConfig,
+  clampFontSize,
+  normalizeFontSizes,
+  normalizeWebSearchConfig
 } from '@shared/index'
 import { alertDialog } from './useDialogStore'
+import { applyFontSizes, applyTheme } from '../utils/appearance'
 
 interface ConfigStoreState {
   config: AppConfig
@@ -25,7 +32,7 @@ interface ConfigStoreState {
   removeExtraCdb: (cdbPath: string) => Promise<void>
   setExtraCdbEnabled: (cdbPath: string, enabled: boolean) => Promise<void>
   setTheme: (theme: ThemePreference) => Promise<void>
-  toggleTheme: () => Promise<void>
+  setFontSize: (role: FontSizeRole, px: number) => Promise<void>
 
   selectDataDir: (migrate: boolean) => Promise<boolean>
   resetDataDir: (migrate: boolean) => Promise<void>
@@ -35,6 +42,7 @@ interface ConfigStoreState {
   clearCardImageDir: () => Promise<void>
 
   setDuelTestSettings: (patch: Partial<DuelTestSettings>) => Promise<void>
+  setWebSearchConfig: (config: WebSearchConfig) => Promise<void>
 }
 
 type ThemePreference = AppConfig['theme']
@@ -42,20 +50,10 @@ type ThemePreference = AppConfig['theme']
 let configUpdatedSubscribed = false
 let cdbUpdatedSubscribed = false
 
-const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)')
-
-function resolveTheme(theme: ThemePreference): 'dark' | 'light' {
-  return theme === 'system' ? (systemDarkQuery.matches ? 'dark' : 'light') : theme
-}
-
-function applyTheme(theme: ThemePreference): void {
-  document.documentElement.classList.toggle('dark', resolveTheme(theme) === 'dark')
-  systemDarkQuery.onchange = theme === 'system' ? () => applyTheme('system') : null
-}
-
 export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   config: {
-    theme: 'system'
+    theme: 'system',
+    fontSizes: DEFAULT_FONT_SIZES
   },
   isLoaded: false,
   dbReady: null,
@@ -95,8 +93,10 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     try {
       const cfg = await window.api.getConfig()
       const theme = cfg.theme || 'system'
+      const fontSizes = normalizeFontSizes(cfg.fontSizes)
       applyTheme(theme)
-      set({ config: { ...cfg, theme }, isLoaded: true })
+      applyFontSizes(fontSizes)
+      set({ config: { ...cfg, theme, fontSizes }, isLoaded: true })
       await get().refreshCdbStatus()
     } catch (err) {
       console.error('[useConfigStore] loadConfig error:', err)
@@ -110,9 +110,14 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     await window.api.saveConfig({ theme })
   },
 
-  toggleTheme: async () => {
-    const nextTheme = resolveTheme(get().config.theme || 'system') === 'dark' ? 'light' : 'dark'
-    await get().setTheme(nextTheme)
+  setFontSize: async (role, px) => {
+    const fontSizes = {
+      ...get().config.fontSizes,
+      [role]: clampFontSize(role, px)
+    }
+    applyFontSizes(fontSizes)
+    set((state) => ({ config: { ...state.config, fontSizes } }))
+    await window.api.saveConfig({ fontSizes })
   },
 
   selectDataDir: async (migrate) => {
@@ -194,6 +199,12 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     const next = { ...current, ...patch }
     set((state) => ({ config: { ...state.config, duelTestSettings: next } }))
     await window.api.saveConfig({ duelTestSettings: next })
+  },
+
+  setWebSearchConfig: async (config) => {
+    const webSearch = normalizeWebSearchConfig(config)
+    set((state) => ({ config: { ...state.config, webSearch } }))
+    await window.api.saveConfig({ webSearch })
   },
 
   addExtraCdb: async () => {

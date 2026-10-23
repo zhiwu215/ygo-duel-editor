@@ -15,6 +15,7 @@ import {
   EngineExportReplayParams,
   EngineExportReplayResult,
   EngineOpenReplayResult,
+  EngineSupportInfo,
   ReplayDeleteResult,
   ReplayFileListResult,
   Answer,
@@ -158,6 +159,8 @@ const api: IpcApi = {
 
   duelDeleteReplays: (fileNames: string[]): Promise<ReplayDeleteResult> =>
     ipcRenderer.invoke('duel:delete-replays', fileNames),
+
+  getDuelEngineSupport: (): Promise<EngineSupportInfo> => ipcRenderer.invoke('duel-engine:support'),
 
   duelEngineInit: (params) => ipcRenderer.invoke('duel-engine:init', params),
   duelEngineSetPolicy: (policy: TimingPolicy) =>

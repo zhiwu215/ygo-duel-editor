@@ -17,7 +17,7 @@ import {
 } from '../../engine/protocol'
 import type { EngineSubmitAnswerResult } from '../../engine/protocol'
 import type { EngineSessionFileResult, EngineSessionImportResult } from '../../engine/sessionDoc'
-import type { EngineImportReplayResult } from './engine'
+import type { EngineImportReplayResult, EngineSupportInfo } from './engine'
 import {
   CardImageDirResult,
   CardSearchFilterOptions,
@@ -286,6 +286,8 @@ export interface IpcApi {
   duelListReplays: () => Promise<ReplayFileListResult>
 
   duelDeleteReplays: (fileNames: string[]) => Promise<ReplayDeleteResult>
+
+  getDuelEngineSupport: () => Promise<EngineSupportInfo>
 
   duelEngineInit: (params: EngineDuelInitParams) => Promise<{
     boardState: EngineBoardState

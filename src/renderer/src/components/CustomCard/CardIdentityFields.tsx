@@ -96,7 +96,7 @@ export const CardIdentityFields: React.FC<CardIdentityFieldsProps> = ({
               )}
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              留空时从 900000000 起按顺序取未占用的卡密，也可以手填；保存时会检查官方卡库冲突。
+              留空时从 900000000 起递增分配，删除后卡密不回收；也可手填，保存时会检查官方卡库冲突。
             </p>
           </>
         )}

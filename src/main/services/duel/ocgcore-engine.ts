@@ -12,6 +12,7 @@ import { configService } from '../configService'
 import { getGameScriptDirectories } from '../gameScriptPaths'
 import { readEngineCardData } from './card-reader'
 import { readCustomScript } from '../customCardScript'
+import { getDuelEngineSupport } from './engineSupport'
 
 let ocgcoreInstance: OcgcoreWrapper | null = null
 let cachedScriptReaders: ScriptReader[] | null = null
@@ -123,6 +124,11 @@ export async function bindEngineCapabilities(wrapper: OcgcoreWrapper): Promise<v
 
 export async function getOcgcoreEngine(): Promise<OcgcoreWrapper> {
   if (ocgcoreInstance) return ocgcoreInstance
+
+  const support = getDuelEngineSupport()
+  if (!support.supported) {
+    throw new Error(support.reason)
+  }
 
   ocgcoreInstance = await createOcgcoreWrapper()
   await bindEngineCapabilities(ocgcoreInstance)

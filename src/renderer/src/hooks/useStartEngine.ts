@@ -7,12 +7,18 @@ import {
 } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
+import { useConfigStore } from '../stores/useConfigStore'
 import { alertDialog, confirmDialog } from '../stores/useDialogStore'
 
 export function useStartEngine(): () => Promise<void> {
   const startEngine = useDuelEngineStore((s) => s.startEngine)
 
   return useCallback(async () => {
+    const support = useConfigStore.getState().engineSupport
+    if (support?.supported === false) {
+      await alertDialog(`内置引擎不可用\n${support.reason ?? '当前游戏目录不支持内置规则校验。'}`)
+      return
+    }
     const state = useDuelStore.getState().state
     if (isStandardTag(state.matchConfig)) {
       const mismatches = findTagHandMismatches(state)

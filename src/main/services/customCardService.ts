@@ -46,6 +46,11 @@ type LegacyCustomCard = Partial<CustomCard> & {
   schemaVersion?: number
 }
 
+interface CustomCardLibraryFile {
+  nextId?: number
+  cards?: LegacyCustomCard[]
+}
+
 function clampInteger(value: unknown, min: number, max: number): number {
   const numeric = Number(value)
   if (!Number.isFinite(numeric)) return min
@@ -102,8 +107,23 @@ function normalizeCard(raw: LegacyCustomCard): CustomCard {
   }
 }
 
+function computeNextId(stored: unknown, cards: CustomCard[]): number {
+  let next = CUSTOM_CARD_ID_MIN
+  for (const card of cards) {
+    if (card.id >= CUSTOM_CARD_ID_MIN && card.id <= CUSTOM_CARD_ID_MAX) {
+      next = Math.max(next, card.id + 1)
+    }
+  }
+  const numeric = Number(stored)
+  if (Number.isInteger(numeric) && numeric >= CUSTOM_CARD_ID_MIN) {
+    next = Math.max(next, Math.min(numeric, CUSTOM_CARD_ID_MAX + 1))
+  }
+  return next
+}
+
 export class CustomCardService {
   private cards: CustomCard[] = []
+  private nextId = CUSTOM_CARD_ID_MIN
   private loaded = false
   private revision = 0
 
@@ -121,6 +141,7 @@ export class CustomCardService {
 
   public resetCache(): void {
     this.cards = []
+    this.nextId = CUSTOM_CARD_ID_MIN
     this.loaded = false
     this.revision += 1
   }
@@ -131,12 +152,19 @@ export class CustomCardService {
     this.revision += 1
     try {
       if (!existsSync(this.filePath)) return
-      const parsed = JSON.parse(readFileSync(this.filePath, 'utf-8'))
-      if (!Array.isArray(parsed)) return
-      const rawCards = parsed.filter((card) => card && Number.isFinite(Number(card.id)))
-      const needsMigration = rawCards.some((card) => card.schemaVersion !== 2)
-      this.cards = rawCards.map((card) => normalizeCard(card)).filter((card) => card.id > 0)
-      if (needsMigration) this.persist()
+      const parsed = JSON.parse(readFileSync(this.filePath, 'utf-8')) as unknown
+      const legacyShape = Array.isArray(parsed)
+      const file = legacyShape ? null : (parsed as CustomCardLibraryFile | null)
+      const rawCards = (legacyShape ? parsed : file?.cards) as LegacyCustomCard[] | undefined
+      if (!Array.isArray(rawCards)) return
+      const needsMigration =
+        legacyShape || rawCards.some((card) => !card || card.schemaVersion !== 2)
+      this.cards = rawCards
+        .filter((card) => card && Number.isFinite(Number(card.id)))
+        .map((card) => normalizeCard(card))
+        .filter((card) => card.id > 0)
+      this.nextId = computeNextId(file?.nextId, this.cards)
+      if (needsMigration || file?.nextId !== this.nextId) this.persist()
     } catch (err) {
       console.error('[CustomCardService] Failed to load custom cards:', err)
     } finally {
@@ -146,7 +174,8 @@ export class CustomCardService {
 
   private persist(): void {
     try {
-      writeFileSync(this.filePath, JSON.stringify(this.cards, null, 2), 'utf-8')
+      const file: CustomCardLibraryFile = { nextId: this.nextId, cards: this.cards }
+      writeFileSync(this.filePath, JSON.stringify(file, null, 2), 'utf-8')
     } catch (err) {
       console.error('[CustomCardService] Failed to save custom cards:', err)
       throw err
@@ -176,20 +205,21 @@ export class CustomCardService {
   }
 
   private generateId(): number {
-    let next = CUSTOM_CARD_ID_MIN
-    for (const card of this.cards) {
-      if (card.id >= CUSTOM_CARD_ID_MIN && card.id <= CUSTOM_CARD_ID_MAX) {
-        next = Math.max(next, card.id + 1)
-      }
-    }
-    for (let candidate = next; candidate <= CUSTOM_CARD_ID_MAX; candidate++) {
+    const start = this.nextId
+    for (let candidate = start; candidate <= CUSTOM_CARD_ID_MAX; candidate++) {
+      if (this.cards.some((card) => card.id === candidate)) continue
       if (cdbService.getCardById(candidate) === null) return candidate
     }
-    for (let candidate = CUSTOM_CARD_ID_MIN; candidate < next; candidate++) {
+    for (let candidate = CUSTOM_CARD_ID_MIN; candidate < start; candidate++) {
       if (this.cards.some((card) => card.id === candidate)) continue
       if (cdbService.getCardById(candidate) === null) return candidate
     }
     throw new Error('自定义卡片号段已用完')
+  }
+
+  private advanceNextId(id: number): void {
+    if (id < CUSTOM_CARD_ID_MIN || id > CUSTOM_CARD_ID_MAX) return
+    this.nextId = Math.max(this.nextId, id + 1)
   }
 
   private assertNewIdAvailable(id: number): void {
@@ -267,6 +297,7 @@ export class CustomCardService {
       this.cards[index] = card
     } else {
       this.cards.push(card)
+      this.advanceNextId(card.id)
     }
     this.persist()
     syncCustomCardLibrary(this.cards)

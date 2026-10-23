@@ -2,6 +2,11 @@ import { DuelPuzzleState } from '../duel'
 import type { MasterRule } from '../rules'
 import type { EngineBoardState, EngineTimelineNode } from '../duelEngine'
 
+export interface EngineSupportInfo {
+  supported: boolean
+  reason?: string
+}
+
 export interface EngineExportReplayParams {
   state: DuelPuzzleState
   name?: string

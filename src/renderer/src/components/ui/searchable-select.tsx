@@ -79,8 +79,10 @@ export function SearchableSelect<Value extends string | number>({
       <Combobox.Portal>
         <Combobox.Positioner sideOffset={4} align="start" className="isolate z-50">
           <Combobox.Popup className="max-h-(--available-height) min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 transition-[scale,opacity] duration-100 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0">
-            <Combobox.Empty className="px-2.5 py-3 text-center text-xs text-muted-foreground">
-              {emptyLabel}
+            <Combobox.Empty>
+              <div className="px-2.5 py-3 text-center text-xs text-muted-foreground">
+                {emptyLabel}
+              </div>
             </Combobox.Empty>
             <Combobox.List className="max-h-60 overflow-y-auto overscroll-contain p-1">
               {(option: SearchableSelectOption<Value>) => (

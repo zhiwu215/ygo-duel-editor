@@ -77,6 +77,11 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   mergedMatch: false,
 
   startEngine: async (options) => {
+    const support = window.api.getDuelEngineSupport ? await window.api.getDuelEngineSupport() : null
+    if (support && !support.supported) {
+      set({ loading: false, error: support.reason ?? '当前游戏目录不支持内置引擎。' })
+      return
+    }
     const matchConfig = useDuelStore.getState().state.matchConfig
     const mergedMatch = !isEngineSupportedMatch(matchConfig)
     if (mergedMatch && !options?.allowMergedMatch) {

@@ -59,7 +59,7 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
     if (!card?.isCustom) return
     const confirmed = await confirmDialog({
       title: '删除自定义卡片',
-      description: `确定删除自定义卡片「${card.name}」吗？卡组中已加入的该卡不会受影响。`,
+      description: `确定删除自定义卡片「${card.name}」吗？卡组中已加入的该卡会显示为未知卡片，且卡密不会被回收。`,
       confirmText: '删除',
       destructive: true
     })

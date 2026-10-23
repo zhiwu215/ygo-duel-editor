@@ -18,6 +18,7 @@ import { SaveProjectModal } from './components/SaveProjectModal'
 import { useProjectCommands } from '../../hooks/useProjectCommands'
 import { useGlobalShortcuts } from '../../hooks/useGlobalShortcuts'
 import { useStartEngine } from '../../hooks/useStartEngine'
+import { useConfigStore } from '../../stores/useConfigStore'
 
 export const Header: React.FC = () => {
   const engineMode = useDuelEngineStore((s) => s.engineMode)
@@ -26,6 +27,8 @@ export const Header: React.FC = () => {
   const stopEngine = useDuelEngineStore((s) => s.stopEngine)
   const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const importingReplay = useDuelEngineStore((s) => s.importingReplay)
+  const engineSupport = useConfigStore((s) => s.engineSupport)
+  const engineUnsupported = engineSupport?.supported === false
   const { state, setMasterRule, setTitle } = useDuelStore()
   const startEngine = useStartEngine()
 
@@ -186,11 +189,18 @@ export const Header: React.FC = () => {
               variant="outline"
               size="xs"
               onClick={() => void startEngine()}
-              disabled={isEngineLoading}
+              disabled={isEngineLoading || engineUnsupported}
+              title={engineUnsupported ? engineSupport.reason : undefined}
               className="h-7 px-2 text-[11px] font-bold gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
             >
               <Play className="w-3 h-3 fill-current" />
-              <span>{isEngineLoading ? '正在启动...' : '启动规则校验'}</span>
+              <span>
+                {isEngineLoading
+                  ? '正在启动...'
+                  : engineUnsupported
+                    ? 'KCG 不支持'
+                    : '启动规则校验'}
+              </span>
             </Button>
           )}
         </div>

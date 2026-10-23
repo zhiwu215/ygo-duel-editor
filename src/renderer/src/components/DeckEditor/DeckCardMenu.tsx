@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useLayoutEffect, useRef, useState } from 'react'
 import { DeckData, groupDepth, groupLeafName } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { confirmDialog } from '../../stores/useDialogStore'
@@ -23,11 +23,39 @@ interface DeckCardMenuProps {
   onClose: () => void
 }
 
+interface MoveMenuState {
+  side: 'left' | 'right'
+  offsetY: number | null
+}
+
+const MOVE_MENU_WIDTH = 176
+const VIEWPORT_MARGIN = 8
+
 export const DeckCardMenu: React.FC<DeckCardMenuProps> = ({ menu, onClose }) => {
   const { deckGroups, openDeck, duplicateDeckInLibrary, assignDeckGroup, deleteDeckFromLibrary } =
     useDeckEditorStore()
-  const [moveMenuDeckId, setMoveMenuDeckId] = useState<string | null>(null)
+  const [moveMenu, setMoveMenu] = useState<MoveMenuState | null>(null)
+  const submenuRef = useRef<HTMLDivElement>(null)
   const exportDeckFile = useDeckFileExport()
+
+  useLayoutEffect(() => {
+    const el = submenuRef.current
+    if (!moveMenu || moveMenu.offsetY !== null || !el) return
+    const rect = el.getBoundingClientRect()
+    const overflowBottom = Math.max(0, rect.bottom - (window.innerHeight - VIEWPORT_MARGIN))
+    const offsetY =
+      rect.top - overflowBottom < VIEWPORT_MARGIN ? VIEWPORT_MARGIN - rect.top : -overflowBottom
+    setMoveMenu({ ...moveMenu, offsetY })
+  }, [moveMenu])
+
+  const openMoveMenu = (e: React.MouseEvent<HTMLDivElement>): void => {
+    if (!menu.deck.id) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMoveMenu({
+      side: rect.right + MOVE_MENU_WIDTH + VIEWPORT_MARGIN <= window.innerWidth ? 'right' : 'left',
+      offsetY: null
+    })
+  }
 
   const handleDuplicate = async (deck: DeckData): Promise<void> => {
     if (deck.id) {
@@ -76,7 +104,7 @@ export const DeckCardMenu: React.FC<DeckCardMenuProps> = ({ menu, onClose }) => 
         className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal cursor-pointer"
       >
         <Edit3 className="w-3.5 h-3.5 text-muted-foreground" />
-        <span>打开 / 编辑</span>
+        <span>编辑</span>
       </Button>
 
       <Button
@@ -107,13 +135,7 @@ export const DeckCardMenu: React.FC<DeckCardMenuProps> = ({ menu, onClose }) => 
 
       <Separator className="my-1" />
 
-      <div
-        className="relative"
-        onMouseEnter={() => {
-          if (menu.deck.id) setMoveMenuDeckId(menu.deck.id)
-        }}
-        onMouseLeave={() => setMoveMenuDeckId(null)}
-      >
+      <div className="relative" onMouseEnter={openMoveMenu} onMouseLeave={() => setMoveMenu(null)}>
         <Button
           variant="ghost"
           size="sm"
@@ -124,62 +146,74 @@ export const DeckCardMenu: React.FC<DeckCardMenuProps> = ({ menu, onClose }) => 
           <ChevronRight className="w-3 h-3 ml-auto opacity-60" />
         </Button>
 
-        {moveMenuDeckId === menu.deck.id && (
-          <ScrollArea className="absolute left-full top-0 z-[70] min-w-40 max-h-72 bg-popover/95 backdrop-blur-md border border-border rounded-lg shadow-2xl">
-            <div className="p-1 text-xs">
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => {
-                  const id = menu.deck.id
-                  onClose()
-                  setMoveMenuDeckId(null)
-                  if (id) void assignDeckGroup(id, '')
-                }}
-                className={cn(
-                  'w-full px-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
-                  !menu.deck.group?.trim()
-                    ? 'bg-primary/15 text-primary font-semibold'
-                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+        {moveMenu && (
+          <div
+            ref={submenuRef}
+            style={{
+              transform: moveMenu.offsetY ? `translateY(${moveMenu.offsetY}px)` : undefined,
+              visibility: moveMenu.offsetY === null ? 'hidden' : undefined
+            }}
+            className={cn(
+              'absolute top-0 z-[70] w-44',
+              moveMenu.side === 'right' ? 'left-full' : 'right-full'
+            )}
+          >
+            <ScrollArea className="max-h-72 bg-popover/95 backdrop-blur-md border border-border rounded-lg shadow-2xl">
+              <div className="p-1 text-xs">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => {
+                    const id = menu.deck.id
+                    onClose()
+                    setMoveMenu(null)
+                    if (id) void assignDeckGroup(id, '')
+                  }}
+                  className={cn(
+                    'w-full h-7 px-2 flex items-center gap-2 text-left rounded transition-colors',
+                    !menu.deck.group?.trim()
+                      ? 'bg-primary/15 text-primary font-semibold'
+                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                  )}
+                >
+                  <Inbox className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">未分组</span>
+                </button>
+
+                {[...deckGroups]
+                  .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+                  .map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={() => {
+                        const id = menu.deck.id
+                        onClose()
+                        setMoveMenu(null)
+                        if (id) void assignDeckGroup(id, g)
+                      }}
+                      style={{ paddingLeft: `${8 + (groupDepth(g) - 1) * 12}px` }}
+                      className={cn(
+                        'w-full h-7 pr-2 flex items-center gap-2 text-left rounded transition-colors',
+                        menu.deck.group === g
+                          ? 'bg-primary/15 text-primary font-semibold'
+                          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                      )}
+                    >
+                      <Folder className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{groupLeafName(g)}</span>
+                    </button>
+                  ))}
+
+                {deckGroups.length === 0 && (
+                  <p className="px-2 py-1.5 text-[10px] text-muted-foreground/70 leading-relaxed">
+                    还没有分组。右键空白处可新建。
+                  </p>
                 )}
-              >
-                <Inbox className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">未分组</span>
-              </button>
-
-              {[...deckGroups]
-                .sort((a, b) => a.localeCompare(b, 'zh-CN'))
-                .map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => {
-                      const id = menu.deck.id
-                      onClose()
-                      setMoveMenuDeckId(null)
-                      if (id) void assignDeckGroup(id, g)
-                    }}
-                    style={{ paddingLeft: `${8 + (groupDepth(g) - 1) * 12}px` }}
-                    className={cn(
-                      'w-full pr-2 py-1.5 flex items-center gap-2 text-left rounded transition-colors',
-                      menu.deck.group === g
-                        ? 'bg-primary/15 text-primary font-semibold'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                    )}
-                  >
-                    <Folder className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{groupLeafName(g)}</span>
-                  </button>
-                ))}
-
-              {deckGroups.length === 0 && (
-                <p className="px-2 py-1.5 text-[10px] text-muted-foreground/70 leading-relaxed">
-                  还没有分组。右键空白处可新建。
-                </p>
-              )}
-            </div>
-          </ScrollArea>
+              </div>
+            </ScrollArea>
+          </div>
         )}
       </div>
 

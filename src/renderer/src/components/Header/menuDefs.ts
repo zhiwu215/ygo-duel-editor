@@ -161,7 +161,7 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
     },
     {
       id: 'ygo',
-      label: 'ygo',
+      label: '游戏',
       items: [
         {
           label: '使用游戏测试该局',
@@ -185,7 +185,7 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           action: actions.onImportReplay
         },
         {
-          label: '用 YGO 打开当前回放',
+          label: '用游戏打开当前回放',
           action: actions.onOpenReplayInYgo,
           disabled: !actions.canOpenReplay
         },

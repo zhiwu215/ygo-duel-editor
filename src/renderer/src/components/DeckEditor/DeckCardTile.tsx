@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
-import { DeckData, groupLeafName } from '@shared/index'
+import { DeckData } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { CardImage } from '../ui/CardImage'
 import { CardImageViewer } from '../CardDetail/CardImageViewer'
 import { getDeckCoverCode } from '../../utils/deckLibraryView'
-import { Clock, Folder } from 'lucide-react'
+import { Clock } from 'lucide-react'
 
 interface DeckCardTileProps {
   deck: DeckData
@@ -43,12 +43,6 @@ export const DeckCardTile: React.FC<DeckCardTileProps> = ({ deck, onContextMenu 
           alt={deck.name}
           className="h-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
         />
-        {deck.group?.trim() && (
-          <div className="absolute top-1 left-1 right-1 flex items-center gap-0.5 text-[9px] font-semibold text-white/90 bg-black/65 backdrop-blur-xs px-1 py-0.5 rounded">
-            <Folder className="w-2 h-2 shrink-0" />
-            <span className="truncate">{groupLeafName(deck.group.trim())}</span>
-          </div>
-        )}
       </div>
 
       {showViewer && coverCode && (

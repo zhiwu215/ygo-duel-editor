@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { duelDirector } from '../services/duel/duel-director'
+import { getDuelEngineSupport } from '../services/duel/engineSupport'
 import { sessionDocFileService } from '../services/sessionDocFileService'
 import { yrpReplayFileService } from '../services/yrpReplayFileService'
 import {
@@ -14,6 +15,8 @@ import {
 } from '@shared/index'
 
 export function registerDuelEngineIpc(): void {
+  ipcMain.handle('duel-engine:support', () => getDuelEngineSupport())
+
   ipcMain.handle('duel-engine:init', async (_, params: EngineDuelInitParams) => {
     try {
       return await duelDirector.startDuel(params)

@@ -326,8 +326,7 @@ export function useProjectCommands(): ProjectCommands {
     if (res.errorCode === 'no-game-directory') {
       void confirmDialog({
         title: '尚未设置游戏目录',
-        description:
-          '用 YGO 打开回放前，需要先在 设置 → 路径 中选择游戏主目录 (ygopro 或 MDPro3)。',
+        description: '用游戏打开回放前，需要先在 设置 → 路径 中选择游戏主目录 (ygopro 或 MDPro3)。',
         confirmText: '打开设置'
       }).then((ok) => {
         if (ok) void window.api.openSettingsWindow('paths')

@@ -108,7 +108,6 @@ export const GroupNameModal: React.FC<GroupNameModalProps> = ({
                 void handleConfirm()
               }
             }}
-            placeholder={isRename ? '输入新的分组名' : '如：暗之游戏'}
             className="h-8 text-xs bg-muted/40 border-border/80 focus-visible:ring-1"
           />
           {error && <span className="text-[11px] text-destructive">{error}</span>}

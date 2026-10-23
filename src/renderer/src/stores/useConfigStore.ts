@@ -8,6 +8,7 @@ import {
   DEFAULT_DUEL_TEST_SETTINGS,
   DEFAULT_FONT_SIZES,
   DuelTestSettings,
+  EngineSupportInfo,
   FontSizeRole,
   WebSearchConfig,
   clampFontSize,
@@ -24,8 +25,10 @@ interface ConfigStoreState {
   customCdbPath: string
   libraries: CdbLibraryInfo[]
   customSyncCdb: CustomSyncCdbInfo | null
+  engineSupport: EngineSupportInfo | null
   loadConfig: () => Promise<void>
   refreshCdbStatus: () => Promise<void>
+  refreshEngineSupport: () => Promise<void>
   selectYgoDir: () => Promise<CdbSelectResult>
 
   addExtraCdb: () => Promise<string | null>
@@ -60,6 +63,18 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   customCdbPath: '',
   libraries: [],
   customSyncCdb: null,
+  engineSupport: null,
+
+  refreshEngineSupport: async () => {
+    try {
+      if (!window.api?.getDuelEngineSupport) return
+      const support = await window.api.getDuelEngineSupport()
+      set({ engineSupport: support })
+    } catch (err) {
+      console.error('[useConfigStore] refreshEngineSupport error:', err)
+      set({ engineSupport: null })
+    }
+  },
 
   refreshCdbStatus: async () => {
     try {
@@ -98,6 +113,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       applyFontSizes(fontSizes)
       set({ config: { ...cfg, theme, fontSizes }, isLoaded: true })
       await get().refreshCdbStatus()
+      await get().refreshEngineSupport()
     } catch (err) {
       console.error('[useConfigStore] loadConfig error:', err)
       set({ isLoaded: true })

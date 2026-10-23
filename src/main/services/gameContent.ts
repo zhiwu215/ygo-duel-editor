@@ -59,6 +59,22 @@ export function isGameProgramName(name: string): boolean {
   return /(?:ygo|pro|kcg)[^\\/]*\.exe$/i.test(name)
 }
 
+export function isKcgGameDirectory(gameDir: string | undefined): boolean {
+  if (!gameDir) return false
+  if (/kcg/i.test(basename(gameDir))) return true
+  try {
+    if (
+      readdirSync(gameDir).some((name) => /kcg/i.test(name) && name.toLowerCase().endsWith('.exe'))
+    ) {
+      return true
+    }
+  } catch {}
+  return (
+    existsSync(join(gameDir, 'script', 'official')) &&
+    existsSync(join(gameDir, 'repositories', 'kcg'))
+  )
+}
+
 export function discoverGameCdbPaths(gameDir: string, gameType: GameType): GameCdbDiscovery {
   const scan = getGameContentScan(gameDir)
   if (gameType === 'mdpro3') {

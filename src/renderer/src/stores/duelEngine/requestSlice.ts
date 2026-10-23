@@ -9,6 +9,8 @@ import {
 } from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
 import { syncJumpToStepWrapped } from './boardReconcile'
+import { applyChainEvents, chainStateAtNode } from './chainState'
+import { engineErrorMessage } from './engineErrorMessage'
 import { discardFutureSteps, hasEngineStep, restoreEngineSteps, splitTimeline } from './stepRecords'
 import { appendEngineStepFromAnswer } from './stepRecording'
 import type { DuelEngineStore } from './types'
@@ -37,7 +39,8 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
   currentStepId: null,
 
   submitAnswer: async (answer) => {
-    if (!get().pendingRequest) return
+    const request = get().pendingRequest
+    if (!request) return
     set({ loading: true, error: null })
     try {
       const res: EngineSubmitAnswerResult = await window.api.duelEngineSubmitAnswer(answer)
@@ -62,11 +65,28 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
             .map((event) => event.player)
         )
       ]
+      const activeDuelist = get().boardState?.activeDuelist
+      const shuffledDuelists = activeDuelist
+        ? [
+            ...new Set(
+              shuffledPlayers
+                .map((player) => activeDuelist[player])
+                .filter((duelistId): duelistId is string => Boolean(duelistId))
+            )
+          ]
+        : []
+      const nextBoardChains = applyChainEvents(
+        get().boardChains,
+        res.node?.events ?? [],
+        get().boardState ?? undefined,
+        res.boardState ?? get().boardState ?? undefined
+      )
       set({
         loading: false,
         error: null,
         boardState: res.boardState ?? get().boardState,
         pendingRequest: res.pendingRequest ?? null,
+        boardChains: nextBoardChains,
         lastAttacker:
           answer.kind === 'battle' && answer.cmd === 'ATTACK' && answer.card
             ? answer.card
@@ -75,7 +95,7 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
         currentStepId: res.node?.id ?? get().currentStepId,
         handShuffle:
           shuffledPlayers.length > 0
-            ? { id: Date.now(), players: shuffledPlayers }
+            ? { id: Date.now(), players: shuffledPlayers, duelists: shuffledDuelists }
             : get().handShuffle,
         injectNotice:
           discarded > 0
@@ -101,22 +121,74 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
           res.diff,
           newTimeline,
           res.boardState ?? null,
-          actContext
+          actContext,
+          request.descHint
         )
       }
     } catch (err) {
       console.error('[useDuelEngineStore] submitAnswer failed:', err)
       set({
         loading: false,
-        error: err instanceof Error ? err.message : '提交操作失败'
+        error: engineErrorMessage(err, '提交操作失败')
       })
     }
   },
 
   jumpToStep: async (stepId: string): Promise<boolean> => {
-    if (!get().timeline.some((node) => node.id === stepId)) {
+    if (get().loading) return false
+    if (get().currentStepId === stepId) return true
+    const node = get().timeline.find((item) => item.id === stepId)
+    if (!node) {
       console.warn(`[useDuelEngineStore] 步骤 ${stepId} 不在当前引擎时间线，已跳过跳转`)
       return false
+    }
+    const previewExited = useDuelStore.getState().previewReturn !== null
+    if (get().replayInfo) {
+      try {
+        const shuffledPlayers = [
+          ...new Set(
+            node.events
+              .filter((event) => event.kind === 'shuffle-hand')
+              .map((event) => event.player)
+          )
+        ]
+        const activeDuelist = node.boardState.activeDuelist
+        const shuffledDuelists = activeDuelist
+          ? [
+              ...new Set(
+                shuffledPlayers
+                  .map((player) => activeDuelist[player])
+                  .filter((duelistId): duelistId is string => Boolean(duelistId))
+              )
+            ]
+          : []
+        useDuelStore.getState().exitPreview()
+        set({
+          loading: false,
+          error: null,
+          boardState: node.boardState,
+          pendingRequest: null,
+          boardChains: chainStateAtNode(get().timeline, stepId),
+          currentStepId: stepId,
+          handShuffle:
+            shuffledPlayers.length > 0
+              ? { id: Date.now(), players: shuffledPlayers, duelists: shuffledDuelists }
+              : get().handShuffle,
+          injectNotice: previewExited
+            ? { kind: 'warning', message: '已退出步骤预览，回到回放当前场面。' }
+            : get().injectNotice
+        })
+        syncJumpToStepWrapped(node.boardState)
+        restoreEngineSteps(get().timeline)
+        return true
+      } catch (err) {
+        console.error('[useDuelEngineStore] replay jumpToStep failed:', err)
+        set({
+          loading: false,
+          error: engineErrorMessage(err, '回放跳转失败')
+        })
+        return false
+      }
     }
     set({ loading: true, error: null })
     try {
@@ -124,12 +196,12 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
       const pendingRequest = await window.api
         .duelEngineGetPendingRequest()
         .catch(() => get().pendingRequest)
-      const previewExited = useDuelStore.getState().previewReturn !== null
       useDuelStore.getState().exitPreview()
       set({
         loading: false,
         boardState: res.boardState,
         pendingRequest,
+        boardChains: chainStateAtNode(get().timeline, res.currentStepId),
         currentStepId: res.currentStepId,
         injectNotice: previewExited
           ? { kind: 'warning', message: '已退出步骤预览，回到引擎当前场面。' }
@@ -142,7 +214,7 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
       console.error('[useDuelEngineStore] jumpToStep failed:', err)
       set({
         loading: false,
-        error: err instanceof Error ? err.message : '回退/跳转步骤失败'
+        error: engineErrorMessage(err, '回退/跳转步骤失败')
       })
       return false
     }

@@ -1,6 +1,7 @@
 import React from 'react'
 import { CardLocation } from '@shared/index'
 import { cn } from '../../lib/utils'
+import extraDeckIcon from '../../assets/history/summon.png'
 
 interface StepLocationLabelProps {
   player: 0 | 1
@@ -62,7 +63,12 @@ export const StepLocationLabel: React.FC<StepLocationLabelProps> = ({
       <span className="text-[9px] text-muted-foreground/80 shrink-0">
         {player === 0 ? '我方' : '对方'}
       </span>
-      <span className="text-[10px] text-foreground/80 break-all">{name}</span>
+      <span className="flex items-center gap-1 text-[10px] text-foreground/80 break-all">
+        {location === CardLocation.EXTRA && (
+          <img src={extraDeckIcon} alt="" className="h-4 w-3 shrink-0 object-contain opacity-80" />
+        )}
+        {name}
+      </span>
       {slots > 0 && (
         <span className="flex gap-[3px]" aria-hidden="true">
           {Array.from({ length: slots }, (_, slot) => (

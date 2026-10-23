@@ -26,7 +26,9 @@ export const ShortcutsDialog: React.FC<ShortcutsDialogProps> = ({ onClose }) => 
         {[
           ['删除卡片', 'Delete / Del'],
           ['双击卡堆', '查看卡组列表'],
-          ['切换默认放置状态', 'Ctrl + 拖放']
+          ['切换默认放置状态', 'Ctrl + 拖放'],
+          ['回放：上一步 / 下一步', '← / →'],
+          ['回放：播放 / 暂停', '空格']
         ].map(([name, key]) => (
           <div key={name} className="flex justify-between py-1 border-b border-border/40">
             <span className="text-muted-foreground">{name}</span>

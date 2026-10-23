@@ -1,9 +1,8 @@
 import React from 'react'
 import { ACTION_TYPE_COLORS, DuelStep, PHASE_SHORT_NAMES } from '@shared/index'
 import { ScrollArea } from '../ui/scroll-area'
-import { Button } from '../ui/button'
 import { CardImage } from '../ui/CardImage'
-import { Film, Plus, Layers, MessageSquare } from 'lucide-react'
+import { Film, Layers, MessageSquare } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { stepCardName } from '../../utils/cardNames'
 import { duelActionLabel, isFirstInPhase, isFirstInTurn } from './stepGrouping'
@@ -12,31 +11,20 @@ interface ScreenplayOutlineListProps {
   steps: DuelStep[]
   activeStep: DuelStep | undefined
   onSelectStep: (id: string) => void
-  onInsertAfterCurrent: () => void
 }
 
 export const ScreenplayOutlineList: React.FC<ScreenplayOutlineListProps> = ({
   steps,
   activeStep,
-  onSelectStep,
-  onInsertAfterCurrent
+  onSelectStep
 }) => {
   return (
     <div className="w-[340px] h-full border-r border-border/70 bg-muted/15 flex flex-col shrink-0 overflow-hidden">
-      <div className="p-2.5 border-b border-border/60 bg-muted/20 flex items-center justify-between shrink-0">
+      <div className="p-2.5 border-b border-border/60 bg-muted/20 flex items-center shrink-0">
         <span className="font-semibold text-xs text-muted-foreground flex items-center gap-1.5">
           <Film className="w-3.5 h-3.5" />
           <span>对局动作大纲 ({steps.length})</span>
         </span>
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={onInsertAfterCurrent}
-          className="h-6 text-[11px] gap-1 font-medium"
-        >
-          <Plus className="w-3 h-3" />
-          <span>加动作</span>
-        </Button>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
@@ -45,7 +33,7 @@ export const ScreenplayOutlineList: React.FC<ScreenplayOutlineListProps> = ({
             <div className="h-full flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs">
               <p className="font-semibold text-foreground/80">尚无任何动作节点</p>
               <p className="text-[11px] text-muted-foreground/60 mt-1">
-                点击右上角「加动作」建立对局大纲
+                在主窗口执行动作后，步骤会自动记录到这里
               </p>
             </div>
           ) : (

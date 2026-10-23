@@ -79,27 +79,29 @@ export function executeEditorAttack(attacker: FieldCard, target: FieldCard | nul
     ? `【${attackerName}】攻击【${targetName}】${damageText}`
     : `【${attackerName}】直接攻击${damageText}`
   const beforeIndex = useDuelStore.getState().currentStepIndex
-  recordEditorStep({
-    actionType: 'ATTACK',
-    controller: live.controller,
-    instanceId: live.instanceId,
-    cardCode: live.code,
-    cardName: attackerName,
-    fromLocation: live.location,
-    fromSequence: live.sequence,
-    toLocation: live.location,
-    toSequence: live.sequence,
-    targetInstanceId: liveTarget?.instanceId,
-    targetCardName: targetName ?? undefined,
-    targetPlayer: targetName ? undefined : opponent,
-    description,
-    boardAfter,
-    ops,
-    lpChange
+  duel.withSingleUndoStep(() => {
+    recordEditorStep({
+      actionType: 'ATTACK',
+      controller: live.controller,
+      instanceId: live.instanceId,
+      cardCode: live.code,
+      cardName: attackerName,
+      fromLocation: live.location,
+      fromSequence: live.sequence,
+      toLocation: live.location,
+      toSequence: live.sequence,
+      targetInstanceId: liveTarget?.instanceId,
+      targetCardName: targetName ?? undefined,
+      targetPlayer: targetName ? undefined : opponent,
+      description,
+      boardAfter,
+      ops,
+      lpChange
+    })
+    if (beforeIndex === null) {
+      const after = useDuelStore.getState()
+      const steps = after.state.steps || []
+      if (steps.length > 0) after.previewStepBoard(steps.length - 1)
+    }
   })
-  if (beforeIndex === null) {
-    const after = useDuelStore.getState()
-    const steps = after.state.steps || []
-    if (steps.length > 0) after.previewStepBoard(steps.length - 1)
-  }
 }

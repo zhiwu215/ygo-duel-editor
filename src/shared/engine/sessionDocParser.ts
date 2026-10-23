@@ -207,16 +207,52 @@ function parseRequest(value: unknown, field: string): EngineRequest | null {
   return value as unknown as EngineRequest
 }
 
+function parseEvent(value: unknown, field: string): EngineStepEvent {
+  assertRecord(value, field)
+  switch (value.kind) {
+    case 'shuffle-hand':
+      return { kind: 'shuffle-hand', player: readPlayer(value.player, `${field}.player`) }
+    case 'draw': {
+      if (!Array.isArray(value.codes)) fail(`${field}.codes 必须是数组。`)
+      return {
+        kind: 'draw',
+        player: readPlayer(value.player, `${field}.player`),
+        codes: value.codes.map((code, index) => readInteger(code, `${field}.codes[${index}]`, 0))
+      }
+    }
+    case 'chain':
+      return {
+        kind: 'chain',
+        controller: readPlayer(value.controller, `${field}.controller`),
+        location: readInteger(value.location, `${field}.location`, 0),
+        sequence: readInteger(value.sequence, `${field}.sequence`, 0),
+        chainCount: readInteger(value.chainCount, `${field}.chainCount`, 0)
+      }
+    case 'chain-solving':
+      return {
+        kind: 'chain-solving',
+        chainCount: readInteger(value.chainCount, `${field}.chainCount`, 0)
+      }
+    case 'chain-end':
+      return { kind: 'chain-end' }
+    case 'chain-negated':
+      return {
+        kind: 'chain-negated',
+        chainCount: readInteger(value.chainCount, `${field}.chainCount`, 0)
+      }
+    case 'chain-disabled':
+      return {
+        kind: 'chain-disabled',
+        chainCount: readInteger(value.chainCount, `${field}.chainCount`, 0)
+      }
+    default:
+      return fail(`${field}.kind 不受支持。`)
+  }
+}
+
 function parseEvents(value: unknown, field: string): EngineStepEvent[] {
   if (!Array.isArray(value)) fail(`${field} 必须是数组。`)
-  return value.map((event, index) => {
-    assertRecord(event, `${field}[${index}]`)
-    if (event.kind !== 'shuffle-hand') fail(`${field}[${index}].kind 不受支持。`)
-    return {
-      kind: 'shuffle-hand',
-      player: readPlayer(event.player, `${field}[${index}].player`)
-    }
-  })
+  return value.map((event, index) => parseEvent(event, `${field}[${index}]`))
 }
 
 function parseTimelineNode(value: unknown, index: number): EngineTimelineNode {

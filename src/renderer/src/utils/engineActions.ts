@@ -12,23 +12,48 @@ export interface CardEngineActions {
   chain?: RequestCard
 }
 
-function matchCard(
+function matchCards(
   list: RequestCard[] | undefined,
-  card: { code: number; controller: 0 | 1; location: number; sequence: number }
-): RequestCard | undefined {
-  if (!list) return undefined
-  return list.find(
+  card: {
+    code: number
+    controller: 0 | 1
+    location: number
+    sequence: number
+    duelistId?: string
+  }
+): RequestCard[] {
+  if (!list) return []
+  return list.filter(
     (c) =>
-      c.code === card.code &&
       c.controller === card.controller &&
       c.location === card.location &&
-      c.sequence === card.sequence
+      c.sequence === card.sequence &&
+      (!c.duelistId || c.duelistId === card.duelistId)
   )
+}
+
+function matchCard(
+  list: RequestCard[] | undefined,
+  card: {
+    code: number
+    controller: 0 | 1
+    location: number
+    sequence: number
+    duelistId?: string
+  }
+): RequestCard | undefined {
+  return matchCards(list, card)[0]
 }
 
 export function deriveCardEngineActions(
   request: EngineRequest | null,
-  card: { code: number; controller: 0 | 1; location: number; sequence: number } | null
+  card: {
+    code: number
+    controller: 0 | 1
+    location: number
+    sequence: number
+    duelistId?: string
+  } | null
 ): CardEngineActions | null {
   if (!request || !card) return null
   const d = request.data
@@ -37,7 +62,8 @@ export function deriveCardEngineActions(
     code: card.code,
     controller: card.controller,
     location: card.location,
-    sequence: card.sequence
+    sequence: card.sequence,
+    duelistId: card.duelistId
   }
 
   if (d.kind === 'idle') {
@@ -48,13 +74,7 @@ export function deriveCardEngineActions(
       mset: matchCard(d.msetable, key),
       sset: matchCard(d.ssetable, key),
       repos: matchCard(d.reposable, key),
-      activate: d.activatable.filter(
-        (c) =>
-          c.code === key.code &&
-          c.controller === key.controller &&
-          c.location === key.location &&
-          c.sequence === key.sequence
-      ),
+      activate: matchCards(d.activatable, key),
       attack: undefined,
       chain: undefined
     }
@@ -68,26 +88,14 @@ export function deriveCardEngineActions(
       mset: undefined,
       sset: undefined,
       repos: undefined,
-      activate: d.activatable.filter(
-        (c) =>
-          c.code === key.code &&
-          c.controller === key.controller &&
-          c.location === key.location &&
-          c.sequence === key.sequence
-      ),
+      activate: matchCards(d.activatable, key),
       attack: matchCard(d.attackable, key),
       chain: undefined
     }
   }
 
   if (d.kind === 'chain') {
-    const chain = d.chains.find(
-      (c) =>
-        c.code === key.code &&
-        c.controller === key.controller &&
-        c.location === key.location &&
-        c.sequence === key.sequence
-    )
+    const chain = matchCard(d.chains, key)
     return {
       requestKind: 'chain',
       summon: undefined,
@@ -111,6 +119,7 @@ export function hasCardEngineActions(
     controller: 0 | 1
     location: number
     sequence: number
+    duelistId?: string
   } | null
 ): boolean {
   const actions = deriveCardEngineActions(request, card)
@@ -134,6 +143,7 @@ export function hasCardEngineActivate(
     controller: 0 | 1
     location: number
     sequence: number
+    duelistId?: string
   } | null
 ): boolean {
   return (deriveCardEngineActions(request, card)?.activate.length ?? 0) > 0

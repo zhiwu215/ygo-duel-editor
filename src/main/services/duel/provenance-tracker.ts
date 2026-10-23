@@ -1,4 +1,4 @@
-import { CardLocation } from '@shared/index'
+import { CardLocation, getPzoneSzoneSequence } from '@shared/index'
 import type {
   DuelPuzzleState,
   EngineBoardState,
@@ -8,7 +8,6 @@ import type {
   InjectCommand
 } from '@shared/index'
 import type { SessionState } from './session-state'
-import { getPzoneSzoneSequence } from './session-setup'
 
 export type ProvenanceOrigin =
   { kind: 'initial'; puzzleCardId: string; code: number } | { kind: 'inject'; opIndex: number }

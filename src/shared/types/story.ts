@@ -199,6 +199,7 @@ export interface DuelStep {
   turnPlayer: 0 | 1
   phase: DuelPhase
   actionPlayer: 0 | 1
+  actionDuelistId?: string
   actionType: DuelActionType
   instanceId?: string
   cardCode?: number
@@ -216,6 +217,7 @@ export interface DuelStep {
   targetPlayer?: 0 | 1
   costInstanceIds?: string[]
   chainIndex?: number
+  chainBadge?: number
   speaker?: string
   dialogue?: string
   innerThoughts?: string
@@ -224,6 +226,7 @@ export interface DuelStep {
   boardAfter?: LightweightCardSnapshot[]
   lpChange?: { player: 0 | 1; oldLp: number; newLp: number }
   actId?: string
+  origin?: 'replay'
   manualOps?: ManualOp[]
   afterActId?: string
   intent?: string

@@ -9,6 +9,7 @@ import { useTokenStore } from '../../stores/useTokenStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useHeldCardPlacement } from '../../hooks/useHeldCardPlacement'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
+import { ZoneChainOverlay } from './components/ZoneChainOverlay'
 import { DropHintPopover } from './components/DropHintPopover'
 import { useDeckZoneInteraction } from '../../hooks/useDeckZoneInteraction'
 import { getDropPosOverride, canShowPositionHint } from '../../utils/zoneDrop'
@@ -365,9 +366,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         isEnginePlaceTarget
           ? 'ring-2 ring-amber-400 bg-amber-500/10 border-amber-400/60 cursor-pointer animate-pulse'
           : ''
-      } ${
-        hasHeldCard ? 'cursor-pointer hover:ring-2 hover:ring-primary/70' : ''
-      } ${className}`}
+      } ${hasHeldCard ? 'cursor-pointer hover:ring-2 hover:ring-primary/70' : ''} ${className}`}
     >
       {count !== undefined && count > 0 && (
         <button
@@ -420,6 +419,14 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           )}
         </div>
       )}
+
+      <ZoneChainOverlay
+        controller={controller}
+        location={location}
+        sequence={sequence}
+        compact={isSquareCell}
+        ignoreSequence={isPileZone}
+      />
     </div>
   )
 }

@@ -18,7 +18,7 @@ export function CardImage({
   return (
     <img
       {...rest}
-      src={getCardImageUrl(code, small)}
+      src={code && code > 0 ? getCardImageUrl(code, small) : fallback}
       onError={(e) => {
         const el = e.currentTarget
         if (el.src !== fallback) el.src = fallback

@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { CustomCard, CustomCardInput } from '@shared/index'
+import { CustomCard, CustomCardInput, CustomCardSyncTarget } from '@shared/index'
 import { customCardService } from '../services/customCardService'
 import { customSetcodeService } from '../services/customSetcodeService'
 import { imageService } from '../services/imageService'
@@ -96,8 +96,8 @@ export function registerCustomCardIpc(): void {
     await openCustomScriptDir()
   })
 
-  ipcMain.handle('customcard:open-sync-dir', () => {
-    return openCustomCardSyncDirectory()
+  ipcMain.handle('customcard:open-sync-dir', (_event, target: CustomCardSyncTarget) => {
+    return openCustomCardSyncDirectory(target)
   })
 
   ipcMain.handle('customcard:list-setcodes', () => {

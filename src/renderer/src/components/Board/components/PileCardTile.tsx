@@ -1,6 +1,7 @@
 import React from 'react'
 import { CardLocation, CardPosition, FieldCard } from '@shared/index'
 import { CardImage } from '../../ui/CardImage'
+import { ChainRing } from './ChainRing'
 import { Hand, Trash2 } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -14,6 +15,7 @@ interface PileCardTileProps {
   location: number
   isSelected: boolean
   dragDisabled: boolean
+  chainIndexes?: number[]
   actionsDisabled?: boolean
   onSelect: (card: FieldCard) => void
   onHoverChange: (card: FieldCard, hovering: boolean) => void
@@ -30,6 +32,7 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   location,
   isSelected,
   dragDisabled,
+  chainIndexes,
   actionsDisabled = false,
   onSelect,
   onHoverChange,
@@ -76,6 +79,20 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
         <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
           #{index + 1}
         </span>
+
+        {chainIndexes && chainIndexes.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 z-20">
+            {chainIndexes.map((chainIndex, order) => (
+              <div
+                key={chainIndex}
+                className="absolute left-0 w-full"
+                style={{ top: `${50 - order * 25}%`, transform: 'translateY(-50%)' }}
+              >
+                <ChainRing index={chainIndex} />
+              </div>
+            ))}
+          </div>
+        )}
 
         {location === CardLocation.DECK && index === 0 && (
           <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">

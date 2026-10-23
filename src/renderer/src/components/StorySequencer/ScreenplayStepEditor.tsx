@@ -5,7 +5,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { CardImage } from '../ui/CardImage'
-import { ChevronLeft, ChevronRight, Sparkles, Plus, Trash2, BookOpen, Layers } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles, Trash2, BookOpen, Layers } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { stepCardName } from '../../utils/cardNames'
 import { confirmDialog } from '../../stores/useDialogStore'
@@ -19,8 +19,8 @@ interface ScreenplayStepEditorProps {
   onSelectStep: (id: string) => void
   onUpdateStep: (stepId: string, patch: Partial<DuelStep>) => void
   onDeleteStep: (stepId: string) => void
-  onInsertAfterCurrent: () => void
   onOpenChantPicker: (cardCode: number) => void
+  stepEditingLocked: boolean
 }
 
 export const ScreenplayStepEditor: React.FC<ScreenplayStepEditorProps> = ({
@@ -30,8 +30,8 @@ export const ScreenplayStepEditor: React.FC<ScreenplayStepEditorProps> = ({
   onSelectStep,
   onUpdateStep,
   onDeleteStep,
-  onInsertAfterCurrent,
-  onOpenChantPicker
+  onOpenChantPicker,
+  stepEditingLocked
 }) => {
   return (
     <ScrollArea className="flex-1 min-h-0 bg-background/40">
@@ -205,10 +205,17 @@ export const ScreenplayStepEditor: React.FC<ScreenplayStepEditorProps> = ({
               />
             </div>
 
+            {stepEditingLocked && (
+              <div className="text-[11px] leading-relaxed text-muted-foreground select-none">
+                引擎运行中，动作由引擎接管；退出规则校验后可删除步骤。
+              </div>
+            )}
+
             <div className="pt-3 border-t border-border/60 flex items-center justify-between select-none">
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={stepEditingLocked}
                 onClick={() => {
                   void confirmDialog({
                     title: '删除步骤',
@@ -223,18 +230,6 @@ export const ScreenplayStepEditor: React.FC<ScreenplayStepEditorProps> = ({
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>删除当前步骤</span>
               </Button>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={onInsertAfterCurrent}
-                  className="text-xs font-semibold gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>在此之后插入新动作</span>
-                </Button>
-              </div>
             </div>
           </>
         ) : (
@@ -243,16 +238,9 @@ export const ScreenplayStepEditor: React.FC<ScreenplayStepEditorProps> = ({
               <BookOpen className="w-5 h-5 text-muted-foreground/60" />
             </div>
             <p className="font-semibold text-sm text-foreground/85">未选择动作步骤</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">在左侧选中动作后撰写对应台本</p>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={onInsertAfterCurrent}
-              className="mt-4 gap-1.5 font-semibold"
-            >
-              <Plus className="w-4 h-4" />
-              <span>添加第一步动作与台本</span>
-            </Button>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              在主窗口执行一次动作后，步骤会自动记录，再回到这里撰写台本
+            </p>
           </div>
         )}
       </div>

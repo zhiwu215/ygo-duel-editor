@@ -254,19 +254,26 @@ export function replayManualSteps(
 
   const derived = steps.map((step) => {
     const lpBefore: [number, number] = [state.lp[0], state.lp[1]]
-    const ops = step.manualOps
-    if (ops && ops.length > 0) {
-      for (const op of ops) applyManualOpToState(state, op)
-    } else {
-      applyStepToBoard(state.board, step)
-    }
-
-    if (step.actionType === 'TURN_CHANGE') {
-      state.turn += 1
-      state.phase = 'DP'
-      state.turnPlayer = (state.turnPlayer === 0 ? 1 : 0) as 0 | 1
-    } else if (step.actionType === 'PHASE_CHANGE' && step.phase) {
+    if (step.origin === 'replay' && step.boardAfter) {
+      state.board = cloneSnap(step.boardAfter)
+      state.turn = step.turn
       state.phase = step.phase
+      state.turnPlayer = step.turnPlayer
+    } else {
+      const ops = step.manualOps
+      if (ops && ops.length > 0) {
+        for (const op of ops) applyManualOpToState(state, op)
+      } else {
+        applyStepToBoard(state.board, step)
+      }
+
+      if (step.actionType === 'TURN_CHANGE') {
+        state.turn += 1
+        state.phase = 'DP'
+        state.turnPlayer = (state.turnPlayer === 0 ? 1 : 0) as 0 | 1
+      } else if (step.actionType === 'PHASE_CHANGE' && step.phase) {
+        state.phase = step.phase
+      }
     }
 
     const lpChange = step.lpChange

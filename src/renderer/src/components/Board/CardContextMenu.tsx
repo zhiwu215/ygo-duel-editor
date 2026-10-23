@@ -26,7 +26,7 @@ export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
-  const { removeCard, clearPile, state, activeDuelistId } = useDuelStore()
+  const { removeCard, clearPile, state, activeDuelistIds } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
   const openDetach = useDetachMaterialStore((s) => s.openDetach)
@@ -114,7 +114,12 @@ export const CardContextMenu: React.FC = () => {
   const isSpellTrapZone = isSpellTrapLocation(card.location)
   const deckDuelist =
     card.location === CardLocation.DECK
-      ? resolveDuelistDeck(state.duelists, card.controller, activeDuelistId, card.duelistId)
+      ? resolveDuelistDeck(
+          state.duelists,
+          card.controller,
+          activeDuelistIds[card.controller],
+          card.duelistId
+        )
       : null
 
   const engineActions = isEngine ? requestActions : null

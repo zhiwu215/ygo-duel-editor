@@ -38,6 +38,7 @@ export interface EngineSessionDoc {
 }
 
 export interface EngineSessionImportPayload {
+  initParams: EngineDuelInitParams
   boardState: EngineBoardState
   pendingRequest: EngineRequest | null
   timeline: EngineTimelineNode[]
@@ -56,6 +57,7 @@ export interface EngineSessionLoadResult extends EngineSessionFileResult {
 }
 
 export interface EngineSessionImportResult extends EngineSessionFileResult {
+  initParams?: EngineDuelInitParams
   boardState?: EngineBoardState
   pendingRequest?: EngineRequest | null
   timeline?: EngineTimelineNode[]

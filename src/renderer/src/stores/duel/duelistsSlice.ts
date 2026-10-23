@@ -4,7 +4,11 @@ import {
   Duelist,
   MatchConfig,
   createDefaultDuelists,
-  getMatchScenarioKey
+  createStandardTagDuelists,
+  getMatchScenarioKey,
+  isStandardTag,
+  normalizeDuelScenarios,
+  normalizeMatchConfig
 } from '@shared/index'
 import { createLpFlash } from './lpSlice'
 import type { DuelStore } from './types'
@@ -13,9 +17,9 @@ import { isDuelStarted } from '../../utils/duelStart'
 
 export interface DuelistsSlice {
   expandedDuelistId: string | null
-  activeDuelistId: string | null
+  activeDuelistIds: [string | null, string | null]
   setExpandedDuelistId: (id: string | null) => void
-  setActiveDuelistId: (id: string | null) => void
+  focusDuelist: (id: string) => void
 
   switchMatchConfig: (config: MatchConfig) => void
   updateDuelist: (duelistId: string, patch: Partial<Duelist>) => void
@@ -25,20 +29,29 @@ export interface DuelistsSlice {
 
 export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice> = (set) => ({
   expandedDuelistId: null,
-  activeDuelistId: null,
+  activeDuelistIds: [null, null],
   setExpandedDuelistId: (id) => set({ expandedDuelistId: id }),
-  setActiveDuelistId: (id) => set({ activeDuelistId: id }),
+  focusDuelist: (id) =>
+    set((prev) => {
+      const team = prev.state.duelists?.find((duelist) => duelist.id === id)?.team
+      if (team === undefined || prev.activeDuelistIds[team] === id) return {}
+      const activeDuelistIds: [string | null, string | null] = [...prev.activeDuelistIds]
+      activeDuelistIds[team] = id
+      return { activeDuelistIds }
+    }),
 
   switchMatchConfig: (newConfig) =>
     set((prev) => {
-      const currentConfig = prev.state.matchConfig || {
-        mode: '1v1',
-        team0Count: 1,
-        team1Count: 1,
-        sharedLp: false
-      }
+      const currentConfig = normalizeMatchConfig(
+        prev.state.matchConfig || {
+          mode: '1v1',
+          team0Count: 1,
+          team1Count: 1
+        }
+      )
+      const targetConfig = normalizeMatchConfig(newConfig)
       const currentKey = getMatchScenarioKey(currentConfig)
-      const targetKey = getMatchScenarioKey(newConfig)
+      const targetKey = getMatchScenarioKey(targetConfig)
 
       const currentSnapshot: DuelSceneSnapshot = {
         duelists:
@@ -50,17 +63,18 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
         steps: prev.state.steps,
         matchConfig: currentConfig,
         players: prev.state.players,
-        initialBoardSnapshot: prev.state.initialBoardSnapshot
+        initialBoardSnapshot: prev.state.initialBoardSnapshot,
+        initialLp: prev.state.initialLp
       }
 
       const updatedScenarios: Record<string, DuelSceneSnapshot> = {
-        ...(prev.state.scenarios || {}),
+        ...normalizeDuelScenarios(prev.state.scenarios),
         [currentKey]: currentSnapshot
       }
 
       const resetRuntime = {
         expandedDuelistId: null,
-        activeDuelistId: null,
+        activeDuelistIds: [null, null] as [string | null, string | null],
         selectedCardId: null,
         currentStepIndex: null,
         currentTurn: 1,
@@ -73,15 +87,13 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
         return {
           state: {
             ...prev.state,
-            matchConfig: newConfig,
+            matchConfig: targetConfig,
             duelists: snap.duelists,
             cards: snap.cards,
 
             players: snap.players ?? prev.state.players,
             initialBoardSnapshot: snap.initialBoardSnapshot ?? prev.state.initialBoardSnapshot,
-            initialLp: snap.players
-              ? [snap.players[0]?.lp ?? 8000, snap.players[1]?.lp ?? 8000]
-              : prev.state.initialLp,
+            initialLp: snap.initialLp ?? prev.state.initialLp,
             turnPlayer: snap.turnPlayer,
             firstTurnAttack: snap.firstTurnAttack,
             steps: snap.steps,
@@ -93,12 +105,14 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
         }
       }
 
-      const newDuelists = createDefaultDuelists(newConfig.team0Count, newConfig.team1Count)
+      const newDuelists = isStandardTag(targetConfig)
+        ? createStandardTagDuelists()
+        : createDefaultDuelists(targetConfig.team0Count, targetConfig.team1Count)
 
       return {
         state: {
           ...prev.state,
-          matchConfig: newConfig,
+          matchConfig: targetConfig,
           duelists: newDuelists,
           cards: [],
           players: [
@@ -107,9 +121,9 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
           ],
           steps: [],
           initialBoardSnapshot: undefined,
-          initialLp: undefined,
+          initialLp: [8000, 8000],
           turnPlayer: 0,
-          firstTurnAttack: newConfig.mode === '1v1' ? prev.state.firstTurnAttack : false,
+          firstTurnAttack: targetConfig.mode === '1v1' ? prev.state.firstTurnAttack : false,
           scenarios: updatedScenarios
         },
         ...resetRuntime,

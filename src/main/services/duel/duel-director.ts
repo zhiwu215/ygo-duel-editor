@@ -97,6 +97,18 @@ export class DuelDirector {
     return duelSession.getAllTimelineResponses()
   }
 
+  getSeed(): number[] {
+    return duelSession.getSeed()
+  }
+
+  getInitParams(): EngineDuelInitParams | null {
+    return duelSession.getInitParams()
+  }
+
+  hasInjectOps(): boolean {
+    return duelSession.hasInjectOps()
+  }
+
   recordMessageStream(): { messages: Uint8Array[]; responses: Uint8Array[] } {
     return duelSession.recordMessageStream()
   }

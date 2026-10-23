@@ -88,6 +88,8 @@ export const StepEditDialog: React.FC<StepEditDialogProps> = ({ stepId, onClose 
       turnPlayer: formTurnPlayer,
       phase: formPhase,
       actionPlayer: formActionPlayer,
+      actionDuelistId:
+        formActionPlayer === editingStep.actionPlayer ? editingStep.actionDuelistId : undefined,
       actionType: formActionType,
       cardCode: validCode,
       cardName: formCardName.trim() || undefined,

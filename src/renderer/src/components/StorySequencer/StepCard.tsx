@@ -4,7 +4,15 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { CardImage } from '../ui/CardImage'
 import { Button } from '../ui/button'
-import { BookOpen, ChevronDown, ChevronUp, MessageSquare, PlayCircle, Trash2 } from 'lucide-react'
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  MessageSquare,
+  PlayCircle,
+  Shuffle,
+  Trash2
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { duelActionLabel, resolveStepCardName } from './stepGrouping'
 import { StepLpChange } from './StepLpChange'
@@ -12,9 +20,11 @@ import { StepLocationLabel } from './StepLocationLabel'
 import arrowIcon from '../../assets/history/arrow.svg'
 import attackIcon from '../../assets/history/attack.png'
 import effectIcon from '../../assets/history/effect.png'
+import negatedIcon from '../../assets/textures/negated.png'
 import setIcon from '../../assets/history/set.png'
 import summonIcon from '../../assets/history/summon.png'
 import targetedIcon from '../../assets/history/targeted.png'
+import { ChainGlyph } from '../common/ChainGlyph'
 
 interface StepCardProps {
   step: DuelStep
@@ -72,13 +82,20 @@ export const StepCard: React.FC<StepCardProps> = ({
   onRestart,
   onClick
 }: StepCardProps) => {
-  const { setHoveredInstanceId, moveStep, deleteStep, openScreenplayWithStep } = useDuelStore()
+  const setHoveredInstanceId = useDuelStore((state) => state.setHoveredInstanceId)
+  const moveStep = useDuelStore((state) => state.moveStep)
+  const deleteStep = useDuelStore((state) => state.deleteStep)
+  const openScreenplayWithStep = useDuelStore((state) => state.openScreenplayWithStep)
+  const duelists = useDuelStore((state) => state.state.duelists)
   const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
+  const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const colorTheme = ACTION_TYPE_COLORS[step.actionType] || ACTION_TYPE_COLORS.NORMAL_SUMMON
   const actionLabel = duelActionLabel(step)
   const hasBoardSnapshot = Boolean(step.boardAfter && step.boardAfter.length > 0)
   const playableFromHere = hasBoardSnapshot && stepEngineIndex === undefined
   const displayCardName = resolveStepCardName(step)
+  const [imageMissingCode, setImageMissingCode] = React.useState<number | null>(null)
+  const imageMissing = imageMissingCode === step.cardCode
   const opIcon = OP_ICONS[step.actionType] ?? arrowIcon
   const showToLocation = step.toLocation !== undefined && step.toLocation !== step.fromLocation
   const showMainRow = !(
@@ -90,6 +107,8 @@ export const StepCard: React.FC<StepCardProps> = ({
     (step.actionType === 'CHANGE_POS' || step.actionType === 'FLIP_SUMMON') &&
     step.fromPosition !== undefined &&
     step.toPosition !== undefined
+  const isShuffleStep = step.description?.includes('手牌切洗') ?? false
+  const isNegatedStep = step.description?.includes('效果被无效') ?? false
   const positionPair = hasPositionPair ? (
     <div className="flex items-center justify-center gap-1 min-w-0">
       <span className="text-[10px] text-muted-foreground whitespace-nowrap">
@@ -103,20 +122,19 @@ export const StepCard: React.FC<StepCardProps> = ({
   ) : null
 
   const playerBadgeClass = cn(
-    'text-[9px] font-bold px-1 rounded leading-none py-0.5 shrink-0',
+    'text-[9px] font-bold px-1 rounded leading-none py-0.5 shrink-0 max-w-[72px] truncate',
     step.actionPlayer === 0 ? 'text-blue-400 bg-blue-500/10' : 'text-rose-400 bg-rose-500/10'
   )
+  const actingDuelistName = duelists?.find((d) => d.id === step.actionDuelistId)?.name
+  const playerLabel = actingDuelistName ?? (step.actionPlayer === 0 ? '我方' : '对方')
+
+  const chainNumber = step.chainIndex && step.chainIndex > 0 ? step.chainIndex : step.chainBadge
 
   const metaBadges = (
     <>
-      {step.chainIndex && step.chainIndex > 0 && (
-        <span className="bg-teal-500/20 text-teal-400 font-bold px-1 rounded text-[9px] shrink-0">
-          C{step.chainIndex}
-        </span>
-      )}
-      {isFutureStep && (
-        <span className="text-[9px] font-bold px-1 rounded border border-dashed border-muted-foreground/40 text-muted-foreground shrink-0">
-          未来步
+      {chainNumber && chainNumber > 0 && (
+        <span className="inline-flex items-center gap-0.5 rounded border border-amber-300/60 bg-black/75 px-1 text-[9px] font-bold text-amber-300 shrink-0">
+          <ChainGlyph className="h-4 w-4" />C{chainNumber}
         </span>
       )}
     </>
@@ -144,7 +162,7 @@ export const StepCard: React.FC<StepCardProps> = ({
         {showMainRow &&
           (!step.cardCode ? (
             <div className="flex items-center gap-1.5 text-[11px] leading-snug min-w-0">
-              <span className={playerBadgeClass}>{step.actionPlayer === 0 ? '我方' : '对方'}</span>
+              <span className={playerBadgeClass}>{playerLabel}</span>
               <span className={cn('font-semibold shrink-0', colorTheme.text)}>{actionLabel}</span>
               <span className="text-muted-foreground/80 truncate">{step.description}</span>
               <span className="flex items-center gap-1 ml-auto">{metaBadges}</span>
@@ -157,7 +175,13 @@ export const StepCard: React.FC<StepCardProps> = ({
                   small
                   alt={displayCardName}
                   className="w-full h-auto block"
+                  onFallback={() => setImageMissingCode(step.cardCode ?? null)}
                 />
+                {imageMissing && displayCardName && (
+                  <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-black/85 px-0.5 py-0.5 text-center text-[8px] font-bold leading-[10px] text-white break-words">
+                    {displayCardName}
+                  </div>
+                )}
                 <span
                   className={cn(
                     'absolute inset-x-0 bottom-0 text-center text-[8px] font-bold leading-none py-0.5',
@@ -166,7 +190,7 @@ export const StepCard: React.FC<StepCardProps> = ({
                       : 'bg-rose-950/80 text-rose-300'
                   )}
                 >
-                  {step.actionPlayer === 0 ? '我方' : '对方'}
+                  {playerLabel}
                 </span>
               </div>
 
@@ -184,7 +208,7 @@ export const StepCard: React.FC<StepCardProps> = ({
                 {positionPair ?? (
                   <img src={opIcon} alt="" className="w-9 h-auto pointer-events-none" />
                 )}
-                {(step.chainIndex && step.chainIndex > 0) || isFutureStep ? (
+                {chainNumber && chainNumber > 0 ? (
                   <span className="flex items-center gap-1">{metaBadges}</span>
                 ) : null}
               </div>
@@ -208,6 +232,20 @@ export const StepCard: React.FC<StepCardProps> = ({
               )}
             </div>
           ))}
+
+        {isShuffleStep && (
+          <div className="flex items-center gap-1 text-[9px] font-medium text-amber-500">
+            <Shuffle className="h-3 w-3" />
+            <span>手牌切洗</span>
+          </div>
+        )}
+
+        {isNegatedStep && (
+          <div className="flex items-center gap-1 text-[9px] font-medium text-rose-500">
+            <img src={negatedIcon} alt="" className="h-3.5 w-3.5 object-contain" />
+            <span>效果被无效</span>
+          </div>
+        )}
 
         {showLpChange && step.lpChange && (
           <StepLpChange lpChange={step.lpChange} turn={step.turn} />
@@ -264,52 +302,56 @@ export const StepCard: React.FC<StepCardProps> = ({
             >
               <BookOpen className="w-3 h-3" />
             </Button>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              disabled={index === 0}
-              onClick={(e) => {
-                e.stopPropagation()
-                moveStep(step.id, 'up')
-              }}
-              className="h-5 w-5"
-            >
-              <ChevronUp className="w-3 h-3" />
-            </Button>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              disabled={index === stepsLength - 1}
-              onClick={(e) => {
-                e.stopPropagation()
-                moveStep(step.id, 'down')
-              }}
-              className="h-5 w-5"
-            >
-              <ChevronDown className="w-3 h-3" />
-            </Button>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEdit(step)
-              }}
-              className="h-5 w-5 text-blue-500 hover:text-blue-400"
-            >
-              <MessageSquare className="w-3 h-3" />
-            </Button>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={(e) => {
-                e.stopPropagation()
-                deleteStep(step.id)
-              }}
-              className="h-5 w-5 text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="w-3 h-3" />
-            </Button>
+            {!engineActive && (
+              <>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled={index === 0}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    moveStep(step.id, 'up')
+                  }}
+                  className="h-5 w-5"
+                >
+                  <ChevronUp className="w-3 h-3" />
+                </Button>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled={index === stepsLength - 1}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    moveStep(step.id, 'down')
+                  }}
+                  className="h-5 w-5"
+                >
+                  <ChevronDown className="w-3 h-3" />
+                </Button>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onEdit(step)
+                  }}
+                  className="h-5 w-5 text-blue-500 hover:text-blue-400"
+                >
+                  <MessageSquare className="w-3 h-3" />
+                </Button>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteStep(step.id)
+                  }}
+                  className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>

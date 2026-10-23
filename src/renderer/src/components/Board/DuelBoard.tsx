@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
-import { CardLocation, MASTER_RULES, FieldCard } from '@shared/index'
+import { CardLocation, MASTER_RULES, FieldCard, isStandardTag } from '@shared/index'
 import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
 import { BoardSector } from './BoardSector'
@@ -15,7 +15,8 @@ import { resolveOwnerScope } from '../../utils/duelistNames'
 
 export const DuelBoard: React.FC = () => {
   const state = useDuelStore((s) => s.state)
-  const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
+  const activeDuelistIds = useDuelStore((s) => s.activeDuelistIds)
+  const currentTurn = useDuelStore((s) => s.currentTurn)
   const duelStarted = useDuelStore((s) => s.duelStarted)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const ruleInfo = MASTER_RULES[state.masterRule]
@@ -48,8 +49,13 @@ export const DuelBoard: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const ownerScopeOf = (controller: 0 | 1): string | null =>
-    resolveOwnerScope(state.duelists, controller, activeDuelistId)
+  const standardTag = isStandardTag(state.matchConfig)
+  const ownerScopeOf = (controller: 0 | 1, location: number): string | null => {
+    if (standardTag && (location === CardLocation.GRAVE || location === CardLocation.REMOVED)) {
+      return null
+    }
+    return resolveOwnerScope(state.duelists, controller, activeDuelistIds[controller], currentTurn)
+  }
 
   const getCard = (
     controller: 0 | 1,
@@ -66,7 +72,7 @@ export const DuelBoard: React.FC = () => {
         state.cards,
         controller,
         location,
-        ownerScopeOf(controller),
+        ownerScopeOf(controller, location),
         isEngineActive
       )
     }
@@ -76,7 +82,7 @@ export const DuelBoard: React.FC = () => {
   }
 
   const getCardCount = (controller: 0 | 1, location: number): number =>
-    getPileCount(state.cards, controller, location, ownerScopeOf(controller))
+    getPileCount(state.cards, controller, location, ownerScopeOf(controller, location))
 
   return (
     <div className="flex-1 h-full relative select-none min-h-0 overflow-hidden flex flex-col">

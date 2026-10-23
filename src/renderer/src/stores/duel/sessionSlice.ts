@@ -7,7 +7,10 @@ import {
   MasterRule,
   createDefaultDuelists,
   createInitialDuelState,
+  createStandardTagDuelists,
+  isStandardTag,
   normalizeDuelState,
+  normalizeMatchConfig,
   swapDuelSides
 } from '@shared/index'
 import { isDuelStarted } from '../../utils/duelStart'
@@ -45,6 +48,7 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
       duelStarted: isDuelStarted(normalized),
       selectedCardId: null,
       expandedDuelistId: null,
+      activeDuelistIds: [null, null],
       hoveredCard: null
     })
     get().clearUndoHistory()
@@ -56,18 +60,19 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
       currentProjectPath: null,
       duelStarted: isDuelStarted(newState),
       selectedCardId: null,
-      expandedDuelistId: null
+      expandedDuelistId: null,
+      activeDuelistIds: [null, null]
     })),
 
   resetDuel: () =>
     set((prev) => {
       const baseState = createInitialDuelState(prev.state.masterRule, prev.state.duelType || 'full')
       if (prev.state.matchConfig) {
-        baseState.matchConfig = prev.state.matchConfig
-        baseState.duelists = createDefaultDuelists(
-          prev.state.matchConfig.team0Count,
-          prev.state.matchConfig.team1Count
-        )
+        const matchConfig = normalizeMatchConfig(prev.state.matchConfig)
+        baseState.matchConfig = matchConfig
+        baseState.duelists = isStandardTag(matchConfig)
+          ? createStandardTagDuelists()
+          : createDefaultDuelists(matchConfig.team0Count, matchConfig.team1Count)
       }
       return {
         state: baseState,
@@ -77,7 +82,8 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
         activeStatPopoverCardId: null,
         statPopoverPosition: null,
         hoveredCard: null,
-        expandedDuelistId: null
+        expandedDuelistId: null,
+        activeDuelistIds: [null, null]
       }
     }),
 

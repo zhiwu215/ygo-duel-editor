@@ -1,5 +1,6 @@
 import { CardLocation, DuelPhase, EngineBoardState, resolveEngineCardStats } from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
+import { normalizeEngineCardPosition } from '../../utils/engineCardPosition'
 import { getEditorId, registerIdentity, toEditorToEngineMap } from './identityMap'
 
 export function mapPhaseToDuelPhase(phase: number): DuelPhase {
@@ -13,14 +14,7 @@ export function mapPhaseToDuelPhase(phase: number): DuelPhase {
 }
 
 export function applyEngineWrite(apply: () => void): void {
-  const duelStore = useDuelStore.getState()
-  const prevState = duelStore.state
-  duelStore.pauseUndoTracking()
-  try {
-    apply()
-  } finally {
-    duelStore.resumeAndPushUndo(structuredClone(prevState))
-  }
+  useDuelStore.getState().withSingleUndoStep(apply)
 }
 
 export function syncJumpToStepWrapped(boardState: EngineBoardState): void {
@@ -29,20 +23,59 @@ export function syncJumpToStepWrapped(boardState: EngineBoardState): void {
 
 function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
   const duelStore = useDuelStore.getState()
+  const masterRule = duelStore.state.masterRule
   const currentCards = [...duelStore.state.cards]
   const engineById = new Map(boardState.allCards.map((c) => [c.instanceId, c]))
-  const engineByPos = new Map(
-    boardState.allCards.map((c) => [`${c.controller}:${c.location}:${c.sequence}`, c])
-  )
+  const isPrivateLocation = (location: number): boolean =>
+    location === CardLocation.HAND ||
+    location === CardLocation.DECK ||
+    location === CardLocation.EXTRA
+  const activeDuelist = boardState.tag ? boardState.activeDuelist : undefined
+  const isInactivePrivate = (card: {
+    controller: 0 | 1
+    location: number
+    duelistId?: string
+  }): boolean => {
+    if (!activeDuelist || !isPrivateLocation(card.location)) return false
+    const activeId = activeDuelist[card.controller]
+    return Boolean(card.duelistId && activeId && card.duelistId !== activeId)
+  }
+  const positionKey = (card: {
+    controller: 0 | 1
+    location: number
+    sequence: number
+    duelistId?: string
+  }): string => {
+    const position = normalizeEngineCardPosition(masterRule, card.location, card.sequence)
+    const seat =
+      boardState.tag && isPrivateLocation(card.location) && card.duelistId ? card.duelistId : ''
+    return `${card.controller}:${seat}:${position.location}:${position.sequence}`
+  }
+  const engineByPos = new Map(boardState.allCards.map((card) => [positionKey(card), card] as const))
   const editorToEngineId = toEditorToEngineMap()
   const usedEngineIds = new Set<string>()
+  const syncStatus = (instanceId: string, status: number | undefined): void => {
+    if (status === undefined) return
+    const current = useDuelStore.getState().state.cards.find((c) => c.instanceId === instanceId)
+    if (!current || current.status === status) return
+    useDuelStore.setState((prev) => ({
+      ...prev,
+      state: {
+        ...prev.state,
+        cards: prev.state.cards.map((item) =>
+          item.instanceId === instanceId ? { ...item, status } : item
+        )
+      }
+    }))
+  }
 
   for (const card of currentCards) {
+    if (isInactivePrivate(card)) continue
     const mappedEngineId = editorToEngineId.get(card.instanceId)
     const ec =
       engineById.get(card.instanceId) ??
       (mappedEngineId ? engineById.get(mappedEngineId) : undefined) ??
-      engineByPos.get(`${card.controller}:${card.location}:${card.sequence}`)
+      engineByPos.get(positionKey(card))
     if (!ec) {
       duelStore.removeCard(card.instanceId)
       continue
@@ -68,20 +101,30 @@ function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
       if (ec.card) card.card = ec.card
     }
 
+    const ecPosition = normalizeEngineCardPosition(masterRule, ec.location, ec.sequence)
     if (
-      card.location !== ec.location ||
-      card.sequence !== ec.sequence ||
+      card.location !== ecPosition.location ||
+      card.sequence !== ecPosition.sequence ||
       card.controller !== ec.controller
     ) {
-      duelStore.moveCard(card.instanceId, ec.location, ec.sequence, ec.controller, ec.position)
-      card.location = ec.location
-      card.sequence = ec.sequence
+      duelStore.moveCard(
+        card.instanceId,
+        ecPosition.location,
+        ecPosition.sequence,
+        ec.controller,
+        ec.position
+      )
+      card.location = ecPosition.location
+      card.sequence = ecPosition.sequence
       card.controller = ec.controller
       card.position = ec.position
     } else if (card.position !== ec.position) {
       duelStore.updateCardPosition(card.instanceId, ec.position)
       card.position = ec.position
     }
+
+    syncStatus(card.instanceId, ec.status)
+    if (ec.status !== undefined) card.status = ec.status
 
     if (ec.location === CardLocation.MZONE && ec.location === card.location) {
       const engineMats = ec.overlayMaterials
@@ -101,31 +144,36 @@ function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
   for (const ec of boardState.allCards) {
     if (usedEngineIds.has(ec.instanceId)) continue
     if (currentCards.some((c) => c.instanceId === ec.instanceId)) continue
+    if (isInactivePrivate(ec)) continue
     if (!ec.card) {
       console.warn(
         `[useDuelEngineStore] 引擎卡 ${ec.instanceId} (code=${ec.code}) 缺少 CDB 数据，无法补进棋盘。`
       )
       continue
     }
+    const ecPosition = normalizeEngineCardPosition(masterRule, ec.location, ec.sequence)
     duelStore.addCardToZone(
       ec.card,
       ec.controller,
-      ec.location,
-      ec.sequence,
+      ecPosition.location,
+      ecPosition.sequence,
       ec.position,
-      undefined,
+      ec.duelistId,
       ec.instanceId
     )
+    syncStatus(ec.instanceId, ec.status)
     currentCards.push({
       instanceId: ec.instanceId,
       code: ec.card.id,
       card: ec.card,
       controller: ec.controller,
       owner: ec.owner,
-      location: ec.location,
-      sequence: ec.sequence,
+      location: ecPosition.location,
+      sequence: ecPosition.sequence,
       position: ec.position,
-      overlayMaterials: [...ec.overlayMaterials]
+      overlayMaterials: [...ec.overlayMaterials],
+      status: ec.status,
+      duelistId: ec.duelistId
     })
   }
 

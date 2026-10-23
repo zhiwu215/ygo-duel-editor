@@ -47,20 +47,36 @@ export function requestCardKey(card: {
   location: number
   sequence: number
   subsequence?: number
+  duelistId?: string
 }): string {
-  return `${card.controller}:${card.location}:${card.sequence}:${card.subsequence ?? 0}:${card.code}`
+  return `${card.controller}:${card.location}:${card.sequence}:${card.subsequence ?? 0}:${card.code}:${card.duelistId ?? ''}`
 }
 
 export function isSameRequestCard(
-  a: { code: number; controller: number; location: number; sequence: number; subsequence?: number },
-  b: { code: number; controller: number; location: number; sequence: number; subsequence?: number }
+  a: {
+    code: number
+    controller: number
+    location: number
+    sequence: number
+    subsequence?: number
+    duelistId?: string
+  },
+  b: {
+    code: number
+    controller: number
+    location: number
+    sequence: number
+    subsequence?: number
+    duelistId?: string
+  }
 ): boolean {
   return (
     a.code === b.code &&
     a.controller === b.controller &&
     a.location === b.location &&
     a.sequence === b.sequence &&
-    (a.subsequence ?? 0) === (b.subsequence ?? 0)
+    (a.subsequence ?? 0) === (b.subsequence ?? 0) &&
+    (a.duelistId ?? '') === (b.duelistId ?? '')
   )
 }
 
@@ -182,14 +198,26 @@ export type CardSelectionRole = 'none' | 'source' | 'chosen' | 'legal' | 'dim' |
 
 export function resolveCardSelectionMatch(
   request: EngineRequest | null | undefined,
-  card: { code: number; controller: number; location: number; sequence: number },
+  card: {
+    code: number
+    controller: number
+    location: number
+    sequence: number
+    duelistId?: string
+  },
   selectedKeys: string[]
 ): CardSelectionMatch | null {
   const derived = deriveSelection(request)
   if (!derived || derived.mode !== 'point') return null
   const pool =
     derived.kind === 'unselect' ? [...derived.candidates, ...derived.selected] : derived.candidates
-  const requestCard = pool.find((c) => isSameRequestCard(c, card))
+  const requestCard = pool.find(
+    (c) =>
+      c.controller === card.controller &&
+      c.location === card.location &&
+      c.sequence === card.sequence &&
+      (!c.duelistId || c.duelistId === card.duelistId)
+  )
   if (!requestCard) return null
   const chosen =
     derived.kind === 'unselect'
@@ -211,7 +239,8 @@ export function requestCardName(cards: FieldCard[], requestCard: RequestCard): s
     (card) =>
       card.controller === requestCard.controller &&
       card.location === requestCard.location &&
-      card.sequence === requestCard.sequence
+      card.sequence === requestCard.sequence &&
+      (!requestCard.duelistId || card.duelistId === requestCard.duelistId)
   )
   return exact?.card?.name || resolveCardName(requestCard.code)
 }

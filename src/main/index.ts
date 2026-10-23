@@ -3,7 +3,6 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import unknownImage from '../../src/renderer/src/assets/textures/unknown.jpg?asset'
 import { registerAllIpcHandlers } from './ipc/registerIpc'
 import { configService } from './services/configService'
 import { cdbService } from './db/cdbService'
@@ -15,7 +14,6 @@ import {
   resolveGameLanguagePack
 } from './services/gameContent'
 import { imageService } from './services/imageService'
-import { customCardService } from './services/customCardService'
 import { libraryService } from './services/libraryService'
 
 protocol.registerSchemesAsPrivileged([
@@ -104,9 +102,6 @@ app.whenReady().then(() => {
       const filePath = imageService.findCardImagePath(code, isSmall)
       if (filePath) {
         return await net.fetch(pathToFileURL(filePath).toString())
-      }
-      if (customCardService.getById(code)) {
-        return await net.fetch(pathToFileURL(unknownImage).toString())
       }
       return new Response('Image not found', { status: 404 })
     } catch (err) {

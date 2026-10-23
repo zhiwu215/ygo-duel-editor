@@ -24,6 +24,12 @@ export interface MenuActions {
   onExportLua: () => void
   onExportYrp: () => void
   onImportReplay: () => void
+  onOpenReplayInYgo: () => void
+  canOpenReplay: boolean
+  isReplay: boolean
+  canExportYrp: boolean
+  canExportLua: boolean
+  canTestInYgo: boolean
   onExportScreenplay?: () => void
   onExportSession: () => void
   onImportSession: () => void
@@ -160,7 +166,8 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
         {
           label: '使用游戏测试该局',
           shortcut: 'Ctrl+T',
-          action: actions.onTestInYgo
+          action: actions.onTestInYgo,
+          disabled: !actions.canTestInYgo
         },
         {
           label: '导入残局脚本',
@@ -170,15 +177,22 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
         {
           label: '导出残局脚本',
           shortcut: 'Ctrl+E',
-          action: actions.onExportLua
+          action: actions.onExportLua,
+          disabled: !actions.canExportLua
         },
         {
           label: '导入对局回放',
           action: actions.onImportReplay
         },
         {
-          label: '导出对局回放',
-          action: actions.onExportYrp
+          label: '用 YGO 打开当前回放',
+          action: actions.onOpenReplayInYgo,
+          disabled: !actions.canOpenReplay
+        },
+        {
+          label: actions.isReplay ? '导出对局回放（回放模式只读）' : '导出对局回放',
+          action: actions.onExportYrp,
+          disabled: !actions.canExportYrp
         }
       ]
     },

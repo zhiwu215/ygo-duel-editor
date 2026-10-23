@@ -3,7 +3,9 @@ import { YGOProYrp3d } from 'ygopro-yrp3d-encode'
 import { createDuelFromYrp } from 'koishipro-core.js'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { createStandardTagDuelists, getStandardTagSeat } from '@shared/index'
 import type { EngineBoardState, EngineReplaySummary, EngineTimelineNode } from '@shared/index'
+import type { FieldReaderTagSeat } from './field-reader'
 import { configService } from '../configService'
 import { advanceEngine } from './engine-pump'
 import { initializeProvenance, trackAdvance } from './provenance-tracker'
@@ -26,15 +28,34 @@ function assertReplaySupported(yrp: YGOProYrp, fileName: string): void {
   if (!header) {
     throw new Error(`无法解析 YRP 录像（${fileName}）：缺少有效头部。`)
   }
-  if (yrp.isTag) {
-    throw new Error(`暂不支持 2v2 组队回放（${fileName}）。`)
-  }
   if (!(header.flag & REPLAY_UNIFORM)) {
     throw new Error(`暂不支持旧版随机数（非 UNIFORM）的回放（${fileName}）。`)
   }
   if (yrp.responses.length === 0) {
     throw new Error(`该回放没有任何操作记录（${fileName}）。`)
   }
+}
+
+function buildTagSeats(yrp: YGOProYrp): FieldReaderTagSeat[] | undefined {
+  if (!yrp.isTag) return undefined
+  const names = new Map<string, string>([
+    ['duelist_0_0', yrp.hostName],
+    ['duelist_1_0', yrp.clientName],
+    ['duelist_0_1', yrp.tagHostName ?? ''],
+    ['duelist_1_1', yrp.tagClientName ?? '']
+  ])
+  const seats: FieldReaderTagSeat[] = []
+  for (const duelist of createStandardTagDuelists()) {
+    const seat = getStandardTagSeat(duelist.id)
+    if (seat === undefined) continue
+    seats.push({
+      id: duelist.id,
+      team: duelist.team,
+      seat,
+      name: names.get(duelist.id) || duelist.name
+    })
+  }
+  return seats
 }
 
 function assertSingleScriptAvailable(yrp: YGOProYrp, fileName: string): void {
@@ -95,6 +116,9 @@ export function setupReplayDuel(
   fileName: string
 ): void {
   const { duel } = createDuelFromYrp(state.ocgcore!, bytes)
+  const startLp = yrp.startLp > 0 ? yrp.startLp : 8000
+  const tagSeats = buildTagSeats(yrp)
+  state.fieldReader.reset([startLp, startLp], 0, tagSeats ? { duelists: tagSeats } : undefined)
   state.duel = duel
   state.seed = [...(yrp.header?.seedSequence ?? [])]
   state.replay = { bytes, fileName }
@@ -119,6 +143,7 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
     state.accumulatedEvents = []
 
     let warning: string | undefined
+    let previousNode: EngineTimelineNode | null = null
     const frames = yrp.responses.filter((frame) => frame.length > 0)
     for (let i = 0; i < frames.length; i++) {
       const frame = frames[i]
@@ -126,6 +151,9 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
       if (!head) {
         warning = `回放共 ${frames.length} 步，引擎在第 ${i} 步后已结束，仅回放前 ${i} 步。`
         break
+      }
+      if (previousNode && head.request.kind === 'chain') {
+        previousNode.pendingRequest = head.request
       }
       const askTitle = head.request.title || `回放步骤 ${i + 1}`
       const actingPlayer = head.request.player
@@ -149,6 +177,7 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
         [...state.accumulatedEvents],
         state.ops.length - 1
       )
+      previousNode = node
       const op = state.ops[state.ops.length - 1]
       if (op.type === 'answer') op.nodeId = node.id
       state.requestSeq += 1

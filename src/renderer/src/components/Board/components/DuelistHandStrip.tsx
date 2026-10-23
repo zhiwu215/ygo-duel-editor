@@ -3,6 +3,8 @@ import { motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import { CardLocation, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
+import { useHandShufflePulse } from '../../../hooks/useHandShufflePulse'
 import { MemoZoneSlot } from '../ZoneSlot'
 import { TurnOrderBadge } from './TurnOrderBadge'
 import { LpInput } from './LpInput'
@@ -14,6 +16,7 @@ import { useHandReorderDrag } from '../../../hooks/useHandReorderDrag'
 import { useHeldCardPlacement } from '../../../hooks/useHeldCardPlacement'
 import { useHorizontalWheelScroll } from '../../../hooks/useHorizontalWheelScroll'
 import { useLpCommit } from '../../../hooks/useLpCommit'
+import { resolveViewerDuelist } from '../../../utils/duelistNames'
 
 interface DuelistHandStripProps {
   duelist: Duelist
@@ -23,8 +26,6 @@ interface DuelistHandStripProps {
   isExpanded: boolean
   isCollapsed: boolean
   crowded: boolean
-  shuffleTick: number
-  shuffleActive: boolean
   ref?: React.Ref<HTMLDivElement>
   onExpand: () => void
   onCollapse: () => void
@@ -47,21 +48,26 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   isExpanded,
   isCollapsed,
   crowded,
-  shuffleTick,
-  shuffleActive,
   ref,
   onExpand,
   onCollapse
 }) => {
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
   const isSharedLp = Boolean(useDuelStore((s) => s.state.matchConfig?.sharedLp))
-  const isActiveViewer = useDuelStore((s) => s.activeDuelistId === duelist.id)
-  const setActiveDuelistId = useDuelStore((s) => s.setActiveDuelistId)
+  const duelists = useDuelStore((s) => s.state.duelists)
+  const activeDuelistIds = useDuelStore((s) => s.activeDuelistIds)
+  const currentTurn = useDuelStore((s) => s.currentTurn)
+  const isActiveViewer =
+    resolveViewerDuelist(duelists, controller, activeDuelistIds[controller], currentTurn)?.id ===
+    duelist.id
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const focusDuelist = useDuelStore((s) => s.focusDuelist)
+  const { tick: shuffleTick, active: shuffleActive } = useHandShufflePulse(controller, duelist.id)
 
   const isOpponent = controller === 1
 
   const focusAsViewer = (): void => {
-    if (!isActiveViewer) setActiveDuelistId(duelist.id)
+    if (activeDuelistIds[controller] !== duelist.id) focusDuelist(duelist.id)
   }
 
   const hoverExpandTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -282,7 +288,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
             <React.Fragment key={c.instanceId}>
               {isGapBefore && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
               <motion.div
-                layout="position"
+                layout={isEngineActive ? false : 'position'}
                 transition={{
                   layout: {
                     type: 'spring',

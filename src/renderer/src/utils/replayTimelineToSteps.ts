@@ -4,6 +4,8 @@ import {
   DuelActionType,
   DuelStep,
   EngineBoardState,
+  EngineCard,
+  EngineStepEvent,
   EngineTimelineNode
 } from '@shared/index'
 import { resolveCardName } from './cardNames'
@@ -11,6 +13,7 @@ import { mapPhaseToDuelPhase } from '../stores/duelEngine/boardReconcile'
 
 interface ReplayCardMove {
   code: number
+  fromDuelistId?: string
   fromController?: 0 | 1
   toController?: 0 | 1
   fromLocation?: number
@@ -60,6 +63,7 @@ function findReplayCardMove(
     if (before && before.location === card.location && before.sequence === card.sequence) continue
     const move: ReplayCardMove = {
       code: card.code,
+      fromDuelistId: before?.duelistId,
       fromController: before?.controller,
       toController: card.controller,
       fromLocation: before?.location,
@@ -72,6 +76,105 @@ function findReplayCardMove(
     if (!best || tier < best.tier) best = { move, tier }
   }
   return best?.move
+}
+
+interface ReplayPositionChange {
+  card: EngineCard
+  before: EngineCard
+}
+
+interface ReplayStatusChange {
+  card: EngineCard
+  before: EngineCard
+}
+
+function findReplayPositionChange(
+  prev: EngineBoardState | undefined,
+  curr: EngineBoardState
+): ReplayPositionChange | undefined {
+  if (!prev) return undefined
+  const prevById = new Map(prev.allCards.map((card) => [card.instanceId, card]))
+  let best: ReplayPositionChange | undefined
+  for (const card of curr.allCards) {
+    if (!FIELD_ZONE_LOCATIONS.includes(card.location)) continue
+    const before = prevById.get(card.instanceId)
+    if (!before || before.position === card.position) continue
+    if (before.location !== card.location || before.sequence !== card.sequence) continue
+    if (!best || (isFacedown(before.position) && !isFacedown(card.position))) {
+      best = { card, before }
+    }
+  }
+  return best
+}
+
+function findReplayStatusChange(
+  prev: EngineBoardState | undefined,
+  curr: EngineBoardState
+): ReplayStatusChange | undefined {
+  if (!prev) return undefined
+  const prevById = new Map(prev.allCards.map((card) => [card.instanceId, card]))
+  let best: ReplayStatusChange | undefined
+  for (const card of curr.allCards) {
+    if (!FIELD_ZONE_LOCATIONS.includes(card.location)) continue
+    const before = prevById.get(card.instanceId)
+    if (!before || before.status === card.status) continue
+    if (!best || (before.status === 0 && card.status !== 0)) best = { card, before }
+  }
+  return best
+}
+
+function findReplayLpChange(
+  prev: EngineBoardState | undefined,
+  curr: EngineBoardState
+): DuelStep['lpChange'] {
+  if (!prev) return undefined
+  const changed = ([0, 1] as const).filter(
+    (player) => prev.players[player].lp !== curr.players[player].lp
+  )
+  if (changed.length !== 1) return undefined
+  const player = changed[0]
+  return { player, oldLp: prev.players[player].lp, newLp: curr.players[player].lp }
+}
+
+function hasBoardChange(
+  prev: EngineBoardState | undefined,
+  curr: EngineBoardState,
+  includePosition = true
+): boolean {
+  if (!prev) return true
+  if (prev.players[0].lp !== curr.players[0].lp || prev.players[1].lp !== curr.players[1].lp) {
+    return true
+  }
+  if (prev.allCards.length !== curr.allCards.length) return true
+  const prevById = new Map(prev.allCards.map((card) => [card.instanceId, card]))
+  for (const card of curr.allCards) {
+    const before = prevById.get(card.instanceId)
+    if (!before) return true
+    if (
+      before.location !== card.location ||
+      before.sequence !== card.sequence ||
+      before.controller !== card.controller ||
+      (includePosition && before.position !== card.position) ||
+      before.status !== card.status ||
+      before.code !== card.code ||
+      before.overlayMaterials.length !== card.overlayMaterials.length ||
+      before.overlayMaterials.some((material, index) => material !== card.overlayMaterials[index])
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+const REPLAY_PROMPT_PATTERN =
+  /是否(?:连锁|发动)|是否.*?发动|主要阶段行动|优先权|等待对方|请选择\/取消选择/
+
+function isReplayPrompt(text: string | undefined): boolean {
+  return text !== undefined && REPLAY_PROMPT_PATTERN.test(text)
+}
+
+function statusIsNegated(status: number | undefined): boolean {
+  return ((status ?? 0) & (0x1 | 0x4000000)) !== 0
 }
 
 function classifyReplayMove(move: ReplayCardMove): DuelActionType {
@@ -111,6 +214,17 @@ function classifyNonMoveAction(
   ]
   if (lp0 < 0 || lp1 < 0) return 'DAMAGE'
   if (lp0 > 0 || lp1 > 0) return 'RECOVER'
+  const prevById = new Map(prev.allCards.map((card) => [card.instanceId, card]))
+  const positionChanged = curr.allCards.some((card) => {
+    const before = prevById.get(card.instanceId)
+    return (
+      before !== undefined &&
+      before.location === card.location &&
+      before.sequence === card.sequence &&
+      before.position !== card.position
+    )
+  })
+  if (positionChanged) return 'CHANGE_POS'
   return 'EVENT'
 }
 
@@ -122,29 +236,125 @@ function describeReplayStep(move: ReplayCardMove | undefined, node: EngineTimeli
   return humanizeReplayTitle(node.title)
 }
 
+function multiChainBadges(timeline: EngineTimelineNode[]): Map<string, number> {
+  const badges = new Map<string, number>()
+  let run: { nodeId: string; chainCount: number }[] = []
+  const flush = (): void => {
+    if (run.length > 1) {
+      for (const link of run) badges.set(link.nodeId, link.chainCount)
+    }
+    run = []
+  }
+  for (const node of timeline) {
+    for (const event of node.events) {
+      if (event.kind === 'chain') {
+        run.push({ nodeId: node.id, chainCount: event.chainCount })
+      } else if (event.kind === 'chain-end') {
+        flush()
+      }
+    }
+  }
+  flush()
+  return badges
+}
+
 export function buildReplaySteps(timeline: EngineTimelineNode[]): DuelStep[] {
-  return timeline.slice(1).map((node, index) => {
+  const steps: DuelStep[] = []
+  const badgeByNode = multiChainBadges(timeline)
+  timeline.slice(1).forEach((node, index) => {
     const prev = timeline[index]
     const move = findReplayCardMove(prev?.boardState, node.boardState)
-    return {
+    const positionChange = findReplayPositionChange(prev?.boardState, node.boardState)
+    const activated =
+      positionChange !== undefined &&
+      isFacedown(positionChange.before.position) &&
+      !isFacedown(positionChange.card.position)
+    const activation = activated ? positionChange : undefined
+    const statusChange = findReplayStatusChange(prev?.boardState, node.boardState)
+    const statusChanged = statusChange !== undefined
+    const shuffled = node.events.some((event) => event.kind === 'shuffle-hand')
+    const drawEvent = node.events.find(
+      (event): event is Extract<EngineStepEvent, { kind: 'draw' }> => event.kind === 'draw'
+    )
+    if (
+      !move &&
+      !shuffled &&
+      !activated &&
+      !statusChanged &&
+      !drawEvent &&
+      !hasBoardChange(prev?.boardState, node.boardState)
+    ) {
+      return
+    }
+    const rawDescription = describeReplayStep(move, node)
+    let description =
+      shuffled && !rawDescription.includes('手牌切洗')
+        ? `${rawDescription}（手牌切洗）`
+        : rawDescription
+    const prompt = isReplayPrompt(description) || isReplayPrompt(node.title)
+    if (prompt && !move && !shuffled && !activated) {
+      if (!statusChange) return
+      description = statusIsNegated(statusChange.card.status) ? '效果被无效' : '效果状态变化'
+    }
+    const positionType: DuelActionType | undefined = activation
+      ? activation.card.location === CardLocation.MZONE
+        ? 'FLIP_SUMMON'
+        : 'ACTIVATE'
+      : undefined
+    const lpChange = findReplayLpChange(prev?.boardState, node.boardState)
+    const actionDuelistId =
+      (drawEvent ? node.boardState.activeDuelist?.[drawEvent.player] : undefined) ??
+      move?.fromDuelistId ??
+      activation?.before.duelistId ??
+      statusChange?.before.duelistId ??
+      node.boardState.activeDuelist?.[node.player]
+    steps.push({
       id: `replay_${node.id}`,
       actId: node.id,
+      origin: 'replay',
       turn: node.boardState.turn,
       turnPlayer: node.boardState.turnPlayer,
       phase: mapPhaseToDuelPhase(node.boardState.phase),
       actionPlayer: node.player,
-      actionType: move
-        ? classifyReplayMove(move)
-        : classifyNonMoveAction(prev?.boardState, node.boardState),
-      cardCode: move?.code,
-      cardName: move ? resolveCardName(move.code) : undefined,
-      fromLocation: move?.fromLocation,
-      fromSequence: move?.fromSequence,
-      toLocation: move?.toLocation,
-      toSequence: move?.toSequence,
-      fromController: move?.fromController,
-      toController: move?.toController,
-      description: describeReplayStep(move, node)
-    }
+      actionDuelistId,
+      actionType: drawEvent
+        ? 'DRAW'
+        : move
+          ? classifyReplayMove(move)
+          : (positionType ?? classifyNonMoveAction(prev?.boardState, node.boardState)),
+      instanceId: activation?.card.instanceId ?? statusChange?.card.instanceId,
+      cardCode: drawEvent
+        ? (move?.code ?? drawEvent.codes[0])
+        : (move?.code ?? activation?.card.code ?? statusChange?.card.code),
+      cardName: drawEvent
+        ? move
+          ? resolveCardName(move.code)
+          : drawEvent.codes[0]
+            ? resolveCardName(drawEvent.codes[0])
+            : undefined
+        : move
+          ? resolveCardName(move.code)
+          : activation
+            ? resolveCardName(activation.card.code)
+            : statusChange
+              ? resolveCardName(statusChange.card.code)
+              : undefined,
+      fromLocation:
+        move?.fromLocation ?? activation?.before.location ?? statusChange?.card.location,
+      fromSequence:
+        move?.fromSequence ?? activation?.before.sequence ?? statusChange?.card.sequence,
+      toLocation: move?.toLocation ?? activation?.card.location ?? statusChange?.card.location,
+      toSequence: move?.toSequence ?? activation?.card.sequence ?? statusChange?.card.sequence,
+      fromController:
+        move?.fromController ?? activation?.before.controller ?? statusChange?.card.controller,
+      toController:
+        move?.toController ?? activation?.card.controller ?? statusChange?.card.controller,
+      fromPosition: positionChange?.before.position,
+      toPosition: positionChange?.card.position,
+      chainBadge: badgeByNode.get(node.id),
+      lpChange,
+      description
+    })
   })
+  return steps
 }

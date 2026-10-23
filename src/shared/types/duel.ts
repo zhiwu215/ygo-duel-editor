@@ -12,6 +12,7 @@ export interface FieldCard {
   position: number
   overlayMaterials: number[]
   counters?: Record<number, number>
+  status?: number
   customAtk?: number
   customDef?: number
   duelistId?: string
@@ -26,11 +27,13 @@ export interface Duelist {
   deckId?: string
 }
 export type DuelType = 'full' | 'puzzle' | 'combo'
-type MatchMode = '1v1' | 'tag' | 'custom'
+export type MatchMode = '1v1' | 'tag' | 'custom'
+export type TagFormat = 'standard' | 'independent'
 export interface MatchConfig {
   mode: MatchMode
   team0Count: number
   team1Count: number
+  tagFormat?: TagFormat
   sharedLp?: boolean
 }
 export interface DuelSceneSnapshot {
@@ -42,6 +45,7 @@ export interface DuelSceneSnapshot {
   matchConfig: MatchConfig
   players?: [PlayerState, PlayerState]
   initialBoardSnapshot?: LightweightCardSnapshot[]
+  initialLp?: [number, number]
 }
 export interface PlayerState {
   lp: number

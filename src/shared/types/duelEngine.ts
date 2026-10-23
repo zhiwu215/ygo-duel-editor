@@ -11,12 +11,25 @@ export interface EngineCard {
   location: number
   sequence: number
   position: number
+  duelistId?: string
   atk?: number
   def?: number
   baseAtk?: number
   baseDef?: number
   overlayMaterials: number[]
   counters?: Record<number, number>
+  status?: number
+}
+
+export interface EngineDuelistState {
+  id: string
+  team: 0 | 1
+  seat: 0 | 1 | 2 | 3
+  name: string
+  active: boolean
+  handCount: number
+  deckCount: number
+  extraCount: number
 }
 
 export interface EnginePlayerState {
@@ -45,8 +58,33 @@ export interface EngineBoardState {
   phaseName: string
   players: [EnginePlayerState, EnginePlayerState]
   allCards: EngineCard[]
+  tag?: boolean
+  duelists?: EngineDuelistState[]
+  activeDuelist?: [string, string]
 }
-export type EngineStepEvent = { kind: 'shuffle-hand'; player: 0 | 1 }
+export interface DuelChainCard {
+  controller: 0 | 1
+  location: number
+  sequence: number
+  index: number
+  solved?: boolean
+  instanceId?: string
+}
+
+export type EngineStepEvent =
+  | { kind: 'shuffle-hand'; player: 0 | 1 }
+  | { kind: 'draw'; player: 0 | 1; codes: number[] }
+  | {
+      kind: 'chain'
+      controller: 0 | 1
+      location: number
+      sequence: number
+      chainCount: number
+    }
+  | { kind: 'chain-solving'; chainCount: number }
+  | { kind: 'chain-end' }
+  | { kind: 'chain-negated'; chainCount: number }
+  | { kind: 'chain-disabled'; chainCount: number }
 
 export interface EngineTimelineNode {
   id: string

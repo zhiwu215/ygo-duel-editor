@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { CustomCardSyncTarget } from '@shared/index'
 import { useCardNoteStore } from '../stores/useCardNoteStore'
 import { useConfigStore } from '../stores/useConfigStore'
 import { confirmDialog } from '../stores/useDialogStore'
@@ -8,7 +9,7 @@ export function useCustomCardGameSync(): {
   syncing: boolean
   cleaning: boolean
   sync: () => Promise<void>
-  openSyncDirectory: () => Promise<void>
+  openSyncDirectory: (target: CustomCardSyncTarget) => Promise<void>
   clean: () => Promise<void>
 } {
   const gameDirectory = useConfigStore((state) => state.config.gameDirectory)
@@ -40,21 +41,21 @@ export function useCustomCardGameSync(): {
     }
   }
 
-  const openSyncDirectory = async (): Promise<void> => {
+  const openSyncDirectory = async (target: CustomCardSyncTarget): Promise<void> => {
     if (!gameDirectory) {
       notify('未配置游戏目录')
       return
     }
-    const result = await window.api.openCustomCardSyncDir()
-    if (!result.success) notify(result.error || '打开同步目录失败')
+    const result = await window.api.openCustomCardSyncDir(target)
+    if (!result.success) notify(result.error || '打开目录失败')
   }
 
   const clean = async (): Promise<void> => {
     if (!gameDirectory || cleaning || syncing) return
     const confirmed = await confirmDialog({
-      title: '清理同步目录',
+      title: '清理已同步的自定义卡',
       description:
-        '将删除本应用同步到游戏目录 expansions 下的自定义卡库、脚本和卡图。项目内的自定义卡和脚本不受影响。',
+        '将删除本应用同步到游戏目录中的自定义卡库、脚本和卡图。项目内的自定义卡和脚本不受影响。',
       confirmText: '清理',
       destructive: true
     })
@@ -67,9 +68,7 @@ export function useCustomCardGameSync(): {
         return
       }
       notify(
-        result.removed > 0
-          ? `已清理同步目录中的 ${result.removed} 个文件`
-          : '同步目录中没有可清理的内容'
+        result.removed > 0 ? `已清理 ${result.removed} 个已同步文件` : '没有可清理的已同步文件'
       )
     } catch (err) {
       console.error('[useCustomCardGameSync] clean failed:', err)

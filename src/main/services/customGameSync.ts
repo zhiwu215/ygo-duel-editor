@@ -9,7 +9,12 @@ import {
   writeFileSync
 } from 'fs'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'path'
-import { CustomCardOpenDirResult, CustomCardSyncResult, customPoolMask } from '@shared/index'
+import {
+  CustomCardOpenDirResult,
+  CustomCardSyncResult,
+  CustomCardSyncTarget,
+  customPoolMask
+} from '@shared/index'
 import { configService } from './configService'
 import { customCardService } from './customCardService'
 import { writeCustomCardsCdb } from './customCardLibrary'
@@ -54,16 +59,37 @@ function toRelative(expansionsDir: string, absolutePath: string): string {
 
 function isManagedPath(relativePath: string): boolean {
   if (relativePath === CUSTOM_CDB_NAME) return true
-  if (/^script\/c\d+\.lua$/i.test(relativePath)) return true
-  return /^pics\/\d+\.(png|jpe?g|webp|gif)$/i.test(relativePath)
+  if (/^(?:\.\.\/)?script\/c\d+\.lua$/i.test(relativePath)) return true
+  return /^(?:\.\.\/)?pics\/\d+\.(png|jpe?g|webp|gif)$/i.test(relativePath)
 }
 
 function resolveManagedPath(expansionsDir: string, relativePath: string): string | null {
   if (!isManagedPath(relativePath)) return null
   const absolutePath = resolve(expansionsDir, relativePath)
-  const back = relative(expansionsDir, absolutePath)
+  const gameRoot = dirname(expansionsDir)
+  const back = relative(gameRoot, absolutePath)
   if (!back || back.startsWith('..') || isAbsolute(back)) return null
   return absolutePath
+}
+
+interface SyncLayout {
+  gameDirectory: string
+  expansionsDir: string
+  scriptDir: string
+  picsDir: string
+}
+
+function resolveSyncLayout(): SyncLayout | null {
+  const gameDirectory = configService.get().gameDirectory
+  if (!gameDirectory) return null
+  const mdpro3 = configService.get().gameType === 'mdpro3'
+  const expansionsDir = join(gameDirectory, 'expansions')
+  return {
+    gameDirectory,
+    expansionsDir,
+    scriptDir: mdpro3 ? join(gameDirectory, 'script') : join(expansionsDir, 'script'),
+    picsDir: mdpro3 ? join(gameDirectory, 'pics') : join(expansionsDir, 'pics')
+  }
 }
 
 function readManifest(path: string): SyncManifest {
@@ -107,33 +133,39 @@ function removeManagedFile(expansionsDir: string, relativePath: string): boolean
   }
 }
 
-export async function openCustomCardSyncDirectory(): Promise<CustomCardOpenDirResult> {
-  const gameDirectory = configService.get().gameDirectory
-  if (!gameDirectory) return { success: false, error: '未配置游戏目录' }
-  if (!existsSync(gameDirectory)) return { success: false, error: '游戏目录不存在' }
-  const expansionsDir = join(gameDirectory, 'expansions')
+export async function openCustomCardSyncDirectory(
+  target: CustomCardSyncTarget
+): Promise<CustomCardOpenDirResult> {
+  const layout = resolveSyncLayout()
+  if (!layout) return { success: false, error: '未配置游戏目录' }
+  if (!existsSync(layout.gameDirectory)) return { success: false, error: '游戏目录不存在' }
+  const directory =
+    target === 'script'
+      ? layout.scriptDir
+      : target === 'pics'
+        ? layout.picsDir
+        : layout.expansionsDir
   try {
-    mkdirSync(expansionsDir, { recursive: true })
+    mkdirSync(directory, { recursive: true })
   } catch (err) {
-    console.error('[CustomGameSync] Failed to create expansions directory:', err)
+    console.error('[CustomGameSync] Failed to create sync directory:', err)
     return { success: false, error: '创建同步目录失败' }
   }
-  const error = await shell.openPath(expansionsDir)
+  const error = await shell.openPath(directory)
   return error ? { success: false, error } : { success: true }
 }
 
 export async function syncCustomCardsToGame(): Promise<CustomCardSyncResult> {
-  const gameDirectory = configService.get().gameDirectory
-  if (!gameDirectory) {
+  const layout = resolveSyncLayout()
+  if (!layout) {
     return { success: false, error: '未配置游戏目录', cdb: false, scripts: 0, pics: 0, removed: 0 }
   }
 
-  const expansionsDir = join(gameDirectory, 'expansions')
-  const scriptDir = join(expansionsDir, 'script')
-  const picsDir = join(expansionsDir, 'pics')
+  const { gameDirectory, expansionsDir, scriptDir, picsDir } = layout
   const manifestPath = join(expansionsDir, MANIFEST_NAME)
   const previous = readManifest(manifestPath)
-  const desired = new Set<string>()
+  const desiredScripts = new Set<string>()
+  const desiredPics = new Set<string>()
   const result: CustomCardSyncResult = {
     success: true,
     cdb: false,
@@ -150,33 +182,32 @@ export async function syncCustomCardsToGame(): Promise<CustomCardSyncResult> {
       customPoolMask(cdbService.getPoolSchema())
     )
     result.cdb = true
-    desired.add(CUSTOM_CDB_NAME)
 
     for (const card of cards) {
       const script = getCustomScriptInfo(card.id)
       if (script.exists && script.path) {
         const target = join(scriptDir, script.fileName)
         if (placeFile(script.path, target)) result.scripts++
-        desired.add(toRelative(expansionsDir, target))
+        desiredScripts.add(toRelative(expansionsDir, target))
       }
       const image = customCardService.findImagePath(card.id)
       if (image) {
         const target = join(picsDir, gameImageName(card.id, image))
         if (placeFile(image, target)) result.pics++
-        desired.add(toRelative(expansionsDir, target))
+        desiredPics.add(toRelative(expansionsDir, target))
       }
     }
 
     for (const relativePath of [...previous.scripts, ...previous.pics]) {
-      if (desired.has(relativePath)) continue
+      if (desiredScripts.has(relativePath) || desiredPics.has(relativePath)) continue
       if (removeManagedFile(expansionsDir, relativePath)) result.removed++
     }
 
     writeManifest(manifestPath, {
       version: 1,
       cdb: CUSTOM_CDB_NAME,
-      scripts: [...desired].filter((entry) => entry.startsWith('script/')),
-      pics: [...desired].filter((entry) => entry.startsWith('pics/'))
+      scripts: [...desiredScripts],
+      pics: [...desiredPics]
     })
     invalidateGameContentScan(gameDirectory)
     broadcastToWindows('cdb:updated')
@@ -195,12 +226,12 @@ export async function syncCustomCardsToGame(): Promise<CustomCardSyncResult> {
 }
 
 export async function cleanCustomCardsFromGame(): Promise<CustomCardSyncResult> {
-  const gameDirectory = configService.get().gameDirectory
-  if (!gameDirectory) {
+  const layout = resolveSyncLayout()
+  if (!layout) {
     return { success: false, error: '未配置游戏目录', cdb: false, scripts: 0, pics: 0, removed: 0 }
   }
 
-  const expansionsDir = join(gameDirectory, 'expansions')
+  const { gameDirectory, expansionsDir, scriptDir, picsDir } = layout
   const manifestPath = join(expansionsDir, MANIFEST_NAME)
   const manifest = readManifest(manifestPath)
   const scripts = new Set<string>(manifest.scripts)
@@ -208,9 +239,11 @@ export async function cleanCustomCardsFromGame(): Promise<CustomCardSyncResult> 
 
   for (const card of customCardService.list()) {
     const script = getCustomScriptInfo(card.id)
-    if (script.exists) scripts.add(`script/${script.fileName}`)
+    if (script.exists) scripts.add(toRelative(expansionsDir, join(scriptDir, script.fileName)))
     const image = customCardService.findImagePath(card.id)
-    if (image) pics.add(`pics/${gameImageName(card.id, image)}`)
+    if (image) {
+      pics.add(toRelative(expansionsDir, join(picsDir, gameImageName(card.id, image))))
+    }
   }
 
   let removedScripts = 0

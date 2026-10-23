@@ -32,7 +32,7 @@ const CHAIN_MODES: ChainModeOption[] = [
     value: 'all',
     label: '全部连锁',
     icon: ChainAllIcon,
-    description: '每个连锁窗口都停下询问，无候选也确认'
+    description: '每个连锁窗口都询问，包含没有候选的空窗口'
   },
   {
     value: 'ignore',

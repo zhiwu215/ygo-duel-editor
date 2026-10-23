@@ -1,12 +1,16 @@
 import { OcgcoreDuel } from 'koishipro-core.js'
 import {
-  IndexResponse,
   YGOProMsgDamage,
   YGOProMsgDraw,
   YGOProMsgHint,
   YGOProMsgNewTurn,
   YGOProMsgRecover,
   YGOProMsgRetry,
+  YGOProMsgChainDisabled,
+  YGOProMsgChainEnd,
+  YGOProMsgChainNegated,
+  YGOProMsgChainSolving,
+  YGOProMsgChaining,
   YGOProMsgSelectChain,
   YGOProMsgSelectEffectYn,
   YGOProMsgSelectUnselectCard,
@@ -14,11 +18,51 @@ import {
   YGOProMsgShuffleHand
 } from 'ygopro-msg-encode'
 import { cdbService } from '../../db/cdbService'
+import { CardLocation, type EngineRequest } from '@shared/index'
 import type { PendingQuery, SessionState } from './session-state'
+import { shouldAutoPassChain } from './chain-policy'
 import { isInteractiveQuery } from './message-parser'
 import { routeRequest } from './request-router'
 
 const HINT_TYPE_SELECTMSG = 3
+
+const PRIVATE_CARD_LOCATIONS = new Set<number>([
+  CardLocation.HAND,
+  CardLocation.DECK,
+  CardLocation.EXTRA
+])
+
+function stampRequestSeats(
+  request: EngineRequest,
+  active: [string | undefined, string | undefined]
+): void {
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item)
+      return
+    }
+    if (!value || typeof value !== 'object') return
+    const card = value as {
+      code?: unknown
+      controller?: unknown
+      location?: unknown
+      sequence?: unknown
+      duelistId?: string
+    }
+    if (
+      typeof card.code === 'number' &&
+      typeof card.controller === 'number' &&
+      typeof card.location === 'number' &&
+      typeof card.sequence === 'number' &&
+      PRIVATE_CARD_LOCATIONS.has(card.location)
+    ) {
+      const duelistId = active[card.controller === 1 ? 1 : 0]
+      if (duelistId) card.duelistId = duelistId
+    }
+    for (const child of Object.values(value as Record<string, unknown>)) visit(child)
+  }
+  visit(request.data)
+}
 
 const MAX_PROCESS_LOOPS = 10000
 
@@ -37,18 +81,15 @@ function resolveAutoResponse(state: SessionState, msg: unknown): Uint8Array | nu
   if (state.replaying) return null
 
   if (msg instanceof YGOProMsgSelectChain) {
-    if (state.timingPolicy.chain === 'all') return null
     const forced = msg.chains.some((chain) => chain.forced === 1)
-    if (forced) {
-      if (state.timingPolicy.chain === 'ignore' && msg.chains.length === 1) {
-        return msg.prepareResponse(IndexResponse(0))
-      }
-      return null
-    }
-    if (msg.chains.length === 0) return msg.defaultResponse()
-    if (state.timingPolicy.chain === 'ignore') return msg.defaultResponse()
-    if (state.timingPolicy.chain === 'smart' && msg.specialCount === 0) return msg.defaultResponse()
-    return null
+    const autoPass = shouldAutoPassChain({
+      policy: state.timingPolicy.chain,
+      chainCount: msg.chains.length,
+      specialCount: msg.specialCount,
+      forced,
+      selectTrigger: msg.specialCount === 0x7f
+    })
+    return autoPass ? msg.defaultResponse() : null
   }
 
   if (msg instanceof YGOProMsgSelectEffectYn && state.timingPolicy.effectYn === 'never') {
@@ -149,6 +190,32 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
             player: msg.player === 1 ? 1 : 0,
             codes: msg.cards.map((code: number) => code & 0x7fffffff)
           })
+          state.accumulatedEvents.push({
+            kind: 'draw',
+            player: msg.player === 1 ? 1 : 0,
+            codes: msg.cards.map((code: number) => code & 0x7fffffff)
+          })
+        }
+        if (msg instanceof YGOProMsgChaining) {
+          state.accumulatedEvents.push({
+            kind: 'chain',
+            controller: msg.controller === 1 ? 1 : 0,
+            location: msg.location,
+            sequence: msg.sequence,
+            chainCount: msg.chainCount
+          })
+        }
+        if (msg instanceof YGOProMsgChainEnd) {
+          state.accumulatedEvents.push({ kind: 'chain-end' })
+        }
+        if (msg instanceof YGOProMsgChainSolving) {
+          state.accumulatedEvents.push({ kind: 'chain-solving', chainCount: msg.chainCount })
+        }
+        if (msg instanceof YGOProMsgChainNegated) {
+          state.accumulatedEvents.push({ kind: 'chain-negated', chainCount: msg.chainCount })
+        }
+        if (msg instanceof YGOProMsgChainDisabled) {
+          state.accumulatedEvents.push({ kind: 'chain-disabled', chainCount: msg.chainCount })
         }
         if (msg instanceof YGOProMsgShuffleDeck) {
           state.lastDeckShuffles.push(msg.player === 1 ? 1 : 0)
@@ -172,7 +239,10 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
             descHint: state.lastHintDesc
           })
           state.lastHintDesc = undefined
-          if (request) batchQueries.push({ msg, request })
+          if (request) {
+            stampRequestSeats(request, state.fieldReader.activeDuelistIds)
+            batchQueries.push({ msg, request })
+          }
         }
       }
       if (batchQueries.length > 0) {

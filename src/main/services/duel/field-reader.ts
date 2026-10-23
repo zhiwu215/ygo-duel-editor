@@ -3,6 +3,7 @@ import type { CardQuery } from 'ygopro-msg-encode'
 import {
   EngineBoardState,
   EngineCard,
+  EngineDuelistState,
   EnginePlayerState,
   CardLocation,
   CardPosition
@@ -38,29 +39,80 @@ const QUERY_ZONES = [
   CardLocation.FZONE,
   CardLocation.PZONE
 ] as number[]
+export interface FieldReaderTagSeat {
+  id: string
+  team: 0 | 1
+  seat: 0 | 1 | 2 | 3
+  name: string
+}
+
+export interface FieldReaderTagContext {
+  duelists: FieldReaderTagSeat[]
+}
+
 export class FieldReader {
   private idCounter = 0
   private identity = new Map<string, { code: number; instanceId: string }>()
   private lastState: EngineBoardState | null = null
   private maxLp: [number, number] = [8000, 8000]
   private meta = { turn: 1, turnPlayer: 0 as 0 | 1, phase: 1 }
+  private tagContext: FieldReaderTagContext | null = null
+  private activeSeatByTeam: [0 | 1 | 2 | 3, 0 | 1 | 2 | 3] = [0, 1]
 
-  reset(maxLps: [number, number], turnPlayer: 0 | 1 = 0): void {
+  reset(maxLps: [number, number], turnPlayer: 0 | 1 = 0, tagContext?: FieldReaderTagContext): void {
     this.idCounter = 0
     this.identity.clear()
     this.lastState = null
     this.maxLp = maxLps
     this.meta = { turn: 0, turnPlayer, phase: 1 }
+    this.tagContext = tagContext ?? null
+    this.activeSeatByTeam = [0, 1]
+  }
+
+  private privateLocation(location: number): boolean {
+    return (
+      location === CardLocation.HAND ||
+      location === CardLocation.DECK ||
+      location === CardLocation.EXTRA
+    )
+  }
+
+  private seatIdOf(team: 0 | 1): string | undefined {
+    if (!this.tagContext) return undefined
+    const seat = this.activeSeatByTeam[team]
+    return this.tagContext.duelists.find((duelist) => duelist.seat === seat)?.id
+  }
+
+  private cardKey(
+    controller: 0 | 1,
+    location: number,
+    sequence: number,
+    duelistId?: string
+  ): string {
+    if (this.tagContext && this.privateLocation(location) && duelistId) {
+      return `${duelistId}:${location}:${sequence}`
+    }
+    return `${controller}:${location}:${sequence}`
   }
 
   get currentMeta(): { turn: number; turnPlayer: 0 | 1; phase: number } {
     return { ...this.meta }
   }
+
+  get activeDuelistIds(): [string | undefined, string | undefined] {
+    return [this.seatIdOf(0), this.seatIdOf(1)]
+  }
   applyMetaMessage(msg: unknown): void {
     if (typeof msg !== 'object' || msg === null) return
     const m = msg as { constructor?: { name?: string }; player?: unknown; phase?: unknown }
     const name = m.constructor?.name
-    if (name === 'YGOProMsgNewTurn' && typeof m.player === 'number') {
+    if (name === 'YGOProMsgTagSwap' && this.tagContext) {
+      const team = m.player === 1 ? 1 : 0
+      const seats = this.tagContext.duelists.filter((duelist) => duelist.team === team)
+      const current = this.activeSeatByTeam[team]
+      const other = seats.find((duelist) => duelist.seat !== current)
+      if (other) this.activeSeatByTeam[team] = other.seat
+    } else if (name === 'YGOProMsgNewTurn' && typeof m.player === 'number') {
       this.meta.turn += 1
       this.meta.turnPlayer = m.player === 1 ? 1 : 0
     } else if (name === 'YGOProMsgNewPhase' && typeof m.phase === 'number') {
@@ -76,10 +128,13 @@ export class FieldReader {
   restoreIdentity(state: EngineBoardState): void {
     this.identity.clear()
     for (const card of state.allCards) {
-      this.identity.set(`${card.controller}:${card.location}:${card.sequence}`, {
-        code: card.code,
-        instanceId: card.instanceId
-      })
+      this.identity.set(
+        this.cardKey(card.controller, card.location, card.sequence, card.duelistId),
+        {
+          code: card.code,
+          instanceId: card.instanceId
+        }
+      )
       const seq = Number(card.instanceId.replace('card-', ''))
       if (Number.isFinite(seq) && seq > this.idCounter) this.idCounter = seq
     }
@@ -125,17 +180,23 @@ export class FieldReader {
           const sequence = q.sequence ?? 0
           const code = q.code ?? 0
           if (code <= 0) continue
-          const key = `${controller}:${location}:${sequence}`
-          const isPile =
-            location === CardLocation.DECK ||
-            location === CardLocation.EXTRA ||
-            location === CardLocation.GRAVE ||
-            location === CardLocation.REMOVED
-          const position = isPile
-            ? CardPosition.FACEDOWN
-            : location === CardLocation.HAND && q.reveal
-              ? CardPosition.FACEUP
-              : (q.position ?? 0)
+          const duelistId =
+            this.tagContext && this.privateLocation(location)
+              ? this.seatIdOf(controller as 0 | 1)
+              : undefined
+          const key = this.cardKey(controller as 0 | 1, location, sequence, duelistId)
+          const isHiddenPile = location === CardLocation.DECK || location === CardLocation.EXTRA
+          const enginePosition = q.position
+          const position =
+            typeof enginePosition === 'number' && enginePosition !== 0
+              ? enginePosition
+              : isHiddenPile
+                ? CardPosition.FACEDOWN
+                : location === CardLocation.GRAVE || location === CardLocation.REMOVED
+                  ? CardPosition.FACEUP
+                  : location === CardLocation.HAND && q.reveal
+                    ? CardPosition.FACEUP
+                    : (enginePosition ?? 0)
           raws.push({
             card: {
               instanceId: '',
@@ -146,12 +207,14 @@ export class FieldReader {
               location,
               sequence,
               position,
+              duelistId,
               atk: q.attack,
               def: q.defense,
               baseAtk: q.baseAttack,
               baseDef: q.baseDefense,
               overlayMaterials: [...(q.overlayCards ?? [])],
-              counters: this.toCounters(q)
+              counters: this.toCounters(q),
+              status: q.status ?? 0
             },
             key,
             exactMatched: false
@@ -241,13 +304,31 @@ export class FieldReader {
       }
     }) as [EnginePlayerState, EnginePlayerState]
 
+    const tagDuelists: EngineDuelistState[] | undefined = this.tagContext?.duelists.map(
+      (duelist) => {
+        const active = this.activeSeatByTeam[duelist.team] === duelist.seat
+        const teamPlayer = players[duelist.team]
+        return {
+          ...duelist,
+          active,
+          handCount: active ? teamPlayer.hand.length : 0,
+          deckCount: active ? teamPlayer.deckCount : 0,
+          extraCount: active ? teamPlayer.extraCount : 0
+        }
+      }
+    )
+    const activeDuelist: [string, string] | undefined = this.tagContext
+      ? [this.seatIdOf(0) ?? '', this.seatIdOf(1) ?? '']
+      : undefined
+
     const state: EngineBoardState = {
       turn: this.meta.turn,
       turnPlayer: this.meta.turnPlayer,
       phase: this.meta.phase,
       phaseName: PHASE_NAMES[this.meta.phase] || `阶段 ${this.meta.phase}`,
       players,
-      allCards
+      allCards,
+      ...(this.tagContext ? { tag: true, duelists: tagDuelists, activeDuelist } : {})
     }
 
     this.lastState = state

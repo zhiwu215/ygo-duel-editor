@@ -2,13 +2,16 @@ import { useCallback, useState } from 'react'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { useConfigStore } from '../stores/useConfigStore'
-import { alertDialog, confirmDialog } from '../stores/useDialogStore'
-import { guardExportableMatch } from '../utils/matchExport'
+import { alertDialog, confirmDialog, promptDialog } from '../stores/useDialogStore'
+import { buildPuzzleStateFromEngineBoard } from '../utils/engineBoardToPuzzle'
 import { formatCoverageWarning } from '../utils/coverageWarning'
 import {
   ContentCoverageDetail,
   DEFAULT_DUEL_TEST_SETTINGS,
-  EngineExportReplayResult
+  EngineExportReplayResult,
+  isExportableMatch,
+  isInGameTestSupported,
+  isStandardTag
 } from '@shared/index'
 
 export interface ProjectCommands {
@@ -23,6 +26,7 @@ export interface ProjectCommands {
   handleImportLua: () => Promise<void>
   handleExportYrp: () => Promise<void>
   handleImportReplay: () => Promise<void>
+  handleOpenReplayInYgo: () => Promise<void>
   handleExportScreenplay: () => Promise<void>
   handleExportSession: () => void
   handleImportSession: () => void
@@ -72,11 +76,7 @@ export function useProjectCommands(): ProjectCommands {
   }, [loadState, setCurrentProjectPath])
 
   const handleExportLua = useCallback(async (): Promise<void> => {
-    const warning = guardExportableMatch(state, 'lua')
-    if (warning) {
-      void alertDialog(warning)
-      return
-    }
+    if (!isExportableMatch(state.matchConfig)) return
     const res = await window.api.exportLuaFile(state)
     if (res.success && res.filePath) {
       void alertDialog(`残局脚本导出成功！\n路径: ${res.filePath}`)
@@ -103,11 +103,7 @@ export function useProjectCommands(): ProjectCommands {
 
   const handleTestInYgo = useCallback(
     async (force = false): Promise<void> => {
-      const warning = guardExportableMatch(state, 'test')
-      if (warning) {
-        void alertDialog(warning)
-        return
-      }
+      if (!isInGameTestSupported(state.matchConfig)) return
 
       const testSettings =
         useConfigStore.getState().config.duelTestSettings ?? DEFAULT_DUEL_TEST_SETTINGS
@@ -119,18 +115,23 @@ export function useProjectCommands(): ProjectCommands {
         const detail = formatCoverageWarning(res.coverage, names)
         const choice = await confirmDialog({
           title: '当前游戏可能无法完整测试该对局',
-          description: `${detail}\n\n这些内容通常来自动漫卡库等扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏 (如 EDOPro)。`,
-          confirmText: '去设置切换目录',
-          extraAction: { text: '仍然启动', value: 'force' },
+          description: `${detail}\n\n这些内容通常来自扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏。`,
+          confirmText: '同步并启动',
+          extraAction: { text: '去设置切换目录', value: 'settings' },
           destructive: false
         })
-        if (choice === 'force') {
-          const retry = await window.api.testInYgo(state, true, testSettings)
-          if (!retry.success && retry.error) {
-            void alertDialog(`启动游戏测试失败: ${retry.error}`)
-          }
-        } else if (choice === true) {
+        if (choice === 'settings') {
           void window.api.openSettingsWindow('paths')
+        } else if (choice === true) {
+          const sync = await window.api.syncCustomCardsToGame()
+          if (!sync.success) {
+            void alertDialog(`同步自定义卡到游戏失败\n\n${sync.error ?? '未知错误'}`)
+            return
+          }
+          const retry = await window.api.testInYgo(state, false, testSettings)
+          if (!retry.success && retry.error) {
+            void alertDialog(`同步后仍然无法启动游戏测试\n\n${retry.error}`)
+          }
         }
         return
       }
@@ -168,9 +169,11 @@ export function useProjectCommands(): ProjectCommands {
       const detail =
         gameType === 'mdpro3'
           ? `回放: ${res.yrp3dPath ?? ''}\n\n之后在 MDPro3 的「回放」界面也可以随时观看。`
-          : `录像: ${res.yrpPath ?? ''}\n残局脚本: ${res.luaPath ?? ''}\n\n${
+          : `录像: ${res.yrpPath ?? ''}${res.luaPath ? `\n残局脚本: ${res.luaPath}` : ''}\n\n${
               res.manualHint ??
-              '之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。'
+              (res.luaPath
+                ? '之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。'
+                : '之后在 ygopro 的「录像回放」中也可以随时观看。')
             }`
       void alertDialog(
         `对局回放导出成功${res.launched && !res.manualHint ? '，已在游戏中打开回放' : ''}\n\n${detail}`
@@ -195,47 +198,100 @@ export function useProjectCommands(): ProjectCommands {
   }, [])
 
   const handleExportYrp = useCallback(async (): Promise<void> => {
+    if (useDuelEngineStore.getState().replayInfo) return
     const isEngine = useDuelEngineStore.getState().isInitialized
     const timeline = useDuelEngineStore.getState().timeline
-    if (!isEngine || timeline.length === 0) {
-      void alertDialog(
-        '无法导出录像\n\n还没有经过游戏引擎的操作记录。请先在对局中通过引擎召唤、发动、盖放卡片，再导出 YRP 录像。'
-      )
-      return
-    }
-    const currentPuzzleState = useDuelStore.getState().state
-    const warning = guardExportableMatch(currentPuzzleState, 'yrp')
-    if (warning) {
-      void alertDialog(warning)
-      return
-    }
+    if (!isEngine || timeline.length <= 1) return
+    const editorState = useDuelStore.getState().state
+    if (!isExportableMatch(editorState.matchConfig)) return
+    const engine = useDuelEngineStore.getState()
+    const initialBoard = engine.timeline[0]?.boardState
+    const engineState =
+      engine.isInitialized && initialBoard
+        ? buildPuzzleStateFromEngineBoard(initialBoard, {
+            title: editorState.title,
+            masterRule: editorState.masterRule
+          })
+        : null
+    const currentPuzzleState = engineState
+      ? {
+          ...engineState,
+          title: editorState.title,
+          hint: editorState.hint,
+          duelType: editorState.duelType,
+          series: editorState.series,
+          sourceRef: editorState.sourceRef,
+          matchConfig: editorState.matchConfig,
+          firstTurnAttack: editorState.firstTurnAttack,
+          duelists: editorState.duelists,
+          scenarios: editorState.scenarios
+        }
+      : editorState
 
-    const runExport = async (force: boolean): Promise<void> => {
+    const runExport = async (
+      force: boolean,
+      overwrite = false,
+      exportName?: string
+    ): Promise<void> => {
       const res = await window.api.duelExportReplay({
         state: currentPuzzleState,
+        name: exportName,
+        overwrite,
         launch: true,
         force
       })
+      if (res.errorCode === 'replay-exists') {
+        const replaceText = isStandardTag(currentPuzzleState.matchConfig)
+          ? '覆盖会替换现有回放。'
+          : '覆盖会替换现有回放和残局脚本。'
+        const choice = await confirmDialog({
+          title: '存在同名回放',
+          description: `检测到同名文件：\n${res.existingPath}\n\n${replaceText}也可以改名后导出。`,
+          confirmText: '覆盖',
+          extraAction: { text: '改名', value: 'rename' },
+          destructive: true
+        })
+        if (choice === 'rename') {
+          const newName = await promptDialog({
+            title: '重命名回放',
+            placeholder: '输入新的回放名称',
+            initialValue: res.name ?? currentPuzzleState.title
+          })
+          if (newName?.trim()) {
+            await runExport(false, false, newName.trim())
+          }
+        } else if (choice === true) {
+          await runExport(false, true, exportName)
+        }
+        return
+      }
       if (res.errorCode === 'content-missing' && res.coverage) {
         const names = await resolveCoverageNames(res.coverage)
         const detail = formatCoverageWarning(res.coverage, names)
         const choice = await confirmDialog({
           title: '当前游戏可能无法完整回放该对局',
-          description: `${detail}\n\n这些内容通常来自动漫卡库等扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏 (如 EDOPro)。`,
-          confirmText: '去设置切换目录',
-          extraAction: { text: '仍然导出并启动', value: 'force' },
+          description: `${detail}\n\n这些内容通常来自扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏。`,
+          confirmText: '同步并启动',
+          extraAction: { text: '去设置切换目录', value: 'settings' },
           destructive: false
         })
-        if (choice === 'force') {
+        if (choice === 'settings') {
+          void window.api.openSettingsWindow('paths')
+        } else if (choice === true) {
+          const sync = await window.api.syncCustomCardsToGame()
+          if (!sync.success) {
+            void alertDialog(`同步自定义卡到游戏失败\n\n${sync.error ?? '未知错误'}`)
+            return
+          }
           reportReplayResult(
             await window.api.duelExportReplay({
               state: currentPuzzleState,
+              name: exportName,
+              overwrite,
               launch: true,
-              force: true
+              force: false
             })
           )
-        } else if (choice === true) {
-          void window.api.openSettingsWindow('paths')
         }
         return
       }
@@ -252,6 +308,39 @@ export function useProjectCommands(): ProjectCommands {
     if (error) {
       void alertDialog(`导入对局回放失败\n\n${error}`)
     }
+  }, [])
+
+  const handleOpenReplayInYgo = useCallback(async (): Promise<void> => {
+    const filePath = useDuelEngineStore.getState().replayInfo?.filePath
+    if (!filePath) {
+      void alertDialog('当前回放没有可用的源文件路径，请重新导入回放后再试。')
+      return
+    }
+    const res = await window.api.duelOpenReplay(filePath)
+    if (res.success) {
+      if (res.manualHint) {
+        void alertDialog(`回放已保存到游戏 replay 目录\n\n${res.manualHint}`)
+      }
+      return
+    }
+    if (res.errorCode === 'no-game-directory') {
+      void confirmDialog({
+        title: '尚未设置游戏目录',
+        description:
+          '用 YGO 打开回放前，需要先在 设置 → 路径 中选择游戏主目录 (ygopro 或 MDPro3)。',
+        confirmText: '打开设置'
+      }).then((ok) => {
+        if (ok) void window.api.openSettingsWindow('paths')
+      })
+      return
+    }
+    if (res.errorCode === 'game-not-found') {
+      void alertDialog(
+        `未在游戏目录中找到游戏主程序 (ygopro.exe / MDPro3.exe)\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
+      )
+      return
+    }
+    void alertDialog(`打开回放失败\n\n${res.error ?? '未知错误'}`)
   }, [])
 
   const handleExportScreenplay = useCallback(async (): Promise<void> => {
@@ -288,6 +377,7 @@ export function useProjectCommands(): ProjectCommands {
     handleImportLua,
     handleExportYrp,
     handleImportReplay,
+    handleOpenReplayInYgo,
     handleExportScreenplay,
     handleExportSession,
     handleImportSession

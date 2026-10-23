@@ -3,7 +3,6 @@ import { DuelStep } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
-import { ScrollArea } from '../ui/scroll-area'
 import { Button } from '../ui/button'
 import { Film, PlayCircle, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -13,7 +12,7 @@ import { StepTurnHeader } from './StepTurnHeader'
 import { StepCard } from './StepCard'
 import { StepLpChange } from './StepLpChange'
 import { buildStepList, getAttackDamageText, resolveStepCardName } from './stepGrouping'
-import { resolveTeamLabel } from '../../utils/duelistNames'
+import { resolveDuelistName, resolveTeamLabel } from '../../utils/duelistNames'
 
 interface StepListProps {
   steps: DuelStep[]
@@ -21,7 +20,9 @@ interface StepListProps {
 }
 
 export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
-  const { currentStepIndex, previewReturn, exitPreview } = useDuelStore()
+  const currentStepIndex = useDuelStore((state) => state.currentStepIndex)
+  const previewReturn = useDuelStore((state) => state.previewReturn)
+  const exitPreview = useDuelStore((state) => state.exitPreview)
   const { handleStepClick, handleRestartFromStep } = useStepPlayback()
   const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const engineTimeline = useDuelEngineStore((s) => s.timeline)
@@ -29,8 +30,18 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
   const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
   const duelists = useDuelStore((s) => s.state.duelists)
   const initialLp = useDuelStore((s) => s.state.initialLp)
+  const sharedLp = useDuelStore((s) => s.state.matchConfig?.sharedLp)
 
   const stepList = useMemo(() => buildStepList(steps, initialLp), [steps, initialLp])
+  const turnActingDuelistIds = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const step of steps) {
+      if (!step.actionDuelistId || step.actionPlayer !== step.turnPlayer) continue
+      if (map.has(step.turn)) continue
+      map.set(step.turn, step.actionDuelistId)
+    }
+    return map
+  }, [steps])
 
   const engineIndexById = useMemo(() => {
     const map = new Map<string, number>()
@@ -104,7 +115,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
   }
 
   return (
-    <ScrollArea className="flex-1 min-h-0">
+    <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="p-2 flex flex-col gap-2 select-text">
         {isPreviewing ? (
           <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md border border-sky-500/40 bg-sky-500/5 text-[10px] leading-relaxed text-sky-600 dark:text-sky-400">
@@ -137,7 +148,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
           !isReplay &&
           futureStepCount > 0 && (
             <div className="px-2 py-1.5 rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
-              已回退到当前步：之后 {futureStepCount} 步保留在列表里（虚线「未来步」），点击可前进；
+              已回退到当前步：之后 {futureStepCount} 步保留在列表里，点击可前进；
               若直接在此处展开新操作，它们会被丢弃。
             </div>
           )
@@ -159,6 +170,8 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
                   turnPlayer={item.turnPlayer}
                   lp={item.lp}
                   duelists={duelists}
+                  actingDuelistId={turnActingDuelistIds.get(item.turn)}
+                  sharedLp={sharedLp}
                 />
               )
             }
@@ -201,17 +214,18 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
                   summary={{
                     kind: group.kind,
                     player: firstEntry.step.actionPlayer,
-                    playerName: resolveTeamLabel(
-                      { duelists },
-                      firstEntry.step.actionPlayer,
-                      firstEntry.step.turn
-                    ),
+                    playerName:
+                      resolveDuelistName(duelists, firstEntry.step.actionDuelistId) ??
+                      resolveTeamLabel(
+                        { duelists },
+                        firstEntry.step.actionPlayer,
+                        firstEntry.step.turn
+                      ),
                     cardCode: firstEntry.step.cardCode,
                     cardName: names[0],
                     actionType: firstEntry.step.actionType,
                     names,
                     cardCodes: group.entries.map(({ step }) => step.cardCode),
-                    chainNumber: firstEntry.step.chainIndex,
                     damageText,
                     count: group.entries.length,
                     expanded,
@@ -220,12 +234,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
                   }}
                 />
                 {expanded && (
-                  <div
-                    className={cn(
-                      'flex flex-col gap-2 pl-2 ml-1 border-l',
-                      group.kind === 'chain' ? 'border-teal-500/30' : 'border-border/60'
-                    )}
-                  >
+                  <div className={cn('flex flex-col gap-2 pl-2 ml-1 border-l', 'border-border/60')}>
                     {group.entries.map(({ step, index }) => renderStepCard(step, index))}
                   </div>
                 )}
@@ -234,6 +243,6 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
           })
         )}
       </div>
-    </ScrollArea>
+    </div>
   )
 }

@@ -9,6 +9,7 @@ import {
   ScriptReader
 } from 'koishipro-core.js'
 import { configService } from '../configService'
+import { getGameScriptDirectories } from '../gameScriptPaths'
 import { readEngineCardData } from './card-reader'
 import { readCustomScript } from '../customCardScript'
 
@@ -29,11 +30,7 @@ function getAvailableScriptSources(): { zips: string[]; dirs: string[] } {
   const zips: string[] = []
   const dirs: string[] = []
 
-  const testDirs = [
-    config.gameDirectory,
-    config.gameDirectory ? path.join(config.gameDirectory, 'script') : null,
-    config.gameDirectory ? path.join(config.gameDirectory, 'expansions', 'script') : null
-  ].filter(Boolean) as string[]
+  const testDirs = [config.gameDirectory, ...getGameScriptDirectories()].filter(Boolean) as string[]
 
   const testZips = [
     config.gameDirectory ? path.join(config.gameDirectory, 'script.zip') : null,

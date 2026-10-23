@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Check } from 'lucide-react'
+import { isExportableMatch, isInGameTestSupported } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { confirmDialog } from '../../stores/useDialogStore'
@@ -20,6 +21,9 @@ interface MenuBarProps {
   onExportLua: () => void
   onExportYrp: () => void
   onImportReplay: () => void
+  onOpenReplayInYgo: () => void
+  canOpenReplay: boolean
+  isReplay: boolean
   onExportScreenplay?: () => void
   onExportSession: () => void
   onImportSession: () => void
@@ -35,6 +39,9 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   onExportLua,
   onExportYrp,
   onImportReplay,
+  onOpenReplayInYgo,
+  canOpenReplay,
+  isReplay,
   onExportScreenplay,
   onExportSession,
   onImportSession
@@ -60,6 +67,11 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   } = useDuelStore()
 
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const hasEngineActions = useDuelEngineStore((s) => s.timeline.length > 1)
+  const matchConfig = useDuelStore((s) => s.state.matchConfig)
+  const canExportMatch = isExportableMatch(matchConfig)
+  const canTestInYgo = isInGameTestSupported(matchConfig)
+  const canExportYrp = canExportMatch && isEngineActive && hasEngineActions && !isReplay
 
   const { canUndo, canRedo, undo, redo } = useEngineAwareUndoRedo()
 
@@ -101,6 +113,12 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     onExportLua,
     onExportYrp,
     onImportReplay,
+    onOpenReplayInYgo,
+    canOpenReplay,
+    isReplay,
+    canExportYrp,
+    canExportLua: canExportMatch,
+    canTestInYgo,
     onExportScreenplay,
     onExportSession,
     onImportSession,
@@ -130,11 +148,6 @@ export const MenuBar: React.FC<MenuBarProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveMenuId(isOpen ? null : menu.id)}
-                onMouseEnter={() => {
-                  if (activeMenuId !== null && !isOpen) {
-                    setActiveMenuId(menu.id)
-                  }
-                }}
                 className={cn(
                   'px-2.5 py-1 text-xs rounded-md transition-colors',
                   isOpen

@@ -1,12 +1,14 @@
 import React from 'react'
 import { CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useDuelStore } from '../../../stores/useDuelStore'
-import { isExportableMatch } from '@shared/index'
+import { isExportableMatch, isIndependentLpTag } from '@shared/index'
 import { cn } from '../../../lib/utils'
 
 export const ExportStatusBadge: React.FC = () => {
   const { state } = useDuelStore()
   const canExport = isExportableMatch(state.matchConfig)
+  const independentTag = isIndependentLpTag(state.matchConfig)
+  const label = canExport ? '可导出' : independentTag ? '仅近似校验' : '仅编排不可导出'
 
   return (
     <div
@@ -20,12 +22,12 @@ export const ExportStatusBadge: React.FC = () => {
       {canExport ? (
         <>
           <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-          <span>可导出</span>
+          <span>{label}</span>
         </>
       ) : (
         <>
           <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
-          <span>自定义人数 · 仅编排不可导出</span>
+          <span>{label}</span>
         </>
       )}
     </div>

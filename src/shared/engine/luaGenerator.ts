@@ -82,6 +82,11 @@ export function generateLuaScript(state: DuelPuzzleState, options?: LuaScriptOpt
       `当前人数 (${team0Count}v${team1Count}) 仅用于剧情编排。ocgcore 引擎仅支持 1v1 与 2v2 双打导出。`
     )
   }
+  if (isTag && state.matchConfig?.tagFormat !== 'standard') {
+    throw new Error(
+      `2v2 独立 LP 仅用于剧情编排与近似校验，不能按 tag 规则导出。请切换到 2v2 标准。`
+    )
+  }
 
   const forReplay = options?.forReplay ?? false
   const test = forReplay ? undefined : options?.test

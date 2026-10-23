@@ -1,6 +1,6 @@
 import type { StateCreator } from 'zustand'
 import { CardLocation, CardPosition, Duelist } from '@shared/index'
-import { turnOrderOf } from '../../utils/duelistNames'
+import { resolveOwnerScope, turnOrderOf } from '../../utils/duelistNames'
 import type { DuelStore } from './types'
 
 const OPENING_HAND_SIZE = 5
@@ -21,14 +21,13 @@ export const createExecutionsSlice: StateCreator<DuelStore, [], [], ExecutionsSl
   get
 ) => ({
   executeDrawCard: (controller, duelistId) => {
-    const { state, moveCard, activeDuelistId } = get()
-
-    const scopedDuelist =
-      (duelistId
-        ? (state.duelists || []).find((d) => d.id === duelistId && d.team === controller)
-        : undefined) ??
-      (state.duelists || []).find((d) => d.id === activeDuelistId && d.team === controller)
-    const ownerScope = scopedDuelist?.id ?? null
+    const { state, moveCard, activeDuelistIds, currentTurn } = get()
+    const explicitDuelist = duelistId
+      ? (state.duelists || []).find((d) => d.id === duelistId && d.team === controller)
+      : undefined
+    const ownerScope =
+      explicitDuelist?.id ??
+      resolveOwnerScope(state.duelists, controller, activeDuelistIds[controller], currentTurn)
 
     const deckCards = state.cards
       .filter(
@@ -63,11 +62,14 @@ export const createExecutionsSlice: StateCreator<DuelStore, [], [], ExecutionsSl
 
   executeOpeningDraw: () => {
     const { state, executeDrawCard, setDuelStarted } = get()
-    for (const duelist of openingDrawOrder(state.duelists)) {
-      for (let i = 0; i < OPENING_HAND_SIZE; i++) {
-        executeDrawCard(duelist.team, duelist.id)
+    const duelists = openingDrawOrder(state.duelists)
+    get().withSingleUndoStep(() => {
+      for (const duelist of duelists) {
+        for (let i = 0; i < OPENING_HAND_SIZE; i++) {
+          executeDrawCard(duelist.team, duelist.id)
+        }
       }
-    }
-    setDuelStarted(true)
+      setDuelStarted(true)
+    })
   }
 })

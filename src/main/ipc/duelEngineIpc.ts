@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { duelDirector } from '../services/duel/duel-director'
 import { sessionDocFileService } from '../services/sessionDocFileService'
 import { yrpReplayFileService } from '../services/yrpReplayFileService'
@@ -116,6 +116,7 @@ export function registerDuelEngineIpc(): void {
       return {
         success: true,
         filePath: loaded.filePath,
+        initParams: imported.initParams,
         boardState: imported.boardState,
         pendingRequest: imported.pendingRequest,
         timeline: imported.timeline,
@@ -131,11 +132,14 @@ export function registerDuelEngineIpc(): void {
     }
   })
 
-  ipcMain.handle('duel-engine:import-replay', async (): Promise<EngineImportReplayResult> => {
+  ipcMain.handle('duel-engine:import-replay', async (event): Promise<EngineImportReplayResult> => {
     const loaded = await yrpReplayFileService.loadYrpFile()
     if (!loaded.success || !loaded.bytes || !loaded.fileName) {
       return { success: false, canceled: loaded.canceled, error: loaded.error }
     }
+    BrowserWindow.fromWebContents(event.sender)?.webContents.send(
+      'duel-engine:replay-import-starting'
+    )
     try {
       const payload = await duelDirector.startReplay(loaded.bytes, loaded.fileName)
       return { success: true, filePath: loaded.filePath, payload }

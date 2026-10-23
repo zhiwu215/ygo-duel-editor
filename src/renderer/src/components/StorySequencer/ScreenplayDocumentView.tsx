@@ -31,7 +31,7 @@ export const ScreenplayDocumentView: React.FC<ScreenplayDocumentViewProps> = ({ 
 
           {steps.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground text-sm">
-              暂无编排动作步骤。切换到「分步创作模式」开始添加对局剧情吧！
+              暂无编排动作步骤。先在主窗口完成对局动作，再回到这里编写台词吧！
             </div>
           ) : (
             <div className="flex flex-col gap-6 text-sm leading-relaxed">

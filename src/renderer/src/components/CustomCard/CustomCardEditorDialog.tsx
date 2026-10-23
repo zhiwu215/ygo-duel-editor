@@ -298,7 +298,7 @@ const CustomCardEditorBody: React.FC = () => {
                       </ul>
                     ) : (
                       <p className="text-[11px] text-muted-foreground">
-                        保存后可在卡片列表中同步到游戏目录。
+                        保存后可在卡片列表中同步到游戏。
                       </p>
                     )}
                   </div>

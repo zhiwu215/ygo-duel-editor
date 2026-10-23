@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useDuelStore } from '../stores/useDuelStore'
+import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import type { ScreenplayEdit } from '@shared/index'
 
 export const ScreenplayBridge: React.FC = () => {
@@ -8,7 +9,8 @@ export const ScreenplayBridge: React.FC = () => {
       const s = useDuelStore.getState()
       void window.api.pushScreenplaySnapshot({
         state: s.state,
-        selectedStepId: s.selectedStepId
+        selectedStepId: s.selectedStepId,
+        engineActive: useDuelEngineStore.getState().isInitialized
       })
     }
 
@@ -16,12 +18,15 @@ export const ScreenplayBridge: React.FC = () => {
       if (s.state !== prev.state || s.selectedStepId !== prev.selectedStepId) push()
     })
 
+    const unsubEngine = useDuelEngineStore.subscribe((s, prev) => {
+      if (s.isInitialized !== prev.isInitialized) push()
+    })
+
     const offRequest = window.api.onScreenplayStateRequested(() => push())
 
     const offEdit = window.api.onScreenplayEdit((edit: ScreenplayEdit) => {
       const s = useDuelStore.getState()
-      if (edit.kind === 'addStep') s.insertStep(edit.step)
-      else if (edit.kind === 'updateStep') s.updateStep(edit.stepId, edit.patch)
+      if (edit.kind === 'updateStep') s.updateStep(edit.stepId, edit.patch)
       else if (edit.kind === 'deleteStep') s.deleteStep(edit.stepId)
     })
 
@@ -34,6 +39,7 @@ export const ScreenplayBridge: React.FC = () => {
 
     return () => {
       unsub()
+      unsubEngine()
       offRequest()
       offEdit()
       offPreview()

@@ -3,6 +3,7 @@ import path from 'path'
 import type { CustomCard } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
+import { getGameScriptDirectories } from './gameScriptPaths'
 
 export interface CustomCardScriptReference {
   code: number
@@ -30,11 +31,7 @@ const MAX_SCRIPT_LENGTH = 6000
 
 function scriptDirectories(): string[] {
   const cfg = configService.get()
-  const dirs: string[] = []
-  if (cfg.gameDirectory) {
-    dirs.push(path.join(cfg.gameDirectory, 'script'))
-    dirs.push(path.join(cfg.gameDirectory, 'expansions', 'script'))
-  }
+  const dirs = getGameScriptDirectories()
   for (const cdbPath of cfg.extraCdbPaths ?? []) {
     const dir = path.dirname(cdbPath)
     dirs.push(path.join(dir, 'script'))

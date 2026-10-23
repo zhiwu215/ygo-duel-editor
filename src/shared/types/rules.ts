@@ -1,5 +1,16 @@
 export type MasterRule = 2 | 3 | 4 | 5
 
+export function getPzoneSzoneSequence(masterRule: number): [number, number] {
+  return masterRule >= 4 ? [0, 4] : [6, 7]
+}
+
+export function resolveMasterRuleFromDuelRule(duelRule: number): MasterRule | null {
+  if (duelRule === 2 || duelRule === 3 || duelRule === 4 || duelRule === 5) {
+    return duelRule
+  }
+  return null
+}
+
 const YGOPRO_MASTER_RULES: readonly MasterRule[] = [3, 4, 5]
 export const SELECTABLE_MASTER_RULES: readonly MasterRule[] = [2, ...YGOPRO_MASTER_RULES]
 

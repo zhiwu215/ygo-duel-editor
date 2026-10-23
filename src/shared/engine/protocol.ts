@@ -25,6 +25,7 @@ export interface RequestCard {
   location: number
   sequence: number
   subsequence?: number
+  duelistId?: string
   desc?: number
   directAttackable?: boolean
   opParam?: number

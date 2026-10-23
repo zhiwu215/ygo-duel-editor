@@ -7,8 +7,9 @@ import {
   type CustomScriptTestPlan,
   type CustomScriptTestReport
 } from '@shared/index'
-import { configService } from './configService'
 import { getCustomScriptDirectory } from './customCardScript'
+import { configService } from './configService'
+import { getGameScriptDirectories } from './gameScriptPaths'
 import { engineCardDataFromCdbCard, readEngineCardData } from './duel/card-reader'
 import {
   defaultCustomCardScriptTestPlan,
@@ -29,11 +30,7 @@ export interface RunCustomCardScriptTestInput {
 
 function scriptDirectories(): string[] {
   const cfg = configService.get()
-  const dirs = new Set<string>([getCustomScriptDirectory()])
-  if (cfg.gameDirectory) {
-    dirs.add(path.join(cfg.gameDirectory, 'script'))
-    dirs.add(path.join(cfg.gameDirectory, 'expansions', 'script'))
-  }
+  const dirs = new Set<string>([getCustomScriptDirectory(), ...getGameScriptDirectories()])
   for (const cdbPath of cfg.extraCdbPaths ?? []) {
     const dir = path.dirname(cdbPath)
     dirs.add(path.join(dir, 'script'))

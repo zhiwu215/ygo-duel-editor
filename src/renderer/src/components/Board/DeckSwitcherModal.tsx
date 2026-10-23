@@ -24,9 +24,15 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
   const closeDeckSwitcher = useDeckSwitcherStore((s) => s.closeDeckSwitcher)
   const applyDeckToPlayer = useDuelStore((s) => s.applyDeckToPlayer)
   const duelists = useDuelStore((s) => s.state.duelists)
-  const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
+  const activeDuelistIds = useDuelStore((s) => s.activeDuelistIds)
+  const currentTurn = useDuelStore((s) => s.currentTurn)
 
-  const targetDuelist = resolveViewerDuelist(duelists, controller, activeDuelistId)
+  const targetDuelist = resolveViewerDuelist(
+    duelists,
+    controller,
+    activeDuelistIds[controller],
+    currentTurn
+  )
 
   const [decks, setDecks] = useState<DeckData[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)

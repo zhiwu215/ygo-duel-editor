@@ -1,13 +1,24 @@
 import type { StateCreator } from 'zustand'
-import { EngineDuelInitParams, InjectCommand, normalizeTimingPolicy } from '@shared/index'
+import {
+  DuelChainCard,
+  EngineDuelInitParams,
+  InjectCommand,
+  isEngineSupportedMatch,
+  normalizeTimingPolicy
+} from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
+import { reversePileSequences } from '../../utils/pileSequences'
+import { buildReplaySteps } from '../../utils/replayTimelineToSteps'
 import { syncJumpToStepWrapped } from './boardReconcile'
+import { chainStateAtNode } from './chainState'
+import { engineErrorMessage } from './engineErrorMessage'
 import { clearIdentities } from './identityMap'
 import {
   appendDiscardNotice,
   clearEngineSteps,
   clearEditorSteps,
   discardFutureSteps,
+  recordEngineStep,
   restoreEngineSteps,
   splitTimeline
 } from './stepRecords'
@@ -23,6 +34,14 @@ interface EngineInjectNotice {
 interface HandShuffleSignal {
   id: number
   players: (0 | 1)[]
+  duelists?: string[]
+}
+
+function enterEnginePileOrder(): void {
+  useDuelStore.setState((prev) => ({
+    ...prev,
+    state: { ...prev.state, cards: reversePileSequences(prev.state.cards) }
+  }))
 }
 
 export interface SessionSlice {
@@ -32,11 +51,14 @@ export interface SessionSlice {
   error: string | null
   injectNotice: EngineInjectNotice | null
   handShuffle: HandShuffleSignal | null
+  boardChains: DuelChainCard[]
+  mergedMatch: boolean
 
-  startEngine: () => Promise<void>
+  startEngine: (options?: { allowMergedMatch?: boolean }) => Promise<void>
   stopEngine: () => void
   inject: (command: InjectCommand) => Promise<boolean>
   clearInjectNotice: () => void
+  clearError: () => void
   exportSession: () => Promise<boolean>
   importSession: () => Promise<boolean>
 }
@@ -51,9 +73,23 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   error: null,
   injectNotice: null,
   handShuffle: null,
+  boardChains: [],
+  mergedMatch: false,
 
-  startEngine: async () => {
+  startEngine: async (options) => {
+    const matchConfig = useDuelStore.getState().state.matchConfig
+    const mergedMatch = !isEngineSupportedMatch(matchConfig)
+    if (mergedMatch && !options?.allowMergedMatch) {
+      const team0Count = matchConfig?.team0Count ?? 1
+      const team1Count = matchConfig?.team1Count ?? 1
+      set({
+        loading: false,
+        error: `内置引擎只支持 1v1；${team0Count}v${team1Count} 需确认后以近似校验启动。`
+      })
+      return
+    }
     set({ loading: true, error: null })
+    const wasInitialized = get().isInitialized
     try {
       const duelStore = useDuelStore.getState()
       const currentDuelState = structuredClone(duelStore.state)
@@ -66,16 +102,19 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
 
       const res = await window.api.duelEngineInit(initParams)
       clearEngineSteps()
-      if (!get().isInitialized) clearEditorSteps()
+      if (!wasInitialized) clearEditorSteps()
       clearIdentities()
+      if (!wasInitialized) enterEnginePileOrder()
       const timeline = [res.initialNode]
       set({
         engineMode: 'running',
         isInitialized: true,
         loading: false,
+        mergedMatch,
         boardState: res.boardState,
         pendingRequest: res.pendingRequest,
         lastAttacker: null,
+        boardChains: chainStateAtNode(timeline, res.initialNode.id),
         timeline,
         currentStepId: res.initialNode.id
       })
@@ -88,13 +127,15 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
         loading: false,
         engineMode: 'idle',
         isInitialized: false,
-        error: err instanceof Error ? err.message : '启动决斗引擎失败'
+        mergedMatch: false,
+        error: engineErrorMessage(err, '启动决斗引擎失败')
       })
     }
   },
 
   stopEngine: () => {
     const { replayInfo, preReplay } = get()
+    useDuelStore.getState().exitPreview()
     if (replayInfo) {
       void window.api.duelEngineExitReplay().catch(() => undefined)
       if (preReplay) {
@@ -107,17 +148,29 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
           activeTurnPlayer: preReplay.activeTurnPlayer
         }))
       }
+    } else {
+      useDuelStore.setState((prev) => ({
+        ...prev,
+        state: {
+          ...prev.state,
+          cards: reversePileSequences(prev.state.cards),
+          steps: prev.state.steps?.map((step) =>
+            step.boardAfter ? { ...step, boardAfter: reversePileSequences(step.boardAfter) } : step
+          )
+        }
+      }))
     }
     clearEngineSteps()
     clearIdentities()
-    useDuelStore.getState().exitPreview()
     set({
       engineMode: 'idle',
       isInitialized: false,
       loading: false,
+      mergedMatch: false,
       error: null,
       injectNotice: null,
       handShuffle: null,
+      boardChains: [],
       pendingRequest: null,
       lastAttacker: null,
       replayInfo: null,
@@ -138,6 +191,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       useDuelStore.getState().exitPreview()
       const { kept, dropped } = splitTimeline(prevTimeline, get().currentStepId)
       const discarded = discardFutureSteps(kept, dropped)
+      const nextTimeline = [...kept, res.node]
       const notice = {
         kind: res.warning ? ('warning' as const) : ('success' as const),
         message: `${appendDiscardNotice(
@@ -150,7 +204,8 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
         error: null,
         boardState: res.boardState,
         pendingRequest: res.node.pendingRequest ?? null,
-        timeline: [...kept, res.node],
+        boardChains: chainStateAtNode(nextTimeline, res.node.id),
+        timeline: nextTimeline,
         currentStepId: res.node.id,
         injectNotice: notice
       })
@@ -168,6 +223,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   },
 
   clearInjectNotice: () => set({ injectNotice: null }),
+  clearError: () => set({ error: null }),
 
   exportSession: async () => {
     if (!get().isInitialized) {
@@ -205,6 +261,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
 
   importSession: async () => {
     set({ loading: true, error: null })
+    const wasInitialized = get().isInitialized
     try {
       const res = await window.api.duelEngineImportSession()
       if (!res.success || !res.boardState || !res.timeline || !res.currentStepId) {
@@ -217,18 +274,38 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       const boardState = res.boardState
       const timeline = res.timeline
       const currentStepId = res.currentStepId
-      clearEngineSteps()
-      clearEditorSteps()
-      clearIdentities()
-      useDuelStore.getState().exitPreview()
+      const duelStore = useDuelStore.getState()
+      duelStore.exitPreview()
+      if (res.initParams?.puzzleState) {
+        duelStore.loadProjectAndStart(structuredClone(res.initParams.puzzleState))
+        clearEngineSteps()
+        clearEditorSteps()
+        clearIdentities()
+        const scriptSteps = buildReplaySteps(timeline)
+        for (const step of scriptSteps) {
+          if (step.actId) recordEngineStep(step.actId, step)
+        }
+        useDuelStore.setState((prev) => ({
+          ...prev,
+          state: { ...prev.state, steps: scriptSteps }
+        }))
+        enterEnginePileOrder()
+      } else {
+        clearEngineSteps()
+        clearEditorSteps()
+        clearIdentities()
+        if (!wasInitialized) enterEnginePileOrder()
+      }
       set({
         engineMode: 'running',
         isInitialized: true,
         loading: false,
+        mergedMatch: false,
         error: null,
         boardState,
         pendingRequest: res.pendingRequest ?? null,
         lastAttacker: null,
+        boardChains: chainStateAtNode(timeline, currentStepId),
         timeline,
         currentStepId,
         timingPolicy: normalizeTimingPolicy(res.timingPolicy ?? get().timingPolicy),

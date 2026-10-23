@@ -17,6 +17,7 @@ import { Check, X } from 'lucide-react'
 export const DuelSelectionBar: React.FC = () => {
   const request = useDuelEngineStore((s) => s.pendingRequest)
   const loading = useDuelEngineStore((s) => s.loading)
+  const mergedMatch = useDuelEngineStore((s) => s.mergedMatch)
   const lastAttacker = useDuelEngineStore((s) => s.lastAttacker)
   const cards = useDuelStore((s) => s.state.cards)
   const selectedKeys = useSelectionStore((s) => s.selectedKeys)
@@ -59,6 +60,11 @@ export const DuelSelectionBar: React.FC = () => {
     <div className="fixed bottom-[172px] left-1/2 z-[60] flex max-w-[720px] -translate-x-1/2 items-center gap-3 rounded-xl border border-border bg-card/95 px-4 py-2 shadow-2xl backdrop-blur select-none">
       <div className="flex min-w-0 flex-col">
         <span className="text-xs font-semibold text-foreground">{hint}</span>
+        {mergedMatch && (
+          <span className="text-[10px] text-amber-500">
+            近似校验：同队角色已合并，候选范围可能包含队友的卡
+          </span>
+        )}
         {isAttackTarget && isSingleAttackTarget && (
           <span className="text-[11px] text-muted-foreground">点击对方场上的怪兽确定攻击对象</span>
         )}

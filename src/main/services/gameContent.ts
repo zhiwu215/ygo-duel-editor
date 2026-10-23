@@ -23,6 +23,7 @@ interface GameContentScan {
   cdbPaths: string[]
   zipPaths: string[]
   fileScriptIds: Set<number>
+  rootScriptIds: Set<number>
 }
 
 const SCRIPT_NAME_PATTERN = /(?:^|\/)c(\d+)\.lua$/i
@@ -225,24 +226,24 @@ export async function checkGameContentCoverage(
   }
   const missingDataIds = [...missingDataSet]
 
-  let missingScriptIds: number[] = []
-  if (gameType !== 'mdpro3') {
-    const scriptIds = await collectGameScriptIds(scan)
-    const hasScript = (id: number): boolean => {
-      let current = id
-      const seen = new Set<number>()
-      while (current > 0 && !seen.has(current)) {
-        if (scriptIds.has(current)) return true
-        seen.add(current)
-        current = aliasById.get(current) ?? 0
-      }
-      return false
+  const scriptIds =
+    gameType === 'mdpro3'
+      ? await collectMdpro3ScriptIds(scan, gameDir)
+      : await collectGameScriptIds(scan)
+  const hasScript = (id: number): boolean => {
+    let current = id
+    const seen = new Set<number>()
+    while (current > 0 && !seen.has(current)) {
+      if (scriptIds.has(current)) return true
+      seen.add(current)
+      current = aliasById.get(current) ?? 0
     }
-    missingScriptIds = cardIds.filter((id) => {
-      if (missingDataSet.has(id)) return false
-      return scriptRequired(typesById.get(id) ?? 0) && !hasScript(id)
-    })
+    return false
   }
+  const missingScriptIds = cardIds.filter((id) => {
+    if (missingDataSet.has(id)) return false
+    return scriptRequired(typesById.get(id) ?? 0) && !hasScript(id)
+  })
 
   return { missingDataIds, missingScriptIds }
 }
@@ -264,14 +265,19 @@ function getGameContentScan(gameDir: string): GameContentScan {
   const cached = scanCache.get(gameDir)
   if (cached) return cached
 
-  const scan: GameContentScan = { cdbPaths: [], zipPaths: [], fileScriptIds: new Set() }
-  walkGameDir(gameDir, 1, scan)
+  const scan: GameContentScan = {
+    cdbPaths: [],
+    zipPaths: [],
+    fileScriptIds: new Set(),
+    rootScriptIds: new Set()
+  }
+  walkGameDir(gameDir, 1, scan, false)
   scan.cdbPaths.sort()
   scanCache.set(gameDir, scan)
   return scan
 }
 
-function walkGameDir(dir: string, depth: number, scan: GameContentScan): void {
+function walkGameDir(dir: string, depth: number, scan: GameContentScan, rootScript: boolean): void {
   let entries: Array<{ name: string; isDirectory: boolean }>
   try {
     entries = readdirSync(dir, { withFileTypes: true }).map((e) => ({
@@ -285,7 +291,12 @@ function walkGameDir(dir: string, depth: number, scan: GameContentScan): void {
     const full = join(dir, entry.name)
     if (entry.isDirectory) {
       if (depth < SCAN_MAX_DEPTH && !SCAN_SKIP_DIRS.has(entry.name.toLowerCase())) {
-        walkGameDir(full, depth + 1, scan)
+        walkGameDir(
+          full,
+          depth + 1,
+          scan,
+          rootScript || (depth === 1 && entry.name.toLowerCase() === 'script')
+        )
       }
       continue
     }
@@ -296,7 +307,10 @@ function walkGameDir(dir: string, depth: number, scan: GameContentScan): void {
       scan.zipPaths.push(full)
     } else {
       const id = parseScriptId(entry.name)
-      if (id !== null) scan.fileScriptIds.add(id)
+      if (id !== null) {
+        scan.fileScriptIds.add(id)
+        if (rootScript) scan.rootScriptIds.add(id)
+      }
     }
   }
 }
@@ -304,22 +318,38 @@ function walkGameDir(dir: string, depth: number, scan: GameContentScan): void {
 async function collectGameScriptIds(scan: GameContentScan): Promise<Set<number>> {
   const ids = new Set<number>(scan.fileScriptIds)
   for (const zipPath of scan.zipPaths) {
-    let cached = zipScriptIdCache.get(zipPath)
-    if (!cached) {
-      cached = new Set<number>()
-      try {
-        if (statSync(zipPath).size <= ZIP_READ_LIMIT) {
-          for (const name of readZipEntryNames(zipPath)) {
-            const id = parseScriptId(name)
-            if (id !== null) cached.add(id)
-          }
-        }
-      } catch {}
-      zipScriptIdCache.set(zipPath, cached)
-    }
-    for (const id of cached) ids.add(id)
+    for (const id of await collectZipScriptIds(zipPath)) ids.add(id)
   }
   return ids
+}
+
+async function collectMdpro3ScriptIds(
+  scan: GameContentScan,
+  gameDir: string
+): Promise<Set<number>> {
+  const ids = new Set<number>(scan.rootScriptIds)
+  const scriptZip = join(gameDir, 'Data', 'script.zip')
+  if (existsSync(scriptZip)) {
+    for (const id of await collectZipScriptIds(scriptZip)) ids.add(id)
+  }
+  return ids
+}
+
+async function collectZipScriptIds(zipPath: string): Promise<Set<number>> {
+  let cached = zipScriptIdCache.get(zipPath)
+  if (!cached) {
+    cached = new Set<number>()
+    try {
+      if (statSync(zipPath).size <= ZIP_READ_LIMIT) {
+        for (const name of readZipEntryNames(zipPath)) {
+          const id = parseScriptId(name)
+          if (id !== null) cached.add(id)
+        }
+      }
+    } catch {}
+    zipScriptIdCache.set(zipPath, cached)
+  }
+  return cached
 }
 
 function parseScriptId(name: string): number | null {

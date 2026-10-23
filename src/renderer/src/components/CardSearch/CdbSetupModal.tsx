@@ -4,21 +4,7 @@ import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useYgoDirSelect } from '../../hooks/useYgoDirSelect'
-
-const INFO_ROWS: Array<{ label: string; value: string; href?: string }> = [
-  { label: '作者', value: '知兀' },
-  { label: '邮箱', value: 'zhiwu_215@qq.com' },
-  {
-    label: 'B 站',
-    value: 'space.bilibili.com/3546704263514722',
-    href: 'https://space.bilibili.com/3546704263514722'
-  },
-  {
-    label: '项目地址',
-    value: 'github.com/zhiwu215/ygo-duel-editor',
-    href: 'https://github.com/zhiwu215/ygo-duel-editor'
-  }
-]
+import { APP_INFO_ROWS } from '@shared/index'
 
 export const CdbSetupModal: React.FC = () => {
   const { dbReady } = useConfigStore()
@@ -59,7 +45,7 @@ export const CdbSetupModal: React.FC = () => {
         </DialogHeader>
 
         <div className="w-full space-y-2 text-xs">
-          {INFO_ROWS.map((row) => {
+          {APP_INFO_ROWS.map((row) => {
             const isLink = !!row.href
             return (
               <div key={row.label} className="flex items-center justify-between gap-4">

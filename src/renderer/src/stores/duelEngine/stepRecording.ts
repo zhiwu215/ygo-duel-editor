@@ -17,6 +17,8 @@ import { mapPhaseToDuelPhase } from './boardReconcile'
 import { getEditorId } from './identityMap'
 import { findHostStep, hasEngineStep, recordEngineStep, storeEngineStep } from './stepRecords'
 
+const DISCARD_DESC_HINT = 501
+
 type EngineStepAction =
   | 'SUMMON'
   | 'SPSUMMON'
@@ -46,6 +48,10 @@ const ENGINE_STEP_TYPES: Partial<Record<EngineStepAction, DuelActionType>> = {
 
 function humanizeEngineLog(text: string): string {
   return text.replace(/^Player 0: /, '我方：').replace(/^Player 1: /, '对方：')
+}
+
+function activeDuelistIdOf(node: EngineTimelineNode, team: 0 | 1): string | undefined {
+  return node.boardState.activeDuelist?.[team]
 }
 
 function answerCardOf(answer: Answer): RequestCard | undefined {
@@ -194,6 +200,7 @@ function recordTargetMoveSteps(
       turnPlayer: actContext?.turnPlayer ?? duelStoreState.activeTurnPlayer,
       phase: actContext ? mapPhaseToDuelPhase(actContext.phase) : duelStoreState.currentPhase,
       actionPlayer: m.toController,
+      actionDuelistId: activeDuelistIdOf(node, m.toController),
       actionType: moveToActionType(m.toLocation, m.newPosition),
       cardCode: m.code,
       cardName,
@@ -204,6 +211,39 @@ function recordTargetMoveSteps(
       fromController: m.fromController,
       toController: m.toController,
       description: `将【${cardName}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`,
+      boardAfter: createLightweightSnapshot(useDuelStore.getState().state.cards)
+    }
+    if (index === 0) step.actId = node.id
+    useDuelStore.getState().addStep(step)
+    const added = useDuelStore.getState().state.steps?.at(-1)
+    if (added && index === 0) recordEngineStep(node.id, added)
+  })
+}
+
+function recordDiscardSteps(
+  selected: RequestCard[],
+  node: EngineTimelineNode,
+  actContext?: StepActContext
+): void {
+  if (selected.length === 0) return
+  const duelStoreState = useDuelStore.getState()
+  selected.forEach((card, index) => {
+    const cardName = resolveCardName(card.code)
+    const step: Omit<DuelStep, 'id'> = {
+      turn: actContext?.turn ?? duelStoreState.currentTurn,
+      turnPlayer: actContext?.turnPlayer ?? duelStoreState.activeTurnPlayer,
+      phase: actContext ? mapPhaseToDuelPhase(actContext.phase) : duelStoreState.currentPhase,
+      actionPlayer: card.controller,
+      actionDuelistId: activeDuelistIdOf(node, card.controller),
+      actionType: 'TO_GRAVE',
+      cardCode: card.code,
+      cardName,
+      fromLocation: card.location,
+      fromSequence: card.sequence,
+      toLocation: CardLocation.GRAVE,
+      fromController: card.controller,
+      toController: card.controller,
+      description: `将【${cardName}】丢弃至${LOCATION_NAMES[CardLocation.GRAVE] ?? '墓地'}`,
       boardAfter: createLightweightSnapshot(useDuelStore.getState().state.cards)
     }
     if (index === 0) step.actId = node.id
@@ -225,7 +265,8 @@ export function appendEngineStepFromAnswer(
   diff: EngineDiffResult,
   timeline: EngineTimelineNode[],
   boardState: EngineBoardState | null,
-  actContext?: StepActContext
+  actContext?: StepActContext,
+  descHint?: number
 ): void {
   if (answer.kind === 'place') {
     patchPlacementStep(answer, node, timeline)
@@ -233,6 +274,10 @@ export function appendEngineStepFromAnswer(
   }
 
   if (answer.kind === 'card') {
+    if (descHint === DISCARD_DESC_HINT) {
+      recordDiscardSteps(answer.cards ?? [], node, actContext)
+      return
+    }
     patchTargetStep(answer.cards ?? [], node, timeline, boardState)
     patchCompletedStep(node, diff, timeline)
     recordTargetMoveSteps(node, diff, timeline, actContext)
@@ -273,6 +318,7 @@ export function appendEngineStepFromAnswer(
     turnPlayer: actContext?.turnPlayer ?? duelStoreState.activeTurnPlayer,
     phase: actContext ? mapPhaseToDuelPhase(actContext.phase) : duelStoreState.currentPhase,
     actionPlayer: node.player,
+    actionDuelistId: activeDuelistIdOf(node, node.player),
     actionType,
     actId: node.id,
     cardCode: card?.code,

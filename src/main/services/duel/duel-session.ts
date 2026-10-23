@@ -13,7 +13,9 @@ import {
   ENGINE_SESSION_DOC_VERSION,
   encodeSessionOp,
   decodeSessionOp,
-  parseEngineSessionDoc
+  parseEngineSessionDoc,
+  resolveMasterRuleFromDuelRule,
+  MASTER_RULES
 } from '@shared/index'
 import {
   Answer,
@@ -153,11 +155,25 @@ export class DuelSession {
           continue
         }
         for (const response of op.responses) {
+          const headBefore = headPendingQuery(state)
           const before = this.readBoard()
           state.duel!.setResponse(response)
           advanceEngine(state)
           if (state.lastAdvanceRetried) {
-            throw new Error(`重放第 ${index + 1} 条操作时引擎拒绝了历史响应。`)
+            const kind = op.type === 'auto' ? '自动应答' : '玩家应答'
+            const ask = headBefore?.request.title ?? '未知询问'
+            const frameHex = [...response]
+              .map((value) => value.toString(16).padStart(2, '0'))
+              .join(' ')
+            console.error('[duel-session] 历史重放响应被拒绝:', {
+              opIndex: index,
+              opType: op.type,
+              ask,
+              frameHex
+            })
+            throw new Error(
+              `重放第 ${index + 1} 条操作（${kind}）时引擎拒绝了历史响应：该响应本应回答「${ask}」，但重建后的引擎给出了不同询问。`
+            )
           }
           trackAdvance(state, before, this.readBoard(), index)
         }
@@ -301,6 +317,7 @@ export class DuelSession {
       node.pendingRequest = headPendingQuery(state)?.request ?? null
 
       return {
+        initParams: structuredClone(parsed.initParams),
         boardState,
         pendingRequest: headPendingQuery(state)?.request ?? null,
         timeline: state.timeline.getAllNodes(),
@@ -326,12 +343,20 @@ export class DuelSession {
     state.ops = []
     this.resetSessionState()
 
-    state.seed = params.seed || [
-      Math.floor(Math.random() * 100000),
-      Math.floor(Math.random() * 100000),
-      Math.floor(Math.random() * 100000),
-      Math.floor(Math.random() * 100000)
-    ]
+    const seed = params.seed
+      ? [...params.seed]
+      : [
+          Math.floor(Math.random() * 100000),
+          Math.floor(Math.random() * 100000),
+          Math.floor(Math.random() * 100000),
+          Math.floor(Math.random() * 100000),
+          Math.floor(Math.random() * 100000),
+          Math.floor(Math.random() * 100000),
+          Math.floor(Math.random() * 100000),
+          Math.floor(Math.random() * 100000)
+        ]
+    while (seed.length < 8) seed.push(0)
+    state.seed = seed
     state.initParams = params
 
     const initialAutoResponses = this.createDuelFromInit()
@@ -378,14 +403,28 @@ export class DuelSession {
       if (!currentStepId) {
         throw new Error('回放时间线构建失败。')
       }
+      const duelRule = (yrp.opt >>> 16) & 0xffff
+      const resolvedRule = resolveMasterRuleFromDuelRule(duelRule)
+      const masterRule = resolvedRule ?? (duelRule === 1 ? 2 : 5)
+      const ruleWarning =
+        duelRule === 1
+          ? '回放使用规则1，编辑器按大师规则2展示。'
+          : resolvedRule === null
+            ? `回放未记录有效的大师规则（rule=${duelRule}），编辑器按${MASTER_RULES[5].name}展示。`
+            : undefined
+      const warnings = [warning, ruleWarning].filter((item): item is string => Boolean(item))
       return {
         info: {
           fileName,
           hostName: yrp.hostName,
           clientName: yrp.clientName,
+          tagHostName: yrp.tagHostName ?? undefined,
+          tagClientName: yrp.tagClientName ?? undefined,
+          isTag: yrp.isTag,
           isSingleMode: yrp.isSingleMode,
           totalSteps: yrp.responses.length,
-          ...(warning ? { warning } : {})
+          masterRule,
+          ...(warnings.length > 0 ? { warning: warnings.join('；') } : {})
         },
         boardState: this.readBoard(),
         timeline: state.timeline.getAllNodes(),
@@ -495,7 +534,6 @@ export class DuelSession {
     await bindEngineCapabilities(duel.ocgcoreWrapper)
     this.disposeDuel()
     state.duel = duel
-    state.ocgcore = duel.ocgcoreWrapper
     state.ownedWrapper = duel.ocgcoreWrapper
     state.pendingQueries = []
     state.requestSnapshot = null
@@ -548,11 +586,24 @@ export class DuelSession {
     currentStepId: string
   }> {
     const state = this.state
-    if (!state.timeline.getStep(stepId)) {
+    const target = state.timeline.getStep(stepId)
+    if (!target) {
       throw new Error(`步骤 ${stepId} 不存在。`)
     }
 
-    this.replayTo(stepId)
+    const previousStepId = state.timeline.getCurrentStep()?.node.id ?? null
+    try {
+      this.replayTo(stepId)
+    } catch (err) {
+      if (previousStepId && previousStepId !== stepId) {
+        try {
+          this.replayTo(previousStepId)
+        } catch (rollbackError) {
+          console.error('[duel-session] 跳转失败后回滚到原步骤也失败:', rollbackError)
+        }
+      }
+      throw err
+    }
     if (state.replay) {
       state.pendingQueries = []
     }
@@ -691,6 +742,18 @@ export class DuelSession {
     return state.ops
       .slice(0, lastOpIndex + 1)
       .flatMap((op) => (op.type === 'inject' ? [] : op.responses))
+  }
+
+  getSeed(): number[] {
+    return [...this.state.seed]
+  }
+
+  getInitParams(): EngineDuelInitParams | null {
+    return this.state.initParams
+  }
+
+  hasInjectOps(): boolean {
+    return this.state.ops.some((op) => op.type === 'inject')
   }
 }
 

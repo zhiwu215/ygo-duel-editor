@@ -8,7 +8,7 @@ import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { WindowControls } from '../ui/window-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { ShieldCheck, Square, Play } from 'lucide-react'
+import { ShieldCheck, Square, Play, Loader2 } from 'lucide-react'
 import { ChainModeToggle } from '../Board/ChainModeToggle'
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
@@ -17,14 +17,17 @@ import { ExportStatusBadge } from './components/ExportStatusBadge'
 import { SaveProjectModal } from './components/SaveProjectModal'
 import { useProjectCommands } from '../../hooks/useProjectCommands'
 import { useGlobalShortcuts } from '../../hooks/useGlobalShortcuts'
+import { useStartEngine } from '../../hooks/useStartEngine'
 
 export const Header: React.FC = () => {
   const engineMode = useDuelEngineStore((s) => s.engineMode)
   const isEngineLoading = useDuelEngineStore((s) => s.loading)
-  const startEngine = useDuelEngineStore((s) => s.startEngine)
+  const mergedMatch = useDuelEngineStore((s) => s.mergedMatch)
   const stopEngine = useDuelEngineStore((s) => s.stopEngine)
   const replayInfo = useDuelEngineStore((s) => s.replayInfo)
+  const importingReplay = useDuelEngineStore((s) => s.importingReplay)
   const { state, setMasterRule, setTitle } = useDuelStore()
+  const startEngine = useStartEngine()
 
   const {
     isSaveModalOpen,
@@ -38,6 +41,7 @@ export const Header: React.FC = () => {
     handleImportLua,
     handleExportYrp,
     handleImportReplay,
+    handleOpenReplayInYgo,
     handleExportScreenplay,
     handleExportSession,
     handleImportSession
@@ -78,6 +82,9 @@ export const Header: React.FC = () => {
               onExportLua={handleExportLua}
               onExportYrp={handleExportYrp}
               onImportReplay={handleImportReplay}
+              onOpenReplayInYgo={handleOpenReplayInYgo}
+              canOpenReplay={Boolean(replayInfo?.filePath)}
+              isReplay={replayInfo !== null}
               onExportScreenplay={handleExportScreenplay}
               onExportSession={handleExportSession}
               onImportSession={handleImportSession}
@@ -145,6 +152,14 @@ export const Header: React.FC = () => {
 
           {engineMode === 'running' ? (
             <div className="flex items-center gap-1.5">
+              {mergedMatch && (
+                <span
+                  title="内置引擎按 1v1 合并同队角色，手牌、目标和效果范围为近似结果"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                >
+                  近似校验
+                </span>
+              )}
               <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping mr-0.5" />
                 <ShieldCheck className="w-3.5 h-3.5" />
@@ -182,6 +197,24 @@ export const Header: React.FC = () => {
       </div>
 
       {isSaveModalOpen && <SaveProjectModal open={isSaveModalOpen} onClose={closeSaveModal} />}
+
+      {importingReplay && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 backdrop-blur-[2px]"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-5 py-4 shadow-2xl">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <div>
+              <div className="text-sm font-semibold">正在导入回放</div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                正在启动内置引擎并解析 YRP，可能需要几秒
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

@@ -1,5 +1,7 @@
 import { CustomCard } from '../customCard'
 
+export type { CustomCardSyncTarget } from '../customCard'
+
 export interface CustomCardScriptInfo {
   code: number
   fileName: string

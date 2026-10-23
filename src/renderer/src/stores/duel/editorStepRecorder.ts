@@ -14,6 +14,7 @@ import { useDuelStore } from './index'
 export interface EditorStepInput {
   actionType: DuelActionType
   controller?: 0 | 1
+  duelistId?: string
   instanceId?: string
   cardCode?: number
   cardName?: string
@@ -43,12 +44,22 @@ export interface StepLabel {
 export function recordEditorStep(input: EditorStepInput): void {
   if (useDuelEngineStore.getState().isInitialized) return
   const duel = useDuelStore.getState()
+  const actionPlayer = input.controller ?? duel.activeTurnPlayer
+  const viewerDuelistId = duel.activeDuelistIds[actionPlayer]
+  const teamDuelists = (duel.state.duelists || []).filter((d) => d.team === actionPlayer)
+  const actionDuelist =
+    (input.duelistId
+      ? teamDuelists.find((duelist) => duelist.id === input.duelistId)
+      : undefined) ??
+    teamDuelists.find((duelist) => duelist.id === viewerDuelistId) ??
+    teamDuelists[0]
   const step: DuelStep = {
     id: createStepId(),
     turn: duel.currentTurn,
     turnPlayer: duel.activeTurnPlayer,
     phase: duel.currentPhase,
-    actionPlayer: input.controller ?? duel.activeTurnPlayer,
+    actionPlayer,
+    actionDuelistId: input.duelistId ?? actionDuelist?.id,
     actionType: input.actionType,
     instanceId: input.instanceId,
     cardCode: input.cardCode,

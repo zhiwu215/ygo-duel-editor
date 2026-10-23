@@ -155,19 +155,23 @@ function drawRegionEnd(entries: StepEntry[], start: number): number {
   return end
 }
 
+function stepActorKey(step: DuelStep): string {
+  return step.actionDuelistId ?? `team-${step.actionPlayer}`
+}
+
 function mergeDrawGroup(
   entries: StepEntry[],
   start: number
 ): { group: StepEntry[]; runLength: number } | null {
-  const player = entries[start].step.actionPlayer
+  const actor = stepActorKey(entries[start].step)
   const end = drawRegionEnd(entries, start)
   let runLength = 0
-  while (start + runLength < end && entries[start + runLength].step.actionPlayer === player) {
+  while (start + runLength < end && stepActorKey(entries[start + runLength].step) === actor) {
     runLength++
   }
   const group = entries.slice(start, start + runLength)
   for (let i = start + runLength; i < end; i++) {
-    if (entries[i].step.actionPlayer === player) group.push(entries[i])
+    if (stepActorKey(entries[i].step) === actor) group.push(entries[i])
   }
   return group.length >= 2 ? { group, runLength } : null
 }
@@ -182,23 +186,6 @@ export function buildGroups(entries: StepEntry[]): StepGroup[] {
 
     if (mergedIndexes.has(current.index)) {
       cursor++
-      continue
-    }
-
-    if ((current.step.chainIndex ?? 0) > 0) {
-      let end = cursor + 1
-      while (
-        end < entries.length &&
-        (entries[end].step.chainIndex ?? 0) > (entries[end - 1].step.chainIndex ?? 0)
-      ) {
-        end++
-      }
-      groups.push({
-        kind: 'chain',
-        key: current.step.id,
-        entries: entries.slice(cursor, end)
-      })
-      cursor = end
       continue
     }
 

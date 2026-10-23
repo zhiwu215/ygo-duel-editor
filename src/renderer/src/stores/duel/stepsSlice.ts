@@ -14,6 +14,7 @@ import {
 } from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
 import { applyLpToDuelists, createLpFlash } from './lpSlice'
+import { pickNarrativeStepPatch } from './stepPatch'
 import type { DuelStore } from './types'
 
 export interface StepsSlice {
@@ -377,6 +378,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   },
 
   insertStep: (step) => {
+    if (useDuelEngineStore.getState().isInitialized) return
     set((prev) => {
       const existing = prev.state.steps || []
       if (existing.some((s) => s.id === step.id)) return prev
@@ -395,13 +397,17 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   },
 
   updateStep: (stepId, patch) => {
+    const nextPatch = useDuelEngineStore.getState().isInitialized
+      ? pickNarrativeStepPatch(patch)
+      : patch
+    if (!nextPatch) return
     set((prev) => {
       const existing = prev.state.steps || []
       const nextState: DerivationSource = {
         ...prev,
         state: {
           ...prev.state,
-          steps: existing.map((s) => (s.id === stepId ? { ...s, ...patch } : s))
+          steps: existing.map((s) => (s.id === stepId ? { ...s, ...nextPatch } : s))
         }
       }
       return withDerivation(nextState)
@@ -410,21 +416,16 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   },
 
   deleteStep: (stepId) => {
+    if (useDuelEngineStore.getState().isInitialized) return
     const prevSteps = get().state.steps || []
     const deletedIdx = prevSteps.findIndex((s) => s.id === stepId)
     if (deletedIdx === -1) return
     const prevPlayhead = get().currentStepIndex
-    const engineActive = useDuelEngineStore.getState().isInitialized
     set((prev) => {
       const remaining = (prev.state.steps || []).filter((s) => s.id !== stepId)
       const source: DerivationSource = { ...prev, state: { ...prev.state, steps: remaining } }
-      if (engineActive) return { state: source.state }
       return deriveDeletionPatch(source, deletedIdx) ?? { state: source.state }
     })
-    if (engineActive) {
-      if (prevPlayhead !== null) get().previewStepBoard(prevPlayhead)
-      return
-    }
     const remaining = get().state.steps || []
     if (remaining.length === 0) {
       get().previewStepBoard(null)
@@ -445,6 +446,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   },
 
   moveStep: (stepId, direction) => {
+    if (useDuelEngineStore.getState().isInitialized) return
     set((prev) => {
       const existing = [...(prev.state.steps || [])]
       const idx = existing.findIndex((s) => s.id === stepId)

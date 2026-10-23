@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { CardLocation, CardPosition, CdbCard, FieldCard, InjectCommand } from '@shared/index'
+import {
+  CardLocation,
+  CardPosition,
+  CdbCard,
+  FieldCard,
+  InjectCommand,
+  isStandardTag
+} from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { usePileListStore } from '../../stores/usePileListStore'
@@ -7,6 +14,7 @@ import { useHeldCardStore } from '../../stores/useHeldCardStore'
 import { resolveCardName } from '../../utils/cardNames'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { useCardDataMap } from '../../hooks/useCardDataMap'
+import { resolveOwnerScope } from '../../utils/duelistNames'
 import { Layers, Ghost, Ban, X, Search } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -37,9 +45,11 @@ export const PileListModal: React.FC = () => {
 const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const boardChains = useDuelEngineStore((s) => s.boardChains)
   const {
     state,
-    activeDuelistId,
+    activeDuelistIds,
+    currentTurn,
     selectedCardId,
     setHoveredCard,
     setHoveredInstanceId,
@@ -56,14 +66,25 @@ const PileListContent: React.FC = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
 
+  const standardTag = isStandardTag(state.matchConfig)
+  const sharedPile =
+    standardTag &&
+    target !== null &&
+    (target.location === CardLocation.GRAVE || target.location === CardLocation.REMOVED)
+  const scopedDuelistId =
+    target && !sharedPile
+      ? resolveOwnerScope(
+          state.duelists,
+          target.controller,
+          activeDuelistIds[target.controller],
+          currentTurn
+        )
+      : null
+
   const pileCards = useMemo(() => {
     if (!target) return []
 
-    const ownerScope =
-      target &&
-      state.duelists?.find((d) => d.id === activeDuelistId && d.team === target.controller)
-        ? activeDuelistId
-        : null
+    const ownerScope = scopedDuelistId
     return state.cards
       .filter(
         (c) =>
@@ -72,10 +93,21 @@ const PileListContent: React.FC = () => {
           (ownerScope ? c.duelistId === ownerScope : true)
       )
       .sort((a, b) => (isEngineActive ? b.sequence - a.sequence : a.sequence - b.sequence))
-  }, [state.cards, state.duelists, activeDuelistId, target, isEngineActive])
+  }, [state.cards, scopedDuelistId, target, isEngineActive])
 
   const codes = useMemo(() => pileCards.map((c) => c.code), [pileCards])
   const cardDataMap = useCardDataMap(codes)
+
+  const chainIndexesByInstance = useMemo(() => {
+    const map = new Map<string, number[]>()
+    for (const chain of boardChains) {
+      if (!chain.instanceId) continue
+      const indexes = map.get(chain.instanceId) ?? []
+      indexes.push(chain.index)
+      map.set(chain.instanceId, indexes)
+    }
+    return map
+  }, [boardChains])
 
   const getCardName = useCallback(
     (code: number): string => cardDataMap[code]?.name || resolveCardName(code),
@@ -93,7 +125,9 @@ const PileListContent: React.FC = () => {
   }, [pileCards, searchQuery, getCardName])
 
   const ownerDuelist =
-    state.duelists?.find((d) => d.id === activeDuelistId && d.team === target?.controller) || null
+    (!sharedPile && scopedDuelistId
+      ? state.duelists?.find((d) => d.id === scopedDuelistId && d.team === target?.controller)
+      : undefined) ?? null
 
   const isFiltering = searchQuery.trim().length > 0
   const dragEnabled = !isFiltering && !isEngineActive
@@ -330,6 +364,7 @@ const PileListContent: React.FC = () => {
               location={target.location}
               holdEnabled={!isEngineActive}
               selectedCardId={selectedCardId}
+              chainIndexesByInstance={chainIndexesByInstance}
               getCardName={(card) => getCardName(card.code)}
               onSelect={handleSelect}
               onHoverChange={handleHoverChange}

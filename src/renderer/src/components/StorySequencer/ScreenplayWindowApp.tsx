@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CardLocation, DuelPuzzleState, DuelStep } from '@shared/index'
+import { DuelPuzzleState, DuelStep } from '@shared/index'
 import { Button } from '../ui/button'
 import { WindowControls } from '../ui/window-controls'
 import { Film, Copy, Check, FileText, Download, Layers } from 'lucide-react'
@@ -12,16 +12,16 @@ import { ScreenplayDocumentView } from './ScreenplayDocumentView'
 import { ScreenplayOutlineList } from './ScreenplayOutlineList'
 import { ScreenplayStepEditor } from './ScreenplayStepEditor'
 
-const genStepId = (): string => `step_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
-
 export const ScreenplayWindowApp: React.FC = () => {
   const [puzzle, setPuzzle] = useState<DuelPuzzleState | null>(null)
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
+  const [engineActive, setEngineActive] = useState(false)
 
   useEffect(() => {
     const offSnapshot = window.api.onScreenplaySnapshot((snapshot) => {
       setPuzzle(snapshot.state)
       setSelectedStepId(snapshot.selectedStepId)
+      setEngineActive(snapshot.engineActive)
     })
     void window.api.requestScreenplayState()
     return offSnapshot
@@ -41,6 +41,7 @@ export const ScreenplayWindowApp: React.FC = () => {
       setPuzzle={setPuzzle}
       selectedStepId={selectedStepId}
       onSelectStep={handleSelectStep}
+      stepEditingLocked={engineActive}
     />
   )
 }
@@ -50,13 +51,15 @@ interface ScreenplayWindowBodyProps {
   setPuzzle: React.Dispatch<React.SetStateAction<DuelPuzzleState | null>>
   selectedStepId: string | null
   onSelectStep: (id: string | null) => void
+  stepEditingLocked: boolean
 }
 
 const ScreenplayWindowBody = ({
   puzzle,
   setPuzzle,
   selectedStepId,
-  onSelectStep
+  onSelectStep,
+  stepEditingLocked
 }: ScreenplayWindowBodyProps): React.JSX.Element => {
   const state = puzzle
   const steps = useMemo(() => state.steps || [], [state.steps])
@@ -104,32 +107,11 @@ const ScreenplayWindowBody = ({
   }
 
   const deleteStep = (stepId: string): void => {
+    if (stepEditingLocked) return
     setPuzzle((prev) =>
       prev ? { ...prev, steps: (prev.steps || []).filter((s) => s.id !== stepId) } : prev
     )
     void window.api.sendScreenplayEdit({ kind: 'deleteStep', stepId })
-  }
-
-  const addStep = (stepData: Omit<DuelStep, 'id'>): void => {
-    const step: DuelStep = { ...stepData, id: genStepId() }
-    setPuzzle((prev) => (prev ? { ...prev, steps: [...(prev.steps || []), step] } : prev))
-    onSelectStep(step.id)
-    void window.api.sendScreenplayEdit({ kind: 'addStep', step })
-  }
-
-  const handleInsertAfterCurrent = (): void => {
-    const baseTurn = activeStep ? activeStep.turn : 1
-    const basePhase = activeStep ? activeStep.phase : 'M1'
-    const basePlayer = activeStep ? activeStep.actionPlayer : 0
-    addStep({
-      turn: baseTurn,
-      turnPlayer: activeStep ? activeStep.turnPlayer : 0,
-      phase: basePhase,
-      actionPlayer: basePlayer,
-      actionType: 'NORMAL_SUMMON',
-      fromLocation: CardLocation.HAND,
-      toLocation: CardLocation.MZONE
-    })
   }
 
   const handleCopyFullScript = async (): Promise<void> => {
@@ -241,7 +223,6 @@ const ScreenplayWindowBody = ({
             steps={steps}
             activeStep={activeStep}
             onSelectStep={onSelectStep}
-            onInsertAfterCurrent={handleInsertAfterCurrent}
           />
           <ScreenplayStepEditor
             activeStep={activeStep}
@@ -250,8 +231,8 @@ const ScreenplayWindowBody = ({
             onSelectStep={onSelectStep}
             onUpdateStep={updateStep}
             onDeleteStep={deleteStep}
-            onInsertAfterCurrent={handleInsertAfterCurrent}
             onOpenChantPicker={setChantPickerCode}
+            stepEditingLocked={stepEditingLocked}
           />
         </div>
       )}

@@ -14,6 +14,9 @@ import {
   SettingsSectionId,
   EngineExportReplayParams,
   EngineExportReplayResult,
+  EngineOpenReplayResult,
+  ReplayDeleteResult,
+  ReplayFileListResult,
   Answer,
   InjectCommand,
   TimingPolicy,
@@ -58,7 +61,7 @@ const api: IpcApi = {
     ipcRenderer.invoke('customcard:save-script-content', code, content),
   deleteCustomCardScript: (code) => ipcRenderer.invoke('customcard:delete-script', code),
   openCustomCardScriptDir: () => ipcRenderer.invoke('customcard:open-script-dir'),
-  openCustomCardSyncDir: () => ipcRenderer.invoke('customcard:open-sync-dir'),
+  openCustomCardSyncDir: (target) => ipcRenderer.invoke('customcard:open-sync-dir', target),
   getCustomSetcodeNames: () => ipcRenderer.invoke('customcard:list-setcodes'),
   renameCustomSetcode: (codeHex, name) =>
     ipcRenderer.invoke('customcard:rename-setcode', codeHex, name),
@@ -148,6 +151,14 @@ const api: IpcApi = {
   duelExportReplay: (params: EngineExportReplayParams): Promise<EngineExportReplayResult> =>
     ipcRenderer.invoke('duel:export-replay', params),
 
+  duelOpenReplay: (filePath: string): Promise<EngineOpenReplayResult> =>
+    ipcRenderer.invoke('duel:open-replay', filePath),
+
+  duelListReplays: (): Promise<ReplayFileListResult> => ipcRenderer.invoke('duel:list-replays'),
+
+  duelDeleteReplays: (fileNames: string[]): Promise<ReplayDeleteResult> =>
+    ipcRenderer.invoke('duel:delete-replays', fileNames),
+
   duelEngineInit: (params) => ipcRenderer.invoke('duel-engine:init', params),
   duelEngineSetPolicy: (policy: TimingPolicy) =>
     ipcRenderer.invoke('duel-engine:set-policy', policy),
@@ -165,6 +176,13 @@ const api: IpcApi = {
   duelEngineImportSession: () => ipcRenderer.invoke('duel-engine:import-session'),
   duelEngineImportReplay: () => ipcRenderer.invoke('duel-engine:import-replay'),
   duelEngineExitReplay: () => ipcRenderer.invoke('duel-engine:exit-replay'),
+  onReplayImportStarting: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('duel-engine:replay-import-starting', handler)
+    return () => {
+      ipcRenderer.removeListener('duel-engine:replay-import-starting', handler)
+    }
+  },
 
   saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
   saveProjectToPath: (filePath: string, state: DuelPuzzleState) =>

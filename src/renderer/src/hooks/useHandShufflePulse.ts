@@ -8,10 +8,15 @@ export interface HandShufflePulse {
   active: boolean
 }
 
-export function useHandShufflePulse(controller: 0 | 1): HandShufflePulse {
+export function useHandShufflePulse(controller: 0 | 1, duelistId?: string): HandShufflePulse {
   const signal = useDuelEngineStore((s) => s.handShuffle)
   const [expiredId, setExpiredId] = useState(0)
-  const signalId = signal && signal.players.includes(controller) ? signal.id : 0
+  const matches = signal
+    ? signal.duelists && signal.duelists.length > 0
+      ? Boolean(duelistId && signal.duelists.includes(duelistId))
+      : signal.players.includes(controller)
+    : false
+  const signalId = signal && matches ? signal.id : 0
 
   useEffect(() => {
     if (!signalId) return

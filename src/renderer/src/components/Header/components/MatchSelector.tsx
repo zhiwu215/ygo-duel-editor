@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Users, X } from 'lucide-react'
 import { useDuelStore } from '../../../stores/useDuelStore'
-import { MatchConfig } from '@shared/index'
+import { MatchConfig, normalizeMatchConfig } from '@shared/index'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { Button } from '../../ui/button'
 import {
@@ -15,20 +15,24 @@ import {
 
 export const MatchSelector: React.FC = () => {
   const { state, switchMatchConfig } = useDuelStore()
-  const matchConfig = state.matchConfig || {
-    mode: '1v1',
-    team0Count: 1,
-    team1Count: 1,
-    sharedLp: false
-  }
+  const matchConfig = normalizeMatchConfig(state.matchConfig)
 
   const [showCustomModal, setShowCustomModal] = useState(false)
   const [team0Input, setTeam0Input] = useState(matchConfig.team0Count || 1)
   const [team1Input, setTeam1Input] = useState(matchConfig.team1Count || 1)
 
+  const selectValue =
+    matchConfig.mode === 'tag'
+      ? matchConfig.tagFormat === 'standard'
+        ? 'tag-standard'
+        : 'tag-independent'
+      : matchConfig.mode
+
   const getDisplayLabel = (): string => {
     if (matchConfig.mode === '1v1') return '1 v 1'
-    if (matchConfig.mode === 'tag') return '2 v 2 双打'
+    if (matchConfig.mode === 'tag') {
+      return matchConfig.tagFormat === 'standard' ? '2 v 2 标准' : '2 v 2 独立 LP'
+    }
     return `自定义 (${matchConfig.team0Count} v ${matchConfig.team1Count})`
   }
 
@@ -38,14 +42,22 @@ export const MatchSelector: React.FC = () => {
       switchMatchConfig({
         mode: '1v1',
         team0Count: 1,
-        team1Count: 1,
-        sharedLp: false
+        team1Count: 1
       })
-    } else if (val === 'tag') {
+    } else if (val === 'tag-standard') {
       switchMatchConfig({
         mode: 'tag',
         team0Count: 2,
         team1Count: 2,
+        tagFormat: 'standard',
+        sharedLp: true
+      })
+    } else if (val === 'tag-independent') {
+      switchMatchConfig({
+        mode: 'tag',
+        team0Count: 2,
+        team1Count: 2,
+        tagFormat: 'independent',
         sharedLp: false
       })
     } else if (val === 'custom') {
@@ -60,14 +72,18 @@ export const MatchSelector: React.FC = () => {
     const t1 = Math.min(6, Math.max(1, Number(team1Input) || 1))
 
     let mode: MatchConfig['mode'] = 'custom'
+    let tagFormat: MatchConfig['tagFormat']
     if (t0 === 1 && t1 === 1) mode = '1v1'
-    else if (t0 === 2 && t1 === 2) mode = 'tag'
+    else if (t0 === 2 && t1 === 2) {
+      mode = 'tag'
+      tagFormat = 'independent'
+    }
 
     switchMatchConfig({
       mode,
       team0Count: t0,
       team1Count: t1,
-      sharedLp: false
+      ...(tagFormat ? { tagFormat, sharedLp: false } : {})
     })
     setShowCustomModal(false)
   }
@@ -76,13 +92,14 @@ export const MatchSelector: React.FC = () => {
     <>
       <div className="flex items-center gap-1.5">
         <Users className="w-3.5 h-3.5 text-muted-foreground" />
-        <Select value={matchConfig.mode} onValueChange={handleSelectChange}>
-          <SelectTrigger size="sm" className="h-6 text-xs bg-background/60 min-w-[105px]">
+        <Select value={selectValue} onValueChange={handleSelectChange}>
+          <SelectTrigger size="sm" className="h-6 text-xs bg-background/60 min-w-[120px]">
             <SelectValue>{getDisplayLabel()}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="1v1">1 v 1</SelectItem>
-            <SelectItem value="tag">2 v 2 双打</SelectItem>
+            <SelectItem value="tag-standard">2 v 2 标准</SelectItem>
+            <SelectItem value="tag-independent">2 v 2 独立 LP</SelectItem>
             <SelectItem value="custom">自定义人数…</SelectItem>
           </SelectContent>
         </Select>

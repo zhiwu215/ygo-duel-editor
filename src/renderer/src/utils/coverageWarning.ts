@@ -15,14 +15,11 @@ export function formatCoverageWarning(
       `缺少效果脚本 ${coverage.missingScriptIds.length} 张${sampleIds(coverage.missingScriptIds, names)}`
     )
   }
-  if (parts.length > 0) {
-    parts.push('检查范围包含主卡组、额外卡组、手牌、墓地、除外区以及各场景中的卡，不只是场上。')
-  }
   return parts.join('\n')
 }
 
 function sampleIds(ids: number[], names: Record<number, string>): string {
   const labels = ids.slice(0, 5).map((id) => names[id] ?? `#${id}`)
   const more = ids.length > 5 ? ' 等' : ''
-  return `（${labels.join('、')}${more}）`
+  return `：${labels.map((label) => `「${label}」`).join('、')}${more}`
 }

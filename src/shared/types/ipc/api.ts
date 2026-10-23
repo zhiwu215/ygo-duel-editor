@@ -36,6 +36,7 @@ import {
   CustomCardScriptPickResult,
   CustomCardScriptResult,
   CustomCardSyncResult,
+  CustomCardSyncTarget,
   CustomSetcodeNamesResult
 } from './customCard'
 import {
@@ -48,19 +49,26 @@ import {
   AgentStreamEvent
 } from './agent'
 import { AppConfig, DataDirectoryResult, DuelTestSettings, SettingsSectionId } from './appConfig'
-import { EngineExportReplayParams, EngineExportReplayResult, TestInGameResult } from './engine'
+import {
+  EngineExportReplayParams,
+  EngineExportReplayResult,
+  EngineOpenReplayResult,
+  ReplayDeleteResult,
+  ReplayFileListResult,
+  TestInGameResult
+} from './engine'
 import { DuelProjectMeta } from './project'
 import { CardNote, CardNoteEntry, CardNoteKind } from './note'
 import { TextChapter, TextMeta } from './text'
 
 export type ScreenplayEdit =
-  | { kind: 'addStep'; step: DuelStep }
   | { kind: 'updateStep'; stepId: string; patch: Partial<DuelStep> }
   | { kind: 'deleteStep'; stepId: string }
 
 export interface ScreenplaySnapshot {
   state: DuelPuzzleState
   selectedStepId: string | null
+  engineActive: boolean
 }
 
 export interface IpcApi {
@@ -105,7 +113,7 @@ export interface IpcApi {
   }) => Promise<CustomCardScriptGenerateResult>
   saveCustomCardScriptContent: (code: number, content: string) => Promise<CustomCardScriptResult>
   openCustomCardScriptDir: () => Promise<void>
-  openCustomCardSyncDir: () => Promise<CustomCardOpenDirResult>
+  openCustomCardSyncDir: (target: CustomCardSyncTarget) => Promise<CustomCardOpenDirResult>
   getCustomSetcodeNames: () => Promise<Record<string, string>>
   renameCustomSetcode: (codeHex: string, name: string) => Promise<CustomSetcodeNamesResult>
   syncCustomCardsToGame: () => Promise<CustomCardSyncResult>
@@ -273,6 +281,12 @@ export interface IpcApi {
   agentGetProviderPresets: () => Promise<AgentProviderPreset[]>
   duelExportReplay: (params: EngineExportReplayParams) => Promise<EngineExportReplayResult>
 
+  duelOpenReplay: (filePath: string) => Promise<EngineOpenReplayResult>
+
+  duelListReplays: () => Promise<ReplayFileListResult>
+
+  duelDeleteReplays: (fileNames: string[]) => Promise<ReplayDeleteResult>
+
   duelEngineInit: (params: EngineDuelInitParams) => Promise<{
     boardState: EngineBoardState
     pendingRequest: EngineRequest | null
@@ -294,6 +308,7 @@ export interface IpcApi {
   duelEngineImportSession: () => Promise<EngineSessionImportResult>
   duelEngineImportReplay: () => Promise<EngineImportReplayResult>
   duelEngineExitReplay: () => Promise<void>
+  onReplayImportStarting: (callback: () => void) => () => void
   openSettingsWindow: (section?: SettingsSectionId) => Promise<void>
   onSettingsNavigate: (callback: (section: SettingsSectionId) => void) => () => void
   openExternal: (url: string) => Promise<boolean>

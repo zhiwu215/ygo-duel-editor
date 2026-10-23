@@ -3,7 +3,10 @@ import {
   DuelPuzzleState,
   DuelTestSettings,
   EngineExportReplayParams,
-  EngineExportReplayResult
+  EngineExportReplayResult,
+  EngineOpenReplayResult,
+  ReplayDeleteResult,
+  ReplayFileListResult
 } from '@shared/index'
 import { projectFileService } from '../services/projectFileService'
 import { projectSeriesService } from '../services/projectSeriesService'
@@ -39,6 +42,24 @@ export function registerProjectIpc(): void {
     'duel:export-replay',
     async (_, params: EngineExportReplayParams): Promise<EngineExportReplayResult> => {
       return ygoproLauncher.exportReplay(params)
+    }
+  )
+
+  ipcMain.handle(
+    'duel:open-replay',
+    async (_, filePath: string): Promise<EngineOpenReplayResult> => {
+      return ygoproLauncher.openReplay(filePath)
+    }
+  )
+
+  ipcMain.handle('duel:list-replays', async (): Promise<ReplayFileListResult> => {
+    return ygoproLauncher.listReplays()
+  })
+
+  ipcMain.handle(
+    'duel:delete-replays',
+    async (_, fileNames: string[]): Promise<ReplayDeleteResult> => {
+      return ygoproLauncher.deleteReplays(fileNames)
     }
   )
 

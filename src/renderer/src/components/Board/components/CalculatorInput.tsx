@@ -42,6 +42,7 @@ export interface CalculatorInputProps {
   size?: 'default' | 'sm'
   density?: 'default' | 'compact'
   popoverPlacement?: 'top' | 'bottom'
+  inputClassName?: string
   onCommit: (val: number | undefined) => void
 }
 
@@ -54,6 +55,7 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
   size = 'default',
   density = 'default',
   popoverPlacement = 'bottom',
+  inputClassName,
   onCommit
 }) => {
   const [isFocused, setIsFocused] = useState(false)
@@ -190,7 +192,8 @@ export const CalculatorInput: React.FC<CalculatorInputProps> = ({
         isFocused &&
           parseResult.valid &&
           parseResult.result !== value &&
-          'border-blue-400/80 bg-blue-500/5'
+          'border-blue-400/80 bg-blue-500/5',
+        inputClassName
       )}
     />
   )

@@ -41,7 +41,7 @@ interface BoardLayoutResult {
 
 function buildLayoutFromSetup(
   state: DuelPuzzleState,
-  activeDuelistId: string | null,
+  activeDuelistIds: [string | null, string | null],
   params: {
     lp: AgentBoardLpTarget[]
     cards: ResolvedBoardPlacement[]
@@ -106,7 +106,7 @@ function buildLayoutFromSetup(
     if (isOwnerScopedZone && !duelistId) {
       const teamDuelists = baseDuelists.filter((d) => d.team === c.controller)
       duelistId =
-        teamDuelists.find((d) => d.id === activeDuelistId)?.id ||
+        teamDuelists.find((d) => d.id === activeDuelistIds[c.controller])?.id ||
         teamDuelists[0]?.id ||
         (c.controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
     }
@@ -214,7 +214,7 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
 
   applyDuelScreenplay: ({ lp, cards, steps, clearExisting }) =>
     set((prev) => {
-      const layout = buildLayoutFromSetup(prev.state, prev.activeDuelistId, {
+      const layout = buildLayoutFromSetup(prev.state, prev.activeDuelistIds, {
         lp,
         cards,
         clearExisting
@@ -254,7 +254,8 @@ export const createSetupSlice: StateCreator<DuelStore, [], [], SetupSlice> = (se
         duelistId && teamDuelists.some((d) => d.id === duelistId)
           ? duelistId
           : multi
-            ? (teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ?? teamDuelists[0]?.id)
+            ? (teamDuelists.find((d) => d.id === prev.activeDuelistIds[player])?.id ??
+              teamDuelists[0]?.id)
             : null
 
       const assignDuelistId = ownerScope ?? teamDuelists[0]?.id ?? `duelist_${player}_0`

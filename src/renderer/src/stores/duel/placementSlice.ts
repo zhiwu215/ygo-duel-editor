@@ -60,7 +60,7 @@ function applyMoveCard(prev: DuelStore, params: MoveCardParams): Partial<DuelSto
   const pileDuelistId = isPileZone
     ? targetDuelistId ||
       targetCard.duelistId ||
-      teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ||
+      teamDuelists.find((d) => d.id === prev.activeDuelistIds[ctrl])?.id ||
       teamDuelists[0]?.id ||
       (ctrl === 0 ? 'duelist_0_0' : 'duelist_1_0')
     : undefined
@@ -200,7 +200,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       let assignedDuelistId = duelistId
       if (isOwnerScopedZone && !assignedDuelistId) {
         assignedDuelistId =
-          teamDuelists.find((d) => d.id === prev.activeDuelistId)?.id ||
+          teamDuelists.find((d) => d.id === prev.activeDuelistIds[controller])?.id ||
           teamDuelists[0]?.id ||
           (controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
       }
@@ -282,104 +282,110 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
     targetDuelistId,
     stepLabel
   ) => {
-    const fromCard = get().state.cards.find((c) => c.instanceId === instanceId)
-    const effectivePos = resolveTargetPosition(
-      toLocation,
-      customPos,
-      fromCard?.location,
-      fromCard?.position
-    )
-    set((prev) => ({
-      ...applyMoveCard(prev, {
-        instanceId,
+    get().withSingleUndoStep(() => {
+      const fromCard = get().state.cards.find((c) => c.instanceId === instanceId)
+      const effectivePos = resolveTargetPosition(
         toLocation,
-        toSequence,
-        toController,
-        customPos: effectivePos,
-        targetDuelistId
-      })
-    }))
-    if (fromCard) {
-      const name = fromCard.card?.name
-      const resolvedLabel =
-        stepLabel ??
-        resolveMoveStepLabel(fromCard.location, toLocation, effectivePos, fromCard.card?.name)
-      recordEditorStep({
-        actionType: resolvedLabel?.actionType ?? moveActionType(toLocation),
-        controller: toController ?? fromCard.controller,
-        cardCode: fromCard.code,
-        cardName: name,
-        fromLocation: fromCard.location,
-        fromSequence: fromCard.sequence,
-        toLocation,
-        toSequence,
-        fromController: fromCard.controller,
-        toController: toController ?? fromCard.controller,
-        fromPosition: fromCard.position,
-        toPosition: effectivePos,
-        description:
-          resolvedLabel?.description ??
-          (name
-            ? `将【${name}】移至${LOCATION_NAMES[toLocation] ?? '区域'}`
-            : `移动卡片至${LOCATION_NAMES[toLocation] ?? '区域'}`),
-        op: {
-          type: 'move',
+        customPos,
+        fromCard?.location,
+        fromCard?.position
+      )
+      set((prev) => ({
+        ...applyMoveCard(prev, {
           instanceId,
           toLocation,
           toSequence,
           toController,
-          customPos: effectivePos
-        }
-      })
-    }
+          customPos: effectivePos,
+          targetDuelistId
+        })
+      }))
+      if (fromCard) {
+        const name = fromCard.card?.name
+        const resolvedLabel =
+          stepLabel ??
+          resolveMoveStepLabel(fromCard.location, toLocation, effectivePos, fromCard.card?.name)
+        recordEditorStep({
+          actionType: resolvedLabel?.actionType ?? moveActionType(toLocation),
+          controller: toController ?? fromCard.controller,
+          duelistId: targetDuelistId ?? fromCard.duelistId,
+          cardCode: fromCard.code,
+          cardName: name,
+          fromLocation: fromCard.location,
+          fromSequence: fromCard.sequence,
+          toLocation,
+          toSequence,
+          fromController: fromCard.controller,
+          toController: toController ?? fromCard.controller,
+          fromPosition: fromCard.position,
+          toPosition: effectivePos,
+          description:
+            resolvedLabel?.description ??
+            (name
+              ? `将【${name}】移至${LOCATION_NAMES[toLocation] ?? '区域'}`
+              : `移动卡片至${LOCATION_NAMES[toLocation] ?? '区域'}`),
+          op: {
+            type: 'move',
+            instanceId,
+            toLocation,
+            toSequence,
+            toController,
+            customPos: effectivePos
+          }
+        })
+      }
+    })
   },
 
   moveCards: (moves) => {
-    const fromCards = new Map(
-      get()
-        .state.cards.filter((c) => moves.some((m) => m.instanceId === c.instanceId))
-        .map((c) => [c.instanceId, c])
-    )
-    const effectiveMoves = moves.map((m) => {
-      const fromCard = fromCards.get(m.instanceId)
-      return {
-        ...m,
-        customPos: resolveTargetPosition(
-          m.toLocation,
-          m.customPos,
-          fromCard?.location,
-          fromCard?.position
-        )
-      }
-    })
-    set((prev) => {
-      let acc = prev
-      for (const m of effectiveMoves) {
-        acc = { ...acc, ...applyMoveCard(acc, m) }
-      }
-      return acc
-    })
-    for (const m of effectiveMoves) {
-      const fromCard = fromCards.get(m.instanceId)
-      if (!fromCard) continue
-      const name = fromCard.card?.name
-      recordEditorStep({
-        actionType: moveActionType(m.toLocation),
-        controller: m.toController ?? fromCard.controller,
-        cardCode: fromCard.code,
-        cardName: name,
-        fromLocation: fromCard.location,
-        fromSequence: fromCard.sequence,
-        toLocation: m.toLocation,
-        toSequence: m.toSequence,
-        fromController: fromCard.controller,
-        toController: m.toController ?? fromCard.controller,
-        description: name
-          ? `将【${name}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
-          : `移动卡片至${LOCATION_NAMES[m.toLocation] ?? '区域'}`,
-        op: { type: 'move', ...m }
+    get().withSingleUndoStep(() => {
+      const fromCards = new Map(
+        get()
+          .state.cards.filter((c) => moves.some((m) => m.instanceId === c.instanceId))
+          .map((c) => [c.instanceId, c])
+      )
+      const effectiveMoves = moves.map((m) => {
+        const fromCard = fromCards.get(m.instanceId)
+        return {
+          ...m,
+          customPos: resolveTargetPosition(
+            m.toLocation,
+            m.customPos,
+            fromCard?.location,
+            fromCard?.position
+          )
+        }
       })
-    }
+      set((prev) => {
+        let acc = prev
+        for (const m of effectiveMoves) {
+          acc = { ...acc, ...applyMoveCard(acc, m) }
+        }
+        return acc
+      })
+      for (const m of effectiveMoves) {
+        const fromCard = fromCards.get(m.instanceId)
+        if (!fromCard) continue
+        const name = fromCard.card?.name
+        recordEditorStep({
+          actionType: moveActionType(m.toLocation),
+          controller: m.toController ?? fromCard.controller,
+          duelistId: fromCard.duelistId,
+          cardCode: fromCard.code,
+          cardName: name,
+          fromLocation: fromCard.location,
+          fromSequence: fromCard.sequence,
+          toLocation: m.toLocation,
+          toSequence: m.toSequence,
+          fromController: fromCard.controller,
+          toController: m.toController ?? fromCard.controller,
+          description: name
+            ? `将【${name}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
+            : `移动卡片至${LOCATION_NAMES[m.toLocation] ?? '区域'}`,
+          op: { type: 'move', ...m }
+        })
+      }
+    })
   },
 
   removeCard: (instanceId) => {
@@ -423,64 +429,68 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
   },
 
   updateCardPosition: (instanceId, position) => {
-    const oldPos = get().state.cards.find((c) => c.instanceId === instanceId)?.position
-    set((prev) => {
-      const targetCard = prev.state.cards.find((c) => c.instanceId === instanceId)
-      if (!targetCard) return prev
-      if (targetCard.position === position) return prev
+    get().withSingleUndoStep(() => {
+      const oldPos = get().state.cards.find((c) => c.instanceId === instanceId)?.position
+      set((prev) => {
+        const targetCard = prev.state.cards.find((c) => c.instanceId === instanceId)
+        if (!targetCard) return prev
+        if (targetCard.position === position) return prev
 
-      const updatedCards = prev.state.cards.map((c) =>
-        c.instanceId === instanceId ? { ...c, position } : c
-      )
+        const updatedCards = prev.state.cards.map((c) =>
+          c.instanceId === instanceId ? { ...c, position } : c
+        )
 
-      return {
-        state: {
-          ...prev.state,
-          cards: updatedCards
+        return {
+          state: {
+            ...prev.state,
+            cards: updatedCards
+          }
+        }
+      })
+      if (oldPos !== undefined && oldPos !== position) {
+        const card = get().state.cards.find((c) => c.instanceId === instanceId)
+        if (card) {
+          const name = card.card?.name
+          const isSpellTrapZone =
+            card.location === CardLocation.SZONE ||
+            card.location === CardLocation.FZONE ||
+            card.location === CardLocation.PZONE
+          const isActivation =
+            isSpellTrapZone && oldPos === CardPosition.FACEDOWN && position === CardPosition.FACEUP
+          recordEditorStep(
+            isActivation
+              ? {
+                  actionType: 'ACTIVATE',
+                  controller: card.controller,
+                  duelistId: card.duelistId,
+                  cardCode: card.code,
+                  cardName: name,
+                  fromLocation: card.location,
+                  fromSequence: card.sequence,
+                  toLocation: card.location,
+                  toSequence: card.sequence,
+                  description: name ? `发动【${name}】` : '发动魔法陷阱',
+                  op: { type: 'position', instanceId, position }
+                }
+              : {
+                  actionType: 'CHANGE_POS',
+                  controller: card.controller,
+                  duelistId: card.duelistId,
+                  cardCode: card.code,
+                  cardName: name,
+                  fromLocation: card.location,
+                  fromSequence: card.sequence,
+                  toLocation: card.location,
+                  toSequence: card.sequence,
+                  fromPosition: oldPos,
+                  toPosition: position,
+                  description: name ? `【${name}】变更表示形式` : '变更表示形式',
+                  op: { type: 'position', instanceId, position }
+                }
+          )
         }
       }
     })
-    if (oldPos !== undefined && oldPos !== position) {
-      const card = get().state.cards.find((c) => c.instanceId === instanceId)
-      if (card) {
-        const name = card.card?.name
-        const isSpellTrapZone =
-          card.location === CardLocation.SZONE ||
-          card.location === CardLocation.FZONE ||
-          card.location === CardLocation.PZONE
-        const isActivation =
-          isSpellTrapZone && oldPos === CardPosition.FACEDOWN && position === CardPosition.FACEUP
-        recordEditorStep(
-          isActivation
-            ? {
-                actionType: 'ACTIVATE',
-                controller: card.controller,
-                cardCode: card.code,
-                cardName: name,
-                fromLocation: card.location,
-                fromSequence: card.sequence,
-                toLocation: card.location,
-                toSequence: card.sequence,
-                description: name ? `发动【${name}】` : '发动魔法陷阱',
-                op: { type: 'position', instanceId, position }
-              }
-            : {
-                actionType: 'CHANGE_POS',
-                controller: card.controller,
-                cardCode: card.code,
-                cardName: name,
-                fromLocation: card.location,
-                fromSequence: card.sequence,
-                toLocation: card.location,
-                toSequence: card.sequence,
-                fromPosition: oldPos,
-                toPosition: position,
-                description: name ? `【${name}】变更表示形式` : '变更表示形式',
-                op: { type: 'position', instanceId, position }
-              }
-        )
-      }
-    }
   },
 
   setPlacedCardPosition: (instanceId, position) => {

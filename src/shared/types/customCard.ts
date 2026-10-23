@@ -1,5 +1,7 @@
 import { CdbCard, CardType } from './card'
 
+export type CustomCardSyncTarget = 'cdb' | 'script' | 'pics'
+
 export interface CustomCard {
   schemaVersion: 2
   id: number

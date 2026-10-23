@@ -12,7 +12,6 @@ import { CardFieldStats } from './components/CardFieldStats'
 import { OverlayMaterialStack } from './components/OverlayMaterialStack'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { useSelectionStore } from '../../stores/useSelectionStore'
 import { useAttackTargetingStore } from '../../stores/useAttackTargetingStore'
 import { isFaceupMonster } from '../../utils/battleDamage'
@@ -25,7 +24,8 @@ import {
 import { useCardPointerActions } from '../../hooks/useCardPointerActions'
 import { useFieldCardCdb } from '../../hooks/useFieldCardCdb'
 import { CardImage } from '../ui/CardImage'
-import { getCardBack } from '../../utils/cardImage'
+import negatedIcon from '../../assets/textures/negated.png'
+import { getCardBack, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { cn } from '../../lib/utils'
 
 export const HAND_REORDER_DRAG_TYPE = 'application/x-ygo-hand-reorder'
@@ -85,8 +85,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const [imageMissingCode, setImageMissingCode] = useState<number | null>(null)
   const imageMissing = imageMissingCode === card.code
   const hideSourceFrameRef = useRef<number | null>(null)
-  const customCards = useCustomCardStore((s) => s.cards)
-  const customCard = customCards.find((entry) => entry.id === card.code)
 
   useEffect(
     () => () => {
@@ -96,8 +94,22 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     },
     []
   )
+  const isFieldZone =
+    card.location === CardLocation.MZONE ||
+    card.location === CardLocation.SZONE ||
+    card.location === CardLocation.FZONE ||
+    card.location === CardLocation.PZONE
+  const isHand = card.location === CardLocation.HAND
+  const isPileZone =
+    card.location === CardLocation.DECK ||
+    card.location === CardLocation.EXTRA ||
+    card.location === CardLocation.GRAVE ||
+    card.location === CardLocation.REMOVED
+  const isDeckPile = card.location === CardLocation.DECK || card.location === CardLocation.EXTRA
   const isDefense =
-    card.position === CardPosition.FACEUP_DEFENSE || card.position === CardPosition.FACEDOWN_DEFENSE
+    isFieldZone &&
+    (card.position === CardPosition.FACEUP_DEFENSE ||
+      card.position === CardPosition.FACEDOWN_DEFENSE)
   const isFacedown =
     card.position === CardPosition.FACEDOWN || card.position === CardPosition.FACEDOWN_DEFENSE
 
@@ -112,29 +124,17 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
 
   const hasCounters = !!(card.counters && Object.values(card.counters).some((v) => v > 0))
 
-  const isFieldZone =
-    card.location === CardLocation.MZONE ||
-    card.location === CardLocation.SZONE ||
-    card.location === CardLocation.FZONE ||
-    card.location === CardLocation.PZONE
-
   const showHud = tacticalView && isFieldZone && (isMonster || hasCounters)
   const showFieldStats = isMonster && card.location === CardLocation.MZONE
 
-  const isHand = card.location === CardLocation.HAND
-  const isPileZone =
-    card.location === CardLocation.DECK ||
-    card.location === CardLocation.EXTRA ||
-    card.location === CardLocation.GRAVE ||
-    card.location === CardLocation.REMOVED
-  const isDeckPile = card.location === CardLocation.DECK || card.location === CardLocation.EXTRA
   const isPileFacedown = isFacedown && isDeckPile
-  const isSetOnField = isFacedown && !isDeckPile && !isHand
-  const showFacedownVeil = isSetOnField || isPileFacedown
+  const isSetOnField = isFacedown && isFieldZone
+  const isBanishedFacedown = isFacedown && card.location === CardLocation.REMOVED
+  const showFacedownVeil = isSetOnField || isPileFacedown || isBanishedFacedown
+  const isNegated = isFieldZone && ((card.status ?? 0) & (0x1 | 0x4000000)) !== 0
+  const showCardBack = isFacedown && !isHand
+  const showImageFallbackName = imageMissing && (!isFacedown || isHand)
   const isPublicHand = isHand && card.position === CardPosition.FACEUP
-  const showImageFallbackName =
-    (imageMissing || customCard !== undefined) &&
-    (!isFacedown || isPublicHand || (isHand && card.controller === 0))
 
   const badgePos = squareCell
     ? isDefense
@@ -250,7 +250,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
               code={card.code}
               small
               alt={resolveCardName(card.code)}
-              fallback={getCardBack(card.controller)}
+              fallback={showCardBack ? getCardBack(card.controller) : UNKNOWN_CARD_IMAGE}
               onFallback={() => setImageMissingCode(card.code)}
               className="w-full h-full object-cover select-none pointer-events-none"
             />
@@ -261,6 +261,13 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
             )}
             {showFacedownVeil && (
               <div className="absolute inset-0 bg-black/30 border border-amber-400/50 rounded pointer-events-none" />
+            )}
+            {isNegated && (
+              <img
+                src={negatedIcon}
+                alt=""
+                className="pointer-events-none absolute inset-0 z-20 m-auto h-[68%] w-[68%] object-contain drop-shadow-lg"
+              />
             )}
           </div>
         </motion.div>

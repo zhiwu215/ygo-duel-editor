@@ -1,10 +1,10 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import { Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
+import { resolveViewerDuelist, turnOrderOf } from '../../../utils/duelistNames'
 import { DuelistHandStrip } from './DuelistHandStrip'
 import { EditableNameChip } from './EditableNameChip'
 import { LpInput } from './LpInput'
-import { useHandShufflePulse } from '../../../hooks/useHandShufflePulse'
 import { useHorizontalWheelScroll } from '../../../hooks/useHorizontalWheelScroll'
 import { useLpCommit } from '../../../hooks/useLpCommit'
 import { cn } from '../../../lib/utils'
@@ -16,16 +16,24 @@ export const MultiHandTray: React.FC<{
   totalCount: number
 }> = ({ duelists, controller, teamHandCards, totalCount }) => {
   const sharedLp = useDuelStore((s) => s.state.matchConfig?.sharedLp)
+  const isTagMode = useDuelStore((s) => s.state.matchConfig?.mode === 'tag')
   const teamLp = useDuelStore((s) => s.state.players[controller]?.lp)
   const expandedDuelistId = useDuelStore((s) => s.expandedDuelistId)
   const setExpandedDuelistId = useDuelStore((s) => s.setExpandedDuelistId)
   const toggleSharedLp = useDuelStore((s) => s.toggleSharedLp)
   const setPlayerLp = useDuelStore((s) => s.setPlayerLp)
-  const activeDuelistId = useDuelStore((s) => s.activeDuelistId)
-  const setActiveDuelistId = useDuelStore((s) => s.setActiveDuelistId)
+  const activeDuelistIds = useDuelStore((s) => s.activeDuelistIds)
+  const currentTurn = useDuelStore((s) => s.currentTurn)
+  const focusDuelist = useDuelStore((s) => s.focusDuelist)
+  const selectedDuelist = resolveViewerDuelist(
+    duelists,
+    controller,
+    activeDuelistIds[controller],
+    currentTurn
+  )
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
+  const orderedDuelists = [...duelists].sort((a, b) => turnOrderOf(a) - turnOrderOf(b))
   const rowScrollRef = useRef<HTMLDivElement>(null)
-  const shuffle = useHandShufflePulse(controller)
   const commitLp = useLpCommit()
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -73,7 +81,7 @@ export const MultiHandTray: React.FC<{
   return (
     <div className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1">
       <div className="flex items-center gap-1.5 text-xs px-1 h-5">
-        {duelists.map((d) => (
+        {orderedDuelists.map((d) => (
           <EditableNameChip
             key={d.id}
             editing={renamingId === d.id}
@@ -86,7 +94,7 @@ export const MultiHandTray: React.FC<{
             <button
               type="button"
               onClick={() => {
-                setActiveDuelistId(d.id)
+                focusDuelist(d.id)
                 scrollStripIntoView(d.id)
               }}
               onContextMenu={(e) => {
@@ -99,7 +107,7 @@ export const MultiHandTray: React.FC<{
                 d.team === 1
                   ? 'text-red-600 dark:text-red-400'
                   : 'text-blue-600 dark:text-blue-400',
-                activeDuelistId === d.id
+                selectedDuelist?.id === d.id
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-muted/40 border-border hover:bg-muted'
               )}
@@ -113,18 +121,20 @@ export const MultiHandTray: React.FC<{
           共 {teamHandCards.length} 张
         </span>
 
-        <button
-          type="button"
-          onClick={toggleSharedLp}
-          className={cn(
-            'ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
-            isSharedLp
-              ? 'bg-primary/15 border-primary/40 text-primary'
-              : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
-          )}
-        >
-          {isSharedLp ? '✓ 队伍共用 LP' : '独立 LP'}
-        </button>
+        {!isTagMode && (
+          <button
+            type="button"
+            onClick={toggleSharedLp}
+            className={cn(
+              'ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
+              isSharedLp
+                ? 'bg-primary/15 border-primary/40 text-primary'
+                : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {isSharedLp ? '✓ 队伍共用 LP' : '独立 LP'}
+          </button>
+        )}
 
         {isSharedLp && (
           <LpInput
@@ -142,7 +152,7 @@ export const MultiHandTray: React.FC<{
         ref={rowScrollRef}
         className="w-full flex items-center gap-1.5 overflow-x-auto overflow-y-hidden select-none"
       >
-        {duelists.map((duelist) => {
+        {orderedDuelists.map((duelist) => {
           const duelistCards = teamHandCards.filter((c) => {
             if (c.duelistId) return c.duelistId === duelist.id
             return duelist.id === duelists[0].id
@@ -163,8 +173,6 @@ export const MultiHandTray: React.FC<{
               isExpanded={isExpanded}
               isCollapsed={isCollapsed}
               crowded={isCrowded}
-              shuffleTick={shuffle.tick}
-              shuffleActive={shuffle.active}
               ref={(el) => {
                 if (el) stripRefs.current.set(duelist.id, el)
                 else stripRefs.current.delete(duelist.id)

@@ -24,7 +24,8 @@ export function orderEditorCardsByEngineHand(
           !used.has(c.instanceId) &&
           c.controller === engineCard.controller &&
           c.location === CardLocation.HAND &&
-          c.sequence === engineCard.sequence
+          c.sequence === engineCard.sequence &&
+          (!engineCard.duelistId || c.duelistId === engineCard.duelistId)
       )
     if (!card || used.has(card.instanceId)) continue
     used.add(card.instanceId)

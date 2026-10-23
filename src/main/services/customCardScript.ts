@@ -7,8 +7,8 @@ import {
   CustomCardScriptPickResult,
   CustomCardScriptResult
 } from '@shared/index'
-import { configService } from './configService'
 import { dataDirService } from './dataDirService'
+import { getGameScriptDirectories } from './gameScriptPaths'
 
 const SCRIPT_EXTENSION = '.lua'
 
@@ -28,14 +28,12 @@ function customScriptPath(code: number): string {
   return join(customScriptDir(), customScriptName(code))
 }
 
-function gameScriptDir(): string | null {
-  const gameDirectory = configService.get().gameDirectory
-  return gameDirectory ? join(gameDirectory, 'expansions', 'script') : null
+function gameScriptDirs(): string[] {
+  return getGameScriptDirectories()
 }
 
 function scriptSearchDirs(): string[] {
-  const gameDir = gameScriptDir()
-  return gameDir ? [customScriptDir(), gameDir] : [customScriptDir()]
+  return [customScriptDir(), ...gameScriptDirs()]
 }
 
 function findCustomScriptPath(code: number): string | null {
@@ -244,13 +242,15 @@ export function readCustomScript(scriptPath: string): Uint8Array | null {
   const content = cachedReader.read(scriptPath)
   if (content) return content
 
-  const gameDir = gameScriptDir()
-  if (!gameDir) return null
-  const fallback = join(gameDir, basename(scriptPath))
-  if (!existsSync(fallback)) return null
-  try {
-    return new Uint8Array(readFileSync(fallback))
-  } catch {
-    return null
+  const gameDirs = gameScriptDirs()
+  for (const gameDir of gameDirs) {
+    const fallback = join(gameDir, basename(scriptPath))
+    if (!existsSync(fallback)) continue
+    try {
+      return new Uint8Array(readFileSync(fallback))
+    } catch {
+      return null
+    }
   }
+  return null
 }

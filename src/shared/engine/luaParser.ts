@@ -1,7 +1,7 @@
 import { DuelPuzzleState, FieldCard } from '../types/duel'
 import {
-  createDefaultDuelists,
   createInitialDuelState,
+  createStandardTagDuelists,
   normalizeDuelState
 } from '../types/duelFactory'
 import { CardLocation } from '../constants/locations'
@@ -163,9 +163,10 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
       mode: 'tag',
       team0Count: 2,
       team1Count: 2,
-      sharedLp: false
+      tagFormat: 'standard',
+      sharedLp: true
     }
-    state.duelists = createDefaultDuelists(2, 2)
+    state.duelists = createStandardTagDuelists()
   }
 
   return normalizeDuelState(state)

@@ -1,10 +1,10 @@
 import React from 'react'
 import { ACTION_TYPE_COLORS, DuelActionType } from '@shared/index'
-import { ArrowRight, ChevronRight, Link2 } from 'lucide-react'
+import { ArrowRight, ChevronRight } from 'lucide-react'
 import { CardImage } from '../ui/CardImage'
 import { cn } from '../../lib/utils'
 
-export type StepGroupKind = 'chain' | 'attack' | 'draw'
+export type StepGroupKind = 'attack' | 'draw'
 
 export interface StepGroupSummary {
   kind: StepGroupKind
@@ -15,7 +15,6 @@ export interface StepGroupSummary {
   actionType: DuelActionType
   names: string[]
   cardCodes?: (number | undefined)[]
-  chainNumber?: number
   damageText?: string
   count: number
   expanded: boolean
@@ -52,9 +51,6 @@ const GROUP_HEADER_STYLES = (player: 0 | 1, isCurrentPlaying: boolean): string =
 
 export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summary }) => {
   const colorTheme = ACTION_TYPE_COLORS[summary.actionType] || ACTION_TYPE_COLORS.NORMAL_SUMMON
-  const chainNames = summary.names.map((name) => `【${name}】`)
-  const chainText =
-    chainNames.length > 2 ? `${chainNames.slice(0, 2).join(' → ')} …` : chainNames.join(' → ')
   const onKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
@@ -81,7 +77,7 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
           />
           <span
             className={cn(
-              'text-[9px] font-bold px-1.5 py-0.5 rounded leading-none shrink-0',
+              'text-[9px] font-bold px-1.5 py-0.5 rounded leading-none shrink-0 max-w-[80px] truncate',
               PLAYER_BADGE_STYLES[summary.player]
             )}
           >
@@ -139,40 +135,23 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
         ) : null}
 
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          {summary.kind === 'chain' ? (
+          <span className="font-bold text-xs text-foreground truncate">【{summary.cardName}】</span>
+          <span
+            className={cn(
+              'text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0',
+              colorTheme.bg,
+              colorTheme.text,
+              colorTheme.border
+            )}
+          >
+            攻击
+          </span>
+          {summary.damageText && (
             <>
-              <span className="flex items-center gap-0.5 shrink-0 text-[10px] font-bold px-1 py-0.5 rounded bg-teal-500/15 text-teal-400 border border-teal-500/30">
-                <Link2 className="w-2.5 h-2.5" />
-                <span>连锁 #{summary.chainNumber ?? 1}</span>
+              <ArrowRight className="w-2.5 h-2.5 text-muted-foreground/60 shrink-0" />
+              <span className="text-[11px] font-bold text-amber-500 truncate">
+                {summary.damageText}
               </span>
-              <span className="text-[10px] text-muted-foreground/50 shrink-0">·</span>
-              <span className="text-[11px] font-semibold text-foreground truncate">
-                {chainText}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="font-bold text-xs text-foreground truncate">
-                【{summary.cardName}】
-              </span>
-              <span
-                className={cn(
-                  'text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0',
-                  colorTheme.bg,
-                  colorTheme.text,
-                  colorTheme.border
-                )}
-              >
-                攻击
-              </span>
-              {summary.damageText && (
-                <>
-                  <ArrowRight className="w-2.5 h-2.5 text-muted-foreground/60 shrink-0" />
-                  <span className="text-[11px] font-bold text-amber-500 truncate">
-                    {summary.damageText}
-                  </span>
-                </>
-              )}
             </>
           )}
         </div>

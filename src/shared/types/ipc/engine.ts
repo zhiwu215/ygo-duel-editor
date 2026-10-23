@@ -1,8 +1,11 @@
 import { DuelPuzzleState } from '../duel'
+import type { MasterRule } from '../rules'
 import type { EngineBoardState, EngineTimelineNode } from '../duelEngine'
 
 export interface EngineExportReplayParams {
   state: DuelPuzzleState
+  name?: string
+  overwrite?: boolean
   launch?: boolean
   force?: boolean
 }
@@ -16,8 +19,15 @@ export interface EngineExportReplayResult {
   success: boolean
   manualHint?: string
   errorCode?:
-    'no-game-directory' | 'game-not-found' | 'replay-failed' | 'no-actions' | 'content-missing'
+    | 'no-game-directory'
+    | 'game-not-found'
+    | 'replay-failed'
+    | 'no-actions'
+    | 'content-missing'
+    | 'replay-exists'
   error?: string
+  existingPath?: string
+  name?: string
   luaPath?: string
   yrpPath?: string
   yrp3dPath?: string
@@ -37,11 +47,25 @@ export interface TestInGameResult {
 
 export interface EngineReplaySummary {
   fileName: string
+  filePath?: string
   hostName: string
   clientName: string
+  tagHostName?: string
+  tagClientName?: string
+  isTag: boolean
   isSingleMode: boolean
   totalSteps: number
+  masterRule: MasterRule
   warning?: string
+}
+
+export interface EngineOpenReplayResult {
+  success: boolean
+  replayPath?: string
+  launched?: boolean
+  manualHint?: string
+  errorCode?: 'no-game-directory' | 'game-not-found' | 'replay-missing' | 'replay-failed'
+  error?: string
 }
 
 export interface EngineReplayImportPayload {
@@ -57,4 +81,25 @@ export interface EngineImportReplayResult {
   filePath?: string
   error?: string
   payload?: EngineReplayImportPayload
+}
+
+export interface ReplayFileEntry {
+  fileName: string
+  baseName: string
+  size: number
+  modifiedAt: number
+  hasLua: boolean
+}
+
+export interface ReplayFileListResult {
+  success: boolean
+  entries: ReplayFileEntry[]
+  error?: string
+}
+
+export interface ReplayDeleteResult {
+  success: boolean
+  deletedReplays: number
+  deletedScripts: number
+  error?: string
 }

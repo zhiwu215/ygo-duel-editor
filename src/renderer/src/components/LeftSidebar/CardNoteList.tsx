@@ -180,19 +180,43 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-foreground outline-none hover:bg-muted/70 focus-visible:bg-muted/70 transition-colors cursor-pointer text-left disabled:pointer-events-none disabled:opacity-40"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                <span>{syncing ? '同步中…' : '同步到游戏目录'}</span>
+                <span>{syncing ? '同步中…' : '自定义卡同步到游戏'}</span>
               </button>
               <button
                 type="button"
-                title="打开游戏目录下的 expansions 同步目录"
+                title="打开脚本目录"
                 onClick={() => {
                   setGameMenuOpen(false)
-                  void openSyncDirectory()
+                  void openSyncDirectory('script')
                 }}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-foreground outline-none hover:bg-muted/70 focus-visible:bg-muted/70 transition-colors cursor-pointer text-left"
               >
                 <FolderOpen className="w-3.5 h-3.5" />
-                <span>打开同步目录（expansions）</span>
+                <span>打开脚本目录（script）</span>
+              </button>
+              <button
+                type="button"
+                title="打开卡库目录"
+                onClick={() => {
+                  setGameMenuOpen(false)
+                  void openSyncDirectory('cdb')
+                }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-foreground outline-none hover:bg-muted/70 focus-visible:bg-muted/70 transition-colors cursor-pointer text-left"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span>打开卡库目录（expansions）</span>
+              </button>
+              <button
+                type="button"
+                title="打开卡图目录"
+                onClick={() => {
+                  setGameMenuOpen(false)
+                  void openSyncDirectory('pics')
+                }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-foreground outline-none hover:bg-muted/70 focus-visible:bg-muted/70 transition-colors cursor-pointer text-left"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span>打开卡图目录（pics）</span>
               </button>
               <button
                 type="button"
@@ -204,7 +228,7 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs font-medium text-destructive outline-none hover:bg-destructive/10 focus-visible:bg-destructive/10 transition-colors cursor-pointer text-left disabled:pointer-events-none disabled:opacity-40"
               >
                 <Eraser className={`w-3.5 h-3.5 ${cleaning ? 'animate-pulse' : ''}`} />
-                <span>{cleaning ? '清理中…' : '清理同步内容...'}</span>
+                <span>{cleaning ? '清理中…' : '清理已同步的自定义卡'}</span>
               </button>
             </PopoverContent>
           </Popover>

@@ -192,6 +192,15 @@ export function useHandReorderDrag(options: HandReorderDragOptions): HandReorder
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
       if (movedInstanceId) {
+        if (useDuelEngineStore.getState().isInitialized) {
+          useDuelEngineStore.setState({
+            injectNotice: {
+              kind: 'warning',
+              message: '引擎模式下不能直接调整手牌顺序或移动已有卡片。'
+            }
+          })
+          return
+        }
         const movingCard = useDuelStore
           .getState()
           .state.cards.find((card) => card.instanceId === movedInstanceId)

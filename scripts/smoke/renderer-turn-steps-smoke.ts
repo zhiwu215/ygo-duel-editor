@@ -5,7 +5,7 @@
  * 验证：
  * 1. 头部 currentTurn/activeTurnPlayer 始终等于引擎真值（不被 addStep 的手动重演推导打回）
  * 2. 步骤的 turn 字段保持作答时写入的值（先记录的步骤不被后续 addStep 重写）
- * 3. EP 手牌上限弃卡（kind=card 作答，patch 路径）后头部仍正确
+ * 3. EP 手牌上限弃卡（kind=card 作答）要落成可见的送墓步骤，且头部仍正确
  */
 import { duelSession } from '../../src/main/services/duel/duel-session'
 import {
@@ -226,6 +226,20 @@ async function main(): Promise<void> {
   if (!cardAnswerSeen) {
     console.log('[renderer-turn] ❌ FAIL: 未覆盖 EP 弃卡（kind=card）作答路径')
     failed = true
+  }
+  const discardStep = steps.find(
+    (s) => s.actionType === 'TO_GRAVE' && s.fromLocation === CardLocation.HAND
+  )
+  if (!discardStep) {
+    console.log('[renderer-turn] ❌ FAIL: EP 手牌上限弃卡没有记录成送墓步骤')
+    failed = true
+  } else if (discardStep.phase !== 'EP') {
+    console.log(`[renderer-turn] ❌ FAIL: 弃卡步骤阶段为 ${discardStep.phase}，期望 EP`)
+    failed = true
+  } else {
+    console.log(
+      `[renderer-turn] ✅ 弃卡步骤已记录: turn=${discardStep.turn} phase=${discardStep.phase} card=${discardStep.cardCode}`
+    )
   }
   if (distinctTurns.size < 3) {
     console.log(

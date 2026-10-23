@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 
@@ -6,13 +6,13 @@ export const EngineFeedbackToast: React.FC = () => {
   const error = useDuelEngineStore((s) => s.error)
   const injectNotice = useDuelEngineStore((s) => s.injectNotice)
   const clearInjectNotice = useDuelEngineStore((s) => s.clearInjectNotice)
-  const [hiddenError, setHiddenError] = useState<string | null>(null)
+  const clearError = useDuelEngineStore((s) => s.clearError)
 
   useEffect(() => {
     if (!error) return
-    const timer = setTimeout(() => setHiddenError(error), 3000)
+    const timer = setTimeout(clearError, 3000)
     return () => clearTimeout(timer)
-  }, [error])
+  }, [error, clearError])
 
   useEffect(() => {
     if (!injectNotice) return
@@ -20,11 +20,11 @@ export const EngineFeedbackToast: React.FC = () => {
     return () => clearTimeout(timer)
   }, [injectNotice, clearInjectNotice])
 
-  if (error && hiddenError !== error) {
+  if (error) {
     return (
-      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-600/90 text-white text-xs shadow-2xl animate-in fade-in zoom-in-95 duration-100 select-none">
-        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-        <span>{error}</span>
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[70] flex items-start gap-2 px-4 py-2 rounded-lg bg-rose-600/90 text-white text-xs shadow-2xl animate-in fade-in zoom-in-95 duration-100 select-none max-w-[82vw]">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        <span className="break-words leading-relaxed">{error}</span>
       </div>
     )
   }

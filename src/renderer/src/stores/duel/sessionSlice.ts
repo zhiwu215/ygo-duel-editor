@@ -8,10 +8,10 @@ import {
   createDefaultDuelists,
   createInitialDuelState,
   createStandardTagDuelists,
+  flipViewTopSeat,
   isStandardTag,
   normalizeDuelState,
-  normalizeMatchConfig,
-  swapDuelSides
+  normalizeMatchConfig
 } from '@shared/index'
 import { isDuelStarted } from '../../utils/duelStart'
 import type { DuelStore } from './types'
@@ -23,7 +23,7 @@ export interface SessionSlice {
   loadProjectAndStart: (state: DuelPuzzleState) => void
   loadState: (newState: DuelPuzzleState) => void
   resetDuel: () => void
-  swapSides: () => void
+  toggleViewSide: () => void
 
   setMasterRule: (rule: MasterRule) => void
   setDuelType: (type: DuelType) => void
@@ -46,6 +46,9 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
       currentChain: 0,
       activeTurnPlayer: normalized.turnPlayer ?? 0,
       duelStarted: isDuelStarted(normalized),
+      previewReturn: null,
+      currentStepIndex: null,
+      selectedStepId: null,
       selectedCardId: null,
       expandedDuelistId: null,
       activeDuelistIds: [null, null],
@@ -54,15 +57,18 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
     get().clearUndoHistory()
   },
 
-  loadState: (newState) =>
+  loadState: (newState) => {
+    const normalized = normalizeDuelState(newState)
     set(() => ({
-      state: normalizeDuelState(newState),
+      state: normalized,
       currentProjectPath: null,
-      duelStarted: isDuelStarted(newState),
+      activeTurnPlayer: normalized.turnPlayer ?? 0,
+      duelStarted: isDuelStarted(normalized),
       selectedCardId: null,
       expandedDuelistId: null,
       activeDuelistIds: [null, null]
-    })),
+    }))
+  },
 
   resetDuel: () =>
     set((prev) => {
@@ -87,12 +93,18 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
       }
     }),
 
-  swapSides: () =>
-    set((prev) => ({
-      state: swapDuelSides(prev.state),
-      selectedCardId: null,
-      expandedDuelistId: null
-    })),
+  toggleViewSide: () => {
+    get().pauseUndoTracking()
+    try {
+      set((prev) => ({
+        state: { ...prev.state, viewTopSeat: flipViewTopSeat(prev.state) },
+        selectedCardId: null,
+        expandedDuelistId: null
+      }))
+    } finally {
+      get().resumeUndoTracking()
+    }
+  },
 
   setMasterRule: (rule) =>
     set((prev) => {

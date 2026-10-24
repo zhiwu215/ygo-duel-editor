@@ -24,9 +24,6 @@ interface MenuBarProps {
   onOpenReplayInYgo: () => void
   canOpenReplay: boolean
   isReplay: boolean
-  onExportScreenplay?: () => void
-  onExportSession: () => void
-  onImportSession: () => void
 }
 
 export const MenuBar: React.FC<MenuBarProps> = ({
@@ -41,10 +38,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   onImportReplay,
   onOpenReplayInYgo,
   canOpenReplay,
-  isReplay,
-  onExportScreenplay,
-  onExportSession,
-  onImportSession
+  isReplay
 }) => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
@@ -57,14 +51,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     void window.api.getAppVersion().then(setAppVersion)
   }, [])
 
-  const {
-    resetDuel,
-    swapSides,
-    setActiveLeftTab,
-    tacticalView,
-    toggleTacticalView,
-    openScreenplayWithStep
-  } = useDuelStore()
+  const { resetDuel, toggleViewSide, tacticalView, toggleTacticalView } = useDuelStore()
 
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const hasEngineActions = useDuelEngineStore((s) => s.timeline.length > 1)
@@ -119,20 +106,15 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     canExportYrp,
     canExportLua: canExportMatch,
     canTestInYgo,
-    onExportScreenplay,
-    onExportSession,
-    onImportSession,
     isEngineActive,
     canUndo,
     canRedo,
     onUndo: undo,
     onRedo: redo,
-    onSwapSides: () => swapSides(),
+    onToggleViewSide: () => toggleViewSide(),
     onResetDuel: handleResetDuel,
     tacticalView,
     onToggleTacticalView: () => toggleTacticalView(),
-    onOpenArchives: () => setActiveLeftTab('archives'),
-    onOpenScreenplay: () => openScreenplayWithStep(),
     onShowShortcutsDialog: () => setShowShortcutsDialog(true),
     onShowAboutDialog: () => setShowAboutDialog(true),
     onShowSupportDialog: () => setShowSupportDialog(true)

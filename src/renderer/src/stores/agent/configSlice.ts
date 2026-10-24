@@ -1,6 +1,5 @@
 import type { StateCreator } from 'zustand'
 import {
-  AgentHandoffRequest,
   AgentModelConfig,
   AgentProviderConfig,
   AgentProviderPreset,
@@ -23,13 +22,6 @@ const DEFAULT_CONFIG: AgentModelConfig = {
 }
 
 let configUpdatedSubscribed = false
-let handoffSubscribed = false
-
-function applyHandoff(get: () => AgentStore, request: AgentHandoffRequest): void {
-  const store = get()
-  if (store.isGenerating) return
-  void store.sendMessage(request.prompt, undefined, undefined, undefined, request.textSource)
-}
 
 export interface ConfigSlice {
   config: AgentModelConfig
@@ -66,10 +58,6 @@ export const createConfigSlice: StateCreator<AgentStore, [], [], ConfigSlice> = 
       window.api.onConfigUpdated(() => {
         void get().loadConfig()
       })
-    }
-    if (!handoffSubscribed && window.api.onAgentHandoff) {
-      handoffSubscribed = true
-      window.api.onAgentHandoff((request) => applyHandoff(get, request))
     }
     try {
       const presets = await get().loadPresets()

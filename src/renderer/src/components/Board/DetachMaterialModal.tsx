@@ -8,7 +8,7 @@ import { buildOverlayMaterialCards } from '../../utils/overlayMaterialCards'
 import { Layers, X, Check, Search } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
-import { CardImage } from '../ui/CardImage'
+import { CardThumb } from '../ui/CardThumb'
 
 export const DetachMaterialModal: React.FC = () => {
   const { hostInstanceId, selected, toggle, closeDetach } = useDetachMaterialStore()
@@ -126,11 +126,11 @@ export const DetachMaterialModal: React.FC = () => {
                     }
                   >
                     <div className="relative w-full aspect-[59/86] bg-black/30">
-                      <CardImage
+                      <CardThumb
                         code={card.code}
-                        small
-                        alt={card.card?.name || resolveCardName(card.code)}
-                        className="w-full h-full object-cover pointer-events-none"
+                        name={card.card?.name || resolveCardName(card.code)}
+                        imageClassName="pointer-events-none"
+                        className="h-full w-full"
                       />
 
                       <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">

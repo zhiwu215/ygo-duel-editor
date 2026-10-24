@@ -18,7 +18,6 @@ export const MAX_WEB_FETCH_CHARS = 200_000
 export interface WebSearchConfig {
   enabled: boolean
   provider: typeof WEB_SEARCH_PROVIDER
-  baseUrl: string
   apiKey: string
   reuseProviderKey: boolean
   count: number
@@ -27,7 +26,6 @@ export interface WebSearchConfig {
 export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchConfig = {
   enabled: true,
   provider: WEB_SEARCH_PROVIDER,
-  baseUrl: DEFAULT_WEB_SEARCH_BASE_URL,
   apiKey: '',
   reuseProviderKey: true,
   count: DEFAULT_WEB_SEARCH_COUNT
@@ -38,13 +36,6 @@ export function normalizeWebSearchConfig(value: unknown): WebSearchConfig {
     return { ...DEFAULT_WEB_SEARCH_CONFIG }
   }
   const raw = value as Partial<WebSearchConfig>
-  const baseUrl =
-    typeof raw.baseUrl === 'string' && raw.baseUrl.trim().length > 0
-      ? raw.baseUrl
-          .trim()
-          .replace(/\/+$/u, '')
-          .replace(/\/(?:search|fetch)$/u, '')
-      : DEFAULT_WEB_SEARCH_BASE_URL
   const count =
     typeof raw.count === 'number' && Number.isInteger(raw.count)
       ? Math.min(MAX_WEB_SEARCH_COUNT, Math.max(1, raw.count))
@@ -52,7 +43,6 @@ export function normalizeWebSearchConfig(value: unknown): WebSearchConfig {
   return {
     enabled: raw.enabled !== false,
     provider: WEB_SEARCH_PROVIDER,
-    baseUrl,
     apiKey: cleanAgentApiKey(typeof raw.apiKey === 'string' ? raw.apiKey : ''),
     reuseProviderKey: raw.reuseProviderKey !== false,
     count

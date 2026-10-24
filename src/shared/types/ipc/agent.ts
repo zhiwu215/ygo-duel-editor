@@ -1,5 +1,4 @@
 import { DuelPuzzleState } from '../duel'
-import { AgentBoardSetupProposal, AgentStepProposal } from './agentProposal'
 import type { AgentReasoningEffort, AgentReasoningEfforts } from '../../constants/reasoningEffort'
 import type { AgentModelInput } from '../../constants/modelInput'
 
@@ -70,16 +69,11 @@ export type AgentStreamEvent =
       resultSummary: string
       details?: AgentWebToolDetails
     }
-  | { type: 'proposals_ready'; proposals: AgentStepProposal[] }
-  | { type: 'board_setup_ready'; setup: AgentBoardSetupProposal }
   | { type: 'status'; message: string }
   | { type: 'error'; message: string }
   | {
       type: 'done'
       fullText: string
-      proposals: AgentStepProposal[]
-
-      boardSetup?: AgentBoardSetupProposal
     }
 
 export interface AgentTextSourceRef {
@@ -94,12 +88,6 @@ export interface AgentTextSourceRef {
   wordCount?: number
 
   content?: string
-}
-
-export interface AgentHandoffRequest {
-  prompt: string
-
-  textSource?: AgentTextSourceRef
 }
 
 export interface AgentSendMessageParams {
@@ -120,10 +108,6 @@ export interface AgentSendMessageResult {
   content?: string
 
   thought?: string
-
-  proposals?: AgentStepProposal[]
-
-  boardSetup?: AgentBoardSetupProposal
 
   error?: string
 }

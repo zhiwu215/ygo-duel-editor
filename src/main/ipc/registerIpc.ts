@@ -1,4 +1,5 @@
 import { registerDuelEngineIpc } from './duelEngineIpc'
+import { registerDuelDocumentIpc } from './duelDocumentIpc'
 import { registerCdbIpc } from './cdbIpc'
 import { registerCustomCardIpc } from './customCardIpc'
 import { registerProjectIpc } from './projectIpc'
@@ -9,10 +10,10 @@ import { registerAgentIpc } from './agentIpc'
 import { registerConfigIpc } from './configIpc'
 import { registerDataDirIpc } from './dataDirIpc'
 import { registerWindowIpc } from './windowIpc'
-import { registerScreenplayIpc } from './screenplayIpc'
 
 export function registerAllIpcHandlers(): void {
   registerDuelEngineIpc()
+  registerDuelDocumentIpc()
   registerCdbIpc()
   registerCustomCardIpc()
   registerProjectIpc()
@@ -23,5 +24,4 @@ export function registerAllIpcHandlers(): void {
   registerConfigIpc()
   registerDataDirIpc()
   registerWindowIpc()
-  registerScreenplayIpc()
 }

@@ -8,6 +8,7 @@ import {
   MatchConfig
 } from './duel'
 import { DuelStep, LightweightCardSnapshot } from './story'
+import { DEFAULT_VIEW_TOP_SEAT, viewTopSeatOf } from './duelView'
 
 export function createLightweightSnapshot(cards: FieldCard[]): LightweightCardSnapshot[] {
   return cards.map((c) => ({
@@ -157,6 +158,8 @@ export function createStandardTagDuelists(): Duelist[] {
   return applyStandardTagTurnOrder(createDefaultDuelists(2, 2))
 }
 
+export const DEFAULT_DUEL_TITLE = '未命名对局'
+
 export function createInitialDuelState(
   masterRule: MasterRule = 5,
   duelType: DuelType = 'full'
@@ -171,7 +174,7 @@ export function createInitialDuelState(
 
   return {
     version: '1.2.0',
-    title: '未命名对局',
+    title: DEFAULT_DUEL_TITLE,
     hint: '',
     duelType,
     masterRule,
@@ -184,6 +187,7 @@ export function createInitialDuelState(
     scenarios: {},
     turnPlayer: 0,
     firstTurnAttack: false,
+    viewTopSeat: DEFAULT_VIEW_TOP_SEAT,
     cards: [],
     steps: []
   }
@@ -309,6 +313,7 @@ export function normalizeDuelState(state: DuelPuzzleState): DuelPuzzleState {
     duelists,
     scenarios: normalizeDuelScenarios(state.scenarios),
     cards: updatedCards,
+    viewTopSeat: viewTopSeatOf(state),
     steps: normalizeStepActors(state.steps, duelists.length)
   }
 }

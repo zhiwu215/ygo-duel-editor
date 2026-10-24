@@ -7,7 +7,6 @@ import {
   AppConfig,
   DeckData,
   AgentStreamEvent,
-  AgentHandoffRequest,
   CardNote,
   CardNoteKind,
   DuelTestSettings,
@@ -21,8 +20,7 @@ import {
   Answer,
   InjectCommand,
   TimingPolicy,
-  ScreenplayEdit,
-  ScreenplaySnapshot
+  FavoritesState
 } from '@shared/index'
 
 const api: IpcApi = {
@@ -84,9 +82,6 @@ const api: IpcApi = {
   exportScreenplayFile: (state: DuelPuzzleState) =>
     ipcRenderer.invoke('file:export-screenplay-md', state),
 
-  saveProjectToLibrary: (state: DuelPuzzleState) =>
-    ipcRenderer.invoke('file:save-to-library', state),
-
   getTextList: () => ipcRenderer.invoke('library:text-list'),
   importTextFile: () => ipcRenderer.invoke('library:text-import'),
   getTextChapters: (textId: string) => ipcRenderer.invoke('library:text-chapters', textId),
@@ -99,44 +94,8 @@ const api: IpcApi = {
   deleteText: (id: string) => ipcRenderer.invoke('library:text-delete', id),
   resplitText: (id: string) => ipcRenderer.invoke('library:text-resplit', id),
 
-  agentHandoff: (request) => ipcRenderer.invoke('agent:handoff', request),
-
   openCardNoteWindow: () => ipcRenderer.invoke('window:open-card-notes'),
   openTextLibrary: () => ipcRenderer.invoke('window:open-text-library'),
-  openScreenplayWindow: () => ipcRenderer.invoke('screenplay:open-window'),
-  requestScreenplayState: () => ipcRenderer.invoke('screenplay:request-state'),
-  pushScreenplaySnapshot: (snapshot) => ipcRenderer.invoke('screenplay:push-state', snapshot),
-  sendScreenplayEdit: (edit) => ipcRenderer.invoke('screenplay:edit', edit),
-  sendScreenplayPreview: (stepId: string) => ipcRenderer.invoke('screenplay:preview', stepId),
-  onScreenplaySnapshot: (callback) => {
-    const handler = (_: unknown, snapshot: unknown): void =>
-      callback(snapshot as ScreenplaySnapshot)
-    ipcRenderer.on('screenplay:state', handler)
-    return () => {
-      ipcRenderer.removeListener('screenplay:state', handler)
-    }
-  },
-  onScreenplayEdit: (callback) => {
-    const handler = (_: unknown, edit: unknown): void => callback(edit as ScreenplayEdit)
-    ipcRenderer.on('screenplay:edit', handler)
-    return () => {
-      ipcRenderer.removeListener('screenplay:edit', handler)
-    }
-  },
-  onScreenplayPreview: (callback) => {
-    const handler = (_: unknown, stepId: unknown): void => callback(stepId as string)
-    ipcRenderer.on('screenplay:preview', handler)
-    return () => {
-      ipcRenderer.removeListener('screenplay:preview', handler)
-    }
-  },
-  onScreenplayStateRequested: (callback) => {
-    const handler = (): void => callback()
-    ipcRenderer.on('screenplay:request-state', handler)
-    return () => {
-      ipcRenderer.removeListener('screenplay:request-state', handler)
-    }
-  },
   listCardNotes: () => ipcRenderer.invoke('note:list-all'),
   getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') =>
     ipcRenderer.invoke('note:get', cardCode, kind),
@@ -161,6 +120,8 @@ const api: IpcApi = {
     ipcRenderer.invoke('duel:delete-replays', fileNames),
 
   getDuelEngineSupport: (): Promise<EngineSupportInfo> => ipcRenderer.invoke('duel-engine:support'),
+  getDuelEngineSessionDoc: () => ipcRenderer.invoke('duel-engine:get-session-doc'),
+  restoreDuelEngineSession: (doc) => ipcRenderer.invoke('duel-engine:restore-session', doc),
 
   duelEngineInit: (params) => ipcRenderer.invoke('duel-engine:init', params),
   duelEngineSetPolicy: (policy: TimingPolicy) =>
@@ -171,12 +132,6 @@ const api: IpcApi = {
   duelEngineGetPendingRequest: () => ipcRenderer.invoke('duel-engine:get-pending-request'),
   duelEngineJumpToStep: (stepId) => ipcRenderer.invoke('duel-engine:jump-to-step', stepId),
   duelEngineGetTimeline: () => ipcRenderer.invoke('duel-engine:get-timeline'),
-  duelEngineGetProvenance: (ref) => ipcRenderer.invoke('duel-engine:provenance', ref),
-  duelEngineReplaceCard: (ref, newCode) =>
-    ipcRenderer.invoke('duel-engine:replace-card', ref, newCode),
-  duelEngineRemoveCard: (ref) => ipcRenderer.invoke('duel-engine:remove-card', ref),
-  duelEngineExportSession: () => ipcRenderer.invoke('duel-engine:export-session'),
-  duelEngineImportSession: () => ipcRenderer.invoke('duel-engine:import-session'),
   duelEngineImportReplay: () => ipcRenderer.invoke('duel-engine:import-replay'),
   duelEngineExitReplay: () => ipcRenderer.invoke('duel-engine:exit-replay'),
   onReplayImportStarting: (callback) => {
@@ -187,18 +142,25 @@ const api: IpcApi = {
     }
   },
 
-  saveProjectFile: (state: DuelPuzzleState) => ipcRenderer.invoke('file:save-project', state),
-  saveProjectToPath: (filePath: string, state: DuelPuzzleState) =>
-    ipcRenderer.invoke('file:save-project-to-path', filePath, state),
-  loadProjectFile: () => ipcRenderer.invoke('file:load-project'),
-
-  getProjectList: () => ipcRenderer.invoke('file:get-project-list'),
-  loadProjectByPath: (filePath: string) =>
-    ipcRenderer.invoke('file:load-project-by-path', filePath),
-  deleteProjectFile: (filePath: string) => ipcRenderer.invoke('file:delete-project-file', filePath),
-  duplicateProjectFile: (filePath: string) =>
-    ipcRenderer.invoke('file:duplicate-project-file', filePath),
-  revealFileInFolder: (filePath: string) => ipcRenderer.invoke('file:reveal-file', filePath),
+  getDuelDocumentTree: () => ipcRenderer.invoke('duel-document:tree'),
+  readDuelDocument: (filePath) => ipcRenderer.invoke('duel-document:read', filePath),
+  saveDuelDocument: (filePath, document) =>
+    ipcRenderer.invoke('duel-document:save', filePath, document),
+  createDuelDocument: (folderPath, document) =>
+    ipcRenderer.invoke('duel-document:create', folderPath, document),
+  saveDuelDocumentDialog: (document) => ipcRenderer.invoke('duel-document:save-dialog', document),
+  openDuelDocumentDialog: () => ipcRenderer.invoke('duel-document:open-dialog'),
+  createDuelDocumentFolder: (parentPath, name) =>
+    ipcRenderer.invoke('duel-document:create-folder', parentPath, name),
+  renameDuelDocumentFolder: (folderPath, name) =>
+    ipcRenderer.invoke('duel-document:rename-folder', folderPath, name),
+  deleteDuelDocumentFolder: (folderPath) =>
+    ipcRenderer.invoke('duel-document:delete-folder', folderPath),
+  renameDuelDocument: (filePath, title) =>
+    ipcRenderer.invoke('duel-document:rename', filePath, title),
+  moveDuelDocument: (filePath, targetFolder) =>
+    ipcRenderer.invoke('duel-document:move', filePath, targetFolder),
+  deleteDuelDocument: (filePath) => ipcRenderer.invoke('duel-document:delete', filePath),
 
   getDefaultDataDirectory: () => ipcRenderer.invoke('data:get-default-dir'),
   openDataDirectory: () => ipcRenderer.invoke('data:open-dir'),
@@ -211,13 +173,6 @@ const api: IpcApi = {
       ipcRenderer.removeListener('data-dir:changed', listener)
     }
   },
-
-  createProjectSeries: (name: string) => ipcRenderer.invoke('file:create-project-series', name),
-  renameProjectSeries: (oldName: string, newName: string) =>
-    ipcRenderer.invoke('file:rename-project-series', oldName, newName),
-  deleteProjectSeries: (name: string) => ipcRenderer.invoke('file:delete-project-series', name),
-  setProjectSeries: (filePath: string, series: string | null) =>
-    ipcRenderer.invoke('file:set-project-series', filePath, series),
 
   getConfig: () => ipcRenderer.invoke('config:get'),
   saveConfig: (cfg: Partial<AppConfig>) => ipcRenderer.invoke('config:save', cfg),
@@ -256,8 +211,14 @@ const api: IpcApi = {
 
   getFavorites: () => ipcRenderer.invoke('favorites:get'),
   toggleFavorite: (code) => ipcRenderer.invoke('favorites:toggle', code),
+  addFavoriteCategory: (name) => ipcRenderer.invoke('favorites:add-category', name),
+  renameFavoriteCategory: (id, name) => ipcRenderer.invoke('favorites:rename-category', id, name),
+  deleteFavoriteCategory: (id) => ipcRenderer.invoke('favorites:delete-category', id),
+  setFavoriteCategory: (code, categoryId, member) =>
+    ipcRenderer.invoke('favorites:set-category', code, categoryId, member),
+  setFavoriteUngrouped: (code) => ipcRenderer.invoke('favorites:set-ungrouped', code),
   onFavoritesChanged: (callback) => {
-    const handler = (_: unknown, favs: number[]): void => callback(favs)
+    const handler = (_: unknown, state: FavoritesState): void => callback(state)
     ipcRenderer.on('favorites:changed', handler)
     return () => {
       ipcRenderer.removeListener('favorites:changed', handler)
@@ -289,6 +250,14 @@ const api: IpcApi = {
       ipcRenderer.removeListener('window:maximized-changed', handler)
     }
   },
+  onAppBeforeClose: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('app:before-close', handler)
+    return () => {
+      ipcRenderer.removeListener('app:before-close', handler)
+    }
+  },
+  confirmAppClose: () => ipcRenderer.send('app:close-ready'),
   onConfigUpdated: (callback) => {
     const handler = (): void => callback()
     ipcRenderer.on('config:updated', handler)
@@ -308,13 +277,6 @@ const api: IpcApi = {
     ipcRenderer.on('agent:event', handler)
     return () => {
       ipcRenderer.removeListener('agent:event', handler)
-    }
-  },
-  onAgentHandoff: (callback) => {
-    const handler = (_: unknown, request: unknown): void => callback(request as AgentHandoffRequest)
-    ipcRenderer.on('agent:handoff-request', handler)
-    return () => {
-      ipcRenderer.removeListener('agent:handoff-request', handler)
     }
   }
 }

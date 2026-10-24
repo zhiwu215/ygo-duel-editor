@@ -170,6 +170,8 @@ export class FieldReader {
       card: EngineCard
       key: string
       exactMatched: boolean
+      equipRef?: CardQuery['equipCard']
+      targetRefs?: CardQuery['targetCards']
     }
     const raws: RawCard[] = []
 
@@ -217,7 +219,9 @@ export class FieldReader {
               status: q.status ?? 0
             },
             key,
-            exactMatched: false
+            exactMatched: false,
+            equipRef: q.equipCard,
+            targetRefs: q.targetCards
           })
         }
       }
@@ -258,6 +262,31 @@ export class FieldReader {
       allCards.push(raw.card)
     }
     this.identity = nextIdentity
+
+    const instanceByPosition = new Map<string, string>()
+    for (const raw of raws) {
+      const positionKey = `${raw.card.controller}:${raw.card.location}:${raw.card.sequence}`
+      if (!instanceByPosition.has(positionKey)) {
+        instanceByPosition.set(positionKey, raw.card.instanceId)
+      }
+    }
+    const resolveRef = (ref: NonNullable<CardQuery['equipCard']>): string | undefined =>
+      instanceByPosition.get(`${ref.controller}:${ref.location}:${ref.sequence}`)
+    for (const raw of raws) {
+      const equipTarget = raw.equipRef ? resolveRef(raw.equipRef) : undefined
+      if (equipTarget && equipTarget !== raw.card.instanceId) {
+        raw.card.equipTargetInstanceId = equipTarget
+      }
+      const targetIds = [
+        ...new Set(
+          (raw.targetRefs ?? [])
+            .map((ref) => resolveRef(ref))
+            .filter((id): id is string => Boolean(id))
+        )
+      ]
+      if (targetIds.length > 0) raw.card.targetInstanceIds = targetIds
+    }
+
     const players = [0, 1].map((player): EnginePlayerState => {
       const fp = fieldInfo?.field?.players?.[player]
       const cards = allCards.filter((c) => c.controller === player)

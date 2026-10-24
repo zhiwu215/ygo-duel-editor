@@ -16,6 +16,7 @@ interface DialogRequest {
   placeholder?: string
   confirmText?: string
   destructive?: boolean
+  icon?: 'warning' | 'info'
   extraAction?: DialogExtraAction
   initialValue?: string
   resolve: (value: DialogValue) => void
@@ -44,6 +45,7 @@ interface ConfirmDialogOptions {
   description?: string
   confirmText?: string
   destructive?: boolean
+  icon?: 'warning' | 'info'
   extraAction?: DialogExtraAction
 }
 

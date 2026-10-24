@@ -1,3 +1,4 @@
+import type { DuelLogEvent } from '../types/duelLog'
 import type {
   EngineBoardState,
   EngineDuelInitParams,
@@ -255,6 +256,16 @@ function parseEvents(value: unknown, field: string): EngineStepEvent[] {
   return value.map((event, index) => parseEvent(event, `${field}[${index}]`))
 }
 
+function parseLogEvents(value: unknown): DuelLogEvent[] {
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (event): event is DuelLogEvent =>
+      typeof event === 'object' &&
+      event !== null &&
+      typeof (event as { kind?: unknown }).kind === 'string'
+  )
+}
+
 function parseTimelineNode(value: unknown, index: number): EngineTimelineNode {
   const field = `timeline[${index}]`
   assertRecord(value, field)
@@ -267,6 +278,7 @@ function parseTimelineNode(value: unknown, index: number): EngineTimelineNode {
     player: readPlayer(value.player, `${field}.player`),
     logs: parseStringArray(value.logs, `${field}.logs`),
     events: parseEvents(value.events, `${field}.events`),
+    logEvents: parseLogEvents(value.logEvents),
     boardState: parseBoardState(value.boardState, `${field}.boardState`),
     pendingRequest: parseRequest(value.pendingRequest, `${field}.pendingRequest`),
     opIndex: readInteger(value.opIndex, `${field}.opIndex`, -1),

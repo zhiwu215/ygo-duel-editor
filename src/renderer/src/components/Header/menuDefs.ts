@@ -30,9 +30,6 @@ export interface MenuActions {
   canExportYrp: boolean
   canExportLua: boolean
   canTestInYgo: boolean
-  onExportScreenplay?: () => void
-  onExportSession: () => void
-  onImportSession: () => void
 
   isEngineActive: boolean
 
@@ -41,13 +38,11 @@ export interface MenuActions {
   onUndo: () => void
   onRedo: () => void
 
-  onSwapSides: () => void
+  onToggleViewSide: () => void
   onResetDuel: () => void
 
   tacticalView: boolean
   onToggleTacticalView: () => void
-  onOpenArchives: () => void
-  onOpenScreenplay: () => void
 
   onShowShortcutsDialog: () => void
   onShowAboutDialog: () => void
@@ -71,10 +66,6 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           action: actions.onOpenProject
         },
         {
-          label: '决斗档案库',
-          action: actions.onOpenArchives
-        },
-        {
           label: '保存工程',
           shortcut: 'Ctrl+S',
           action: actions.onSaveProject
@@ -83,21 +74,6 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           label: '另存为...',
           shortcut: 'Ctrl+Alt+S',
           action: actions.onSaveProjectAs
-        },
-        { label: '', separator: true },
-        {
-          label: '导出同人剧本台本',
-          action: actions.onExportScreenplay
-        },
-        { label: '', separator: true },
-        {
-          label: '导出对局剧本...',
-          disabled: !actions.isEngineActive,
-          action: actions.onExportSession
-        },
-        {
-          label: '载入对局剧本...',
-          action: actions.onImportSession
         }
       ]
     },
@@ -119,9 +95,8 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
         },
         { label: '', separator: true },
         {
-          label: '翻转双方场地',
-          disabled: actions.isEngineActive,
-          action: actions.onSwapSides
+          label: '翻转显示方向（上下）',
+          action: actions.onToggleViewSide
         },
         {
           label: '清空重置局面',
@@ -141,10 +116,6 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           action: actions.onToggleTacticalView
         },
         { label: '', separator: true },
-        {
-          label: '决斗台本',
-          action: actions.onOpenScreenplay
-        },
         {
           label: '卡组编辑器',
           action: () => window.api.openDeckEditor()

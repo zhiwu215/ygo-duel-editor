@@ -325,7 +325,6 @@ function insertMarkerAtPlayhead(
 export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (set, get) => ({
   activeRightTab: 'search',
   currentStepIndex: null,
-  isScreenplayOpen: false,
   selectedStepId: null,
 
   currentTurn: 1,
@@ -338,11 +337,19 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   setCurrentStepIndex: (index) => set({ currentStepIndex: index }),
   setSelectedStepId: (id) => set({ selectedStepId: id }),
   openScreenplayWithStep: (stepId) => {
-    set((prev) => ({
-      selectedStepId:
-        stepId !== undefined ? stepId : prev.selectedStepId || prev.state.steps?.[0]?.id || null
-    }))
-    void window.api.openScreenplayWindow()
+    const selected =
+      stepId !== undefined ? stepId : get().selectedStepId || get().state.steps?.[0]?.id || null
+    set({
+      selectedStepId: selected,
+      documentPanelMode: 'editor',
+      activeLeftTab: 'archives',
+      isLeftOpen: true
+    })
+    if (!selected) return
+    const index = (get().state.steps || []).findIndex((step) => step.id === selected)
+    if (index < 0) return
+    set({ currentStepIndex: index })
+    get().previewStepBoard(index)
   },
 
   setCurrentTurn: (turn) => set({ currentTurn: turn }),
@@ -397,17 +404,25 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   },
 
   updateStep: (stepId, patch) => {
-    const nextPatch = useDuelEngineStore.getState().isInitialized
-      ? pickNarrativeStepPatch(patch)
-      : patch
+    const engineActive = useDuelEngineStore.getState().isInitialized
+    const nextPatch = engineActive ? pickNarrativeStepPatch(patch) : patch
     if (!nextPatch) return
+    const demote = !engineActive && Object.keys(nextPatch).some((key) => key !== 'texts')
     set((prev) => {
       const existing = prev.state.steps || []
       const nextState: DerivationSource = {
         ...prev,
         state: {
           ...prev.state,
-          steps: existing.map((s) => (s.id === stepId ? { ...s, ...nextPatch } : s))
+          steps: existing.map((s) =>
+            s.id === stepId
+              ? {
+                  ...s,
+                  ...nextPatch,
+                  ...(demote && s.origin !== 'manual' ? { origin: 'manual' as const } : {})
+                }
+              : s
+          )
         }
       }
       return withDerivation(nextState)

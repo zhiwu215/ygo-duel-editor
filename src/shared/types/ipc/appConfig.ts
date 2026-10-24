@@ -2,6 +2,7 @@ import { AgentModelConfig } from './agent'
 import { TimingPolicy } from '../../engine/protocol'
 import type { FontSizes } from '../../constants/fontSize'
 import type { WebSearchConfig } from '../../engine/webSearch'
+import type { FavoriteCategory } from '../favorites'
 
 export interface DataDirectoryResult {
   directory: string
@@ -18,6 +19,8 @@ export interface AppConfig {
 
   preferredLanguage?: string
 
+  gameLanguageByDirectory?: Record<string, string>
+
   cdbPath?: string
 
   banlistName?: string
@@ -31,6 +34,8 @@ export interface AppConfig {
   fontSizes: FontSizes
 
   favorites?: number[]
+
+  favoriteCategories?: FavoriteCategory[]
 
   cardImageOverrides?: Record<string, number>
 
@@ -46,7 +51,7 @@ export interface AppConfig {
 
   duelTestSettings?: DuelTestSettings
 
-  projectSeries?: string[]
+  cardNameWrapper?: string
 
   timingPolicy?: TimingPolicy
 }

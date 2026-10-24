@@ -5,7 +5,6 @@ import { PileListModal } from './PileListModal'
 import { OverlayListModal } from './OverlayListModal'
 import { DetachMaterialModal } from './DetachMaterialModal'
 import { EngineFeedbackToast } from './EngineFeedbackToast'
-import { EngineCardEditDialogs } from './EngineCardEditDialogs'
 import { DuelSelectionBar } from './DuelSelectionBar'
 import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardContextMenu } from './CardContextMenu'
@@ -31,8 +30,6 @@ export const DuelBoardOverlays: React.FC = () => {
       <DetachMaterialModal />
 
       <EngineFeedbackToast />
-
-      <EngineCardEditDialogs />
 
       <DuelSelectionBar />
 

@@ -1,6 +1,6 @@
 import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
-import { AgentBoardCardFacing, AgentBoardZone } from '../types/ipc'
+import { AgentBoardCardFacing, AgentBoardZone } from '../types/boardSetup'
 
 export const AGENT_BOARD_ZONE_TO_LOCATION: Record<AgentBoardZone, number> = {
   MZONE: CardLocation.MZONE,
@@ -111,4 +111,3 @@ export function resolveTargetPosition(
   }
   return defaultPositionForLocation(toLocation)
 }
-

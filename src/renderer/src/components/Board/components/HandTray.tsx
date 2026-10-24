@@ -10,9 +10,10 @@ import { MultiHandTray } from './MultiHandTray'
 
 interface HandTrayProps {
   controller: 0 | 1
+  isTop: boolean
 }
 
-const HandTrayBase: React.FC<HandTrayProps> = ({ controller }) => {
+const HandTrayBase: React.FC<HandTrayProps> = ({ controller, isTop }) => {
   const state = useDuelStore((s) => s.state)
   const engineBoardState = useDuelEngineStore((s) => s.boardState)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
@@ -47,6 +48,7 @@ const HandTrayBase: React.FC<HandTrayProps> = ({ controller }) => {
       <SingleHandTray
         duelist={duelists[0]}
         controller={controller}
+        isTop={isTop}
         cards={teamHandCards}
         totalCount={totalCount}
       />
@@ -57,6 +59,7 @@ const HandTrayBase: React.FC<HandTrayProps> = ({ controller }) => {
     <MultiHandTray
       duelists={duelists}
       controller={controller}
+      isTop={isTop}
       teamHandCards={teamHandCards}
       totalCount={totalCount}
     />

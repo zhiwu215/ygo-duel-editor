@@ -17,7 +17,7 @@ export interface CardRowItemProps {
   poolSchema?: CardPoolSchema
   compact?: boolean
   isFavorite?: boolean
-  onToggleFavorite?: (code: number) => void
+  onToggleFavorite?: (code: number, anchor: DOMRect) => void
   onHover?: (card: CdbCard) => void
   onRowClick?: (card: CdbCard) => void
   onRowDoubleClick?: (card: CdbCard) => void
@@ -127,7 +127,7 @@ const CardRowItemBase: React.FC<CardRowItemProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            onToggleFavorite(card.id)
+            onToggleFavorite(card.id, e.currentTarget.getBoundingClientRect())
           }}
           className="p-1 rounded text-muted-foreground hover:text-amber-400 shrink-0 transition-opacity"
         >

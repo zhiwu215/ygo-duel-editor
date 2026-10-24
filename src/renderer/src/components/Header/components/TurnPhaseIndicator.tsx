@@ -1,5 +1,5 @@
 import React from 'react'
-import { DuelPhase, PHASE_SHORT_NAMES } from '@shared/index'
+import { DuelPhase, PHASE_SHORT_NAMES, viewTopSeatOf } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { resolveTeamColorClass, resolveTeamLabel } from '../../../utils/duelistNames'
 import { Button } from '../../ui/button'
@@ -15,9 +15,10 @@ export const TurnPhaseIndicator: React.FC = () => {
   const activeTurnPlayer = useDuelStore((s) => s.activeTurnPlayer)
   const duelStarted = useDuelStore((s) => s.duelStarted)
   const duelists = useDuelStore((s) => s.state.duelists)
+  const viewTopSeat = useDuelStore((s) => viewTopSeatOf(s.state))
   const insertPhaseChange = useDuelStore((s) => s.insertPhaseChange)
   const resetChain = useDuelStore((s) => s.resetChain)
-  const isSelfTurn = activeTurnPlayer === 0
+  const isSelfTurn = activeTurnPlayer !== viewTopSeat
   const turnLabel = resolveTeamLabel({ duelists }, activeTurnPlayer, currentTurn)
 
   if (!duelStarted) return null

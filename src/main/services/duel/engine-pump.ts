@@ -14,13 +14,13 @@ import {
   YGOProMsgSelectChain,
   YGOProMsgSelectEffectYn,
   YGOProMsgSelectUnselectCard,
-  YGOProMsgShuffleDeck,
   YGOProMsgShuffleHand
 } from 'ygopro-msg-encode'
 import { cdbService } from '../../db/cdbService'
 import { CardLocation, type EngineRequest } from '@shared/index'
 import type { PendingQuery, SessionState } from './session-state'
 import { shouldAutoPassChain } from './chain-policy'
+import { collectDuelLogMessages } from './duel-log'
 import { isInteractiveQuery } from './message-parser'
 import { routeRequest } from './request-router'
 
@@ -65,11 +65,6 @@ function stampRequestSeats(
 }
 
 const MAX_PROCESS_LOOPS = 10000
-
-export interface DrawEvent {
-  player: 0 | 1
-  codes: number[]
-}
 
 interface ProcessResultLike {
   raw: Uint8Array
@@ -145,8 +140,6 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
 
   state.lastAdvanceRetried = false
   state.lastParseError = null
-  state.lastDrawEvents = []
-  state.lastDeckShuffles = []
   const autoResponses: Uint8Array[] = []
   let loops = 0
 
@@ -186,10 +179,6 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
           state.accumulatedEvents.push({ kind: 'shuffle-hand', player: msg.player === 1 ? 1 : 0 })
         }
         if (msg instanceof YGOProMsgDraw) {
-          state.lastDrawEvents.push({
-            player: msg.player === 1 ? 1 : 0,
-            codes: msg.cards.map((code: number) => code & 0x7fffffff)
-          })
           state.accumulatedEvents.push({
             kind: 'draw',
             player: msg.player === 1 ? 1 : 0,
@@ -217,11 +206,9 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
         if (msg instanceof YGOProMsgChainDisabled) {
           state.accumulatedEvents.push({ kind: 'chain-disabled', chainCount: msg.chainCount })
         }
-        if (msg instanceof YGOProMsgShuffleDeck) {
-          state.lastDeckShuffles.push(msg.player === 1 ? 1 : 0)
-        }
       }
       collectLogs(state, msgs)
+      collectDuelLogMessages(state, msgs)
 
       const batchQueries: PendingQuery[] = []
       let batchAutoCount = 0

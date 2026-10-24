@@ -17,6 +17,10 @@ export function buildSearchParams(
         : filters.showUnofficial,
     onlyFavorites:
       customParams.onlyFavorites !== undefined ? customParams.onlyFavorites : filters.onlyFavorites,
+    favoriteCategoryId:
+      customParams.favoriteCategoryId !== undefined
+        ? customParams.favoriteCategoryId
+        : (filters.favoriteCategoryId ?? undefined),
     type: customParams.type !== undefined ? customParams.type : filters.type,
     subType: customParams.subType !== undefined ? customParams.subType : filters.subType,
     attribute: customParams.attribute !== undefined ? customParams.attribute : filters.attribute,

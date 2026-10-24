@@ -4,7 +4,7 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { CardDetailPanel } from '../CardDetail/CardDetailPanel'
 import { BehindSpiritPanel } from '../BehindSpirit/BehindSpiritPanel'
-import { DuelArchivesPanel } from './DuelArchivesPanel'
+import { DuelDocumentLibraryPanel } from './DuelDocumentLibraryPanel'
 import { cn } from '../../lib/utils'
 
 export function LeftSidebar(): JSX.Element {
@@ -103,7 +103,7 @@ export function LeftSidebar(): JSX.Element {
       {isLeftOpen && (
         <div className="w-[340px] h-full flex flex-col shrink-0 overflow-hidden border-r border-border bg-card/40">
           {activeLeftTab === 'archives' ? (
-            <DuelArchivesPanel />
+            <DuelDocumentLibraryPanel />
           ) : activeLeftTab === 'card' ? (
             <CardDetailPanel />
           ) : (

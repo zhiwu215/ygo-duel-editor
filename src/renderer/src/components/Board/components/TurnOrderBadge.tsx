@@ -2,6 +2,7 @@ import React from 'react'
 import { Crown } from 'lucide-react'
 import { Duelist } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
+import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { cn } from '../../../lib/utils'
 import { turnOrderOf } from '../../../utils/duelistNames'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '../../ui/select'
@@ -18,6 +19,7 @@ export const TurnOrderBadge: React.FC<TurnOrderBadgeProps> = ({
   className
 }) => {
   const { setDuelistTurnOrder } = useDuelStore()
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
 
   const currentOrder = turnOrderOf(duelist)
   const isFirst = currentOrder === 1
@@ -28,9 +30,15 @@ export const TurnOrderBadge: React.FC<TurnOrderBadgeProps> = ({
   return (
     <Select
       value={String(currentOrder)}
+      disabled={isEngineActive}
       onValueChange={(v) => setDuelistTurnOrder(duelist.id, Number(v))}
     >
       <SelectTrigger
+        title={
+          isEngineActive
+            ? '引擎运行中不能更换先攻方'
+            : '先攻方固定为引擎座位 0（P0）；切换会让双方座位对调，画面保持不变'
+        }
         className={cn(
           'relative inline-flex items-center group select-none border-0 bg-transparent p-0 h-auto shadow-none focus-visible:ring-0 [&_svg]:hidden',
           className

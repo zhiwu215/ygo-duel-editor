@@ -106,8 +106,8 @@ export class YgoproLauncher {
   private buildReplayNames(state: DuelPuzzleState, tag: boolean): string[] {
     const duelists = state.duelists ?? []
     const nameOf = (team: 0 | 1, member: number, fallback: string): string =>
-      duelists.find((duelist) => duelist.id === `duelist_${team}_${member}`)?.name ||
       duelists.filter((duelist) => duelist.team === team)[member]?.name ||
+      duelists.find((duelist) => duelist.id === `duelist_${team}_${member}`)?.name ||
       fallback
 
     if (tag) {
@@ -119,11 +119,7 @@ export class YgoproLauncher {
       ]
     }
 
-    const turnPlayer = (state.turnPlayer ?? 0) as 0 | 1
-    return [
-      nameOf(turnPlayer, 0, `Player ${turnPlayer + 1}`),
-      nameOf((1 - turnPlayer) as 0 | 1, 0, `Player ${2 - turnPlayer}`)
-    ]
+    return [nameOf(0, 0, 'Player 1'), nameOf(1, 0, 'Player 2')]
   }
 
   private async checkCoverageOrDeferred(

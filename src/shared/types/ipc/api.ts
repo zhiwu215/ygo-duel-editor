@@ -2,22 +2,30 @@ import { CdbCard } from '../card'
 import { CustomCard, CustomCardInput } from '../customCard'
 import type { CustomCardScriptGenerateResult, CustomScriptTestReport } from '../customCardScript'
 import { DuelPuzzleState } from '../duel'
-import { DuelStep } from '../story'
+import type { DuelDocument } from '../duelDocument'
+import {
+  DuelDocumentListResult,
+  DuelDocumentReadResult,
+  DuelDocumentWriteResult
+} from '../duelDocument'
 import { DeckData, DeckLibrary } from '../deck'
+import type { FavoritesState } from '../favorites'
 import { EngineBoardState, EngineDuelInitParams, EngineTimelineNode } from '../duelEngine'
 import {
   Answer,
-  EngineCardEditResult,
-  EngineCardRef,
   EngineInjectResult,
-  EngineProvenance,
   EngineRequest,
   InjectCommand,
   TimingPolicy
 } from '../../engine/protocol'
 import type { EngineSubmitAnswerResult } from '../../engine/protocol'
-import type { EngineSessionFileResult, EngineSessionImportResult } from '../../engine/sessionDoc'
-import type { EngineImportReplayResult, EngineSupportInfo } from './engine'
+import type { EngineSessionDoc } from '../../engine/sessionDoc'
+import type {
+  EngineImportReplayResult,
+  EngineSessionDocResult,
+  EngineSessionRestoreResult,
+  EngineSupportInfo
+} from './engine'
 import {
   CardImageDirResult,
   CardSearchFilterOptions,
@@ -42,7 +50,6 @@ import {
 import {
   AgentFetchModelsParams,
   AgentFetchModelsResult,
-  AgentHandoffRequest,
   AgentProviderPreset,
   AgentSendMessageParams,
   AgentSendMessageResult,
@@ -57,19 +64,8 @@ import {
   ReplayFileListResult,
   TestInGameResult
 } from './engine'
-import { DuelProjectMeta } from './project'
 import { CardNote, CardNoteEntry, CardNoteKind } from './note'
 import { TextChapter, TextMeta } from './text'
-
-export type ScreenplayEdit =
-  | { kind: 'updateStep'; stepId: string; patch: Partial<DuelStep> }
-  | { kind: 'deleteStep'; stepId: string }
-
-export interface ScreenplaySnapshot {
-  state: DuelPuzzleState
-  selectedStepId: string | null
-  engineActive: boolean
-}
 
 export interface IpcApi {
   getAppVersion: () => Promise<string>
@@ -134,10 +130,6 @@ export interface IpcApi {
     state: DuelPuzzleState
   ) => Promise<{ success: boolean; filePath?: string; error?: string }>
 
-  saveProjectToLibrary: (
-    state: DuelPuzzleState
-  ) => Promise<{ success: boolean; filePath?: string; error?: string }>
-
   getTextList: () => Promise<TextMeta[]>
 
   importTextFile: () => Promise<{
@@ -170,20 +162,9 @@ export interface IpcApi {
 
   resplitText: (id: string) => Promise<{ success: boolean; text?: TextMeta; error?: string }>
 
-  agentHandoff: (request: AgentHandoffRequest) => Promise<{ success: boolean; error?: string }>
-
   openCardNoteWindow: () => Promise<void>
   openTextLibrary: () => Promise<void>
 
-  openScreenplayWindow: () => Promise<void>
-  requestScreenplayState: () => Promise<void>
-  pushScreenplaySnapshot: (snapshot: ScreenplaySnapshot) => Promise<void>
-  sendScreenplayEdit: (edit: ScreenplayEdit) => Promise<void>
-  sendScreenplayPreview: (stepId: string) => Promise<void>
-  onScreenplaySnapshot: (callback: (snapshot: ScreenplaySnapshot) => void) => () => void
-  onScreenplayEdit: (callback: (edit: ScreenplayEdit) => void) => () => void
-  onScreenplayPreview: (callback: (stepId: string) => void) => () => void
-  onScreenplayStateRequested: (callback: () => void) => () => void
   listCardNotes: () => Promise<CardNoteEntry[]>
   getCardNotes: (cardCode: number, kind?: CardNoteKind | 'all') => Promise<CardNote[]>
   saveCardNote: (
@@ -203,39 +184,27 @@ export interface IpcApi {
     titles: string[]
   ) => Promise<{ success: boolean; error?: string }>
 
-  saveProjectFile: (state: DuelPuzzleState) => Promise<{ success: boolean; filePath?: string }>
-  saveProjectToPath: (
-    filePath: string,
-    state: DuelPuzzleState
-  ) => Promise<{ success: boolean; filePath?: string; error?: string }>
-  loadProjectFile: () => Promise<{ success: boolean; state?: DuelPuzzleState; filePath?: string }>
-
-  getProjectList: () => Promise<DuelProjectMeta[]>
-  loadProjectByPath: (
-    filePath: string
-  ) => Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }>
-  deleteProjectFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
-  duplicateProjectFile: (
-    filePath: string
-  ) => Promise<{ success: boolean; newPath?: string; error?: string }>
-  revealFileInFolder: (filePath: string) => Promise<void>
+  getDuelDocumentTree: () => Promise<DuelDocumentListResult>
+  readDuelDocument: (filePath: string) => Promise<DuelDocumentReadResult>
+  saveDuelDocument: (filePath: string, document: DuelDocument) => Promise<DuelDocumentWriteResult>
+  createDuelDocument: (
+    folderPath: string,
+    document: DuelDocument
+  ) => Promise<DuelDocumentWriteResult>
+  saveDuelDocumentDialog: (document: DuelDocument) => Promise<DuelDocumentWriteResult>
+  openDuelDocumentDialog: () => Promise<DuelDocumentReadResult>
+  createDuelDocumentFolder: (parentPath: string, name: string) => Promise<DuelDocumentWriteResult>
+  renameDuelDocumentFolder: (folderPath: string, name: string) => Promise<DuelDocumentWriteResult>
+  deleteDuelDocumentFolder: (folderPath: string) => Promise<DuelDocumentWriteResult>
+  renameDuelDocument: (filePath: string, title: string) => Promise<DuelDocumentWriteResult>
+  moveDuelDocument: (filePath: string, targetFolder: string) => Promise<DuelDocumentWriteResult>
+  deleteDuelDocument: (filePath: string) => Promise<DuelDocumentWriteResult>
 
   getDefaultDataDirectory: () => Promise<string>
   openDataDirectory: () => Promise<void>
   selectDataDirectory: (migrate: boolean) => Promise<DataDirectoryResult | null>
   resetDataDirectory: (migrate: boolean) => Promise<DataDirectoryResult>
   onDataDirectoryChanged: (callback: () => void) => () => void
-
-  createProjectSeries: (name: string) => Promise<{ success: boolean; error?: string }>
-  renameProjectSeries: (
-    oldName: string,
-    newName: string
-  ) => Promise<{ success: boolean; error?: string }>
-  deleteProjectSeries: (name: string) => Promise<{ success: boolean; error?: string }>
-  setProjectSeries: (
-    filePath: string,
-    series: string | null
-  ) => Promise<{ success: boolean; error?: string }>
 
   getConfig: () => Promise<AppConfig>
   saveConfig: (config: Partial<AppConfig>) => Promise<boolean>
@@ -267,9 +236,18 @@ export interface IpcApi {
     error?: string
   }>
 
-  getFavorites: () => Promise<number[]>
-  toggleFavorite: (code: number) => Promise<{ isFavorite: boolean; favorites: number[] }>
-  onFavoritesChanged: (callback: (favorites: number[]) => void) => () => void
+  getFavorites: () => Promise<FavoritesState>
+  toggleFavorite: (code: number) => Promise<FavoritesState>
+  addFavoriteCategory: (name: string) => Promise<FavoritesState & { id: string }>
+  renameFavoriteCategory: (id: string, name: string) => Promise<FavoritesState>
+  deleteFavoriteCategory: (id: string) => Promise<FavoritesState>
+  setFavoriteCategory: (
+    code: number,
+    categoryId: string,
+    member: boolean
+  ) => Promise<FavoritesState>
+  setFavoriteUngrouped: (code: number) => Promise<FavoritesState>
+  onFavoritesChanged: (callback: (state: FavoritesState) => void) => () => void
 
   agentSendMessage: (params: AgentSendMessageParams) => Promise<AgentSendMessageResult>
   agentAbort: () => Promise<boolean>
@@ -288,6 +266,8 @@ export interface IpcApi {
   duelDeleteReplays: (fileNames: string[]) => Promise<ReplayDeleteResult>
 
   getDuelEngineSupport: () => Promise<EngineSupportInfo>
+  getDuelEngineSessionDoc: () => Promise<EngineSessionDocResult>
+  restoreDuelEngineSession: (doc: EngineSessionDoc) => Promise<EngineSessionRestoreResult>
 
   duelEngineInit: (params: EngineDuelInitParams) => Promise<{
     boardState: EngineBoardState
@@ -303,11 +283,6 @@ export interface IpcApi {
     currentStepId: string
   }>
   duelEngineGetTimeline: () => Promise<EngineTimelineNode[]>
-  duelEngineGetProvenance: (ref: EngineCardRef) => Promise<EngineProvenance>
-  duelEngineReplaceCard: (ref: EngineCardRef, newCode: number) => Promise<EngineCardEditResult>
-  duelEngineRemoveCard: (ref: EngineCardRef) => Promise<EngineCardEditResult>
-  duelEngineExportSession: () => Promise<EngineSessionFileResult>
-  duelEngineImportSession: () => Promise<EngineSessionImportResult>
   duelEngineImportReplay: () => Promise<EngineImportReplayResult>
   duelEngineExitReplay: () => Promise<void>
   onReplayImportStarting: (callback: () => void) => () => void
@@ -321,10 +296,10 @@ export interface IpcApi {
   windowIsMaximized: () => Promise<boolean>
 
   onWindowMaximizedChange: (callback: (maximized: boolean) => void) => () => void
+  onAppBeforeClose: (callback: () => void) => () => void
+  confirmAppClose: () => void
 
   onConfigUpdated: (callback: () => void) => () => void
   onCdbUpdated: (callback: () => void) => () => void
   onAgentEvent: (callback: (event: AgentStreamEvent) => void) => () => void
-
-  onAgentHandoff: (callback: (request: AgentHandoffRequest) => void) => () => void
 }

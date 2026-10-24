@@ -1,7 +1,7 @@
 import React from 'react'
 import { ACTION_TYPE_COLORS, DuelActionType } from '@shared/index'
 import { ArrowRight, ChevronRight } from 'lucide-react'
-import { CardImage } from '../ui/CardImage'
+import { CardThumb } from '../ui/CardThumb'
 import { cn } from '../../lib/utils'
 
 export type StepGroupKind = 'attack' | 'draw'
@@ -20,18 +20,6 @@ export interface StepGroupSummary {
   expanded: boolean
   isCurrentPlaying: boolean
   onToggle: () => void
-}
-
-const CardThumb: React.FC<{ code?: number; name: string }> = ({ code, name }) => {
-  if (!code) {
-    return null
-  }
-
-  return (
-    <div className="w-7 h-10 rounded overflow-hidden border border-border/80 bg-black/60 shrink-0 shadow-sm">
-      <CardImage code={code} small alt={name} className="w-full h-full object-cover" />
-    </div>
-  )
 }
 
 const PLAYER_BADGE_STYLES = [
@@ -92,17 +80,13 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
 
         <div className="flex items-end gap-1 pl-5">
           {codes.slice(0, 5).map((code, index) => (
-            <div
+            <CardThumb
               key={index}
-              className="w-7 h-10 rounded overflow-hidden border border-border/80 bg-black/60 shrink-0 shadow-sm"
-            >
-              <CardImage
-                code={code}
-                small
-                alt={summary.names[index] ?? '抽卡'}
-                className="w-full h-full object-cover"
-              />
-            </div>
+              code={code}
+              name={summary.names[index] ?? '抽卡'}
+              nameClassName="text-[7px] leading-[8px]"
+              className="h-10 w-7 shrink-0 rounded border border-border/80 bg-black/60 shadow-sm"
+            />
           ))}
           {codes.length > 5 && (
             <span className="text-[10px] font-bold text-muted-foreground pb-0.5">
@@ -131,7 +115,12 @@ export const StepGroupHeader: React.FC<{ summary: StepGroupSummary }> = ({ summa
         />
 
         {summary.kind === 'attack' ? (
-          <CardThumb code={summary.cardCode} name={summary.cardName} />
+          <CardThumb
+            code={summary.cardCode}
+            name={summary.cardName}
+            nameClassName="text-[7px] leading-[8px]"
+            className="h-10 w-7 shrink-0 rounded border border-border/80 bg-black/60 shadow-sm"
+          />
         ) : null}
 
         <div className="flex items-center gap-1.5 min-w-0 flex-1">

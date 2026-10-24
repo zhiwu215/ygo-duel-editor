@@ -1,4 +1,5 @@
 import { DuelPuzzleState, FieldCard } from '../types/duel'
+import { alignFirstPlayerSeat } from './seatAlignment'
 import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 import type { DuelTestSettings } from '../types/ipc/appConfig'
@@ -66,6 +67,11 @@ export interface LuaScriptOptions {
 }
 
 export function generateLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): string {
+  const aligned = options?.forReplay ? state : alignFirstPlayerSeat(state)
+  return renderLuaScript(aligned, options)
+}
+
+function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): string {
   const team0Count =
     state.matchConfig?.team0Count ?? (state.duelists?.filter((d) => d.team === 0).length || 1)
   const team1Count =

@@ -67,7 +67,6 @@ export async function searchWeb(
     queries.map((query) =>
       searchDeepSeekWeb(
         {
-          baseUrl: settings.baseUrl,
           apiKey,
           count,
           originalQuestion
@@ -94,5 +93,5 @@ export async function searchWeb(
 export async function fetchWeb(url: string, signal?: AbortSignal): Promise<WebFetchResult> {
   const { settings, apiKey } = resolveSettings()
   requireProvider(settings, apiKey)
-  return fetchDeepSeekWeb({ baseUrl: settings.baseUrl, apiKey }, url, signal)
+  return fetchDeepSeekWeb({ apiKey }, url, signal)
 }

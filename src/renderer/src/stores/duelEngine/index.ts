@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { createCardEditSlice } from './cardEditSlice'
 import { createPolicySlice } from './policySlice'
 import { createReplaySlice } from './replaySlice'
 import { createRequestSlice } from './requestSlice'
@@ -10,7 +9,6 @@ export const useDuelEngineStore = create<DuelEngineStore>()((...a) => ({
   ...createPolicySlice(...a),
   ...createSessionSlice(...a),
   ...createRequestSlice(...a),
-  ...createCardEditSlice(...a),
   ...createReplaySlice(...a)
 }))
 

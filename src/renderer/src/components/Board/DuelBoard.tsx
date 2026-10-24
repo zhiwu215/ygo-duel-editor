@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
-import { CardLocation, MASTER_RULES, FieldCard, isStandardTag } from '@shared/index'
+import { CardLocation, MASTER_RULES, FieldCard, isStandardTag, viewTopSeatOf } from '@shared/index'
 import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
 import { BoardSector } from './BoardSector'
@@ -15,6 +15,8 @@ import { resolveOwnerScope } from '../../utils/duelistNames'
 
 export const DuelBoard: React.FC = () => {
   const state = useDuelStore((s) => s.state)
+  const viewTopSeat = useDuelStore((s) => viewTopSeatOf(s.state))
+  const viewBottomSeat: 0 | 1 = viewTopSeat === 0 ? 1 : 0
   const activeDuelistIds = useDuelStore((s) => s.activeDuelistIds)
   const currentTurn = useDuelStore((s) => s.currentTurn)
   const duelStarted = useDuelStore((s) => s.duelStarted)
@@ -115,14 +117,15 @@ export const DuelBoard: React.FC = () => {
             zoom: String(scale)
           }}
         >
-          <HandTray controller={1} />
+          <HandTray controller={viewTopSeat} isTop />
 
           <div
             ref={boardRef}
             className="relative z-10 w-max py-2 px-3 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col items-center justify-center gap-1 shrink-0"
           >
             <BoardSector
-              controller={1}
+              controller={viewTopSeat}
+              isTop
               pendulumInSZone={ruleInfo.pendulumInSZone}
               hasIndependentPZones={ruleInfo.hasIndependentPZones}
               getCard={getCard}
@@ -215,7 +218,8 @@ export const DuelBoard: React.FC = () => {
             </div>
 
             <BoardSector
-              controller={0}
+              controller={viewBottomSeat}
+              isTop={false}
               pendulumInSZone={ruleInfo.pendulumInSZone}
               hasIndependentPZones={ruleInfo.hasIndependentPZones}
               getCard={getCard}
@@ -223,7 +227,7 @@ export const DuelBoard: React.FC = () => {
             />
           </div>
 
-          <HandTray controller={0} />
+          <HandTray controller={viewBottomSeat} isTop={false} />
         </div>
       </div>
 

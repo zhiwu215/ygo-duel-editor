@@ -88,11 +88,19 @@ export function discardFutureSteps(
   if (droppedIds.size === 0) return 0
   for (const id of droppedIds) engineSteps.delete(id)
   const steps = useDuelStore.getState().state.steps || []
-  const next = steps.filter(
-    (step) =>
-      (!step.actId || !droppedIds.has(step.actId)) &&
-      (!step.afterActId || !droppedIds.has(step.afterActId))
-  )
+  const next: typeof steps = []
+  for (const step of steps) {
+    const startId = step.startActId ?? step.actId
+    if (startId && droppedIds.has(startId)) continue
+    if (step.afterActId && droppedIds.has(step.afterActId)) continue
+    if (step.endActId && droppedIds.has(step.endActId)) {
+      const reset: typeof step = { ...step, endActId: startId }
+      if (startId) engineSteps.set(startId, reset)
+      next.push(reset)
+      continue
+    }
+    next.push(step)
+  }
   if (next.length !== steps.length) {
     useDuelStore.setState((prev) => ({ ...prev, state: { ...prev.state, steps: next } }))
   }

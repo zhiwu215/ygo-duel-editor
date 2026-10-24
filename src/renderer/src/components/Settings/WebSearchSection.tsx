@@ -131,22 +131,6 @@ export function WebSearchSection(): JSX.Element {
           </p>
         </div>
 
-        <div className="border-b border-border/60 py-3.5">
-          <div className="text-sm font-medium">API 地址</div>
-          <input
-            type="text"
-            value={draft.baseUrl}
-            onChange={(event) => patch({ baseUrl: event.target.value })}
-            placeholder="https://api.deepseek.com/v1/tools"
-            aria-label="网页搜索 API 地址"
-            spellCheck={false}
-            className={cn(MODEL_INPUT, 'mt-2')}
-          />
-          <p className={cn(MODEL_HINT, 'mt-1.5 leading-relaxed')}>
-            填写包含路径前缀的地址，程序会追加 /search 或 /fetch。
-          </p>
-        </div>
-
         <div className="py-3.5">
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium">每次搜索结果数</span>

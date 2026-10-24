@@ -29,5 +29,6 @@ export const PROJECT_CREDITS: ProjectCredit[] = [
   { name: 'edopro-kcg', url: 'https://github.com/knight00/KCGEdopro' },
   { name: 'neos-ts', url: 'https://github.com/DarkNeos/neos-ts' },
   { name: 'MDPro3', url: 'https://code.moenext.com/sherry_chaos/MDPro3/-/tree/master' },
-  { name: 'DataEditorY', url: 'https://github.com/kkr223/DataEditorY' }
+  { name: 'DataEditorY', url: 'https://github.com/kkr223/DataEditorY' },
+  { name: 'deepseek-harness', url: 'https://github.com/deepseek-ai/deepseek-harness' }
 ]

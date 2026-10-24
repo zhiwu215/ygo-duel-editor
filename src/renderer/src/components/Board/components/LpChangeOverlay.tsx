@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import { viewTopSeatOf } from '@shared/index'
 import { useDuelStore, LpFlash } from '../../../stores/useDuelStore'
 import { cn } from '../../../lib/utils'
 
@@ -8,6 +9,7 @@ const MAX_VISIBLE = 3
 
 export const LpChangeOverlay: React.FC = () => {
   const [items, setItems] = useState<LpFlash[]>([])
+  const viewTopSeat = useDuelStore((s) => viewTopSeatOf(s.state))
   const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export const LpChangeOverlay: React.FC = () => {
   return (
     <div className="absolute inset-0 z-[45] pointer-events-none select-none overflow-hidden">
       {items.map((item) => {
-        const isOpponent = item.player === 1
+        const onTopSide = item.player === viewTopSeat
         const damage = item.delta < 0
         return (
           <div key={item.id} className="absolute inset-0">
@@ -47,7 +49,7 @@ export const LpChangeOverlay: React.FC = () => {
                 transition={{ duration: 0.45, times: [0, 0.15, 0.35, 1], ease: 'easeOut' }}
                 className={cn(
                   'absolute inset-x-0 h-1/2',
-                  isOpponent
+                  onTopSide
                     ? 'top-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,39,39,0.32),transparent_70%)]'
                     : 'bottom-0 bg-[radial-gradient(ellipse_at_50%_100%,rgba(255,39,39,0.32),transparent_70%)]'
                 )}
@@ -56,7 +58,7 @@ export const LpChangeOverlay: React.FC = () => {
             <div
               className={cn(
                 'absolute left-1/2 -translate-x-1/2',
-                isOpponent ? 'top-[clamp(48px,12vh,120px)]' : 'bottom-[clamp(48px,12vh,120px)]'
+                onTopSide ? 'top-[clamp(48px,12vh,120px)]' : 'bottom-[clamp(48px,12vh,120px)]'
               )}
             >
               <motion.div

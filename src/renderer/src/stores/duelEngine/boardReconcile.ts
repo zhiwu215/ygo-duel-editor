@@ -1,16 +1,16 @@
-import { CardLocation, DuelPhase, EngineBoardState, resolveEngineCardStats } from '@shared/index'
+import {
+  CardLocation,
+  DuelPhase,
+  EngineBoardState,
+  duelPhaseFromMask,
+  resolveEngineCardStats
+} from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
 import { normalizeEngineCardPosition } from '../../utils/engineCardPosition'
 import { getEditorId, registerIdentity, toEditorToEngineMap } from './identityMap'
 
 export function mapPhaseToDuelPhase(phase: number): DuelPhase {
-  if (phase === 1) return 'DP'
-  if (phase === 2) return 'SP'
-  if (phase === 4) return 'M1'
-  if ([8, 16, 32, 64, 128].includes(phase)) return 'BP'
-  if (phase === 256) return 'M2'
-  if (phase === 512) return 'EP'
-  return 'M1'
+  return duelPhaseFromMask(phase)
 }
 
 export function applyEngineWrite(apply: () => void): void {

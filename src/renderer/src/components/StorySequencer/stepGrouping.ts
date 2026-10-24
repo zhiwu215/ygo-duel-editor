@@ -75,8 +75,13 @@ export function getAttackDamageText(attack: DuelStep, damage?: DuelStep): string
     : `${targetName}回复 +${value}${lpSuffix}`
 }
 
-export function duelActionLabel(step: Pick<DuelStep, 'actionType' | 'targetPlayer'>): string {
+export function duelActionLabel(
+  step: Pick<DuelStep, 'actionType' | 'targetPlayer'> & { description?: string }
+): string {
   if (step.actionType === 'ATTACK' && step.targetPlayer !== undefined) return '直接攻击'
+  if (step.actionType === 'PHASE_CHANGE' && step.description?.includes('结束回合')) {
+    return '回合结束'
+  }
   return ACTION_TYPE_NAMES[step.actionType] || step.actionType
 }
 
@@ -257,11 +262,15 @@ export function buildStepList(steps: DuelStep[], initialLp?: LpPair): StepListIt
 
   steps.forEach((step, index) => {
     const isMarker = step.actionType === 'PHASE_CHANGE' || step.actionType === 'TURN_CHANGE'
+    const showMarker =
+      isMarker &&
+      (step.logEvents?.some((event) => event.kind !== 'phase' && event.kind !== 'turn-start') ??
+        false)
     if (isMarker || lastTurn !== step.turn || lastPhase !== step.phase) {
       flush()
       syncHeaders(step)
     }
-    if (!isMarker) pending.push({ step, index })
+    if (!isMarker || showMarker) pending.push({ step, index })
   })
 
   flush()

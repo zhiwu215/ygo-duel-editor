@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react'
+import React, { memo, useMemo, useState } from 'react'
 import { FieldCard, CdbCard, CardLocation, CardPosition, CardUtils } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDropHintStore } from '../../stores/useDropHintStore'
@@ -14,6 +14,8 @@ import { DropHintPopover } from './components/DropHintPopover'
 import { useDeckZoneInteraction } from '../../hooks/useDeckZoneInteraction'
 import { getDropPosOverride, canShowPositionHint } from '../../utils/zoneDrop'
 import { buildInjectCommand } from '../../utils/engineInject'
+import { resolveActionablePiles } from '../../utils/pileActionIndicator'
+import { ActRing } from '../common/ActRing'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -295,6 +297,13 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const config = VARIANT_CONFIGS[colorVariant] || VARIANT_CONFIGS.monster
   const IconComponent = config.icon
 
+  const actionablePiles = useMemo(
+    () => resolveActionablePiles(pendingRequest, controller),
+    [pendingRequest, controller]
+  )
+  const showActionRing =
+    isPileZone && actionablePiles.has(location) && (Boolean(card) || (count ?? 0) > 0)
+
   const isSquareCell =
     location === CardLocation.MZONE ||
     location === CardLocation.SZONE ||
@@ -390,6 +399,10 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       )}
 
       {isHintTarget && card && <DropHintPopover card={card} location={location} />}
+
+      {showActionRing && (
+        <ActRing className="absolute inset-0 z-10 m-auto h-[88%] w-[88%] opacity-90" />
+      )}
 
       {card ? (
         <CardItem key={card.instanceId} card={card} squareCell={isSquareCell} />

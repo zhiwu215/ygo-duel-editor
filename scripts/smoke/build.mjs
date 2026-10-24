@@ -72,7 +72,9 @@ const entries = [
   'engine-start-dup-smoke',
   'turn-progression-smoke',
   'editor-battle-smoke',
-  'undo-opening-smoke'
+  'undo-opening-smoke',
+  'autosave-smoke',
+  'card-relations-smoke'
 ]
 
 let failed = 0

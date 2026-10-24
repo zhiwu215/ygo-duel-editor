@@ -78,6 +78,7 @@ export function recordEditorStep(input: EditorStepInput): void {
     description: input.description,
     manualOps: input.ops ?? (input.op ? [input.op] : undefined),
     lpChange: input.lpChange,
+    origin: 'manual',
     boardAfter: input.boardAfter ?? createLightweightSnapshot(duel.state.cards)
   }
 

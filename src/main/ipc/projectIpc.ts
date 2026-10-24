@@ -8,11 +8,9 @@ import {
   ReplayDeleteResult,
   ReplayFileListResult
 } from '@shared/index'
-import { projectFileService } from '../services/projectFileService'
-import { projectSeriesService } from '../services/projectSeriesService'
 import { ygoproLauncher } from '../services/ygoproLauncher'
 import { luaFileIo } from '../services/luaFileIo'
-import { sessionDocFileService } from '../services/sessionDocFileService'
+import { screenplayMarkdownService } from '../services/screenplayMarkdownService'
 
 export function registerProjectIpc(): void {
   ipcMain.handle('file:export-lua', async (_, state: DuelPuzzleState, targetPath?: string) => {
@@ -31,11 +29,7 @@ export function registerProjectIpc(): void {
   })
 
   ipcMain.handle('file:export-screenplay-md', async (_, state: DuelPuzzleState) => {
-    return sessionDocFileService.exportScreenplayFile(state)
-  })
-
-  ipcMain.handle('file:save-to-library', async (_, state: DuelPuzzleState) => {
-    return projectFileService.saveProjectToLibrary(state)
+    return screenplayMarkdownService.exportScreenplayFile(state)
   })
 
   ipcMain.handle(
@@ -62,55 +56,4 @@ export function registerProjectIpc(): void {
       return ygoproLauncher.deleteReplays(fileNames)
     }
   )
-
-  ipcMain.handle('file:save-project', async (_, state: DuelPuzzleState) => {
-    return projectFileService.saveProjectFile(state)
-  })
-
-  ipcMain.handle(
-    'file:save-project-to-path',
-    async (_, filePath: string, state: DuelPuzzleState) => {
-      return projectFileService.saveProjectToPath(filePath, state)
-    }
-  )
-
-  ipcMain.handle('file:load-project', async () => {
-    return projectFileService.loadProjectFile()
-  })
-
-  ipcMain.handle('file:get-project-list', async () => {
-    return projectFileService.getProjectList()
-  })
-
-  ipcMain.handle('file:load-project-by-path', async (_, filePath: string) => {
-    return projectFileService.loadProjectByPath(filePath)
-  })
-
-  ipcMain.handle('file:delete-project-file', async (_, filePath: string) => {
-    return projectFileService.deleteProjectFile(filePath)
-  })
-
-  ipcMain.handle('file:duplicate-project-file', async (_, filePath: string) => {
-    return projectFileService.duplicateProjectFile(filePath)
-  })
-
-  ipcMain.handle('file:reveal-file', async (_, filePath: string) => {
-    return projectFileService.revealFileInFolder(filePath)
-  })
-
-  ipcMain.handle('file:create-project-series', async (_, name: string) => {
-    return projectSeriesService.createProjectSeries(name)
-  })
-
-  ipcMain.handle('file:rename-project-series', async (_, oldName: string, newName: string) => {
-    return projectSeriesService.renameProjectSeries(oldName, newName)
-  })
-
-  ipcMain.handle('file:delete-project-series', async (_, name: string) => {
-    return projectSeriesService.deleteProjectSeries(name)
-  })
-
-  ipcMain.handle('file:set-project-series', async (_, filePath: string, series: string | null) => {
-    return projectSeriesService.setProjectSeries(filePath, series)
-  })
 }

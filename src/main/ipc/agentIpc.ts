@@ -6,10 +6,6 @@ export function registerAgentIpc(): void {
     return agentService.sendMessage(params)
   })
 
-  ipcMain.handle('agent:handoff', async (_, request) => {
-    return agentService.handoff(request)
-  })
-
   ipcMain.handle('agent:abort', async () => {
     return agentService.abort()
   })

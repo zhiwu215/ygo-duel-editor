@@ -1,11 +1,12 @@
 import { DuelPuzzleState } from '../types/duel'
 import { PHASE_SHORT_NAMES, ACTION_TYPE_NAMES } from '../types/story'
+import { displayStepTextBlocks } from './stepDefaultText'
 
 interface ScreenplayOptions {
-  includeInnerThoughts?: boolean
   includeTechnicalNotes?: boolean
   player0Name?: string
   player1Name?: string
+  cardNameWrapper?: string
 }
 
 export function generateScreenplayMarkdown(
@@ -60,15 +61,10 @@ export function generateScreenplayMarkdown(
 
     const actionActor = step.actionPlayer === 0 ? p0Name : p1Name
     const actionName = ACTION_TYPE_NAMES[step.actionType] || step.actionType
-    if (step.speaker && step.dialogue) {
-      lines.push(`> **${step.speaker}**：「${step.dialogue}」`)
-      lines.push('')
-    } else if (step.dialogue) {
-      lines.push(`> **${actionActor}**：「${step.dialogue}」`)
-      lines.push('')
-    }
-    if (step.innerThoughts && options?.includeInnerThoughts !== false) {
-      lines.push(`*（${step.innerThoughts}）*`)
+    const texts = displayStepTextBlocks(step, actionActor, options?.cardNameWrapper)
+    for (const block of texts) {
+      if (!block.text.trim()) continue
+      lines.push(`> ${block.text}`)
       lines.push('')
     }
     if (step.actionType !== 'DIALOGUE') {

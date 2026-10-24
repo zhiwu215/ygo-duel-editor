@@ -1,4 +1,4 @@
-import type { AgentBoardSetupProposal, AgentStepProposal, AgentWebToolDetails } from '@shared/index'
+import type { AgentWebToolDetails } from '@shared/index'
 import type { ChatSlice } from './chatSlice'
 import type { ConfigSlice } from './configSlice'
 
@@ -19,11 +19,6 @@ export interface AgentChatMessage {
   status?: string
   error?: string
   toolCalls?: AgentToolCallItem[]
-  proposals?: AgentStepProposal[]
-
-  boardSetup?: AgentBoardSetupProposal
-
-  boardSetupApplied?: boolean
 
   attachedCards?: { id: number; name: string; type?: number }[]
 

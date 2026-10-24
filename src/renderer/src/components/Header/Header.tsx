@@ -14,7 +14,6 @@ import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
 import { TurnPhaseIndicator } from './components/TurnPhaseIndicator'
 import { ExportStatusBadge } from './components/ExportStatusBadge'
-import { SaveProjectModal } from './components/SaveProjectModal'
 import { useProjectCommands } from '../../hooks/useProjectCommands'
 import { useGlobalShortcuts } from '../../hooks/useGlobalShortcuts'
 import { useStartEngine } from '../../hooks/useStartEngine'
@@ -33,8 +32,6 @@ export const Header: React.FC = () => {
   const startEngine = useStartEngine()
 
   const {
-    isSaveModalOpen,
-    closeSaveModal,
     handleNew,
     handleSaveProject,
     handleSaveProjectAs,
@@ -44,10 +41,7 @@ export const Header: React.FC = () => {
     handleImportLua,
     handleExportYrp,
     handleImportReplay,
-    handleOpenReplayInYgo,
-    handleExportScreenplay,
-    handleExportSession,
-    handleImportSession
+    handleOpenReplayInYgo
   } = useProjectCommands()
 
   useGlobalShortcuts({
@@ -88,9 +82,6 @@ export const Header: React.FC = () => {
               onOpenReplayInYgo={handleOpenReplayInYgo}
               canOpenReplay={Boolean(replayInfo?.filePath)}
               isReplay={replayInfo !== null}
-              onExportScreenplay={handleExportScreenplay}
-              onExportSession={handleExportSession}
-              onImportSession={handleImportSession}
             />
           </div>
         </div>
@@ -205,8 +196,6 @@ export const Header: React.FC = () => {
           )}
         </div>
       </div>
-
-      {isSaveModalOpen && <SaveProjectModal open={isSaveModalOpen} onClose={closeSaveModal} />}
 
       {importingReplay && (
         <div

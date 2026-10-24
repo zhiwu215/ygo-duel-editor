@@ -20,11 +20,11 @@ import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
 export const SingleHandTray: React.FC<{
   duelist: Duelist
   controller: 0 | 1
+  isTop: boolean
   cards: FieldCard[]
   totalCount: number
-}> = ({ duelist, controller, cards, totalCount }) => {
+}> = ({ duelist, controller, isTop, cards, totalCount }) => {
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
-  const isOpponent = controller === 1
   const shuffle = useHandShufflePulse(controller)
   const commitLp = useLpCommit()
 
@@ -128,7 +128,7 @@ export const SingleHandTray: React.FC<{
             <span
               className={cn(
                 'font-semibold',
-                isOpponent ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                isTop ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
               )}
             >
               {duelist.name}
@@ -144,7 +144,7 @@ export const SingleHandTray: React.FC<{
           label="LP"
           size="sm"
           player={controller}
-          popoverPlacement={controller === 0 ? 'top' : 'bottom'}
+          popoverPlacement={isTop ? 'bottom' : 'top'}
           onLpChange={(newLp) =>
             commitLp(controller, newLp, (lp) => updateDuelist(duelist.id, { lp }))
           }
@@ -166,10 +166,10 @@ export const SingleHandTray: React.FC<{
             'h-[100px] w-full px-2 py-0.5 rounded border border-dashed flex items-center gap-1.5 overflow-x-auto overflow-y-hidden transition-colors',
             shuffle.active && 'ring-2 ring-amber-400/70 border-amber-400/60',
             isDragOver
-              ? isOpponent
+              ? isTop
                 ? 'border-red-500 ring-2 ring-red-500/20 bg-red-500/10'
                 : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
-              : isOpponent
+              : isTop
                 ? 'border-red-500/25 hover:border-red-500/50 bg-muted/20 dark:bg-black/20'
                 : 'border-blue-500/25 hover:border-blue-500/50 bg-muted/20 dark:bg-black/20'
           )}
@@ -226,7 +226,7 @@ export const SingleHandTray: React.FC<{
             <div
               className={cn(
                 'w-full h-full flex items-center justify-center pointer-events-none select-none',
-                isOpponent ? 'text-red-500/40' : 'text-blue-500/40'
+                isTop ? 'text-red-500/40' : 'text-blue-500/40'
               )}
             >
               <Plus className="w-3.5 h-3.5" />

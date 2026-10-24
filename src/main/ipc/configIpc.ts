@@ -11,8 +11,10 @@ import {
   isCustomSyncCdbPath,
   listMdpro3Locales,
   readGameConfigLanguage,
-  resolveGameLanguagePack
+  resolveGameLanguagePack,
+  type GameLanguagePack
 } from '../services/gameContent'
+import { rememberGameLanguage, rememberedGameLanguage } from '../services/gameLanguagePreference'
 import { invalidateScriptReaders } from '../services/duel/ocgcore-engine'
 import { imageService } from '../services/imageService'
 import { ygoproLauncher } from '../services/ygoproLauncher'
@@ -71,33 +73,27 @@ export function registerConfigIpc(): void {
     }
     let primary = discoveredPrimary
     const options = gameLanguageOptions(dir, gameType)
-    let languagePack: { id: string; dir?: string; cdbPaths: string[] } | null = null
-    let defaultLanguage: string | undefined
-    let askLanguage = false
-    const preferred = configService.get().preferredLanguage
-    const preferredOption = preferred ? options.find((o) => o.id === preferred) : undefined
-    if (options.length > 1) {
-      if (gameType === 'mdpro3') {
-        if (preferredOption?.detail && existsSync(preferredOption.detail)) {
-          primary = preferredOption.detail
-        } else {
-          askLanguage = true
-        }
+    const chosen =
+      options.find((option) => option.id === rememberedGameLanguage(dir)) ??
+      options.find((option) => option.id === configService.get().preferredLanguage)
+    let languagePack: GameLanguagePack | null = null
+    let language: string | undefined
+    let reused = false
+    if (gameType === 'mdpro3') {
+      if (chosen?.detail && existsSync(chosen.detail)) {
+        primary = chosen.detail
+        language = chosen.id
+        reused = true
       } else {
-        const packs = discoverGameLanguagePacks(dir)
-        const preferredPack = resolveGameLanguagePack(packs, preferred)
-        if (preferredPack && preferredPack.id === preferred) {
-          languagePack = preferredPack
-          defaultLanguage = preferredPack.id
-        } else {
-          const pack = resolveGameLanguagePack(packs, readGameConfigLanguage(dir))
-          if (pack) {
-            languagePack = pack
-            defaultLanguage = pack.id
-          }
-          askLanguage = true
-        }
+        language = options.find((option) => option.detail === discoveredPrimary)?.id
       }
+    } else {
+      const packs = discoverGameLanguagePacks(dir)
+      languagePack =
+        packs.find((pack) => pack.id === chosen?.id) ??
+        resolveGameLanguagePack(packs, readGameConfigLanguage(dir))
+      language = languagePack?.id
+      reused = languagePack != null && languagePack.id === chosen?.id
     }
     cdbService.setGameDirectory(dir)
     const ok = cdbService.open(
@@ -113,14 +109,15 @@ export function registerConfigIpc(): void {
       gameDirectory: dir,
       cdbPath: primary,
       gameType,
-      gameLanguage: defaultLanguage
+      gameLanguage: gameType === 'ygopro' ? language : undefined
     })
+    if (language) rememberGameLanguage(dir, language)
     invalidateScriptReaders()
     broadcastToWindows('cdb:updated')
     return {
       success: true,
       path: dir,
-      languageOptions: askLanguage ? options : undefined,
+      languageOptions: options.length > 1 && !reused ? options : undefined,
       artOnlyImages: gameType === 'mdpro3' && imageService.classifyCardImageDir(dir) === 'art'
     }
   })
@@ -196,6 +193,7 @@ export function registerConfigIpc(): void {
     } else {
       return { success: false, error: '当前游戏类型不支持语言切换' }
     }
+    rememberGameLanguage(cfg.gameDirectory, languageId)
     invalidateScriptReaders()
     broadcastToWindows('cdb:updated')
     return { success: true }

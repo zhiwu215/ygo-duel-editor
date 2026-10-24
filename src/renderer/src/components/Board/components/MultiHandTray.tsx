@@ -12,9 +12,10 @@ import { cn } from '../../../lib/utils'
 export const MultiHandTray: React.FC<{
   duelists: Duelist[]
   controller: 0 | 1
+  isTop: boolean
   teamHandCards: FieldCard[]
   totalCount: number
-}> = ({ duelists, controller, teamHandCards, totalCount }) => {
+}> = ({ duelists, controller, isTop, teamHandCards, totalCount }) => {
   const sharedLp = useDuelStore((s) => s.state.matchConfig?.sharedLp)
   const isTagMode = useDuelStore((s) => s.state.matchConfig?.mode === 'tag')
   const teamLp = useDuelStore((s) => s.state.players[controller]?.lp)
@@ -104,9 +105,7 @@ export const MultiHandTray: React.FC<{
               }}
               className={cn(
                 'px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border',
-                d.team === 1
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-blue-600 dark:text-blue-400',
+                isTop ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400',
                 selectedDuelist?.id === d.id
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-muted/40 border-border hover:bg-muted'
@@ -142,7 +141,7 @@ export const MultiHandTray: React.FC<{
             label="队伍 LP"
             size="sm"
             player={controller}
-            popoverPlacement={controller === 0 ? 'top' : 'bottom'}
+            popoverPlacement={isTop ? 'bottom' : 'top'}
             onLpChange={(newLp) => commitLp(controller, newLp, (lp) => setPlayerLp(controller, lp))}
           />
         )}
@@ -168,6 +167,7 @@ export const MultiHandTray: React.FC<{
               key={duelist.id}
               duelist={duelist}
               controller={controller}
+              isTop={isTop}
               cards={duelistCards}
               totalCount={totalCount}
               isExpanded={isExpanded}

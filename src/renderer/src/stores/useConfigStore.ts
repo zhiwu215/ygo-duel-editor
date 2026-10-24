@@ -7,11 +7,13 @@ import {
   CustomSyncCdbInfo,
   DEFAULT_DUEL_TEST_SETTINGS,
   DEFAULT_FONT_SIZES,
+  DEFAULT_CARD_NAME_WRAPPER,
   DuelTestSettings,
   EngineSupportInfo,
   FontSizeRole,
   WebSearchConfig,
   clampFontSize,
+  normalizeCardNameWrapper,
   normalizeFontSizes,
   normalizeWebSearchConfig
 } from '@shared/index'
@@ -36,6 +38,7 @@ interface ConfigStoreState {
   setExtraCdbEnabled: (cdbPath: string, enabled: boolean) => Promise<void>
   setTheme: (theme: ThemePreference) => Promise<void>
   setFontSize: (role: FontSizeRole, px: number) => Promise<void>
+  setCardNameWrapper: (wrapper: string) => Promise<void>
 
   selectDataDir: (migrate: boolean) => Promise<boolean>
   resetDataDir: (migrate: boolean) => Promise<void>
@@ -56,7 +59,8 @@ let cdbUpdatedSubscribed = false
 export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   config: {
     theme: 'system',
-    fontSizes: DEFAULT_FONT_SIZES
+    fontSizes: DEFAULT_FONT_SIZES,
+    cardNameWrapper: DEFAULT_CARD_NAME_WRAPPER
   },
   isLoaded: false,
   dbReady: null,
@@ -134,6 +138,12 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     applyFontSizes(fontSizes)
     set((state) => ({ config: { ...state.config, fontSizes } }))
     await window.api.saveConfig({ fontSizes })
+  },
+
+  setCardNameWrapper: async (wrapper) => {
+    const cardNameWrapper = normalizeCardNameWrapper(wrapper)
+    set((state) => ({ config: { ...state.config, cardNameWrapper } }))
+    await window.api.saveConfig({ cardNameWrapper })
   },
 
   selectDataDir: async (migrate) => {

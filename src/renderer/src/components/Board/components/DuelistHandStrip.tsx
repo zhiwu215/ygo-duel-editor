@@ -21,6 +21,7 @@ import { resolveViewerDuelist } from '../../../utils/duelistNames'
 interface DuelistHandStripProps {
   duelist: Duelist
   controller: 0 | 1
+  isTop: boolean
   cards: FieldCard[]
   totalCount?: number
   isExpanded: boolean
@@ -43,6 +44,7 @@ function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>): React.RefCallba
 export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   duelist,
   controller,
+  isTop,
   cards,
   totalCount = 2,
   isExpanded,
@@ -63,8 +65,6 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const focusDuelist = useDuelStore((s) => s.focusDuelist)
   const { tick: shuffleTick, active: shuffleActive } = useHandShufflePulse(controller, duelist.id)
-
-  const isOpponent = controller === 1
 
   const focusAsViewer = (): void => {
     if (activeDuelistIds[controller] !== duelist.id) focusDuelist(duelist.id)
@@ -169,7 +169,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
       <DuelistHandStripCollapsed
         duelist={duelist}
         cards={cards}
-        isOpponent={isOpponent}
+        isTop={isTop}
         isActiveViewer={isActiveViewer}
         isDragOver={isDragOver}
         ref={ref}
@@ -210,14 +210,14 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         'flex-1 min-w-[180px] h-[136px] rounded border-2 flex flex-col p-1 transition-all gap-0.5 relative',
         isActiveViewer && 'ring-1 ring-primary/60',
         isExpanded
-          ? isOpponent
+          ? isTop
             ? 'border-red-500/60 bg-red-500/5 shadow-sm'
             : 'border-blue-500/60 bg-blue-500/5 shadow-sm'
-          : isOpponent
+          : isTop
             ? 'border-red-500/20 bg-card/60 hover:border-red-500/40'
             : 'border-blue-500/20 bg-card/60 hover:border-blue-500/40',
         isDragOver &&
-          (isOpponent
+          (isTop
             ? 'border-red-500 ring-2 ring-red-500/30 bg-red-500/10'
             : 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10')
       )}
@@ -244,7 +244,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
               label="LP"
               size="sm"
               player={controller}
-              popoverPlacement="bottom"
+              popoverPlacement={isTop ? 'bottom' : 'top'}
               onLpChange={(newLp) =>
                 commitLp(controller, newLp, (lp) => updateDuelist(duelist.id, { lp }))
               }
@@ -268,10 +268,10 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
           crowded && !isExpanded && 'scrollbar-none',
           shuffleActive && 'ring-2 ring-amber-400/70 border-amber-400/60',
           isDragOver
-            ? isOpponent
+            ? isTop
               ? 'border-red-500 ring-2 ring-red-500/20 bg-red-500/10'
               : 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/10'
-            : isOpponent
+            : isTop
               ? 'border-red-500/20 hover:border-red-500/40 bg-muted/20 dark:bg-black/20'
               : 'border-blue-500/20 hover:border-blue-500/40 bg-muted/20 dark:bg-black/20'
         )}
@@ -328,7 +328,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
           <div
             className={cn(
               'w-full h-full flex items-center justify-center pointer-events-none select-none',
-              isOpponent ? 'text-red-500/40' : 'text-blue-500/40'
+              isTop ? 'text-red-500/40' : 'text-blue-500/40'
             )}
           >
             <Plus className="w-3 h-3" />

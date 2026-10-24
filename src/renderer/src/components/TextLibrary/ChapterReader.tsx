@@ -1,14 +1,12 @@
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, Loader2, Minus, Save, Search } from 'lucide-react'
+import { ArrowLeft, Loader2, Save, Search } from 'lucide-react'
 import { TextChapter, TextMeta } from '@shared/index'
 import { countWords } from '@shared/engine/textSplitter'
 import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { cn } from '../../lib/utils'
-import { toggleRangeSelect } from '../../utils/rangeSelect'
-import { buildChapterHandoffPrompt } from '../../utils/agentHandoffPrompt'
 
 interface ChapterReaderProps {
   text: TextMeta
@@ -26,8 +24,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const [chapters, setChapters] = useState<TextChapter[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [picked, setPicked] = useState<Set<string>>(() => new Set())
-  const [anchor, setAnchor] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [draft, setDraft] = useState<string>('')
   const [savedText, setSavedText] = useState<string>('')
@@ -40,9 +36,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
       .then((list) => {
         if (cancelled) return
         setChapters(list)
-        setPicked(new Set())
         setActiveId(list[0]?.id ?? null)
-        setAnchor(list[0]?.id ?? null)
         setLoading(false)
       })
       .catch((err) => {
@@ -86,19 +80,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     )
   }, [chapters, search])
 
-  const toggle = (id: string, shiftKey: boolean): void => {
-    setPicked((prev) =>
-      toggleRangeSelect(
-        prev,
-        id,
-        anchor,
-        shiftKey,
-        filtered.map((c) => c.id)
-      )
-    )
-    if (!shiftKey) setAnchor(id)
-  }
-
   const handleSave = async (): Promise<void> => {
     if (!activeId || draft === savedText) return
     setSaving(true)
@@ -116,43 +97,8 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     flash('已保存本章正文')
   }
 
-  const handleSend = async (): Promise<void> => {
-    const list = chapters.filter((c) => picked.has(c.id))
-    if (list.length === 0) {
-      flash('请先选择章节')
-      return
-    }
-    const total = list.reduce((sum, c) => sum + (c.wordCount || 0), 0)
-    const names = list.map((c) => c.title)
-    const label = names.length === 1 ? names[0] : `${names[0]} 等 ${names.length} 章`
-
-    const res = await window.api.agentHandoff({
-      prompt: buildChapterHandoffPrompt({
-        title: text.title,
-        label,
-        chapterCount: list.length,
-        total
-      }),
-      textSource: {
-        textId: text.id,
-        chapterId: list[0].id,
-        chapterIds: list.map((c) => c.id),
-        title: `《${text.title}》· ${label}`,
-        wordCount: total
-      }
-    })
-    if (!res.success) {
-      flash(res.error || '交给背后灵失败')
-      return
-    }
-    flash(`已把 ${list.length} 章交给背后灵编排`)
-  }
-
   const activeChapter = chapters.find((c) => c.id === activeId)
   const dirty = draft !== savedText
-  const allOn = chapters.length > 0 && picked.size === chapters.length
-  const partial = picked.size > 0 && !allOn
-  const allFilteredOn = filtered.length > 0 && filtered.every((c) => picked.has(c.id))
 
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-foreground overflow-hidden">
@@ -167,9 +113,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           </button>
           <div className="min-w-0">
             <div className="font-bold text-sm truncate">{text.title}</div>
-            <div className="text-[10px] text-muted-foreground font-mono">
-              {chapters.length} 章 · 选中 {picked.size} 章
-            </div>
+            <div className="text-[10px] text-muted-foreground font-mono">{chapters.length} 章</div>
           </div>
           <div className="flex-1" />
           <div className="[-webkit-app-region:no-drag] flex items-center gap-2 -mr-4">
@@ -189,14 +133,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
               <span>保存</span>
             </button>
-            <button
-              type="button"
-              onClick={() => void handleSend()}
-              disabled={picked.size === 0}
-              className="flex items-center gap-1.5 px-2.5 h-8 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
-            >
-              <span>交给背后灵编排（{picked.size} 章）</span>
-            </button>
             <WindowControls />
           </div>
         </div>
@@ -214,35 +150,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 className="h-7 pl-8 text-[11px] bg-muted/40"
               />
             </div>
-            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
-              <span
-                onClick={() =>
-                  setPicked(allFilteredOn ? new Set() : new Set(filtered.map((c) => c.id)))
-                }
-                className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
-              >
-                <span
-                  className={cn(
-                    'w-3 h-3 rounded-[3px] border shrink-0 flex items-center justify-center',
-                    allOn
-                      ? 'bg-primary border-primary'
-                      : partial
-                        ? 'bg-primary/40 border-primary'
-                        : 'border-muted-foreground/40'
-                  )}
-                >
-                  {allOn ? (
-                    <Check className="w-2.5 h-2.5 text-primary-foreground" strokeWidth={3} />
-                  ) : partial ? (
-                    <Minus className="w-2.5 h-2.5 text-primary-foreground" strokeWidth={3} />
-                  ) : null}
-                </span>
-                <span>全选</span>
-              </span>
-              <span className="font-mono">
-                {picked.size}/{chapters.length}
-              </span>
-            </div>
           </div>
 
           <ScrollArea className="flex-1 min-h-0">
@@ -257,7 +164,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 </p>
               ) : (
                 filtered.map((c) => {
-                  const on = picked.has(c.id)
                   const active = c.id === activeId
                   return (
                     <div
@@ -270,27 +176,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                           : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                       )}
                     >
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggle(c.id, e.shiftKey)
-                        }}
-                        className="w-3 h-3 rounded-[3px] border shrink-0 flex items-center justify-center"
-                      >
-                        <span
-                          className={cn(
-                            'w-full h-full rounded-[2px] flex items-center justify-center',
-                            on ? 'bg-primary' : 'bg-transparent'
-                          )}
-                        >
-                          {on && (
-                            <Check
-                              className="w-2.5 h-2.5 text-primary-foreground"
-                              strokeWidth={3}
-                            />
-                          )}
-                        </span>
-                      </span>
                       <span className="flex-1 truncate">{c.title}</span>
                       <span className="font-mono text-[9px] opacity-60 shrink-0">
                         {(c.wordCount || 0).toLocaleString()}

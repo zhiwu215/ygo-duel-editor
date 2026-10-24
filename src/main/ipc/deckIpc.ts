@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { deckService } from '../services/deckService'
+import { favoritesService } from '../services/favoritesService'
 
 export function registerDeckIpc(): void {
   ipcMain.handle('deck:consume-pending-edit', async () => {
@@ -47,10 +48,33 @@ export function registerDeckIpc(): void {
   })
 
   ipcMain.handle('favorites:get', async () => {
-    return deckService.getFavorites()
+    return favoritesService.getState()
   })
 
   ipcMain.handle('favorites:toggle', async (_, code: number) => {
-    return deckService.toggleFavorite(code)
+    return favoritesService.toggle(code)
+  })
+
+  ipcMain.handle('favorites:add-category', async (_, name: string) => {
+    return favoritesService.addCategory(name)
+  })
+
+  ipcMain.handle('favorites:rename-category', async (_, id: string, name: string) => {
+    return favoritesService.renameCategory(id, name)
+  })
+
+  ipcMain.handle('favorites:delete-category', async (_, id: string) => {
+    return favoritesService.deleteCategory(id)
+  })
+
+  ipcMain.handle(
+    'favorites:set-category',
+    async (_, code: number, categoryId: string, member: boolean) => {
+      return favoritesService.setMembership(code, categoryId, member)
+    }
+  )
+
+  ipcMain.handle('favorites:set-ungrouped', async (_, code: number) => {
+    return favoritesService.setUngrouped(code)
   })
 }

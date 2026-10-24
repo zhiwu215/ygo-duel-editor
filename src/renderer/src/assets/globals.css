@@ -192,12 +192,28 @@
   }
 }
 
+.command-ring {
+  animation: command-ring-spin 6s linear infinite;
+}
+
+@keyframes command-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animated-gradient-text {
     animation: none;
     -webkit-text-fill-color: var(--ag-strong);
   }
   .message-enter {
+    animation: none;
+  }
+  .command-ring {
     animation: none;
   }
 }

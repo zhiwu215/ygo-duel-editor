@@ -1,6 +1,6 @@
 import React from 'react'
 import { CardLocation, CardPosition, FieldCard } from '@shared/index'
-import { CardImage } from '../../ui/CardImage'
+import { CardThumb } from '../../ui/CardThumb'
 import { ChainRing } from './ChainRing'
 import { Hand, Trash2 } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
@@ -69,11 +69,11 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
       )}
     >
       <div className="relative w-full aspect-[59/86] bg-black/30">
-        <CardImage
+        <CardThumb
           code={card.code}
-          small
-          alt={cardName}
-          className="w-full h-full object-cover pointer-events-none"
+          name={cardName}
+          imageClassName="pointer-events-none"
+          className="h-full w-full"
         />
 
         <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">

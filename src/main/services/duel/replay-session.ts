@@ -8,7 +8,6 @@ import type { EngineBoardState, EngineReplaySummary, EngineTimelineNode } from '
 import type { FieldReaderTagSeat } from './field-reader'
 import { configService } from '../configService'
 import { advanceEngine } from './engine-pump'
-import { initializeProvenance, trackAdvance } from './provenance-tracker'
 import { headPendingQuery, type SessionState } from './session-state'
 
 export interface ReplayPlayback {
@@ -129,7 +128,6 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
   try {
     advanceEngine(state)
     const initialBoard = state.fieldReader.readBoard(state.duel!)
-    initializeProvenance(state, initialBoard)
     const initialNode = state.timeline.addStep(
       '回放开局',
       initialBoard.turnPlayer,
@@ -137,10 +135,12 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
       null,
       [...state.accumulatedLogs],
       [...state.accumulatedEvents],
+      [...state.accumulatedLogEvents],
       -1
     )
     state.accumulatedLogs = []
     state.accumulatedEvents = []
+    state.accumulatedLogEvents = []
 
     let warning: string | undefined
     let previousNode: EngineTimelineNode | null = null
@@ -157,7 +157,6 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
       }
       const askTitle = head.request.title || `回放步骤 ${i + 1}`
       const actingPlayer = head.request.player
-      const before = state.fieldReader.readBoard(state.duel!)
       state.duel!.setResponse(frame)
       advanceEngine(state)
       if (state.lastAdvanceRetried) {
@@ -166,7 +165,6 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
         break
       }
       const after = state.fieldReader.readBoard(state.duel!)
-      trackAdvance(state, before, after, i)
       state.ops.push({ type: 'answer', nodeId: '', responses: [frame] })
       const node = state.timeline.addStep(
         askTitle,
@@ -175,6 +173,7 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
         null,
         [...state.accumulatedLogs],
         [...state.accumulatedEvents],
+        [...state.accumulatedLogEvents],
         state.ops.length - 1
       )
       previousNode = node
@@ -183,6 +182,7 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
       state.requestSeq += 1
       state.accumulatedLogs = []
       state.accumulatedEvents = []
+      state.accumulatedLogEvents = []
     }
     if (state.lastParseError) {
       const parseWarning = `引擎产生了无法完整解析的消息（${state.lastParseError}）`
@@ -198,5 +198,6 @@ export function buildReplayTimeline(state: SessionState, yrp: YGOProYrp): string
     state.replaying = false
     state.accumulatedLogs = []
     state.accumulatedEvents = []
+    state.accumulatedLogEvents = []
   }
 }

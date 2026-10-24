@@ -45,26 +45,6 @@ export interface EngineSessionImportPayload {
   currentStepId: string
 }
 
-export interface EngineSessionFileResult {
-  success: boolean
-  canceled?: boolean
-  filePath?: string
-  error?: string
-}
-
-export interface EngineSessionLoadResult extends EngineSessionFileResult {
-  doc?: EngineSessionDoc
-}
-
-export interface EngineSessionImportResult extends EngineSessionFileResult {
-  initParams?: EngineDuelInitParams
-  boardState?: EngineBoardState
-  pendingRequest?: EngineRequest | null
-  timeline?: EngineTimelineNode[]
-  currentStepId?: string
-  timingPolicy?: TimingPolicy
-}
-
 export type DuelOperation =
   | { type: 'answer'; nodeId: string; responses: Uint8Array[] }
   | { type: 'auto'; responses: Uint8Array[] }

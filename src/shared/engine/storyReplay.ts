@@ -1,7 +1,7 @@
 import { CardLocation } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 import { DuelPhase, DuelStep, LightweightCardSnapshot, ManualOp } from '../types/story'
-import { AgentStepProposal } from '../types/ipc'
+
 import { defaultPositionForLocation } from './boardSetup'
 
 const STEP_TARGET: Partial<
@@ -45,7 +45,7 @@ function isPileZone(location: number): boolean {
 }
 function locateCard(
   board: LightweightCardSnapshot[],
-  step: AgentStepProposal
+  step: DuelStep
 ): LightweightCardSnapshot | null {
   if (!step.cardCode || step.cardCode <= 0) return null
   const byCodeFrom =
@@ -94,7 +94,7 @@ function moveCardInBoard(
   board.length = 0
   board.push(...rest)
 }
-function applyStepToBoard(board: LightweightCardSnapshot[], step: AgentStepProposal): void {
+function applyStepToBoard(board: LightweightCardSnapshot[], step: DuelStep): void {
   if (step.actionType === 'DRAW') {
     const handCards = board.filter(
       (c) => c.controller === step.actionPlayer && c.location === CardLocation.HAND

@@ -1,14 +1,6 @@
 import type { StateCreator } from 'zustand'
-import {
-  AgentBoardSetupProposal,
-  AgentStepProposal,
-  AgentTextSourceRef,
-  CdbCard,
-  DuelPuzzleState
-} from '@shared/index'
-import { useDuelStore } from '../useDuelStore'
+import { AgentTextSourceRef, DuelPuzzleState } from '@shared/index'
 import type { AgentChatMessage, AgentStore } from './types'
-import { buildDuelSteps, buildNameToCode, resolveBoardPlacements } from './duelProposal'
 
 export interface ChatSlice {
   messages: AgentChatMessage[]
@@ -22,11 +14,6 @@ export interface ChatSlice {
   ) => Promise<void>
   abort: () => Promise<void>
   resetSession: () => Promise<void>
-  applyDuelProposal: (
-    setup: AgentBoardSetupProposal | null,
-    proposals: AgentStepProposal[],
-    sourceRef?: { textId: string; textTitle: string; chapterIds: string[] }
-  ) => Promise<{ ok: boolean; error?: string }>
 }
 
 export const createChatSlice: StateCreator<AgentStore, [], [], ChatSlice> = (set, get) => ({
@@ -59,7 +46,6 @@ export const createChatSlice: StateCreator<AgentStore, [], [], ChatSlice> = (set
       content: '',
       thought: '',
       toolCalls: [],
-      proposals: [],
       createdAt: Date.now()
     }
 
@@ -148,18 +134,10 @@ export const createChatSlice: StateCreator<AgentStore, [], [], ChatSlice> = (set
             )
           }))
           break
-        case 'proposals_ready':
-          updateAssistant({ proposals: event.proposals })
-          break
-        case 'board_setup_ready':
-          updateAssistant({ boardSetup: event.setup })
-          break
         case 'done':
           flushStream()
           updateAssistant({
             content: event.fullText,
-            proposals: event.proposals,
-            boardSetup: event.boardSetup,
             status: undefined,
             error: undefined
           })
@@ -206,8 +184,6 @@ export const createChatSlice: StateCreator<AgentStore, [], [], ChatSlice> = (set
                   ...m,
                   content: res.content || m.content,
                   thought: res.thought || m.thought,
-                  proposals: res.proposals || m.proposals,
-                  boardSetup: res.boardSetup ?? m.boardSetup,
                   status: undefined,
                   error: undefined
                 }
@@ -248,50 +224,5 @@ export const createChatSlice: StateCreator<AgentStore, [], [], ChatSlice> = (set
       console.error('[useAgentStore] resetSession failed:', err)
     }
     set({ messages: [], isGenerating: false })
-  },
-
-  applyDuelProposal: async (setup, proposals, sourceRef) => {
-    const placements = setup?.cards ?? []
-    const lpTargets = setup?.lp ?? []
-    if (placements.length === 0 && lpTargets.length === 0 && proposals.length === 0) {
-      return { ok: false, error: '该提案没有任何可应用的内容' }
-    }
-
-    let dict: Record<number, CdbCard> = {}
-    const knownCodes = placements.filter((p) => !p.isUnknown).map((p) => p.code)
-    if (knownCodes.length > 0) {
-      try {
-        dict = await window.api.getCardsByIds(knownCodes)
-      } catch (err) {
-        console.error('[useAgentStore] applyDuelProposal 解析卡密失败:', err)
-        return { ok: false, error: '卡库查询失败，未能读取卡片数据' }
-      }
-    }
-
-    const resolved = resolveBoardPlacements(placements, dict)
-
-    if (placements.length > 0 && resolved.length === 0 && proposals.length === 0) {
-      return { ok: false, error: '提案中的卡密在当前卡库里都查不到，无法应用' }
-    }
-
-    const nameToCode = buildNameToCode(dict, resolved)
-
-    const { applyDuelScreenplay } = useDuelStore.getState()
-    applyDuelScreenplay({
-      lp: lpTargets,
-      cards: resolved,
-      clearExisting: Boolean(setup?.clearExisting),
-      steps: buildDuelSteps(proposals, nameToCode)
-    })
-    useDuelStore.getState().setSourceRef(
-      sourceRef && sourceRef.textId && sourceRef.chapterIds.length > 0
-        ? {
-            textId: sourceRef.textId,
-            textTitle: sourceRef.textTitle,
-            chapterIds: [...sourceRef.chapterIds]
-          }
-        : undefined
-    )
-    return { ok: true }
   }
 })

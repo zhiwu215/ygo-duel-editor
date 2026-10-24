@@ -2,11 +2,6 @@ import {
   EngineDuelInitParams,
   EngineTimelineNode,
   EngineBoardState,
-  EngineCard,
-  EngineCardRef,
-  EngineCardEditResult,
-  EngineProvenance,
-  CardLocation,
   EngineSessionDoc,
   EngineSessionImportPayload,
   DuelOperation,
@@ -31,6 +26,7 @@ import { bindEngineCapabilities, getOcgcoreEngine, setScriptErrorListener } from
 import { computeDiff } from './diff-resolver'
 import { encodeAnswer, describeAnswer } from './answer-encoder'
 import { describeInject, executeInject, injectCardName, verifyInject } from './injector'
+import { resetDuelLogContext } from './duel-log'
 import { createSessionState, headPendingQuery } from './session-state'
 import { setupFromPuzzleState, setupFromDeckParams } from './session-setup'
 import {
@@ -39,20 +35,7 @@ import {
   setupReplayDuel,
   type EngineReplayStartPayload
 } from './replay-session'
-import {
-  alignProvenance,
-  cardSignature,
-  initializeProvenance,
-  nodeIdForOp,
-  trackAdvance,
-  trackInject
-} from './provenance-tracker'
 import { advanceEngine, isAutoFinishableUnselect } from './engine-pump'
-import {
-  replaceCard as replaceCardOp,
-  removeCard as removeCardOp,
-  type CardEditorDeps
-} from './card-editor'
 
 interface SessionSnapshot {
   seed: number[]
@@ -133,13 +116,14 @@ export class DuelSession {
     this.disposeDuel()
     state.accumulatedLogs = []
     state.accumulatedEvents = []
+    state.accumulatedLogEvents = []
+    resetDuelLogContext(state.duelLog)
     state.pendingQueries = []
     state.lastHintDesc = undefined
     state.replaying = true
 
     try {
       this.createDuelFromInit()
-      initializeProvenance(state, this.readBoard())
 
       for (let index = 0; index <= target.node.opIndex; index++) {
         const op = state.ops[index]
@@ -148,15 +132,11 @@ export class DuelSession {
         }
         if (op.type === 'inject') {
           if (op.removed) continue
-          const before = this.readBoard()
-          executeInject(state.duel!, op.command, before)
-          const after = this.readBoard()
-          trackInject(state, before, after, index, op.command)
+          executeInject(state.duel!, op.command, this.readBoard())
           continue
         }
         for (const response of op.responses) {
           const headBefore = headPendingQuery(state)
-          const before = this.readBoard()
           state.duel!.setResponse(response)
           advanceEngine(state)
           if (state.lastAdvanceRetried) {
@@ -175,7 +155,6 @@ export class DuelSession {
               `重放第 ${index + 1} 条操作（${kind}）时引擎拒绝了历史响应：该响应本应回答「${ask}」，但重建后的引擎给出了不同询问。`
             )
           }
-          trackAdvance(state, before, this.readBoard(), index)
         }
       }
     } finally {
@@ -184,18 +163,7 @@ export class DuelSession {
 
     state.accumulatedLogs = []
     state.accumulatedEvents = []
-    try {
-      const replayBoard = state.fieldReader.getState()
-      state.sequenceProvenance.clear()
-      for (const card of replayBoard.allCards) {
-        const record = state.provenance.get(card.instanceId)
-        if (record) {
-          state.sequenceProvenance.set(cardSignature(card), record)
-        }
-      }
-    } catch {
-      state.sequenceProvenance.clear()
-    }
+    state.accumulatedLogEvents = []
     if (!freshIdentity) {
       state.fieldReader.restoreIdentity(target.node.boardState)
     }
@@ -218,6 +186,8 @@ export class DuelSession {
     const state = this.state
     state.accumulatedLogs = []
     state.accumulatedEvents = []
+    state.accumulatedLogEvents = []
+    resetDuelLogContext(state.duelLog)
     state.pendingQueries = []
     state.requestSeq = 1
     state.lastHintDesc = undefined
@@ -226,12 +196,6 @@ export class DuelSession {
     state.replaying = false
     state.replay = null
     state.recordingMessages = null
-    state.provenance.clear()
-    state.sequenceProvenance.clear()
-    state.drawCounts = [0, 0]
-    state.deckDirty = [false, false]
-    state.lastDrawEvents = []
-    state.lastDeckShuffles = []
   }
 
   private captureSessionState(): SessionSnapshot {
@@ -310,7 +274,6 @@ export class DuelSession {
       this.replayTo(parsed.currentStepId)
 
       const boardState = this.readBoard()
-      alignProvenance(state, boardState)
       const node = state.timeline.getStep(parsed.currentStepId)?.node
       if (!node) throw new Error('找不到剧本指定的当前步骤。')
       node.boardState = boardState
@@ -365,7 +328,6 @@ export class DuelSession {
     }
 
     const initialBoard = this.readBoard()
-    initializeProvenance(state, initialBoard)
     const pendingRequest = headPendingQuery(state)?.request ?? null
     const initialNode = state.timeline.addStep(
       '决斗开局',
@@ -374,10 +336,12 @@ export class DuelSession {
       pendingRequest,
       [...state.accumulatedLogs],
       [...state.accumulatedEvents],
+      [...state.accumulatedLogEvents],
       state.ops.length - 1
     )
     state.accumulatedLogs = []
     state.accumulatedEvents = []
+    state.accumulatedLogEvents = []
 
     return {
       boardState: initialNode.boardState,
@@ -461,7 +425,6 @@ export class DuelSession {
     const response = encodeAnswer(requestMsg, answer)
     const logText = describeAnswer(requestMsg, answer)
 
-    const baseOpIndex = (state.timeline.getCurrentStep()?.node.opIndex ?? -1) + 1
     const beforeBoard = this.readBoard()
     state.duel.setResponse(response)
     const autoResponses = advanceEngine(state)
@@ -471,17 +434,14 @@ export class DuelSession {
       state.accumulatedEvents = []
       return { retry: true, pendingRequest: headPendingQuery(state)?.request ?? null }
     }
-    trackAdvance(state, beforeBoard, this.readBoard(), baseOpIndex)
 
     for (let loops = 0; loops < MAX_AUTO_FINISH_LOOPS; loops++) {
       if (!isAutoFinishableUnselect(state, requestMsg)) break
       const autoMsg = headPendingQuery(state)!.msg
       const autoResponse = encodeAnswer(autoMsg, { kind: 'unselect', card: null })
-      const beforeAuto = this.readBoard()
       state.duel.setResponse(autoResponse)
       autoResponses.push(autoResponse, ...advanceEngine(state))
       if (state.lastAdvanceRetried) break
-      trackAdvance(state, beforeAuto, this.readBoard(), baseOpIndex + 1)
     }
 
     state.accumulatedLogs.push(logText)
@@ -504,12 +464,14 @@ export class DuelSession {
       pendingRequest,
       [...state.accumulatedLogs],
       [...state.accumulatedEvents],
+      [...state.accumulatedLogEvents],
       state.ops.length - 1
     )
     const answerOp = state.ops[answerOpIndex]
     if (answerOp?.type === 'answer') answerOp.nodeId = node.id
     state.requestSeq += 1
     state.accumulatedLogs = []
+    state.accumulatedLogEvents = []
     state.accumulatedEvents = []
 
     return {
@@ -561,7 +523,6 @@ export class DuelSession {
     const warning = outcome.warning ?? verifyInject(command, before, boardState)
 
     const opIndex = state.ops.length
-    trackInject(state, before, boardState, opIndex, command)
     const title = describeInject(command, outcome.label, injectCardName(command))
     const logs = [`[剧情安排] ${outcome.label}`]
     if (warning) logs.push(warning)
@@ -573,9 +534,11 @@ export class DuelSession {
       headPendingQuery(state)?.request ?? null,
       logs,
       [...state.accumulatedEvents],
+      [...state.accumulatedLogEvents],
       opIndex
     )
     state.accumulatedEvents = []
+    state.accumulatedLogEvents = []
     state.ops.push({ type: 'inject', command })
 
     return { boardState, node, warning }
@@ -609,7 +572,6 @@ export class DuelSession {
     }
 
     const boardState = this.readBoard()
-    alignProvenance(state, boardState)
     const node = state.timeline.getStep(stepId)?.node
     if (node) {
       node.boardState = boardState
@@ -619,77 +581,6 @@ export class DuelSession {
     return {
       boardState,
       currentStepId: stepId
-    }
-  }
-
-  private resolveCard(ref: EngineCardRef): { instanceId: string; card: EngineCard } | null {
-    const state = this.state
-    let board: EngineBoardState
-    try {
-      board = this.getBoardState()
-    } catch {
-      return null
-    }
-    alignProvenance(state, board)
-    const exact = ref.instanceId
-      ? board.allCards.find((card) => card.instanceId === ref.instanceId)
-      : undefined
-    if (exact) return { instanceId: exact.instanceId, card: exact }
-
-    const location = ref.location === CardLocation.FZONE ? CardLocation.SZONE : ref.location
-    const sequence = ref.location === CardLocation.FZONE ? 5 : ref.sequence
-    const positional = board.allCards.find(
-      (card) =>
-        card.controller === ref.controller &&
-        card.location === location &&
-        card.sequence === sequence
-    )
-    if (positional) return { instanceId: positional.instanceId, card: positional }
-
-    const loose = board.allCards.find(
-      (card) =>
-        card.controller === ref.controller &&
-        card.sequence === sequence &&
-        ((card.location & location) !== 0 || (location & card.location) !== 0)
-    )
-    return loose ? { instanceId: loose.instanceId, card: loose } : null
-  }
-
-  getProvenance(ref: EngineCardRef): EngineProvenance {
-    const state = this.state
-    const resolved = this.resolveCard(ref)
-    if (!resolved) return { kind: 'unknown' }
-    const record = state.provenance.get(resolved.instanceId)
-    if (!record) return { kind: 'unknown' }
-    if (record.provenance.kind === 'inject' || record.provenance.kind === 'drawn') {
-      return {
-        ...record.provenance,
-        nodeId: nodeIdForOp(state, record.provenance.opIndex)
-      }
-    }
-    return record.provenance
-  }
-
-  replaceCard(ref: EngineCardRef, newCode: number): EngineCardEditResult {
-    if (this.state.replay) {
-      throw new Error('回放模式为只读，请先退出回放。')
-    }
-    return replaceCardOp(this.state, this.cardEditorDeps(), ref, newCode)
-  }
-
-  removeCard(ref: EngineCardRef): EngineCardEditResult {
-    if (this.state.replay) {
-      throw new Error('回放模式为只读，请先退出回放。')
-    }
-    return removeCardOp(this.state, this.cardEditorDeps(), ref)
-  }
-
-  private cardEditorDeps(): CardEditorDeps {
-    return {
-      resolveCard: (ref) => this.resolveCard(ref),
-      readBoard: () => this.readBoard(),
-      truncateToCurrentStep: () => this.truncateToCurrentStep(),
-      replayTo: (stepId, freshIdentity) => this.replayTo(stepId, freshIdentity)
     }
   }
 

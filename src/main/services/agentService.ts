@@ -1,14 +1,11 @@
 import { BrowserWindow } from 'electron'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 import {
-  AgentBoardSetupProposal,
-  AgentHandoffRequest,
   AgentModelConfig,
   AgentModelInfo,
   AgentProviderPreset,
   AgentSendMessageParams,
   AgentSendMessageResult,
-  AgentStepProposal,
   AgentStreamEvent,
   DuelPuzzleState,
   isLocalEndpoint,
@@ -25,11 +22,8 @@ import {
 import { getProviderPresets } from './agent/providerPresets'
 import { createGetCardInfoTool } from './agent/tools/getCardInfo'
 import { createGetCurrentBoardTool } from './agent/tools/getCurrentBoard'
-import { createProposeBoardSetupTool } from './agent/tools/proposeBoardSetup'
-import { createProposeStepsTool } from './agent/tools/proposeSteps'
 import { createReadTextSourceTool } from './agent/tools/readTextSource'
 import { createSearchCardsTool } from './agent/tools/searchCards'
-import { createValidateWithOcgcoreTool } from './agent/tools/validateWithOcgcore'
 import { createWebFetchTool } from './agent/tools/webFetch'
 import { createWebSearchTool } from './agent/tools/webSearch'
 import type { AgentToolDeps, AgentTextSource } from './agent/tools/toolDeps'
@@ -47,10 +41,6 @@ interface PiAssistantMessage {
 export class AgentService {
   private currentBoardState: DuelPuzzleState | null = null
 
-  private collectedProposals: AgentStepProposal[] = []
-
-  private collectedBoardSetup: AgentBoardSetupProposal | null = null
-
   private currentTextSource: AgentTextSource | null = null
 
   private streamText = ''
@@ -64,16 +54,6 @@ export class AgentService {
         win.webContents.send('agent:event', event)
       }
     }
-  }
-  public handoff(request: AgentHandoffRequest): { success: boolean; error?: string } {
-    const windows = BrowserWindow.getAllWindows()
-    if (windows.length === 0) return { success: false, error: '主窗口未就绪' }
-    for (const win of windows) {
-      if (!win.isDestroyed()) {
-        win.webContents.send('agent:handoff-request', request)
-      }
-    }
-    return { success: true }
   }
 
   public async abort(): Promise<boolean> {
@@ -109,8 +89,6 @@ export class AgentService {
     await this.abort()
     this.currentQuestion = params.question ?? params.prompt
     this.currentBoardState = params.boardState || null
-    this.collectedProposals = []
-    this.collectedBoardSetup = null
     this.currentTextSource = null
     const textRef = params.textSource
     const directText = textRef?.content?.trim()
@@ -178,23 +156,13 @@ export class AgentService {
       emitEvent: (event) => this.emitEvent(event),
       getBoardState: () => this.currentBoardState,
       getTextSource: () => this.currentTextSource,
-      getProposals: () => this.collectedProposals,
-      appendProposals: (steps) => {
-        this.collectedProposals.push(...steps)
-      },
-      setBoardSetup: (setup) => {
-        this.collectedBoardSetup = setup
-      },
       getCurrentQuestion: () => this.currentQuestion
     }
     const tools: ToolDefinition[] = [
       createSearchCardsTool(deps),
       createGetCardInfoTool(deps),
       createGetCurrentBoardTool(deps),
-      createReadTextSourceTool(deps),
-      createProposeStepsTool(deps),
-      createProposeBoardSetupTool(deps),
-      createValidateWithOcgcoreTool(deps)
+      createReadTextSourceTool(deps)
     ]
     if (webEnabled) {
       tools.push(createWebSearchTool(deps), createWebFetchTool(deps))
@@ -248,20 +216,13 @@ export class AgentService {
         this.emitEvent({ type: 'error', message: errMsg })
         return { success: false, error: errMsg }
       }
-      if (
-        !lastAssistant ||
-        (!this.streamText && this.collectedProposals.length === 0 && !this.collectedBoardSetup)
-      ) {
+      if (!lastAssistant || !this.streamText) {
         const errMsg = '模型未返回任何内容（请检查模型名称是否正确、账户是否有余额）'
         this.emitEvent({ type: 'error', message: errMsg })
         return { success: false, error: errMsg }
       }
 
-      if (
-        this.streamText.trim().length < 40 &&
-        this.collectedProposals.length === 0 &&
-        !this.collectedBoardSetup
-      ) {
+      if (this.streamText.trim().length < 40) {
         const errMsg = '模型只输出了过程性内容、没有给出结论。请重试，或把问题拆细后分次提问。'
         this.emitEvent({ type: 'error', message: errMsg })
         return { success: false, error: errMsg }
@@ -269,17 +230,13 @@ export class AgentService {
 
       this.emitEvent({
         type: 'done',
-        fullText: this.streamText,
-        proposals: this.collectedProposals,
-        boardSetup: this.collectedBoardSetup ?? undefined
+        fullText: this.streamText
       })
 
       return {
         success: true,
         content: this.streamText,
-        thought: this.streamThought,
-        proposals: this.collectedProposals,
-        boardSetup: this.collectedBoardSetup ?? undefined
+        thought: this.streamThought
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err)

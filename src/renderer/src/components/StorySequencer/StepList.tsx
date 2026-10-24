@@ -19,6 +19,10 @@ interface StepListProps {
   onEditStep: (step: DuelStep) => void
 }
 
+function engineIdOf(step: DuelStep): string | undefined {
+  return step.endActId ?? step.actId
+}
+
 export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
   const currentStepIndex = useDuelStore((state) => state.currentStepIndex)
   const previewReturn = useDuelStore((state) => state.previewReturn)
@@ -59,7 +63,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
       return (
         count +
         item.group.entries.filter(({ step }) => {
-          const stepIndex = step.actId ? engineIndexById.get(step.actId) : undefined
+          const stepIndex = engineIdOf(step) ? engineIndexById.get(engineIdOf(step)!) : undefined
           return stepIndex !== undefined && stepIndex > engineCursor
         }).length
       )
@@ -83,7 +87,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
 
   const isCurrentStepOf = (step: DuelStep, index: number): boolean => {
     if (engineCursor < 0) return currentStepIndex === index
-    const stepIndex = step.actId ? engineIndexById.get(step.actId) : undefined
+    const stepIndex = engineIdOf(step) ? engineIndexById.get(engineIdOf(step)!) : undefined
     return stepIndex === engineCursor
   }
 
@@ -92,7 +96,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
     index: number,
     showLpChange = true
   ): React.JSX.Element => {
-    const stepEngineIndex = step.actId ? engineIndexById.get(step.actId) : undefined
+    const stepEngineIndex = engineIdOf(step) ? engineIndexById.get(engineIdOf(step)!) : undefined
     const isFutureStep =
       engineCursor >= 0 && stepEngineIndex !== undefined && stepEngineIndex > engineCursor
     const isCurrentPlaying =
@@ -187,7 +191,10 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
 
             if (group.kind === 'single') {
               const { step, index } = firstEntry
-              const splitLp = step.actionType === 'ATTACK' && Boolean(step.lpChange)
+              const splitLp =
+                step.actionType === 'ATTACK' &&
+                Boolean(step.lpChange) &&
+                !(step.logEvents && step.logEvents.length > 0)
               return (
                 <div key={step.id} className="flex flex-col gap-1.5">
                   {renderStepCard(step, index, !splitLp)}

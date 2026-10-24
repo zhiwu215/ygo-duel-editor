@@ -7,7 +7,7 @@ import { turnOrderOf } from '../../../utils/duelistNames'
 interface DuelistHandStripCollapsedProps {
   duelist: Duelist
   cards: FieldCard[]
-  isOpponent: boolean
+  isTop: boolean
   isActiveViewer: boolean
   isDragOver: boolean
   ref?: React.Ref<HTMLDivElement>
@@ -21,7 +21,7 @@ interface DuelistHandStripCollapsedProps {
 export const DuelistHandStripCollapsed: React.FC<DuelistHandStripCollapsedProps> = ({
   duelist,
   cards,
-  isOpponent,
+  isTop,
   isActiveViewer,
   isDragOver,
   ref,
@@ -45,17 +45,17 @@ export const DuelistHandStripCollapsed: React.FC<DuelistHandStripCollapsedProps>
         'w-9 shrink-0 h-[136px] rounded border-2 transition-all cursor-pointer select-none flex flex-col items-center justify-between py-1 px-0.5',
         isActiveViewer && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
         isDragOver
-          ? isOpponent
+          ? isTop
             ? 'border-red-500 ring-2 ring-red-500/30 bg-red-500/10'
             : 'border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/10'
-          : isOpponent
+          : isTop
             ? 'border-red-500/30 bg-red-500/5 hover:bg-red-500/15 hover:border-red-500/50'
             : 'border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/50'
       )}
     >
       <div className="flex flex-col items-center gap-0.5">
         <span
-          className={cn('w-2 h-2 rounded-full shrink-0', isOpponent ? 'bg-red-500' : 'bg-blue-500')}
+          className={cn('w-2 h-2 rounded-full shrink-0', isTop ? 'bg-red-500' : 'bg-blue-500')}
         />
         {isFirst ? (
           <Crown className="w-3 h-3 text-amber-500 shrink-0" />
@@ -69,7 +69,7 @@ export const DuelistHandStripCollapsed: React.FC<DuelistHandStripCollapsedProps>
       <span
         className={cn(
           'text-[10px] font-semibold tracking-wider text-center leading-tight line-clamp-3 my-auto',
-          isOpponent ? 'text-red-400' : 'text-blue-400'
+          isTop ? 'text-red-400' : 'text-blue-400'
         )}
         style={{ writingMode: 'vertical-rl' }}
       >

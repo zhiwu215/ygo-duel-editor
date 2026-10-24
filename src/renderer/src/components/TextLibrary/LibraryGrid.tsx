@@ -1,6 +1,6 @@
 import { ScrollArea } from '../ui/scroll-area'
 import React from 'react'
-import { FileText, Loader2, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Download, FileText, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { TextMeta } from '@shared/index'
 
 interface LibraryGridProps {
@@ -46,7 +46,7 @@ export const LibraryGrid: React.FC<LibraryGridProps> = ({
             onClick={onImport}
             className="mt-4 flex items-center gap-1.5 px-3 h-8 rounded-md border border-border text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer"
           >
-            <Upload className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5" />
             <span>导入文本</span>
           </button>
         )}

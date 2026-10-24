@@ -58,7 +58,9 @@ export function useStepPlayback(): {
   const handleStepClick = (index: number, step: DuelStep): void => {
     const engine = useDuelEngineStore.getState()
     if (engine.loading) return
-    const actId = step.actId
+    useDuelStore.getState().setSelectedStepId(step.id)
+    useDuelStore.getState().setCurrentStepIndex(index)
+    const actId = step.endActId ?? step.actId
     if (engine.isInitialized && actId && engine.timeline.some((n) => n.id === actId)) {
       if (actId === engine.currentStepId) return
       void engine.jumpToStep(actId)
@@ -88,7 +90,7 @@ export function useStepPlayback(): {
       title: engine.isInitialized ? '以这一步为起点继续编排' : '以这一步为起点开始编排',
       description: engine.isInitialized
         ? `将以「${label}」的场面重建引擎会话，当前操作流结束（步骤列表保留，可继续添加新操作）。${mergedHint}`
-        : `将以「${label}」的场面启动引擎，之后的操作会作为新步骤记录。${mergedHint}`
+        : `将以「${label}」的场面启动引擎，引擎以该场面为新起点，台本现有的 ${steps.length} 个步骤会被清空（含台本文本）。${mergedHint}`
     }).then((ok) => {
       if (!ok) return
       previewStepBoard(index)

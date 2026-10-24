@@ -6,40 +6,25 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
 import { useReplayPlayback } from '../../hooks/useReplayPlayback'
 import { phaseJumpCommand, phaseAdvanceCommand, turnEndCommand } from '../../utils/phaseFlow'
-import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { StepList } from './StepList'
 import { StepEditDialog } from './StepEditDialog'
 import { ALL_PHASES } from './stepGrouping'
-import { resolveTeamLabel } from '../../utils/duelistNames'
 import { formatReplayVersus } from '../../utils/replayMatch'
 import { cn } from '../../lib/utils'
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  LogOut,
-  Pause,
-  PencilLine,
-  Play,
-  RotateCcw
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, LogOut, Pause, PencilLine, Play, RotateCcw } from 'lucide-react'
 
 const EMPTY_STEPS: DuelStep[] = []
 
 export const StepSequencerPanel: React.FC = () => {
   const steps = useDuelStore((state) => state.state.steps) ?? EMPTY_STEPS
-  const duelists = useDuelStore((state) => state.state.duelists)
   const currentStepIndex = useDuelStore((state) => state.currentStepIndex)
-  const currentTurn = useDuelStore((state) => state.currentTurn)
   const currentPhase = useDuelStore((state) => state.currentPhase)
   const currentChain = useDuelStore((state) => state.currentChain)
-  const activeTurnPlayer = useDuelStore((state) => state.activeTurnPlayer)
   const resetChain = useDuelStore((state) => state.resetChain)
   const insertPhaseChange = useDuelStore((state) => state.insertPhaseChange)
   const insertTurnChange = useDuelStore((state) => state.insertTurnChange)
   const insertPhaseJump = useDuelStore((state) => state.insertPhaseJump)
-  const openScreenplayWithStep = useDuelStore((state) => state.openScreenplayWithStep)
 
   const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const engineLoading = useDuelEngineStore((s) => s.loading)
@@ -66,9 +51,6 @@ export const StepSequencerPanel: React.FC = () => {
   const currentReplayStep =
     replayStepIndex !== null && replayStepIndex >= 0 ? steps[replayStepIndex] : undefined
   const replayStartStep = isReplay ? steps[0] : undefined
-  const displayTurn = currentReplayStep?.turn ?? replayStartStep?.turn ?? currentTurn
-  const displayTurnPlayer =
-    currentReplayStep?.turnPlayer ?? replayStartStep?.turnPlayer ?? activeTurnPlayer
   const displayPhase = currentReplayStep?.phase ?? replayStartStep?.phase ?? currentPhase
 
   const { handlePrevStep, handleNextStep, handleResetPlayback } = useStepPlayback()
@@ -123,52 +105,23 @@ export const StepSequencerPanel: React.FC = () => {
           )}
         </div>
 
-        {!isReplay && (
-          <div className="flex items-center gap-1">
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => openScreenplayWithStep()}
-              className="h-7 px-2 text-xs font-semibold gap-1 border-border text-foreground hover:bg-muted"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>台本</span>
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <div className="p-2 border-b border-border/60 bg-muted/20 flex flex-col gap-2 shrink-0 select-none">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <span className="font-extrabold text-xs text-foreground">第 {displayTurn} 回合</span>
-            <Badge
-              variant="outline"
-              className={cn(
-                'text-[10px] px-1.5 py-0 font-bold',
-                displayTurnPlayer === 0
-                  ? 'border-blue-500/50 text-blue-400 bg-blue-500/10'
-                  : 'border-rose-500/50 text-rose-400 bg-rose-500/10'
-              )}
-            >
-              {resolveTeamLabel({ duelists }, displayTurnPlayer, displayTurn)} 行动
-            </Badge>
-          </div>
-
+        <div className="flex items-center gap-1">
           {!isReplay && currentChain > 0 && (
-            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-[10px] font-bold text-teal-300">
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-500/20 border border-teal-500/40 text-[10px] font-bold text-teal-600 dark:text-teal-300">
               <span className="animate-pulse">⛓ Chain {currentChain}</span>
               <button
                 type="button"
                 onClick={resetChain}
-                className="ml-0.5 text-[9px] px-1 py-0 bg-teal-500/30 hover:bg-teal-500/50 text-teal-200 rounded font-semibold cursor-pointer"
+                className="ml-0.5 text-[9px] px-1 py-0 bg-teal-500/30 hover:bg-teal-500/50 text-teal-700 dark:text-teal-200 rounded font-semibold cursor-pointer"
               >
                 结算
               </button>
             </div>
           )}
         </div>
+      </div>
 
+      <div className="p-2 border-b border-border/60 bg-muted/20 flex flex-col gap-2 shrink-0 select-none">
         <div className="flex items-center justify-between gap-1">
           {isReplay ? (
             <div className="flex-1 text-[10px] font-extrabold py-0.5 rounded bg-muted/30 border border-border/40 text-center text-foreground/90">

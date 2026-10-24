@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Loader2, RefreshCw, Search, Upload } from 'lucide-react'
+import { Download, Loader2, RefreshCw, Search } from 'lucide-react'
 import { TextMeta } from '@shared/index'
 import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
@@ -73,7 +73,7 @@ export const TextLibraryApp: React.FC = () => {
               {importing ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <Upload className="w-3.5 h-3.5" />
+                <Download className="w-3.5 h-3.5" />
               )}
               <span>导入文本</span>
             </button>

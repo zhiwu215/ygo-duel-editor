@@ -3,6 +3,7 @@ import {
   DuelSceneSnapshot,
   Duelist,
   MatchConfig,
+  alignFirstPlayerSeat,
   createDefaultDuelists,
   createStandardTagDuelists,
   getMatchScenarioKey,
@@ -216,12 +217,11 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
         }
       })
 
+      const state = alignFirstPlayerSeat({ ...prev.state, duelists, turnPlayer })
+
       return {
-        state: {
-          ...prev.state,
-          duelists,
-          turnPlayer
-        }
+        state,
+        activeTurnPlayer: state.turnPlayer
       }
     }),
 

@@ -1,12 +1,16 @@
 import type { OcgcoreDuel, OcgcoreWrapper } from 'koishipro-core.js'
-import type { EngineDuelInitParams, EngineRequest, EngineStepEvent } from '@shared/index'
+import type {
+  DuelLogEvent,
+  EngineDuelInitParams,
+  EngineRequest,
+  EngineStepEvent
+} from '@shared/index'
 import { DEFAULT_TIMING_POLICY, type TimingPolicy } from '@shared/engine/protocol'
 import type { DuelOperation } from '@shared/engine/session-doc'
-import type { ProvenanceRecord } from './provenance-tracker'
-import type { DrawEvent } from './engine-pump'
 import type { ReplayPlayback } from './replay-session'
 import { FieldReader } from './field-reader'
 import { EngineTimelineManager } from './timeline-manager'
+import { createDuelLogContext, type DuelLogContext } from './duel-log'
 
 export interface PendingQuery {
   msg: unknown
@@ -31,6 +35,8 @@ export interface SessionState {
   lastScriptError: string | null
   accumulatedLogs: string[]
   accumulatedEvents: EngineStepEvent[]
+  accumulatedLogEvents: DuelLogEvent[]
+  duelLog: DuelLogContext
   lastAdvanceRetried: boolean
   seed: number[]
   initParams: EngineDuelInitParams | null
@@ -39,12 +45,6 @@ export interface SessionState {
   replaying: boolean
   replay: ReplayPlayback | null
   recordingMessages: Uint8Array[] | null
-  provenance: Map<string, ProvenanceRecord>
-  sequenceProvenance: Map<string, ProvenanceRecord>
-  drawCounts: [number, number]
-  deckDirty: [boolean, boolean]
-  lastDrawEvents: DrawEvent[]
-  lastDeckShuffles: (0 | 1)[]
 }
 
 export function createSessionState(): SessionState {
@@ -62,6 +62,8 @@ export function createSessionState(): SessionState {
     lastScriptError: null,
     accumulatedLogs: [],
     accumulatedEvents: [],
+    accumulatedLogEvents: [],
+    duelLog: createDuelLogContext(),
     lastAdvanceRetried: false,
     seed: [],
     initParams: null,
@@ -69,12 +71,6 @@ export function createSessionState(): SessionState {
     timingPolicy: { ...DEFAULT_TIMING_POLICY },
     replaying: false,
     replay: null,
-    recordingMessages: null,
-    provenance: new Map(),
-    sequenceProvenance: new Map(),
-    drawCounts: [0, 0],
-    deckDirty: [false, false],
-    lastDrawEvents: [],
-    lastDeckShuffles: []
+    recordingMessages: null
   }
 }

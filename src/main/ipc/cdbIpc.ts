@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { CardSearchParams } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from '../services/configService'
+import { favoritesService } from '../services/favoritesService'
 import {
   collectFolderCdbPaths,
   currentBundledCdbPaths,
@@ -23,7 +24,9 @@ export const enabledExtraPaths = (): string[] => {
 
 export function registerCdbIpc(): void {
   ipcMain.handle('cdb:search', async (_, params: CardSearchParams) => {
-    const favorites = params.onlyFavorites ? configService.get().favorites || [] : undefined
+    const favorites = params.onlyFavorites
+      ? favoritesService.getCodesFor(params.favoriteCategoryId)
+      : undefined
     const custom = customCardService.searchRows(params, Number.MAX_SAFE_INTEGER, favorites)
     return cdbService.search(params, favorites, {
       ...custom,

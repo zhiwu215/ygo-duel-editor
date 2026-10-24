@@ -68,6 +68,7 @@ export interface DuelPuzzleState {
   players: [PlayerState, PlayerState]
   turnPlayer: 0 | 1
   firstTurnAttack: boolean
+  viewTopSeat?: 0 | 1
   cards: FieldCard[]
   steps?: DuelStep[]
   initialBoardSnapshot?: LightweightCardSnapshot[]

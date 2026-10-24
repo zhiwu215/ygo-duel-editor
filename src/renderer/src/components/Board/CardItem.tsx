@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { FieldCard, CardPosition, CardLocation, CardUtils } from '@shared/index'
+import {
+  FieldCard,
+  CardPosition,
+  CardLocation,
+  CardUtils,
+  getPzoneSzoneSequence
+} from '@shared/index'
 import { setCardDragImage } from '../../utils/cardImage'
 import { resolveCardName } from '../../utils/cardNames'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -15,15 +21,23 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useSelectionStore } from '../../stores/useSelectionStore'
 import { useAttackTargetingStore } from '../../stores/useAttackTargetingStore'
 import { isFaceupMonster } from '../../utils/battleDamage'
-import { hasCardEngineActions } from '../../utils/engineActions'
 import {
+  isRequestCardAt,
+  hasCardEngineActions,
+  deriveCardEngineActions
+} from '../../utils/engineActions'
+import { resolveHoverRelationMark } from '../../utils/cardRelationMarks'
+import {
+  ATTACK_TARGET_DESC_HINT,
   resolveCardSelectionMatch,
   resolveCardRole,
   type CardSelectionMatch
 } from '../../utils/duelSelection'
 import { useCardPointerActions } from '../../hooks/useCardPointerActions'
 import { useFieldCardCdb } from '../../hooks/useFieldCardCdb'
-import { CardImage } from '../ui/CardImage'
+import { CardThumb } from '../ui/CardThumb'
+import { ActRing } from '../common/ActRing'
+import { CardFieldMarks, type CardFieldMark } from './components/CardFieldMarks'
 import negatedIcon from '../../assets/textures/negated.png'
 import { getCardBack, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { cn } from '../../lib/utils'
@@ -36,17 +50,39 @@ interface CardItemProps {
 }
 
 export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) => {
-  const { selectedCardId, setSelectedCardId, setHoveredCard, setHoveredInstanceId } = useDuelStore()
+  const {
+    selectedCardId,
+    hoveredInstanceId,
+    currentPhase,
+    setSelectedCardId,
+    setHoveredCard,
+    setHoveredInstanceId
+  } = useDuelStore()
   const tacticalView = useDuelStore((s) => s.tacticalView)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const canDrag = !isEngineActive
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
+  const boardState = useDuelEngineStore((s) => s.boardState)
+  const lastAttacker = useDuelEngineStore((s) => s.lastAttacker)
   const selectedKeys = useSelectionStore((s) => s.selectedKeys)
 
+  const cardEngineActions = useMemo(
+    () => deriveCardEngineActions(pendingRequest, card),
+    [pendingRequest, card]
+  )
   const hasRequestActions = useMemo(
     () => hasCardEngineActions(pendingRequest, card),
     [pendingRequest, card]
   )
+  const masterRule = useDuelStore((s) => s.state.masterRule)
+  const leftPendulumSequence = getPzoneSzoneSequence(masterRule)[0]
+  const inLeftPendulumZone =
+    (card.location === CardLocation.SZONE && card.sequence === leftPendulumSequence) ||
+    (card.location === CardLocation.PZONE && card.sequence === 0)
+  const showSummonRing =
+    inLeftPendulumZone &&
+    Boolean(cardEngineActions?.spSummon) &&
+    (card.card ? CardUtils.isPendulum(card.card.type) : card.location === CardLocation.PZONE)
 
   const selectionMatch = useMemo<CardSelectionMatch | null>(
     () => resolveCardSelectionMatch(pendingRequest, card, selectedKeys),
@@ -67,6 +103,31 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     [editorTargetActive, selectionMatch]
   )
 
+  const editorAttackerId = useAttackTargetingStore((s) => s.attacker?.instanceId ?? null)
+  const isEditorAttackable =
+    !isEngineActive &&
+    currentPhase === 'BP' &&
+    card.location === CardLocation.MZONE &&
+    card.position === CardPosition.FACEUP_ATTACK
+  const isDeclaredAttacker =
+    pendingRequest?.data.kind === 'card' &&
+    pendingRequest.descHint === ATTACK_TARGET_DESC_HINT &&
+    lastAttacker !== null &&
+    isRequestCardAt(lastAttacker, card)
+  const showAttackMark =
+    isEditorAttackable ||
+    editorAttackerId === card.instanceId ||
+    Boolean(cardEngineActions?.attack) ||
+    isDeclaredAttacker
+  const hoverRelationMark = useMemo(
+    () =>
+      isEngineActive && boardState
+        ? resolveHoverRelationMark(boardState.allCards, card.instanceId, hoveredInstanceId)
+        : null,
+    [isEngineActive, boardState, card.instanceId, hoveredInstanceId]
+  )
+  const fieldMark: CardFieldMark | null = role === 'target' ? 'target' : hoverRelationMark
+
   const handleCardClick = useCardPointerActions({
     card,
     role,
@@ -75,15 +136,13 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
 
   useFieldCardCdb(card)
 
-  const { openMenu } = useContextMenuStore()
+  const { openMenu, closeMenu: closeContextMenu } = useContextMenuStore()
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openPile = usePileListStore((s) => s.openPile)
   const { closeMenu: closeCommandMenu } = useCardCommandMenuStore()
 
   const isSelected = selectedCardId === card.instanceId
   const [isDragSource, setIsDragSource] = useState(false)
-  const [imageMissingCode, setImageMissingCode] = useState<number | null>(null)
-  const imageMissing = imageMissingCode === card.code
   const hideSourceFrameRef = useRef<number | null>(null)
 
   useEffect(
@@ -133,7 +192,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const showFacedownVeil = isSetOnField || isPileFacedown || isBanishedFacedown
   const isNegated = isFieldZone && ((card.status ?? 0) & (0x1 | 0x4000000)) !== 0
   const showCardBack = isFacedown && !isHand
-  const showImageFallbackName = imageMissing && (!isFacedown || isHand)
   const isPublicHand = isHand && card.position === CardPosition.FACEUP
 
   const badgePos = squareCell
@@ -202,6 +260,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         e.preventDefault()
         e.stopPropagation()
         closeCommandMenu()
+        closeContextMenu()
+        if (isEngineActive && !isPileZone) return
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
         openMenu(card, e.clientX, e.clientY)
@@ -246,21 +306,19 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           style={{ zIndex: (card.overlayMaterials?.length || 0) + 2 }}
         >
           <div className="absolute inset-0 rounded overflow-hidden">
-            <CardImage
+            <CardThumb
               code={card.code}
-              small
-              alt={resolveCardName(card.code)}
+              name={resolveCardName(card.code)}
               fallback={showCardBack ? getCardBack(card.controller) : UNKNOWN_CARD_IMAGE}
-              onFallback={() => setImageMissingCode(card.code)}
-              className="w-full h-full object-cover select-none pointer-events-none"
+              showName={!isFacedown || isHand}
+              nameClassName="text-[10px]"
+              className="h-full w-full"
             />
-            {showImageFallbackName && (
-              <div className="pointer-events-none absolute inset-x-1 top-1 z-10 max-h-[24px] overflow-hidden rounded bg-black/80 px-1 py-0.5 text-center text-[9px] font-bold leading-[10px] text-white break-words">
-                {resolveCardName(card.code)}
-              </div>
-            )}
             {showFacedownVeil && (
               <div className="absolute inset-0 bg-black/30 border border-amber-400/50 rounded pointer-events-none" />
+            )}
+            {showSummonRing && (
+              <ActRing className="absolute inset-0 z-10 m-auto h-[88%] w-[88%] opacity-90" />
             )}
             {isNegated && (
               <img
@@ -271,6 +329,9 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
             )}
           </div>
         </motion.div>
+
+        {showAttackMark && <CardFieldMarks mark="attack" controller={card.controller} />}
+        {fieldMark && <CardFieldMarks mark={fieldMark} controller={card.controller} />}
       </div>
 
       {(isSetOnField || isPublicHand) && (

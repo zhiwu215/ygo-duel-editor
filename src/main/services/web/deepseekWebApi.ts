@@ -1,4 +1,4 @@
-import { MAX_WEB_FETCH_CHARS } from '@shared/index'
+import { DEFAULT_WEB_SEARCH_BASE_URL, MAX_WEB_FETCH_CHARS } from '@shared/index'
 import { WebError, type WebFetchResult, type WebSearchResult, type WebSearchSource } from './types'
 
 const SEARCH_TIMEOUT_MS = 60_000
@@ -8,7 +8,6 @@ const FETCH_TIMEOUT_MS = 30_000
 const USER_AGENT = 'ygo-duel-editor/0.1'
 
 interface DeepSeekWebOptions {
-  baseUrl: string
   apiKey: string
   count: number
   originalQuestion?: string
@@ -130,7 +129,7 @@ export async function searchDeepSeekWeb(
   query: string,
   signal?: AbortSignal
 ): Promise<WebSearchResult> {
-  const endpoint = `${options.baseUrl}/search`
+  const endpoint = `${DEFAULT_WEB_SEARCH_BASE_URL}/search`
   const question = boundedQuestion(options.originalQuestion)
   const payload = (await postJson(
     endpoint,
@@ -159,12 +158,12 @@ export async function searchDeepSeekWeb(
 }
 
 export async function fetchDeepSeekWeb(
-  options: Pick<DeepSeekWebOptions, 'baseUrl' | 'apiKey'>,
+  options: Pick<DeepSeekWebOptions, 'apiKey'>,
   url: string,
   signal?: AbortSignal
 ): Promise<WebFetchResult> {
   const payload = (await postJson(
-    `${options.baseUrl}/fetch`,
+    `${DEFAULT_WEB_SEARCH_BASE_URL}/fetch`,
     options.apiKey,
     { url },
     FETCH_TIMEOUT_MS,

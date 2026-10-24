@@ -5,19 +5,9 @@ import { usePileListStore } from '../../stores/usePileListStore'
 import { useDetachMaterialStore } from '../../stores/useDetachMaterialStore'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
-import { CardLocation, LOCATION_NAMES } from '@shared/index'
-import { deriveCardEngineActions } from '../../utils/engineActions'
-import {
-  buildDuelActionItems,
-  buildEngineEditItems,
-  isPileLocation,
-  isSpellTrapLocation,
-  type CardMenuItemContext,
-  type MenuItemConfig
-} from '../../utils/cardMenuItems'
+import { CardLocation, LOCATION_NAMES, isPileLocation, isSpellTrapLocation } from '@shared/index'
 import { ZoneContextMenu } from './components/ZoneContextMenu'
-import { Zap, History, ArrowLeftRight, ListOrdered, Trash2, SquarePen } from 'lucide-react'
+import { ArrowLeftRight, ListOrdered, Trash2, SquarePen } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
 import { resolveDuelistDeck } from '../../utils/duelistNames'
@@ -25,22 +15,13 @@ import { resolveDuelistDeck } from '../../utils/duelistNames'
 export const CardContextMenu: React.FC = () => {
   const { menu, closeMenu } = useContextMenuStore()
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
-  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const { removeCard, clearPile, state, activeDuelistIds } = useDuelStore()
   const openPile = usePileListStore((s) => s.openPile)
   const currentPileTarget = usePileListStore((s) => s.target)
   const openDetach = useDetachMaterialStore((s) => s.openDetach)
   const openDeckSwitcher = useDeckSwitcherStore((s) => s.openDeckSwitcher)
-  const openProvenance = useEngineCardEditStore((s) => s.openProvenance)
-  const openReplace = useEngineCardEditStore((s) => s.openReplace)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
-
-  const menuCard = menu?.kind === 'card' ? menu.card : null
-  const requestActions = React.useMemo(
-    () => deriveCardEngineActions(pendingRequest, menuCard),
-    [pendingRequest, menuCard]
-  )
 
   useLayoutEffect(() => {
     if (!menu) return
@@ -122,42 +103,6 @@ export const CardContextMenu: React.FC = () => {
         )
       : null
 
-  const engineActions = isEngine ? requestActions : null
-
-  const ctx: CardMenuItemContext = {
-    card,
-    isEngine,
-    engineActions,
-    act,
-    submitAnswer: (answer) => {
-      void useDuelEngineStore.getState().submitAnswer(answer)
-    },
-    openProvenance: (target) => {
-      void openProvenance(target)
-    },
-    openReplace,
-    removeEngineCard: (ref) => {
-      void useDuelEngineStore.getState().removeCard(ref)
-    }
-  }
-
-  const duelActionItems = buildDuelActionItems(ctx)
-  const engineEditItems = buildEngineEditItems(ctx)
-
-  const renderGroup = (items: MenuItemConfig[]): React.JSX.Element[] =>
-    items.map((item, idx) => (
-      <Button
-        key={idx}
-        variant={item.variant === 'destructive' ? 'destructive' : 'ghost'}
-        size="sm"
-        onClick={item.action}
-        className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal"
-      >
-        <item.icon className={item.iconClassName} />
-        <span>{item.label}</span>
-      </Button>
-    ))
-
   const isModalOpenForThisZone =
     currentPileTarget &&
     currentPileTarget.controller === card.controller &&
@@ -166,15 +111,9 @@ export const CardContextMenu: React.FC = () => {
   const showPileBranch = isPileZone && !isModalOpenForThisZone
   const showOverlayBranch =
     isMonsterZone && !isEngine && !!(card.overlayMaterials && card.overlayMaterials.length > 0)
-  const showStatBranch = isMonsterZone || isSpellTrapZone
+  const showStatBranch = !isEngine && (isMonsterZone || isSpellTrapZone)
   const showRemoveBranch = !isEngine && !isModalOpenForThisZone
-  const hasAnyContent =
-    duelActionItems.length > 0 ||
-    engineEditItems.length > 0 ||
-    showPileBranch ||
-    showOverlayBranch ||
-    showStatBranch ||
-    showRemoveBranch
+  const hasAnyContent = showPileBranch || showOverlayBranch || showStatBranch || showRemoveBranch
   if (!hasAnyContent) return null
 
   return (
@@ -184,28 +123,6 @@ export const CardContextMenu: React.FC = () => {
       className="fixed z-[60] min-w-48 max-w-56 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
       onClick={(e) => e.stopPropagation()}
     >
-      {duelActionItems.length > 0 && (
-        <>
-          <div className="px-2 py-0.5 text-[9px] font-bold text-amber-500/90 tracking-wide uppercase flex items-center gap-1 select-none">
-            <Zap className="w-2.5 h-2.5 text-amber-500" />
-            <span>实战决斗指令 (自动记谱)</span>
-          </div>
-          {renderGroup(duelActionItems)}
-          <Separator className="my-1" />
-        </>
-      )}
-
-      {engineEditItems.length > 0 && (
-        <>
-          <div className="px-2 py-0.5 text-[9px] font-bold text-sky-400/90 tracking-wide uppercase flex items-center gap-1 select-none">
-            <History className="w-2.5 h-2.5 text-sky-400" />
-            <span>剧情溯源（重演生效）</span>
-          </div>
-          {renderGroup(engineEditItems)}
-          <Separator className="my-1" />
-        </>
-      )}
-
       {isPileZone && !isModalOpenForThisZone && (
         <>
           {card.location === CardLocation.DECK ? (
@@ -268,7 +185,7 @@ export const CardContextMenu: React.FC = () => {
           </>
         )}
 
-      {(isMonsterZone || isSpellTrapZone) && (
+      {showStatBranch && (
         <>
           <Button
             variant="ghost"

@@ -1,8 +1,8 @@
 import React from 'react'
-import { ACTION_TYPE_COLORS, DuelActionType, DuelStep, POSITION_NAMES } from '@shared/index'
+import { ACTION_TYPE_COLORS, DuelLogCardRef, DuelStep, POSITION_NAMES } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { CardImage } from '../ui/CardImage'
+import { CardThumb } from '../ui/CardThumb'
 import { Button } from '../ui/button'
 import {
   BookOpen,
@@ -15,14 +15,11 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { duelActionLabel, resolveStepCardName } from './stepGrouping'
-import { StepLpChange } from './StepLpChange'
-import { StepLocationLabel } from './StepLocationLabel'
-import arrowIcon from '../../assets/history/arrow.svg'
-import attackIcon from '../../assets/history/attack.png'
-import effectIcon from '../../assets/history/effect.png'
+import { StepLogRows } from './StepLogRows'
+import { MdLocationIcon } from './MdLocationIcon'
+import { MDLOG_ASSETS, MDLOG_COLORS, maskStyle } from './mdpro3LogAssets'
+import { sideName, summonLabel } from './stepLogFormat'
 import negatedIcon from '../../assets/textures/negated.png'
-import setIcon from '../../assets/history/set.png'
-import summonIcon from '../../assets/history/summon.png'
 import targetedIcon from '../../assets/history/targeted.png'
 import { ChainGlyph } from '../common/ChainGlyph'
 
@@ -39,35 +36,35 @@ interface StepCardProps {
   onClick: (index: number, step: DuelStep) => void
 }
 
-const OP_ICONS: Partial<Record<DuelActionType, string>> = {
-  NORMAL_SUMMON: summonIcon,
-  SPECIAL_SUMMON: summonIcon,
-  FLIP_SUMMON: summonIcon,
-  XYZ_SUMMON: summonIcon,
-  FUSION_SUMMON: summonIcon,
-  SYNCHRO_SUMMON: summonIcon,
-  LINK_SUMMON: summonIcon,
-  RITUAL_SUMMON: summonIcon,
-  SET_MONSTER: setIcon,
-  SET_SPELL_TRAP: setIcon,
-  SET_PENDULUM: setIcon,
-  ACTIVATE: effectIcon,
-  ACTIVATE_FIELD: effectIcon,
-  CHAIN: effectIcon,
-  RESOLVE_CHAIN: effectIcon,
-  ATTACK: attackIcon,
-  DAMAGE: attackIcon,
-  DRAW: arrowIcon,
-  SEARCH: arrowIcon,
-  SALVAGE: arrowIcon,
-  TO_GRAVE: arrowIcon,
-  SEND_TO_GRAVE: arrowIcon,
-  BANISH: arrowIcon,
-  TO_HAND: arrowIcon,
-  TO_DECK: arrowIcon,
-  PLACE: arrowIcon,
-  CHANGE_POS: arrowIcon,
-  DETACH_MATERIAL: arrowIcon
+function cardFromStep(
+  step: DuelStep,
+  controller: 0 | 1,
+  location: number | undefined,
+  sequence: number | undefined
+): DuelLogCardRef | undefined {
+  if (location === undefined || !step.cardCode) return undefined
+  return {
+    code: step.cardCode,
+    name: step.cardName,
+    controller,
+    location,
+    sequence: sequence ?? 0
+  }
+}
+
+function summaryActionLabel(step: DuelStep): string {
+  const event = (step.logEvents ?? []).find(
+    (item) =>
+      (item.kind === 'summon' || item.kind === 'set' || item.kind === 'activate') &&
+      item.card.code === step.cardCode
+  )
+  if (event?.kind === 'summon') return summonLabel(event.summonKind)
+  if (event?.kind === 'set') return '盖放'
+  if (event?.kind === 'activate') return '发动'
+  if (step.actionType === 'SET_MONSTER' || step.actionType === 'SET_SPELL_TRAP') return '盖放'
+  if (step.actionType === 'ACTIVATE' || step.actionType === 'ACTIVATE_FIELD') return '发动'
+  if (step.actionType === 'ATTACK') return '攻击'
+  return duelActionLabel(step)
 }
 
 export const StepCard: React.FC<StepCardProps> = ({
@@ -90,14 +87,49 @@ export const StepCard: React.FC<StepCardProps> = ({
   const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
   const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const colorTheme = ACTION_TYPE_COLORS[step.actionType] || ACTION_TYPE_COLORS.NORMAL_SUMMON
-  const actionLabel = duelActionLabel(step)
+  const actionLabel = summaryActionLabel(step)
   const hasBoardSnapshot = Boolean(step.boardAfter && step.boardAfter.length > 0)
   const playableFromHere = hasBoardSnapshot && stepEngineIndex === undefined
   const displayCardName = resolveStepCardName(step)
-  const [imageMissingCode, setImageMissingCode] = React.useState<number | null>(null)
-  const imageMissing = imageMissingCode === step.cardCode
-  const opIcon = OP_ICONS[step.actionType] ?? arrowIcon
-  const showToLocation = step.toLocation !== undefined && step.toLocation !== step.fromLocation
+  const isShuffleStep = step.description?.includes('手牌切洗') ?? false
+  const isNegatedStep = step.description?.includes('效果被无效') ?? false
+  const actingDuelistName = duelists?.find((d) => d.id === step.actionDuelistId)?.name
+  const playerLabel = actingDuelistName ?? sideName(step.actionPlayer)
+  const chainNumber = step.chainIndex && step.chainIndex > 0 ? step.chainIndex : step.chainBadge
+  const fromCard = cardFromStep(
+    step,
+    step.fromController ?? step.actionPlayer,
+    step.fromLocation,
+    step.fromSequence
+  )
+  const toCard = cardFromStep(
+    step,
+    step.toController ?? step.fromController ?? step.actionPlayer,
+    step.toLocation,
+    step.toSequence
+  )
+  const logEvents = step.logEvents ?? []
+  const hasLogEvents = logEvents.length > 0
+  const summaryActivation = logEvents.find(
+    (event): event is Extract<(typeof logEvents)[number], { kind: 'activate' }> =>
+      event.kind === 'activate' && event.card.code === step.cardCode
+  )
+  const chainEffectText = logEvents.some(
+    (event) =>
+      event.kind === 'chain-solving' &&
+      Boolean(event.effectText) &&
+      event.card?.code === step.cardCode
+  )
+  const summaryEffectText = chainEffectText ? undefined : summaryActivation?.effectText
+  const attackEvent = logEvents.find(
+    (event): event is Extract<(typeof logEvents)[number], { kind: 'attack' }> =>
+      event.kind === 'attack' && event.attacker.code === step.cardCode
+  )
+  const displayFrom = attackEvent?.attacker ?? fromCard
+  const displayTo = attackEvent?.defender ?? toCard
+  const showToLocation =
+    Boolean(displayTo) &&
+    (displayTo!.location !== displayFrom?.location || displayTo!.sequence !== displayFrom?.sequence)
   const showMainRow = !(
     step.lpChange &&
     !step.cardCode &&
@@ -107,41 +139,12 @@ export const StepCard: React.FC<StepCardProps> = ({
     (step.actionType === 'CHANGE_POS' || step.actionType === 'FLIP_SUMMON') &&
     step.fromPosition !== undefined &&
     step.toPosition !== undefined
-  const isShuffleStep = step.description?.includes('手牌切洗') ?? false
-  const isNegatedStep = step.description?.includes('效果被无效') ?? false
-  const positionPair = hasPositionPair ? (
-    <div className="flex items-center justify-center gap-1 min-w-0">
-      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-        {POSITION_NAMES[step.fromPosition!] ?? '？'}
-      </span>
-      <img src={arrowIcon} alt="" className="w-7 h-auto shrink-0 pointer-events-none" />
-      <span className="text-[10px] font-semibold text-foreground/90 whitespace-nowrap">
-        {POSITION_NAMES[step.toPosition!] ?? '？'}
-      </span>
-    </div>
-  ) : null
-
-  const playerBadgeClass = cn(
-    'text-[9px] font-bold px-1 rounded leading-none py-0.5 shrink-0 max-w-[72px] truncate',
-    step.actionPlayer === 0 ? 'text-blue-400 bg-blue-500/10' : 'text-rose-400 bg-rose-500/10'
-  )
-  const actingDuelistName = duelists?.find((d) => d.id === step.actionDuelistId)?.name
-  const playerLabel = actingDuelistName ?? (step.actionPlayer === 0 ? '我方' : '对方')
-
-  const chainNumber = step.chainIndex && step.chainIndex > 0 ? step.chainIndex : step.chainBadge
-
-  const metaBadges = (
-    <>
-      {chainNumber && chainNumber > 0 && (
-        <span className="inline-flex items-center gap-0.5 rounded border border-amber-300/60 bg-black/75 px-1 text-[9px] font-bold text-amber-300 shrink-0">
-          <ChainGlyph className="h-4 w-4" />C{chainNumber}
-        </span>
-      )}
-    </>
-  )
+  const hasZones = Boolean(displayFrom) || Boolean(displayTo)
+  const arrowColor = step.actionPlayer === 0 ? MDLOG_COLORS.myArrow : MDLOG_COLORS.opArrow
+  const playerAccent = step.actionPlayer === 0 ? 'text-blue-500' : 'text-rose-500'
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col">
       <div
         onClick={() => onClick(index, step)}
         onMouseEnter={() => {
@@ -149,135 +152,173 @@ export const StepCard: React.FC<StepCardProps> = ({
         }}
         onMouseLeave={() => setHoveredInstanceId(null)}
         className={cn(
-          'group relative flex flex-col gap-1.5 p-2 rounded-lg border transition-all cursor-pointer select-none',
+          'group relative cursor-pointer select-none overflow-hidden rounded-lg border bg-card transition-all',
           isCurrentPlaying
-            ? 'border-primary/60 ring-2 ring-primary/25 bg-card/90 shadow-md'
+            ? 'border-primary/60 ring-1 ring-primary/20 shadow-xs'
             : isFutureStep
-              ? 'border-dashed border-border/70 bg-muted/10 opacity-55 hover:opacity-100 hover:border-primary/40'
+              ? 'border-dashed border-border/70 opacity-55 hover:opacity-100'
               : step.actionPlayer === 0
-                ? 'border-blue-500/30 bg-muted/20 hover:border-blue-500/60 hover:bg-muted/30'
-                : 'border-rose-500/30 bg-muted/20 hover:border-rose-500/60 hover:bg-muted/30'
+                ? 'border-blue-500/30 hover:border-blue-500/60 hover:shadow-sm'
+                : 'border-rose-500/30 hover:border-rose-500/60 hover:shadow-sm'
         )}
       >
         {showMainRow &&
-          (!step.cardCode ? (
-            <div className="flex items-center gap-1.5 text-[11px] leading-snug min-w-0">
-              <span className={playerBadgeClass}>{playerLabel}</span>
-              <span className={cn('font-semibold shrink-0', colorTheme.text)}>{actionLabel}</span>
-              <span className="text-muted-foreground/80 truncate">{step.description}</span>
-              <span className="flex items-center gap-1 ml-auto">{metaBadges}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 min-w-0">
-              <div className="w-14 rounded overflow-hidden border border-border/80 bg-black/60 shrink-0 shadow-sm relative">
-                <CardImage
-                  code={step.cardCode}
-                  small
-                  alt={displayCardName}
-                  className="w-full h-auto block"
-                  onFallback={() => setImageMissingCode(step.cardCode ?? null)}
-                />
-                {imageMissing && displayCardName && (
-                  <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-black/85 px-0.5 py-0.5 text-center text-[8px] font-bold leading-[10px] text-white break-words">
-                    {displayCardName}
-                  </div>
+          (step.cardCode ? (
+            <div className={cn('relative w-full', hasZones ? 'h-[120px]' : 'h-[86px]')}>
+              <div
+                className={cn(
+                  'absolute left-[15px] overflow-hidden rounded-[2px] border border-border bg-muted shadow-sm',
+                  hasZones ? 'top-[36px] h-[78px] w-[52px]' : 'top-[16px] h-[58px] w-[39px]'
                 )}
-                <span
-                  className={cn(
-                    'absolute inset-x-0 bottom-0 text-center text-[8px] font-bold leading-none py-0.5',
-                    step.actionPlayer === 0
-                      ? 'bg-blue-950/80 text-blue-300'
-                      : 'bg-rose-950/80 text-rose-300'
-                  )}
-                >
-                  {playerLabel}
-                </span>
+              >
+                <CardThumb
+                  code={step.cardCode}
+                  name={displayCardName}
+                  title={displayCardName}
+                  imageClassName="block"
+                  className="h-full w-full"
+                />
               </div>
 
-              <StepLocationLabel
-                player={step.fromController ?? step.actionPlayer}
-                location={step.fromLocation}
-                sequence={step.fromSequence}
-                className="w-16 shrink-0"
-              />
+              <div
+                className={cn(
+                  'absolute left-[10px] top-[7px] truncate text-[16px] font-bold leading-tight text-foreground',
+                  hasZones ? 'max-w-[112px]' : 'max-w-[150px]'
+                )}
+                title={displayCardName}
+              >
+                {displayCardName}
+              </div>
 
-              <div className="flex-1 flex flex-col items-center justify-center gap-1 min-w-0 px-0.5">
-                <span className={cn('text-[11px] font-bold leading-none', colorTheme.text)}>
+              <div
+                className={cn(
+                  'absolute right-[8px] top-[9px] max-w-[74px] truncate text-right text-[9px] font-semibold',
+                  playerAccent
+                )}
+                title={playerLabel}
+              >
+                {playerLabel}
+              </div>
+
+              <div
+                className={cn(
+                  'absolute flex flex-col items-center justify-center gap-0.5',
+                  hasZones ? 'left-[126px] top-[34px] w-[68px]' : 'left-[62px] top-[26px] w-[100px]'
+                )}
+              >
+                <span
+                  className={cn('text-center text-[15px] font-bold leading-tight', colorTheme.text)}
+                >
                   {actionLabel}
                 </span>
-                {positionPair ?? (
-                  <img src={opIcon} alt="" className="w-9 h-auto pointer-events-none" />
+                {chainNumber && chainNumber > 0 && (
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-500">
+                    <ChainGlyph className="h-3 w-3" />C{chainNumber}
+                  </span>
                 )}
-                {chainNumber && chainNumber > 0 ? (
-                  <span className="flex items-center gap-1">{metaBadges}</span>
-                ) : null}
+                {hasPositionPair && (
+                  <span className="whitespace-nowrap text-[10px] text-muted-foreground">
+                    {POSITION_NAMES[step.fromPosition!] ?? '？'} →{' '}
+                    {POSITION_NAMES[step.toPosition!] ?? '？'}
+                  </span>
+                )}
               </div>
 
-              {showToLocation && (
-                <StepLocationLabel
-                  player={step.toController ?? step.fromController ?? step.actionPlayer}
-                  location={step.toLocation}
-                  sequence={step.toSequence}
-                  className="w-16 shrink-0"
-                />
+              {hasZones && (
+                <>
+                  <div className="absolute left-[82px] top-[75px]">
+                    <MdLocationIcon card={displayFrom} size={35} />
+                  </div>
+                  {showToLocation && (
+                    <>
+                      <span
+                        className="pointer-events-none absolute left-[126px] top-[80px] h-[25px] w-[68px]"
+                        style={maskStyle(MDLOG_ASSETS.arrow, arrowColor)}
+                      />
+                      <div className="absolute left-[202px] top-[75px]">
+                        <MdLocationIcon card={displayTo} size={35} />
+                      </div>
+                    </>
+                  )}
+                </>
               )}
 
-              {step.targetCardName && (
-                <div className="flex flex-col items-center gap-0.5 min-w-0 max-w-[72px] shrink-0">
-                  <img src={targetedIcon} alt="" className="w-4 h-4 pointer-events-none" />
-                  <span className="text-[10px] text-orange-400/90 break-all leading-tight text-center">
-                    {step.targetCardName}
-                  </span>
-                </div>
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border/50" />
+            </div>
+          ) : (
+            <div className="flex min-h-[34px] items-center gap-2 px-3 py-1.5">
+              <span
+                className={cn(
+                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  step.actionPlayer === 0 ? 'bg-blue-500' : 'bg-rose-500'
+                )}
+              />
+              <span className="shrink-0 text-[13px] font-bold text-foreground">{actionLabel}</span>
+              {step.actionType !== 'PHASE_CHANGE' && step.actionType !== 'TURN_CHANGE' && (
+                <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+                  {step.description}
+                </span>
+              )}
+              {chainNumber && chainNumber > 0 && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-bold text-amber-500">
+                  <ChainGlyph className="h-3 w-3" />C{chainNumber}
+                </span>
               )}
             </div>
           ))}
 
+        {summaryEffectText && (
+          <div
+            className="truncate bg-muted/30 px-2 py-1 text-[9px] leading-snug text-muted-foreground"
+            title={summaryEffectText}
+          >
+            {summaryEffectText}
+          </div>
+        )}
+
+        {hasLogEvents && <StepLogRows step={step} events={logEvents} />}
+
+        {!hasLogEvents && step.targetCardName && (
+          <div className="mx-[56px] mt-0.5 flex min-w-0 items-center gap-2 border-y border-orange-500/20 bg-orange-500/10 px-2 py-1">
+            <img src={targetedIcon} alt="" className="h-3.5 w-3.5 shrink-0 opacity-80" />
+            <span className="shrink-0 text-[10px] font-bold text-orange-600">对象</span>
+            <span className="min-w-0 truncate text-[10px] text-orange-600/80">
+              {step.targetCardName}
+            </span>
+          </div>
+        )}
+
         {isShuffleStep && (
-          <div className="flex items-center gap-1 text-[9px] font-medium text-amber-500">
+          <div className="flex items-center gap-1 bg-amber-500/10 px-3 py-0.5 text-[9px] font-medium text-amber-600">
             <Shuffle className="h-3 w-3" />
             <span>手牌切洗</span>
           </div>
         )}
 
         {isNegatedStep && (
-          <div className="flex items-center gap-1 text-[9px] font-medium text-rose-500">
+          <div className="flex items-center gap-1 bg-rose-500/10 px-3 py-0.5 text-[9px] font-medium text-rose-600">
             <img src={negatedIcon} alt="" className="h-3.5 w-3.5 object-contain" />
             <span>效果被无效</span>
           </div>
         )}
 
-        {showLpChange && step.lpChange && (
-          <StepLpChange lpChange={step.lpChange} turn={step.turn} />
-        )}
-        {!showMainRow && step.description && (
-          <div className="text-[10px] leading-snug text-muted-foreground/80">
-            {step.description}
-          </div>
-        )}
-
-        {(step.dialogue || step.speaker || step.innerThoughts) && (
-          <div
-            onClick={(e) => {
-              e.stopPropagation()
-              openScreenplayWithStep(step.id)
-            }}
-            className="mt-0.5 p-1.5 rounded bg-background/80 hover:bg-background border border-border/50 hover:border-foreground/30 cursor-pointer text-[11px] leading-relaxed flex flex-col gap-0.5 transition-colors"
-          >
-            {step.speaker && (
-              <span className="font-bold text-[10px] text-foreground">【{step.speaker}】:</span>
-            )}
-            {step.dialogue && <span className="text-foreground/90 italic">“{step.dialogue}”</span>}
-            {step.innerThoughts && (
-              <span className="text-sky-400/90 text-[10px] italic">
-                （心理：{step.innerThoughts}）
-              </span>
-            )}
+        {showLpChange && step.lpChange && !hasLogEvents && (
+          <div className="flex items-center justify-end gap-1 px-3 py-0.5 text-[10px]">
+            <span
+              className={
+                step.lpChange.newLp < step.lpChange.oldLp ? 'text-rose-500' : 'text-sky-500'
+              }
+            >
+              {sideName(step.lpChange.player)} LP
+            </span>
+            <span className="font-mono text-foreground/80">
+              {step.lpChange.oldLp} → {step.lpChange.newLp}
+            </span>
           </div>
         )}
 
         {!isReplay && (
-          <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-background/90 backdrop-blur-xs p-0.5 rounded border border-border shadow-sm">
+          <div className="absolute top-1.5 right-1.5 z-30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-background/95 backdrop-blur-sm p-0.5 rounded border border-border shadow-sm">
             {hasBoardSnapshot && playableFromHere && (
               <Button
                 size="icon-xs"
@@ -312,7 +353,7 @@ export const StepCard: React.FC<StepCardProps> = ({
                     e.stopPropagation()
                     moveStep(step.id, 'up')
                   }}
-                  className="h-5 w-5"
+                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
                 >
                   <ChevronUp className="w-3 h-3" />
                 </Button>
@@ -324,7 +365,7 @@ export const StepCard: React.FC<StepCardProps> = ({
                     e.stopPropagation()
                     moveStep(step.id, 'down')
                   }}
-                  className="h-5 w-5"
+                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
                 >
                   <ChevronDown className="w-3 h-3" />
                 </Button>

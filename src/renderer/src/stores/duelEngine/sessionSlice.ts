@@ -2,13 +2,14 @@ import type { StateCreator } from 'zustand'
 import {
   DuelChainCard,
   EngineDuelInitParams,
+  EngineSessionDoc,
   InjectCommand,
+  alignFirstPlayerSeat,
   isEngineSupportedMatch,
   normalizeTimingPolicy
 } from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
 import { reversePileSequences } from '../../utils/pileSequences'
-import { buildReplaySteps } from '../../utils/replayTimelineToSteps'
 import { syncJumpToStepWrapped } from './boardReconcile'
 import { chainStateAtNode } from './chainState'
 import { engineErrorMessage } from './engineErrorMessage'
@@ -18,7 +19,6 @@ import {
   clearEngineSteps,
   clearEditorSteps,
   discardFutureSteps,
-  recordEngineStep,
   restoreEngineSteps,
   splitTimeline
 } from './stepRecords'
@@ -59,8 +59,8 @@ export interface SessionSlice {
   inject: (command: InjectCommand) => Promise<boolean>
   clearInjectNotice: () => void
   clearError: () => void
-  exportSession: () => Promise<boolean>
-  importSession: () => Promise<boolean>
+  getSessionDoc: () => Promise<EngineSessionDoc | null>
+  restoreSessionDoc: (doc: EngineSessionDoc) => Promise<boolean>
 }
 
 export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSlice> = (
@@ -97,7 +97,13 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
     const wasInitialized = get().isInitialized
     try {
       const duelStore = useDuelStore.getState()
-      const currentDuelState = structuredClone(duelStore.state)
+      const aligned = alignFirstPlayerSeat(duelStore.state)
+      if (aligned !== duelStore.state) {
+        duelStore.withSingleUndoStep(() =>
+          useDuelStore.setState({ state: aligned, activeTurnPlayer: aligned.turnPlayer })
+        )
+      }
+      const currentDuelState = structuredClone(aligned)
       duelStore.commitPreview()
       await window.api.duelEngineSetPolicy(get().timingPolicy)
 
@@ -230,106 +236,57 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   clearInjectNotice: () => set({ injectNotice: null }),
   clearError: () => set({ error: null }),
 
-  exportSession: async () => {
-    if (!get().isInitialized) {
-      set({ error: '引擎尚未启动，无法导出对局剧本。' })
-      return false
-    }
-    set({ loading: true, error: null })
+  getSessionDoc: async () => {
     try {
-      const res = await window.api.duelEngineExportSession()
-      if (!res.success) {
-        set({
-          loading: false,
-          error: res.canceled ? null : (res.error ?? '导出对局剧本失败')
-        })
-        return false
-      }
-      set({
-        loading: false,
-        error: null,
-        injectNotice: {
-          kind: 'success',
-          message: `对局剧本已导出：${res.filePath ?? ''}`
-        }
-      })
-      return true
+      const res = await window.api.getDuelEngineSessionDoc()
+      return res.success && res.doc ? res.doc : null
     } catch (err) {
-      console.error('[useDuelEngineStore] exportSession failed:', err)
-      set({
-        loading: false,
-        error: err instanceof Error ? err.message : '导出对局剧本失败'
-      })
-      return false
+      console.error('[useDuelEngineStore] getSessionDoc failed:', err)
+      return null
     }
   },
 
-  importSession: async () => {
+  restoreSessionDoc: async (doc) => {
     set({ loading: true, error: null })
-    const wasInitialized = get().isInitialized
     try {
-      const res = await window.api.duelEngineImportSession()
-      if (!res.success || !res.boardState || !res.timeline || !res.currentStepId) {
+      const res = await window.api.restoreDuelEngineSession(doc)
+      if (!res.success || !res.payload) {
         set({
           loading: false,
-          error: res.canceled ? null : (res.error ?? '导入对局剧本失败')
+          engineMode: 'idle',
+          isInitialized: false,
+          error: res.error ?? '恢复引擎会话失败'
         })
         return false
       }
-      const boardState = res.boardState
-      const timeline = res.timeline
-      const currentStepId = res.currentStepId
-      const duelStore = useDuelStore.getState()
-      duelStore.exitPreview()
-      if (res.initParams?.puzzleState) {
-        duelStore.loadProjectAndStart(structuredClone(res.initParams.puzzleState))
-        clearEngineSteps()
-        clearEditorSteps()
-        clearIdentities()
-        const scriptSteps = buildReplaySteps(timeline)
-        for (const step of scriptSteps) {
-          if (step.actId) recordEngineStep(step.actId, step)
-        }
-        useDuelStore.setState((prev) => ({
-          ...prev,
-          state: { ...prev.state, steps: scriptSteps }
-        }))
-        enterEnginePileOrder()
-      } else {
-        clearEngineSteps()
-        clearEditorSteps()
-        clearIdentities()
-        if (!wasInitialized) enterEnginePileOrder()
-      }
+      const payload = res.payload
+      clearEngineSteps()
+      clearIdentities()
       set({
         engineMode: 'running',
         isInitialized: true,
         loading: false,
         mergedMatch: false,
         error: null,
-        boardState,
-        pendingRequest: res.pendingRequest ?? null,
+        boardState: payload.boardState,
+        pendingRequest: payload.pendingRequest ?? null,
         lastAttacker: null,
-        boardChains: chainStateAtNode(timeline, currentStepId),
-        timeline,
-        currentStepId,
-        timingPolicy: normalizeTimingPolicy(res.timingPolicy ?? get().timingPolicy),
-        injectNotice: {
-          kind: 'success',
-          message: `已载入对局剧本：${res.filePath ?? ''}`
-        }
+        boardChains: chainStateAtNode(payload.timeline, payload.currentStepId),
+        timeline: payload.timeline,
+        currentStepId: payload.currentStepId,
+        timingPolicy: normalizeTimingPolicy(doc.timingPolicy)
       })
-      syncJumpToStepWrapped(boardState)
-      restoreEngineSteps(timeline)
+      syncJumpToStepWrapped(payload.boardState)
+      restoreEngineSteps(payload.timeline)
       useDuelStore.setState({ duelStarted: true })
       return true
     } catch (err) {
-      console.error('[useDuelEngineStore] importSession failed:', err)
+      console.error('[useDuelEngineStore] restoreSessionDoc failed:', err)
       set({
         loading: false,
         engineMode: 'idle',
         isInitialized: false,
-        error: err instanceof Error ? err.message : '导入对局剧本失败'
+        error: engineErrorMessage(err, '恢复引擎会话失败')
       })
       return false
     }

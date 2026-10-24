@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef, JSX } from 'react'
 import { Send, Square, Trash2, Bot, CircleAlert, Info } from 'lucide-react'
 import { useAgentStore } from '../../stores/useAgentStore'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { confirmDialog } from '../../stores/useDialogStore'
-import { DuelProposalSummaryCard } from './DuelProposalSummaryCard'
 import { MarkdownContent } from './MarkdownContent'
 import { MessageCopyButton } from './MessageCopyButton'
 import { ReasoningRow } from './ReasoningRow'
@@ -19,23 +17,11 @@ import { buildInjectedPrompt } from '../../utils/agentPrompt'
 import { useChatAttachments } from '../../hooks/useChatAttachments'
 
 export function BehindSpiritPanel(): JSX.Element {
-  const {
-    isGenerating,
-    messages,
-    loadConfig,
-    resetSession,
-    sendMessage,
-    abort,
-    applyDuelProposal
-  } = useAgentStore()
+  const { isGenerating, messages, loadConfig, resetSession, sendMessage, abort } = useAgentStore()
 
   const { state: currentBoardState } = useDuelStore()
 
   const [inputPrompt, setInputPrompt] = useState('')
-  const [appliedMessageId, setAppliedMessageId] = useState<string | null>(null)
-
-  const [applyingProposalMsgId, setApplyingProposalMsgId] = useState<string | null>(null)
-  const [proposalError, setProposalError] = useState<{ msgId: string; text: string } | null>(null)
 
   const {
     attachedCards,
@@ -76,7 +62,7 @@ export function BehindSpiritPanel(): JSX.Element {
     shouldAutoScrollRef.current = true
 
     sendMessage(
-      inputPrompt.trim() || (attachedText ? '请把附加的对局原文整理成可演示的对局流程' : ''),
+      inputPrompt.trim() || (attachedText ? '请根据附加素材回答问题' : ''),
       currentBoardState,
       buildInjectedPrompt(inputPrompt.trim(), attachedCards, attachedText),
       attachedCards.map((card) => ({ id: card.id, name: card.name, type: card.type })),
@@ -90,37 +76,6 @@ export function BehindSpiritPanel(): JSX.Element {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
-    }
-  }
-
-  const handleApplyProposal = async (messageId: string): Promise<void> => {
-    const msg = useAgentStore.getState().messages.find((m) => m.id === messageId)
-    if (!msg) return
-    const fieldCards = useDuelStore.getState().state.cards
-    if (fieldCards.length > 0) {
-      const confirmed = await confirmDialog({
-        title: '应用提案',
-        description: `当前决斗盘上已有 ${fieldCards.length} 张卡。\n应用会把盘面清空并按提案重建，已排的步骤也会被替换。继续吗？`,
-        confirmText: '继续'
-      })
-      if (!confirmed) return
-    }
-    setApplyingProposalMsgId(messageId)
-    setProposalError(null)
-    const sourceRef = msg.textSource?.textId
-      ? {
-          textId: msg.textSource.textId,
-          textTitle: msg.textSource.title,
-          chapterIds: msg.textSource.chapterIds ?? []
-        }
-      : undefined
-    const res = await applyDuelProposal(msg.boardSetup ?? null, msg.proposals ?? [], sourceRef)
-    setApplyingProposalMsgId(null)
-    if (res.ok) {
-      setAppliedMessageId(messageId)
-      setTimeout(() => setAppliedMessageId(null), 3000)
-    } else {
-      setProposalError({ msgId: messageId, text: res.error ?? '应用失败' })
     }
   }
 
@@ -180,9 +135,6 @@ export function BehindSpiritPanel(): JSX.Element {
               const toolCalls = msg.toolCalls ?? []
               const hasThought = Boolean(msg.thought?.trim())
               const hasContent = msg.content.length > 0
-              const hasProposal = Boolean(
-                msg.boardSetup || (msg.proposals && msg.proposals.length > 0)
-              )
               const statusLabel = hasContent
                 ? '正在生成'
                 : toolCalls.some((call) => !call.resultSummary)
@@ -260,19 +212,6 @@ export function BehindSpiritPanel(): JSX.Element {
                     </div>
                   )}
 
-                  {hasProposal && (
-                    <div className="w-full min-w-0 max-w-[95%]">
-                      <DuelProposalSummaryCard
-                        setup={msg.boardSetup}
-                        proposals={msg.proposals ?? []}
-                        applied={appliedMessageId === msg.id}
-                        applying={applyingProposalMsgId === msg.id}
-                        error={proposalError?.msgId === msg.id ? proposalError.text : null}
-                        onApply={() => void handleApplyProposal(msg.id)}
-                      />
-                    </div>
-                  )}
-
                   {hasContent && !isActive && (
                     <div className="flex max-w-[95%] items-center px-1">
                       <MessageCopyButton text={msg.content} />
@@ -301,7 +240,7 @@ export function BehindSpiritPanel(): JSX.Element {
               onKeyDown={handleKeyDown}
               placeholder={
                 attachedText
-                  ? '已附加素材，说明要怎么整理这段对局即可...'
+                  ? '已附加素材，直接提问即可...'
                   : attachedCards.length > 0
                     ? '已引用卡片，直接提问即可...'
                     : '输入消息...（enter发送，shift+enter换行）'

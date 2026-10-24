@@ -34,13 +34,13 @@ const NAV_ITEMS: SettingsNavItem[] = [
     id: 'model-settings',
     label: '模型',
     icon: Plug,
-    description: '填入各提供商的 API 密钥即可使用其模型。'
+    description: '填入各提供商的 API 密钥即可使用其模型'
   },
   {
     id: 'web-search',
     label: '网页搜索',
     icon: Globe,
-    description: '让背后灵搜索互联网并读取网页正文。'
+    description: '让背后灵搜索互联网并读取网页正文'
   },
   {
     id: 'paths',

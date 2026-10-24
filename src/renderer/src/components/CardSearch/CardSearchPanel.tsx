@@ -28,6 +28,8 @@ import { Button } from '../ui/button'
 import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { CardRowItem } from './CardRowItem'
+import { FavoriteCategoryBar } from './FavoriteCategoryBar'
+import { FavoriteCategoryPopover } from './FavoriteCategoryPopover'
 
 type AddCardTarget = Extract<InjectCommand, { op: 'add-card' }>['to']
 
@@ -85,6 +87,11 @@ export const CardSearchPanel: React.FC = () => {
   const showSearchProgress = useDelayedLoading(isLoading)
   const [localKw, setLocalKw] = useState(keyword)
   const [injectMenu, setInjectMenu] = useState<{ card: CdbCard; x: number; y: number } | null>(null)
+  const [favoriteMenu, setFavoriteMenu] = useState<{
+    card: CdbCard
+    x: number
+    y: number
+  } | null>(null)
   const injectMenuRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fieldTarget = injectMenu ? fieldTargetFor(injectMenu.card) : null
@@ -149,6 +156,16 @@ export const CardSearchPanel: React.FC = () => {
   const handleRowDoubleClick = useCallback(
     (card: CdbCard): void => injectCard(card, 'hand'),
     [injectCard]
+  )
+
+  const handleFavoriteClick = useCallback(
+    (code: number, anchor: DOMRect): void => {
+      const card = results.find((item) => item.id === code)
+      if (!card) return
+      if (!isFavorite(code)) void toggleFavorite(code)
+      setFavoriteMenu({ card, x: anchor.right, y: anchor.bottom + 4 })
+    },
+    [results, isFavorite, toggleFavorite]
   )
 
   return (
@@ -234,6 +251,8 @@ export const CardSearchPanel: React.FC = () => {
         )}
       </div>
 
+      {onlyFavorites && <FavoriteCategoryBar />}
+
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto p-2">
         {results.length === 0 && !isLoading && hasSearched ? (
           <div className="h-48 flex flex-col items-center justify-center gap-3 text-muted-foreground text-xs p-4 text-center">
@@ -258,7 +277,7 @@ export const CardSearchPanel: React.FC = () => {
                 cardPool={cardPool}
                 poolSchema={filterOptions.poolSchema}
                 isFavorite={isFavorite(card.id)}
-                onToggleFavorite={toggleFavorite}
+                onToggleFavorite={handleFavoriteClick}
                 onHover={setHoveredCard}
                 onDragStart={handleDragStart}
                 onContextMenu={handleRowContextMenu}
@@ -316,6 +335,14 @@ export const CardSearchPanel: React.FC = () => {
             </button>
           ))}
         </div>
+      )}
+
+      {favoriteMenu && (
+        <FavoriteCategoryPopover
+          card={favoriteMenu.card}
+          anchor={{ x: favoriteMenu.x, y: favoriteMenu.y }}
+          onClose={() => setFavoriteMenu(null)}
+        />
       )}
     </div>
   )

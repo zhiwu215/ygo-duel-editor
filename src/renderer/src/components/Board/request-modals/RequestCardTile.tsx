@@ -2,7 +2,7 @@ import React from 'react'
 import { Check } from 'lucide-react'
 import { CdbCard } from '@shared/index'
 import type { RequestCard } from '@shared/engine/protocol'
-import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../../utils/cardImage'
+import { CardThumb } from '../../ui/CardThumb'
 import { cn } from '../../../lib/utils'
 import { cardNameOf } from './useCardMeta'
 
@@ -38,15 +38,11 @@ export const RequestCardTile: React.FC<RequestCardTileProps> = ({
       )}
     >
       <div className="relative aspect-[59/86]">
-        <img
-          src={getCardImageUrl(card.code, true)}
-          alt={name}
-          className="h-full w-full object-cover pointer-events-none"
-          onError={(e) => {
-            if (e.currentTarget.src !== UNKNOWN_CARD_IMAGE) {
-              e.currentTarget.src = UNKNOWN_CARD_IMAGE
-            }
-          }}
+        <CardThumb
+          code={card.code}
+          name={name}
+          imageClassName="pointer-events-none"
+          className="h-full w-full"
         />
         {selected && (
           <div className="absolute inset-0 flex items-center justify-center bg-foreground/25">

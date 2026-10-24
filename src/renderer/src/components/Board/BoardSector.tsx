@@ -20,6 +20,7 @@ interface BoardRowSpec {
 
 interface BoardSectorProps {
   controller: 0 | 1
+  isTop: boolean
   pendulumInSZone: boolean
   hasIndependentPZones: boolean
   getCard: (controller: 0 | 1, location: number, sequence: number) => FieldCard | undefined
@@ -28,14 +29,14 @@ interface BoardSectorProps {
 
 export const BoardSector: React.FC<BoardSectorProps> = ({
   controller,
+  isTop,
   pendulumInSZone,
   hasIndependentPZones,
   getCard,
   getCardCount
 }) => {
-  const isOpponent = controller === 1
-  const seqs = isOpponent ? [4, 3, 2, 1, 0] : [0, 1, 2, 3, 4]
-  const keyPrefix = isOpponent ? 'opp' : 'my'
+  const seqs = isTop ? [4, 3, 2, 1, 0] : [0, 1, 2, 3, 4]
+  const keyPrefix = isTop ? 'top' : 'bottom'
 
   const deckWing: BoardWingSpec = {
     label: '主卡组',
@@ -66,7 +67,7 @@ export const BoardSector: React.FC<BoardSectorProps> = ({
     withCount: false
   }
 
-  const rows: BoardRowSpec[] = isOpponent
+  const rows: BoardRowSpec[] = isTop
     ? [
         {
           left: deckWing,
@@ -108,11 +109,11 @@ export const BoardSector: React.FC<BoardSectorProps> = ({
             label="灵摆区"
             controller={controller}
             location={CardLocation.PZONE}
-            sequence={isOpponent ? 1 : 0}
-            card={getCard(controller, CardLocation.PZONE, isOpponent ? 1 : 0)}
+            sequence={isTop ? 1 : 0}
+            card={getCard(controller, CardLocation.PZONE, isTop ? 1 : 0)}
             isPendulum
             pendulumDirection="left"
-            colorVariant={isOpponent ? 'pendulum-red' : 'pendulum-blue'}
+            colorVariant={isTop ? 'pendulum-red' : 'pendulum-blue'}
           />
         </div>
       )}
@@ -154,9 +155,9 @@ export const BoardSector: React.FC<BoardSectorProps> = ({
                   }
                   pendulumDirection={
                     row.centerLocation === CardLocation.SZONE
-                      ? seq === (isOpponent ? 4 : 0)
+                      ? seq === (isTop ? 4 : 0)
                         ? 'left'
-                        : seq === (isOpponent ? 0 : 4)
+                        : seq === (isTop ? 0 : 4)
                           ? 'right'
                           : undefined
                       : undefined
@@ -197,11 +198,11 @@ export const BoardSector: React.FC<BoardSectorProps> = ({
             label="灵摆区"
             controller={controller}
             location={CardLocation.PZONE}
-            sequence={isOpponent ? 0 : 1}
-            card={getCard(controller, CardLocation.PZONE, isOpponent ? 0 : 1)}
+            sequence={isTop ? 0 : 1}
+            card={getCard(controller, CardLocation.PZONE, isTop ? 0 : 1)}
             isPendulum
             pendulumDirection="right"
-            colorVariant={isOpponent ? 'pendulum-blue' : 'pendulum-red'}
+            colorVariant={isTop ? 'pendulum-blue' : 'pendulum-red'}
           />
         </div>
       )}

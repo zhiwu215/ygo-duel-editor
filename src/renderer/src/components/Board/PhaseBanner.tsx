@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { PHASE_SHORT_NAMES } from '@shared/index'
+import { PHASE_SHORT_NAMES, viewTopSeatOf } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { resolveTeamLabel } from '../../utils/duelistNames'
 import { cn } from '../../lib/utils'
@@ -13,6 +13,7 @@ export const PhaseBanner: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
   const duelStarted = useDuelStore((s) => s.duelStarted)
   const duelists = useDuelStore((s) => s.state.duelists)
+  const viewTopSeat = useDuelStore((s) => viewTopSeatOf(s.state))
   const [visible, setVisible] = useState(false)
   const signatureRef = useRef(`${currentTurn}|${activeTurnPlayer}|${currentPhase}`)
 
@@ -27,7 +28,7 @@ export const PhaseBanner: React.FC = () => {
 
   if (!duelStarted) return null
 
-  const isSelfTurn = activeTurnPlayer === 0
+  const isSelfTurn = activeTurnPlayer !== viewTopSeat
   const turnLabel = resolveTeamLabel({ duelists }, activeTurnPlayer, currentTurn)
 
   return (

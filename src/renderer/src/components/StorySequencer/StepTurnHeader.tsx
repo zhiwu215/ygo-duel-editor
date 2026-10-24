@@ -50,6 +50,8 @@ export const StepTurnHeader: React.FC<StepTurnHeaderProps> = ({
     ? actingDuelistId
     : undefined
   const actingId = knownActingId ?? resolveTurnDuelist(duelists, turn)?.id
+  const actingName = (duelists || []).find((duelist) => duelist.id === actingId)?.name
+  const turnLabel = actingName ? `${actingName} 行动` : turnPlayer === 0 ? '我方行动' : '对方行动'
 
   return (
     <div className="flex flex-col gap-1.5 p-2 rounded-lg border border-border/70 bg-gradient-to-br from-muted/40 to-card shadow-xs select-none">
@@ -61,7 +63,7 @@ export const StepTurnHeader: React.FC<StepTurnHeaderProps> = ({
             TURN_PLAYER_STYLES[turnPlayer]
           )}
         >
-          {turnPlayer === 0 ? '我方行动' : '对方行动'}
+          {turnLabel}
         </span>
       </div>
 

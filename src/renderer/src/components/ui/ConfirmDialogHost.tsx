@@ -30,7 +30,7 @@ export const ConfirmDialogHost: React.FC<{ children: React.ReactNode }> = ({ chi
             description={request.description}
             confirmText={request.kind === 'alert' ? '知道了' : request.confirmText}
             destructive={request.kind === 'confirm' && (request.destructive ?? true)}
-            icon={request.kind === 'alert' ? 'info' : 'warning'}
+            icon={request.icon ?? (request.kind === 'alert' ? 'info' : 'warning')}
             showCancel={request.kind === 'confirm'}
             extraText={request.extraAction?.text}
             onConfirm={() => settle(request.id, true)}

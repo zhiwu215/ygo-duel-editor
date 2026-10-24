@@ -1,5 +1,6 @@
 import { CdbCard } from './card'
 import { DuelPuzzleState } from './duel'
+import type { DuelLogEvent } from './duelLog'
 import type { EngineRequest } from '../engine/protocol'
 
 export interface EngineCard {
@@ -19,6 +20,8 @@ export interface EngineCard {
   overlayMaterials: number[]
   counters?: Record<number, number>
   status?: number
+  equipTargetInstanceId?: string
+  targetInstanceIds?: string[]
 }
 
 export interface EngineDuelistState {
@@ -94,6 +97,7 @@ export interface EngineTimelineNode {
   player: 0 | 1
   logs: string[]
   events: EngineStepEvent[]
+  logEvents?: DuelLogEvent[]
   boardState: EngineBoardState
   pendingRequest: EngineRequest | null
   opIndex: number

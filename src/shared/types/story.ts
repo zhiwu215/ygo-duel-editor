@@ -1,3 +1,5 @@
+import type { DuelLogEvent } from './duelLog'
+
 export type DuelPhase = 'DP' | 'SP' | 'M1' | 'BP' | 'M2' | 'EP'
 
 export const PHASE_NAMES: Record<DuelPhase, string> = {
@@ -193,6 +195,14 @@ export type ManualOp =
     }
   | { type: 'lp'; player: 0 | 1; value: number }
 
+export interface DuelStepTextBlock {
+  id: string
+  text: string
+  auto?: boolean
+}
+
+export type DuelStepOrigin = 'engine' | 'manual' | 'replay'
+
 export interface DuelStep {
   id: string
   turn: number
@@ -218,15 +228,16 @@ export interface DuelStep {
   costInstanceIds?: string[]
   chainIndex?: number
   chainBadge?: number
-  speaker?: string
-  dialogue?: string
-  innerThoughts?: string
   description?: string
+  logEvents?: DuelLogEvent[]
+  texts?: DuelStepTextBlock[]
   sourceQuote?: string
   boardAfter?: LightweightCardSnapshot[]
   lpChange?: { player: 0 | 1; oldLp: number; newLp: number }
   actId?: string
-  origin?: 'replay'
+  startActId?: string
+  endActId?: string
+  origin?: DuelStepOrigin
   manualOps?: ManualOp[]
   afterActId?: string
   intent?: string

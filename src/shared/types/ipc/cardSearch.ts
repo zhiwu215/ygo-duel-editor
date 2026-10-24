@@ -38,6 +38,8 @@ export interface CardSearchParams {
   limit?: number
   offset?: number
   onlyFavorites?: boolean
+
+  favoriteCategoryId?: string
 }
 
 export type LimitFilter = 0 | 1 | 2 | 3

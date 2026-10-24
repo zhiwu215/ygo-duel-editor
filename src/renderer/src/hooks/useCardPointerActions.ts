@@ -93,7 +93,9 @@ export function useCardPointerActions({
     }
     if (e.shiftKey) {
       closeCommandMenu()
-      if (activeStatPopoverCardId === card.instanceId) {
+      if (isEngineActive) {
+        closeStatPopover()
+      } else if (activeStatPopoverCardId === card.instanceId) {
         closeStatPopover()
       } else {
         const rect = e.currentTarget.getBoundingClientRect()

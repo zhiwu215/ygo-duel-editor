@@ -1,9 +1,11 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { useConfigStore } from '../stores/useConfigStore'
 import { alertDialog, confirmDialog, promptDialog } from '../stores/useDialogStore'
 import { buildPuzzleStateFromEngineBoard } from '../utils/engineBoardToPuzzle'
+import { openDuelDocument, saveDuelDocument } from '../utils/duelDocumentActions'
+import { flushDuelDocumentAutosave } from '../utils/duelDocumentAutosave'
 import { formatCoverageWarning } from '../utils/coverageWarning'
 import {
   ContentCoverageDetail,
@@ -15,11 +17,9 @@ import {
 } from '@shared/index'
 
 export interface ProjectCommands {
-  isSaveModalOpen: boolean
-  closeSaveModal: () => void
   handleNew: () => void
   handleSaveProject: () => Promise<void>
-  handleSaveProjectAs: () => void
+  handleSaveProjectAs: () => Promise<void>
   handleOpenProject: () => Promise<void>
   handleExportLua: () => Promise<void>
   handleTestInYgo: () => Promise<void>
@@ -27,53 +27,49 @@ export interface ProjectCommands {
   handleExportYrp: () => Promise<void>
   handleImportReplay: () => Promise<void>
   handleOpenReplayInYgo: () => Promise<void>
-  handleExportScreenplay: () => Promise<void>
-  handleExportSession: () => void
-  handleImportSession: () => void
 }
 
 export function useProjectCommands(): ProjectCommands {
   const state = useDuelStore((s) => s.state)
   const loadState = useDuelStore((s) => s.loadState)
   const resetDuel = useDuelStore((s) => s.resetDuel)
-  const currentProjectPath = useDuelStore((s) => s.currentProjectPath)
-  const setCurrentProjectPath = useDuelStore((s) => s.setCurrentProjectPath)
-
-  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
 
   const handleNew = useCallback((): void => {
     void confirmDialog({
       title: '新建对局',
       description: '确认清空当前局面并新建对局？'
-    }).then((ok) => {
-      if (ok) resetDuel()
+    }).then(async (ok) => {
+      if (!ok) return
+      await flushDuelDocumentAutosave()
+      resetDuel()
     })
   }, [resetDuel])
 
   const handleSaveProject = useCallback(async (): Promise<void> => {
-    if (!currentProjectPath) {
-      setIsSaveModalOpen(true)
-      return
+    const result = await saveDuelDocument(false)
+    if (!result.success && result.error) {
+      void alertDialog(`保存失败：${result.error}`)
     }
-    const res = await window.api.saveProjectToPath(currentProjectPath, state)
-    if (res.success) return
-    if (res.error) {
-      void alertDialog(`保存失败：${res.error}\n将打开另存为对话框。`)
-    }
-    setIsSaveModalOpen(true)
-  }, [currentProjectPath, state])
+  }, [])
 
-  const handleSaveProjectAs = useCallback((): void => {
-    setIsSaveModalOpen(true)
+  const handleSaveProjectAs = useCallback(async (): Promise<void> => {
+    const result = await saveDuelDocument(true)
+    if (!result.success && result.error) {
+      void alertDialog(`保存失败：${result.error}`)
+    }
   }, [])
 
   const handleOpenProject = useCallback(async (): Promise<void> => {
-    const res = await window.api.loadProjectFile()
-    if (res.success && res.state) {
-      loadState(res.state)
-      if (res.filePath) setCurrentProjectPath(res.filePath)
+    const result = await window.api.openDuelDocumentDialog()
+    if (!result.success || !result.filePath) {
+      if (result.error) void alertDialog(`打开失败：${result.error}`)
+      return
     }
-  }, [loadState, setCurrentProjectPath])
+    const opened = await openDuelDocument(result.filePath)
+    if (!opened.success) {
+      void alertDialog(`打开失败：${opened.error ?? '未知错误'}`)
+    }
+  }, [])
 
   const handleExportLua = useCallback(async (): Promise<void> => {
     if (!isExportableMatch(state.matchConfig)) return
@@ -157,6 +153,7 @@ export function useProjectCommands(): ProjectCommands {
   const handleImportLua = useCallback(async (): Promise<void> => {
     const res = await window.api.importLuaFile()
     if (res.success && res.state) {
+      await flushDuelDocumentAutosave()
       loadState(res.state)
     } else if (res.error) {
       void alertDialog(`导入失败: ${res.error}`)
@@ -342,31 +339,7 @@ export function useProjectCommands(): ProjectCommands {
     void alertDialog(`打开回放失败\n\n${res.error ?? '未知错误'}`)
   }, [])
 
-  const handleExportScreenplay = useCallback(async (): Promise<void> => {
-    if (!window.api?.exportScreenplayFile) return
-    const res = await window.api.exportScreenplayFile(state)
-    if (res.success && res.filePath) {
-      void alertDialog(`同人决斗剧本台本已成功导出：\n${res.filePath}`)
-    } else if (res.error) {
-      void alertDialog(`导出失败: ${res.error}`)
-    }
-  }, [state])
-
-  const handleExportSession = useCallback((): void => {
-    void useDuelEngineStore.getState().exportSession()
-  }, [])
-
-  const handleImportSession = useCallback((): void => {
-    void useDuelEngineStore.getState().importSession()
-  }, [])
-
-  const closeSaveModal = useCallback((): void => {
-    setIsSaveModalOpen(false)
-  }, [])
-
   return {
-    isSaveModalOpen,
-    closeSaveModal,
     handleNew,
     handleSaveProject,
     handleSaveProjectAs,
@@ -376,9 +349,6 @@ export function useProjectCommands(): ProjectCommands {
     handleImportLua,
     handleExportYrp,
     handleImportReplay,
-    handleOpenReplayInYgo,
-    handleExportScreenplay,
-    handleExportSession,
-    handleImportSession
+    handleOpenReplayInYgo
   }
 }

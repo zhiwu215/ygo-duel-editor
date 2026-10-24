@@ -15,9 +15,7 @@ import {
   isGroupDescendant
 } from '@shared/index'
 import icon from '../../../resources/icon.png?asset'
-import { configService } from './configService'
 import { dataDirService } from './dataDirService'
-import { broadcastToWindows } from './broadcast'
 
 const LIBRARY_FILE = 'ygo_duel_editor_decks.json'
 
@@ -332,30 +330,6 @@ export class DeckService {
       console.error('[DeckService] loadDeckFile error:', err)
       return { success: false, error: err instanceof Error ? err.message : '读取卡组失败' }
     }
-  }
-  public getFavorites(): number[] {
-    const cfg = configService.get()
-    return cfg.favorites || []
-  }
-  public toggleFavorite(code: number): { isFavorite: boolean; favorites: number[] } {
-    const current = this.getFavorites()
-    const set = new Set(current)
-    let isFavorite: boolean
-
-    if (set.has(code)) {
-      set.delete(code)
-      isFavorite = false
-    } else {
-      set.add(code)
-      isFavorite = true
-    }
-
-    const nextFavorites = Array.from(set)
-    configService.save({ favorites: nextFavorites })
-
-    broadcastToWindows('favorites:changed', nextFavorites)
-
-    return { isFavorite, favorites: nextFavorites }
   }
 }
 

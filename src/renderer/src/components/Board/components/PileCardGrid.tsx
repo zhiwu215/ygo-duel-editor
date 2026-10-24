@@ -10,7 +10,7 @@ import {
   SORTABLE_MEASURING,
   pointerFirstCollisionDetection
 } from '../../../utils/dnd'
-import { CardImage } from '../../ui/CardImage'
+import { CardThumb } from '../../ui/CardThumb'
 import { PileCardTile } from './PileCardTile'
 
 interface PileCardGridProps {
@@ -117,12 +117,15 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
         <DragOverlay dropAnimation={DROP_ANIMATION} style={{ pointerEvents: 'none' }}>
           {activeCard ? (
             <div className="w-full h-full rounded overflow-hidden shadow-2xl ring-2 ring-blue-500/70">
-              <CardImage
+              <CardThumb
                 code={activeCard.code}
-                small
-                alt=""
-                draggable={false}
-                className="w-full h-full object-cover pointer-events-none"
+                name={
+                  getCardName
+                    ? getCardName(activeCard)
+                    : activeCard.card?.name || resolveCardName(activeCard.code)
+                }
+                imageClassName="pointer-events-none"
+                className="h-full w-full"
               />
             </div>
           ) : null}

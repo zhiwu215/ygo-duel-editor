@@ -12,6 +12,22 @@ export interface CardEngineActions {
   chain?: RequestCard
 }
 
+interface EngineCardIdentity {
+  controller: 0 | 1
+  location: number
+  sequence: number
+  duelistId?: string
+}
+
+export function isRequestCardAt(requestCard: RequestCard, card: EngineCardIdentity): boolean {
+  return (
+    requestCard.controller === card.controller &&
+    requestCard.location === card.location &&
+    requestCard.sequence === card.sequence &&
+    (!requestCard.duelistId || requestCard.duelistId === card.duelistId)
+  )
+}
+
 function matchCards(
   list: RequestCard[] | undefined,
   card: {
@@ -23,13 +39,7 @@ function matchCards(
   }
 ): RequestCard[] {
   if (!list) return []
-  return list.filter(
-    (c) =>
-      c.controller === card.controller &&
-      c.location === card.location &&
-      c.sequence === card.sequence &&
-      (!c.duelistId || c.duelistId === card.duelistId)
-  )
+  return list.filter((item) => isRequestCardAt(item, card))
 }
 
 function matchCard(

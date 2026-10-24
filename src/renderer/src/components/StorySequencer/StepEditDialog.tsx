@@ -4,14 +4,18 @@ import {
   CardLocation,
   DuelActionType,
   DuelPhase,
-  PHASE_NAMES
+  PHASE_NAMES,
+  refreshAutoTextBlock
 } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
+import { useConfigStore } from '../../stores/useConfigStore'
+import { resolveDuelistName, resolveTeamLabel } from '../../utils/duelistNames'
+import { stepCardName } from '../../utils/cardNames'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Film, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { ALL_ACTIONS, ALL_PHASES, COMMONLY_USED_LOCATIONS } from './stepGrouping'
 
 interface StepSelectOption {
@@ -51,6 +55,7 @@ interface StepEditDialogProps {
 
 export const StepEditDialog: React.FC<StepEditDialogProps> = ({ stepId, onClose }) => {
   const { state, updateStep } = useDuelStore()
+  const wrapper = useConfigStore((s) => s.config.cardNameWrapper)
   const steps = state.steps || []
   const editingStep = steps.find((s) => s.id === stepId)
 
@@ -64,7 +69,9 @@ export const StepEditDialog: React.FC<StepEditDialogProps> = ({ stepId, onClose 
   const [formCardCode, setFormCardCode] = useState<string>(
     editingStep?.cardCode ? String(editingStep.cardCode) : ''
   )
-  const [formCardName, setFormCardName] = useState<string>(editingStep?.cardName || '')
+  const [formCardName, setFormCardName] = useState<string>(() =>
+    editingStep ? editingStep.cardName || stepCardName(editingStep) : ''
+  )
   const [formFromLoc, setFormFromLoc] = useState<number>(
     editingStep?.fromLocation ?? CardLocation.HAND
   )
@@ -98,13 +105,15 @@ export const StepEditDialog: React.FC<StepEditDialogProps> = ({ stepId, onClose 
       toLocation: formToLoc,
       toSequence: formToSeq,
       chainIndex: formChain > 0 ? formChain : undefined,
-      speaker: editingStep.speaker,
-      dialogue: editingStep.dialogue,
-      innerThoughts: editingStep.innerThoughts,
       description: formDesc.trim() || editingStep.description
     }
 
-    updateStep(stepId, stepPayload)
+    const nextStep = { ...editingStep, ...stepPayload }
+    const actorName =
+      resolveDuelistName(state.duelists, nextStep.actionDuelistId) ||
+      resolveTeamLabel(state, nextStep.actionPlayer, nextStep.turn)
+    const texts = refreshAutoTextBlock(nextStep, actorName, wrapper)
+    updateStep(stepId, texts === undefined ? stepPayload : { ...stepPayload, texts })
     onClose()
   }
 
@@ -116,7 +125,6 @@ export const StepEditDialog: React.FC<StepEditDialogProps> = ({ stepId, onClose 
       >
         <DialogHeader className="!flex !flex-row items-center justify-between border-b border-border/60 pb-2 space-y-0">
           <DialogTitle className="font-bold text-sm flex items-center gap-1.5">
-            <Film className="w-4 h-4 text-muted-foreground" />
             <span>编辑对局步骤</span>
           </DialogTitle>
           <Button

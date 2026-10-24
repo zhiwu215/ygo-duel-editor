@@ -1,6 +1,19 @@
 import { DuelPuzzleState } from '../duel'
 import type { MasterRule } from '../rules'
 import type { EngineBoardState, EngineTimelineNode } from '../duelEngine'
+import type { EngineSessionDoc, EngineSessionImportPayload } from '../../engine/sessionDoc'
+
+export interface EngineSessionDocResult {
+  success: boolean
+  doc?: EngineSessionDoc
+  error?: string
+}
+
+export interface EngineSessionRestoreResult {
+  success: boolean
+  payload?: EngineSessionImportPayload
+  error?: string
+}
 
 export interface EngineSupportInfo {
   supported: boolean

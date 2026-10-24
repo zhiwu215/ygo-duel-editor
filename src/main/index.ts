@@ -15,6 +15,8 @@ import {
 } from './services/gameContent'
 import { imageService } from './services/imageService'
 import { libraryService } from './services/libraryService'
+import { seedCurrentGameLanguage } from './services/gameLanguagePreference'
+import { installWindowCloseGuard } from './services/windowCloseGuard'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -48,6 +50,8 @@ function createWindow(): void {
   })
 
   mainWindow.removeMenu()
+
+  installWindowCloseGuard(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
@@ -127,6 +131,7 @@ app.whenReady().then(() => {
       configService.save({ gameLanguage: undefined })
     }
   }
+  seedCurrentGameLanguage()
   const bundledCdbPaths = currentBundledCdbPaths()
   cdbService.setPreferredBanlist(cfg.banlistName)
   if (cfg.cdbPath || extraCdbPaths.length > 0 || bundledCdbPaths.length > 0) {

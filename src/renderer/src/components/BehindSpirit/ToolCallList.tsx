@@ -9,14 +9,11 @@ import {
   Info,
   Layers,
   LayoutGrid,
-  ListOrdered,
   MousePointerClick,
   Play,
   Search,
-  ShieldCheck,
   Sparkles,
   Swords,
-  Wand2,
   Wrench
 } from 'lucide-react'
 import type { AgentToolCallItem } from '../../stores/useAgentStore'
@@ -32,16 +29,10 @@ const TOOL_LABELS: Record<string, string> = {
   get_card_info: '查询卡片详情',
   find_cards_by_intent: '按意图检索卡片',
   read_text_source: '读取文本素材',
-  propose_duel_steps: '整理决斗步骤',
-  propose_board_setup: '复盘场面布局',
-  propose_card_replacement: '替换手牌与盖卡提案',
-  validate_with_ocgcore: '校验战术规则',
   duel_engine_arrange_deck: '编排牌序',
   duel_engine_start: '引擎开局',
   duel_engine_choose: '引擎选择',
   duel_engine_commit: '提交对局步骤',
-  screenplay_submit_outline: '提交剧本大纲',
-  screenplay_submit_act: '提交本幕步骤',
   duel_export_replay: '导出回放',
   web_search: '网页搜索',
   web_fetch: '网页抓取'
@@ -56,16 +47,10 @@ const TOOL_ICONS: Record<string, JSX.Element> = {
   get_card_info: <Info className="h-3 w-3 shrink-0 text-muted-foreground" />,
   find_cards_by_intent: <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" />,
   read_text_source: <BookOpen className="h-3 w-3 shrink-0 text-muted-foreground" />,
-  propose_duel_steps: <ListOrdered className="h-3 w-3 shrink-0 text-muted-foreground" />,
-  propose_board_setup: <Wand2 className="h-3 w-3 shrink-0 text-muted-foreground" />,
-  propose_card_replacement: <Wand2 className="h-3 w-3 shrink-0 text-muted-foreground" />,
-  validate_with_ocgcore: <ShieldCheck className="h-3 w-3 shrink-0 text-muted-foreground" />,
   duel_engine_arrange_deck: <Swords className="h-3 w-3 shrink-0 text-muted-foreground" />,
   duel_engine_start: <Play className="h-3 w-3 shrink-0 text-muted-foreground" />,
   duel_engine_choose: <MousePointerClick className="h-3 w-3 shrink-0 text-muted-foreground" />,
   duel_engine_commit: <CheckCheck className="h-3 w-3 shrink-0 text-muted-foreground" />,
-  screenplay_submit_outline: <BookOpen className="h-3 w-3 shrink-0 text-muted-foreground" />,
-  screenplay_submit_act: <ListOrdered className="h-3 w-3 shrink-0 text-muted-foreground" />,
   duel_export_replay: <Play className="h-3 w-3 shrink-0 text-muted-foreground" />,
   web_search: <Globe2 className="h-3 w-3 shrink-0 text-muted-foreground" />,
   web_fetch: <FileText className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -119,20 +104,6 @@ function getToolParamsSummary(tool: AgentToolCallItem): string | null {
   if (tool.toolName === 'read_text_source') {
     const offset = typeof tool.params.offset === 'number' ? tool.params.offset : 0
     return offset > 0 ? `续读：第 ${offset} 字起` : '从头通读素材'
-  }
-  if (tool.toolName === 'propose_board_setup') {
-    const cardCount = typeof tool.params.cardCount === 'number' ? tool.params.cardCount : null
-    if (cardCount !== null) {
-      return `${tool.params.clearExisting ? '清空后摆' : '叠加摆放'} ${cardCount} 张卡`
-    }
-  }
-  if (
-    (tool.toolName === 'validate_with_ocgcore' ||
-      tool.toolName === 'propose_duel_steps' ||
-      tool.toolName === 'propose_card_replacement') &&
-    typeof tool.params.summary === 'string'
-  ) {
-    return tool.params.summary
   }
   if (tool.toolName === 'web_search' && Array.isArray(tool.params.queries)) {
     const queries = tool.params.queries.filter(

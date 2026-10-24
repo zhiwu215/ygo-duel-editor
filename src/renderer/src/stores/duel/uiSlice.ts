@@ -22,6 +22,13 @@ export interface UiSlice {
   setActiveLeftTab: (tab: 'archives' | 'library' | 'card' | 'agent') => void
   toggleLeftTab: (tab: 'archives' | 'library' | 'card' | 'agent') => void
 
+  documentPanelMode: 'library' | 'editor'
+  setDocumentPanelMode: (mode: 'library' | 'editor') => void
+
+  stepEditorId: string | null
+  openStepEditor: (stepId: string) => void
+  closeStepEditor: () => void
+
   setSelectedCardId: (id: string | null) => void
   setHoveredCard: (card: CdbCard | null) => void
   setHoveredInstanceId: (id: string | null) => void
@@ -54,6 +61,20 @@ export const createUiSlice: StateCreator<DuelStore, [], [], UiSlice> = (set) => 
       activeLeftTab: tab,
       isLeftOpen: prev.activeLeftTab === tab ? !prev.isLeftOpen : true
     })),
+
+  documentPanelMode: 'library',
+  setDocumentPanelMode: (mode) => set({ documentPanelMode: mode }),
+
+  stepEditorId: null,
+  openStepEditor: (stepId) =>
+    set({
+      stepEditorId: stepId,
+      selectedStepId: stepId,
+      activeRightTab: 'steps',
+      isLeftOpen: true,
+      activeLeftTab: 'archives'
+    }),
+  closeStepEditor: () => set({ stepEditorId: null }),
 
   setSelectedCardId: (id) => set({ selectedCardId: id }),
   setHoveredCard: (card) => set({ hoveredCard: card }),

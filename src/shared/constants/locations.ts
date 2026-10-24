@@ -23,3 +23,22 @@ export const LOCATION_NAMES: Record<number, string> = {
   [CardLocation.FZONE]: '场地魔法区',
   [CardLocation.PZONE]: '灵摆区'
 }
+
+export const PILE_LOCATIONS: ReadonlySet<number> = new Set<number>([
+  CardLocation.DECK,
+  CardLocation.EXTRA,
+  CardLocation.GRAVE,
+  CardLocation.REMOVED
+])
+
+export function isPileLocation(location: number): boolean {
+  return PILE_LOCATIONS.has(location)
+}
+
+export function isSpellTrapLocation(location: number): boolean {
+  return (
+    location === CardLocation.SZONE ||
+    location === CardLocation.FZONE ||
+    location === CardLocation.PZONE
+  )
+}

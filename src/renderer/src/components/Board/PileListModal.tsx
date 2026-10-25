@@ -1,15 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import {
-  CardLocation,
-  CardPosition,
-  CdbCard,
-  FieldCard,
-  InjectCommand,
-  isStandardTag
-} from '@shared/index'
+import { CardLocation, CardPosition, CdbCard, FieldCard, isStandardTag } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { usePileListStore } from '../../stores/usePileListStore'
+import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useHeldCardStore } from '../../stores/useHeldCardStore'
 import { resolveCardName } from '../../utils/cardNames'
 import { getDropPosOverride } from '../../utils/zoneDrop'
@@ -44,6 +38,7 @@ export const PileListModal: React.FC = () => {
 
 const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
+  const openMenu = useContextMenuStore((s) => s.openMenu)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const boardChains = useDuelEngineStore((s) => s.boardChains)
   const {
@@ -213,6 +208,7 @@ const PileListContent: React.FC = () => {
     e.preventDefault()
     e.stopPropagation()
     if (!target) return
+    if (useDuelEngineStore.getState().isInitialized) return
     const posOverride = getDropPosOverride(target.location, e.ctrlKey)
     try {
       const movedInstanceId = e.dataTransfer.getData('text/instanceId')
@@ -222,31 +218,6 @@ const PileListContent: React.FC = () => {
         const dataStr = e.dataTransfer.getData('application/json')
         if (!dataStr) return
         const droppedCard = JSON.parse(dataStr) as CdbCard
-        const engine = useDuelEngineStore.getState()
-        if (engine.isInitialized) {
-          const to: Extract<InjectCommand, { op: 'add-card' }>['to'] | null =
-            target.location === CardLocation.DECK
-              ? insertIndex <= 0
-                ? 'deck-top'
-                : 'deck-bottom'
-              : target.location === CardLocation.GRAVE
-                ? insertIndex <= 0
-                  ? 'grave-top'
-                  : 'grave-bottom'
-                : target.location === CardLocation.EXTRA
-                  ? 'extra'
-                  : target.location === CardLocation.REMOVED
-                    ? 'removed'
-                    : null
-          if (!to) return
-          void engine.inject({
-            op: 'add-card',
-            player: target.controller,
-            code: droppedCard.id,
-            to
-          })
-          return
-        }
         addCardToZone(droppedCard, target.controller, target.location, insertIndex, posOverride)
       }
     } catch (err) {
@@ -371,6 +342,12 @@ const PileListContent: React.FC = () => {
               onTogglePosition={handleTogglePosition}
               onHold={handleHold}
               onRemove={handleRemoveCard}
+              onContextMenu={(event, card) => {
+                if (!isEngineActive) return
+                event.preventDefault()
+                event.stopPropagation()
+                openMenu(card, event.clientX, event.clientY)
+              }}
               onReorder={(fromIndex, toIndex) => {
                 reorderPileCards(
                   target.controller,

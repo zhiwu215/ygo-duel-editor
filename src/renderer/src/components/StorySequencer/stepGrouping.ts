@@ -1,4 +1,4 @@
-import { ACTION_TYPE_NAMES, DuelStep, DuelPhase, DuelActionType, CardLocation } from '@shared/index'
+import { DuelStep, DuelPhase, DuelActionType, CardLocation } from '@shared/index'
 import { stepCardName } from '../../utils/cardNames'
 import type { StepGroupKind } from './StepGroupHeader'
 
@@ -73,16 +73,6 @@ export function getAttackDamageText(attack: DuelStep, damage?: DuelStep): string
   return value < 0
     ? `${targetName}受到 -${Math.abs(value)}${lpSuffix}`
     : `${targetName}回复 +${value}${lpSuffix}`
-}
-
-export function duelActionLabel(
-  step: Pick<DuelStep, 'actionType' | 'targetPlayer'> & { description?: string }
-): string {
-  if (step.actionType === 'ATTACK' && step.targetPlayer !== undefined) return '直接攻击'
-  if (step.actionType === 'PHASE_CHANGE' && step.description?.includes('结束回合')) {
-    return '回合结束'
-  }
-  return ACTION_TYPE_NAMES[step.actionType] || step.actionType
 }
 
 export const resolveStepCardName = (step: DuelStep): string => stepCardName(step) || '剧情事件'

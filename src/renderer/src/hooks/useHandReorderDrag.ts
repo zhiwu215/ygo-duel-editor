@@ -3,7 +3,6 @@ import { CardLocation, CdbCard, FieldCard } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { getDropPosOverride } from '../utils/zoneDrop'
-import { buildInjectCommand } from '../utils/engineInject'
 import { HAND_REORDER_DRAG_TYPE } from '../components/Board/CardItem'
 import {
   captureHandCardAnchors,
@@ -22,7 +21,6 @@ export interface HandReorderDragOptions {
   onGlobalReset?: () => void
   onDropAdopted?: () => void
   onParseError?: () => void
-  onInjectUnsupported?: () => void
   onDropFailure?: (err: unknown) => void
   dropLogTag: string
 }
@@ -53,12 +51,10 @@ export function useHandReorderDrag(options: HandReorderDragOptions): HandReorder
     onGlobalReset,
     onDropAdopted,
     onParseError,
-    onInjectUnsupported,
     onDropFailure,
     dropLogTag
   } = options
 
-  const masterRule = useDuelStore((s) => s.state.masterRule)
   const reorderHandCards = useDuelStore((s) => s.reorderHandCards)
   const moveCard = useDuelStore((s) => s.moveCard)
   const addCardToZone = useDuelStore((s) => s.addCardToZone)
@@ -247,21 +243,13 @@ export function useHandReorderDrag(options: HandReorderDragOptions): HandReorder
         }
         throw parseErr
       }
-      const engine = useDuelEngineStore.getState()
-      if (engine.isInitialized) {
-        const command = buildInjectCommand({
-          card: droppedCard,
-          controller,
-          location: CardLocation.HAND,
-          sequence: cards.length,
-          ctrlKey: e.ctrlKey,
-          masterRule
+      if (useDuelEngineStore.getState().isInitialized) {
+        useDuelEngineStore.setState({
+          injectNotice: {
+            kind: 'warning',
+            message: '引擎模式下请用检索结果的右键菜单注入。'
+          }
         })
-        if (command) {
-          void engine.inject(command)
-        } else {
-          onInjectUnsupported?.()
-        }
         return
       }
       addCardToZone(

@@ -10,6 +10,9 @@ import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardContextMenu } from './CardContextMenu'
 import { CardCommandMenu } from './CardCommandMenu'
 import { CardStatPopover } from './components/CardStatPopover'
+import { EngineCardEditBusy } from './components/EngineCardEditBusy'
+import { EngineCardReplaceDialog } from './components/EngineCardReplaceDialog'
+import { EngineInjectDropDialog } from './components/EngineInjectDropDialog'
 import { HeldCardOverlay } from './components/HeldCardOverlay'
 import { AttackTargetingBar } from './components/AttackTargetingBar'
 import { DuelRequestModals } from './request-modals'
@@ -42,6 +45,12 @@ export const DuelBoardOverlays: React.FC = () => {
       <AttackTargetingBar />
 
       <CardStatPopover />
+
+      <EngineCardEditBusy />
+
+      <EngineCardReplaceDialog />
+
+      <EngineInjectDropDialog />
 
       <DuelRequestModals />
     </>

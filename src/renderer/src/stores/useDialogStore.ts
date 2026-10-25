@@ -19,6 +19,7 @@ interface DialogRequest {
   icon?: 'warning' | 'info'
   extraAction?: DialogExtraAction
   initialValue?: string
+  validate?: (value: string) => string | null
   resolve: (value: DialogValue) => void
 }
 
@@ -81,6 +82,7 @@ interface PromptDialogOptions {
   placeholder?: string
   confirmText?: string
   initialValue?: string
+  validate?: (value: string) => string | null
 }
 
 export function promptDialog(options: PromptDialogOptions): Promise<string | null> {

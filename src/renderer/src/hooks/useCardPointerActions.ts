@@ -1,5 +1,5 @@
 import React from 'react'
-import { CardLocation, CardPosition, FieldCard } from '@shared/index'
+import { CardLocation, CardPosition, FieldCard, isPlaceholderCard } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useCardCommandMenuStore } from '../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
@@ -48,6 +48,8 @@ export function useCardPointerActions({
   return (e) => {
     e.stopPropagation()
     if (role === 'dim') return
+    const isHandPlaceholder =
+      isEngineActive && card.location === CardLocation.HAND && isPlaceholderCard(card.code)
     if (selectionMatch) {
       closeCommandMenu()
       const derived = selectionMatch.derived
@@ -104,7 +106,7 @@ export function useCardPointerActions({
         const defaultY = Math.max(16, Math.min(rect.top - 20, window.innerHeight - 380))
         openStatPopover(card.instanceId, statPopoverPosition || { x: defaultX, y: defaultY })
       }
-    } else if (hasCardEngineActions(pendingRequest, card)) {
+    } else if (hasCardEngineActions(pendingRequest, card) || isHandPlaceholder) {
       if (menuCard?.instanceId === card.instanceId) {
         closeCommandMenu()
       } else {

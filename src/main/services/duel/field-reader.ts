@@ -6,7 +6,8 @@ import {
   EngineDuelistState,
   EnginePlayerState,
   CardLocation,
-  CardPosition
+  CardPosition,
+  placeholderCardData
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
 
@@ -203,7 +204,7 @@ export class FieldReader {
             card: {
               instanceId: '',
               code,
-              card: cdbService.getCardById(code) ?? undefined,
+              card: cdbService.getCardById(code) ?? placeholderCardData(code) ?? undefined,
               controller: controller as 0 | 1,
               owner: ((q.owner ?? controller) === 1 ? 1 : 0) as 0 | 1,
               location,

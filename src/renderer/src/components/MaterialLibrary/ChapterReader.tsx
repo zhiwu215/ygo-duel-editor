@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Loader2, Save, Search } from 'lucide-react'
 import { TextChapter, TextMeta } from '@shared/index'
 import { countWords } from '@shared/engine/textSplitter'
-import { WindowControls } from '../ui/window-controls'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { cn } from '../../lib/utils'
@@ -101,22 +100,22 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const dirty = draft !== savedText
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-background text-foreground overflow-hidden">
-      <header className="shrink-0 border-b border-border/60 [-webkit-app-region:drag]">
-        <div className="flex items-center gap-2 px-4 h-11">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
+      <header className="shrink-0 border-b border-border/60">
+        <div className="flex h-10 items-center gap-2 px-3">
           <button
             type="button"
             onClick={() => void onBack()}
-            className="[-webkit-app-region:no-drag] w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="h-3.5 w-3.5" />
           </button>
           <div className="min-w-0">
-            <div className="font-bold text-sm truncate">{text.title}</div>
-            <div className="text-[10px] text-muted-foreground font-mono">{chapters.length} 章</div>
+            <div className="truncate text-xs font-semibold">{text.title}</div>
+            <div className="font-mono text-[10px] text-muted-foreground">{chapters.length} 章</div>
           </div>
           <div className="flex-1" />
-          <div className="[-webkit-app-region:no-drag] flex items-center gap-2 -mr-4">
+          <div className="flex items-center gap-2">
             {dirty && (
               <span className="text-[10px] text-amber-600 dark:text-amber-400">未保存</span>
             )}
@@ -124,16 +123,15 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               type="button"
               onClick={() => void handleSave()}
               disabled={!dirty || saving}
-              className="flex items-center gap-1.5 px-2.5 h-8 rounded-md border border-border text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
+              className="flex h-7 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-medium transition-colors hover:bg-muted/60 disabled:opacity-40"
             >
               {saving ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Save className="w-3.5 h-3.5" />
+                <Save className="h-3.5 w-3.5" />
               )}
               <span>保存</span>
             </button>
-            <WindowControls />
           </div>
         </div>
       </header>

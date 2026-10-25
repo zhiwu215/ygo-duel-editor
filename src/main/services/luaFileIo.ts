@@ -17,7 +17,7 @@ export class LuaFileIo {
       if (!finalPath) {
         const defaultName = `${sanitizeFileName(state.title) || 'custom_puzzle'}.lua`
         const res = await dialog.showSaveDialog(window || BrowserWindow.getFocusedWindow()!, {
-          title: '导出游戏王残局脚本',
+          title: '导出脚本',
           defaultPath: defaultName,
           filters: [
             { name: 'Lua Script', extensions: ['lua'] },
@@ -48,7 +48,7 @@ export class LuaFileIo {
   ): Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }> {
     try {
       const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-        title: '导入已有游戏王残局脚本',
+        title: '导入脚本',
         filters: [
           { name: 'Lua Script', extensions: ['lua'] },
           { name: 'All Files', extensions: ['*'] }

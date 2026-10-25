@@ -74,7 +74,6 @@ export function ProviderModelRow({
         <button
           type="button"
           aria-label={`模型选项 ${position}`}
-          title="模型选项"
           aria-expanded={expanded}
           onClick={onToggle}
           className={MODEL_ICON_BUTTON}
@@ -88,7 +87,6 @@ export function ProviderModelRow({
         <button
           type="button"
           aria-label={`删除模型 ${position}`}
-          title="删除模型"
           onClick={onRemove}
           className={MODEL_DANGER_ICON_BUTTON}
         >

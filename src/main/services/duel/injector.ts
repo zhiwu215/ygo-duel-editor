@@ -2,9 +2,11 @@ import { OcgcoreDuel } from 'koishipro-core.js'
 import {
   CardLocation,
   CardPosition,
-  CardUtils,
   EngineBoardState,
-  InjectCommand
+  FIELD_ZONE_SEQUENCE,
+  InjectCommand,
+  PLACEHOLDER_CARD_NAME,
+  isPlaceholderCard
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
 
@@ -21,8 +23,7 @@ const ADD_CARD_LABELS: Record<string, string> = {
   'deck-top': '置于卡组顶',
   'deck-bottom': '置于卡组底',
   'deck-shuffle': '洗入卡组',
-  'grave-top': '置于墓地顶',
-  'grave-bottom': '置于墓地底',
+  'grave-top': '置于墓地',
   removed: '除外',
   extra: '加入额外卡组',
   mzone: '放置到怪兽区',
@@ -80,14 +81,6 @@ function resolveAddCard(
         zone: 'grave',
         label: ADD_CARD_LABELS['grave-top']
       }
-    case 'grave-bottom':
-      return {
-        location: CardLocation.GRAVE,
-        sequence: 1,
-        position: CardPosition.FACEUP,
-        zone: 'grave',
-        label: ADD_CARD_LABELS['grave-bottom']
-      }
     case 'removed':
       return {
         location: CardLocation.REMOVED,
@@ -100,7 +93,7 @@ function resolveAddCard(
       return {
         location: CardLocation.EXTRA,
         sequence: 0,
-        position: CardPosition.FACEDOWN_DEFENSE,
+        position: command.position ?? CardPosition.FACEDOWN_DEFENSE,
         zone: 'extra',
         label: ADD_CARD_LABELS.extra
       }
@@ -131,13 +124,13 @@ function resolveAddCard(
       }
     }
     case 'fzone': {
-      if (player.szone[5]) {
+      if (player.szone[FIELD_ZONE_SEQUENCE]) {
         throw new Error('场地魔法区已有卡片。')
       }
       return {
         location: CardLocation.SZONE,
-        sequence: 5,
-        position: CardPosition.FACEUP,
+        sequence: FIELD_ZONE_SEQUENCE,
+        position: command.position ?? CardPosition.FACEUP,
         zone: 'fzone',
         label: ADD_CARD_LABELS.fzone
       }
@@ -155,23 +148,11 @@ export function executeInject(
     return { label: `调整 LP 至 ${command.lp}` }
   }
 
-  const card = cdbService.getCardById(command.code)
-  if (!card) {
+  if (!isPlaceholderCard(command.code) && !cdbService.getCardById(command.code)) {
     throw new Error(`卡片 ${command.code} 不存在于卡片数据库。`)
   }
 
   const target = resolveAddCard(command, board)
-  const warnings: string[] = []
-  if (
-    CardUtils.isExtraDeck(card.type) &&
-    (command.to === 'hand' || command.to.startsWith('deck'))
-  ) {
-    warnings.push('额外卡组怪兽不能加入手牌或卡组，引擎会将其重定向到额外卡组。')
-  }
-  if (command.to === 'extra' && !CardUtils.isExtraDeck(card.type)) {
-    warnings.push('该卡不是额外卡组怪兽，放入额外卡组可能被引擎重定向。')
-  }
-
   duel.newCard({
     code: command.code,
     owner: command.player,
@@ -181,10 +162,7 @@ export function executeInject(
     position: target.position
   })
 
-  return {
-    label: target.label,
-    warning: warnings.length > 0 ? warnings.join('；') : undefined
-  }
+  return { label: target.label }
 }
 
 function zoneCount(board: EngineBoardState, player: 0 | 1, zone: ResolvedTarget['zone']): number {
@@ -205,7 +183,7 @@ function zoneCount(board: EngineBoardState, player: 0 | 1, zone: ResolvedTarget[
     case 'szone':
       return state.szone.filter(Boolean).length
     case 'fzone':
-      return (state.fzone ? 1 : 0) + (state.szone[5] ? 1 : 0)
+      return (state.fzone ? 1 : 0) + (state.szone[FIELD_ZONE_SEQUENCE] ? 1 : 0)
   }
 }
 
@@ -229,11 +207,12 @@ export function verifyInject(
 }
 
 export function describeInject(command: InjectCommand, label: string, cardName?: string): string {
-  if (command.op === 'set-lp') return `剧情安排：${label}`
-  return `剧情安排：${label}「${cardName ?? command.code}」`
+  if (command.op === 'set-lp') return `注入：${label}`
+  return `注入：${label}「${cardName ?? command.code}」`
 }
 
 export function injectCardName(command: InjectCommand): string | undefined {
   if (command.op === 'set-lp') return undefined
+  if (isPlaceholderCard(command.code)) return PLACEHOLDER_CARD_NAME
   return cdbService.getCardById(command.code)?.name
 }

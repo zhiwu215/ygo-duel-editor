@@ -42,6 +42,15 @@ export const DuelBoard: React.FC = () => {
       const targetId = duelStore.hoveredInstanceId || duelStore.selectedCardId
       if (targetId) {
         e.preventDefault()
+        if (useDuelEngineStore.getState().isInitialized) {
+          useDuelEngineStore.setState({
+            injectNotice: {
+              kind: 'warning',
+              message: '引擎模式下不能直接删除卡片。'
+            }
+          })
+          return
+        }
         duelStore.removeCard(targetId)
         useContextMenuStore.getState().closeMenu()
       }

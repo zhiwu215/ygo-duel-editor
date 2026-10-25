@@ -1,4 +1,16 @@
-import type { DuelDocumentWriteResult } from '@shared/index'
+import {
+  boardFingerprintMatches,
+  computeBoardFingerprint,
+  duelPhaseFromMask,
+  reversePileSequences,
+  reverseStepBoards
+} from '@shared/index'
+import type {
+  DuelDocumentWriteResult,
+  DuelPuzzleState,
+  DuelStep,
+  EngineSessionDoc
+} from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { buildDuelDocument } from './duelDocumentBuild'
@@ -12,33 +24,73 @@ import {
   suspendDuelDocumentAutosave
 } from './duelDocumentAutosave'
 
-function selectOpenedStep(engineRestored: boolean): void {
+function findStepIndex(steps: DuelStep[], actId: string | null): number {
+  if (!actId) return -1
+  return steps.findIndex(
+    (step) => step.actId === actId || step.startActId === actId || step.endActId === actId
+  )
+}
+
+function selectOpenedStep(engineRestored: boolean, suspendedDoc: EngineSessionDoc | null): void {
   const opened = useDuelStore.getState()
   const steps = opened.state.steps ?? []
   if (steps.length === 0) return
-  if (!engineRestored) {
-    opened.setSelectedStepId(steps[0].id)
-    opened.setCurrentStepIndex(0)
-    opened.previewStepBoard(0)
+  const actId = engineRestored
+    ? useDuelEngineStore.getState().currentStepId
+    : (suspendedDoc?.currentStepId ?? null)
+  if (engineRestored || suspendedDoc) {
+    const found = findStepIndex(steps, actId)
+    const index = found >= 0 ? found : steps.length - 1
+    opened.setSelectedStepId(steps[index].id)
+    opened.setCurrentStepIndex(index)
     return
   }
-  const currentStepId = useDuelEngineStore.getState().currentStepId
-  const found = currentStepId
-    ? steps.findIndex(
-        (step) =>
-          step.actId === currentStepId ||
-          step.startActId === currentStepId ||
-          step.endActId === currentStepId
-      )
-    : -1
-  const index = found >= 0 ? found : steps.length - 1
-  opened.setSelectedStepId(steps[index].id)
-  opened.setCurrentStepIndex(index)
+  opened.setSelectedStepId(steps[0].id)
+  opened.setCurrentStepIndex(0)
+  opened.previewStepBoard(0)
+}
+
+function documentMatchesFingerprint(doc: EngineSessionDoc, state: DuelPuzzleState): boolean {
+  if (!doc.boardFingerprint) return true
+  return boardFingerprintMatches(
+    doc.boardFingerprint,
+    computeBoardFingerprint(state, { enginePileOrder: true })
+  )
+}
+
+function restoreEditingPileOrder(): void {
+  useDuelStore.setState((prev) => ({
+    ...prev,
+    state: {
+      ...prev.state,
+      cards: reversePileSequences(prev.state.cards),
+      steps: prev.state.steps ? reverseStepBoards(prev.state.steps) : prev.state.steps
+    }
+  }))
+}
+
+function markSessionSuspended(doc: EngineSessionDoc): EngineSessionDoc {
+  return {
+    ...doc,
+    suspended: true,
+    boardFingerprint: doc.boardFingerprint ?? computeBoardFingerprint(useDuelStore.getState().state)
+  }
+}
+
+function syncHeaderToSuspendedSession(doc: EngineSessionDoc): void {
+  const node = doc.timeline.find((item) => item.id === doc.currentStepId)
+  if (!node) return
+  useDuelStore.setState({
+    currentTurn: node.boardState.turn,
+    currentPhase: duelPhaseFromMask(node.boardState.phase),
+    activeTurnPlayer: node.boardState.turnPlayer
+  })
 }
 
 export async function openDuelDocument(
   filePath: string
 ): Promise<{ success: boolean; error?: string }> {
+  if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode()
   const flushed = await flushDuelDocumentAutosave()
   if (!flushed && hasUnsavedDuelDocument()) {
     return {
@@ -56,16 +108,24 @@ export async function openDuelDocument(
     if (engineStore.isInitialized) {
       engineStore.stopEngine()
     }
+    engineStore.setSuspendedDoc(null)
     const duelStore = useDuelStore.getState()
     duelStore.loadProjectAndStart(result.document.state)
     duelStore.setCurrentProjectPath(filePath)
     let engineRestored = false
-    if (result.document.engine) {
+    let suspendedDoc: EngineSessionDoc | null = null
+    const engineDoc = result.document.engine
+    if (engineDoc) {
       const support = await window.api.getDuelEngineSupport()
-      if (support.supported) {
-        const restored = await useDuelEngineStore
-          .getState()
-          .restoreSessionDoc(result.document.engine)
+      if (engineDoc.suspended) {
+        suspendedDoc = engineDoc
+        useDuelEngineStore.getState().setSuspendedDoc(engineDoc)
+      } else if (!support.supported) {
+        restoreEditingPileOrder()
+        suspendedDoc = markSessionSuspended(engineDoc)
+        useDuelEngineStore.getState().setSuspendedDoc(suspendedDoc)
+      } else if (documentMatchesFingerprint(engineDoc, result.document.state)) {
+        const restored = await useDuelEngineStore.getState().restoreSessionDoc(engineDoc)
         if (!restored) {
           return {
             success: false,
@@ -73,9 +133,12 @@ export async function openDuelDocument(
           }
         }
         engineRestored = true
+      } else {
+        restoreEditingPileOrder()
       }
+      if (suspendedDoc) syncHeaderToSuspendedSession(suspendedDoc)
     }
-    selectOpenedStep(engineRestored)
+    selectOpenedStep(engineRestored, suspendedDoc)
     clearDuelDocumentDraft()
     return { success: true }
   } finally {
@@ -84,6 +147,7 @@ export async function openDuelDocument(
 }
 
 export async function saveDuelDocument(saveAs = false): Promise<DuelDocumentWriteResult> {
+  if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode()
   await flushDuelDocumentAutosave()
   const revision = getDuelDocumentRevision()
   const document = await buildDuelDocument()

@@ -1,16 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { DuelStep, DuelStepTextBlock, PHASE_NAMES, displayStepTextBlocks } from '@shared/index'
-import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react'
+import {
+  DuelStep,
+  DuelStepTextBlock,
+  PHASE_NAMES,
+  displayStepTextBlocks,
+  summarizeStepProvenance
+} from '@shared/index'
+import { ArrowLeft, BookPlus, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 import { resolveDuelistName, resolveTeamLabel } from '../../utils/duelistNames'
-import { duelActionLabel } from '../StorySequencer/stepGrouping'
+import { duelActionLabel } from '../../utils/stepLabels'
 import { stepCardName } from '../../utils/cardNames'
 import { saveDuelDocument } from '../../utils/duelDocumentActions'
+import { buildScreenplayText } from '../../utils/screenplayText'
 import { useDuelDocumentSaveStatus } from '../../hooks/useDuelDocumentSaveStatus'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
+import { StepProvenanceBadge } from '../common/StepProvenanceBadge'
 import { CardEffectPicker } from './CardEffectPicker'
 import { cn } from '../../lib/utils'
 
@@ -44,13 +51,13 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
   const updateStep = useDuelStore((s) => s.updateStep)
   const setTitle = useDuelStore((s) => s.setTitle)
   const currentProjectPath = useDuelStore((s) => s.currentProjectPath)
-  const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const wrapper = useConfigStore((s) => s.config.cardNameWrapper)
   const saveState = useDuelDocumentSaveStatus()
   const saveText = currentProjectPath
     ? saveStatusText(saveState.status, saveState.savedAt)
     : '未保存'
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [exporting, setExporting] = useState(false)
   const [picker, setPicker] = useState<{
     stepId: string
     blockId: string
@@ -59,6 +66,7 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
   } | null>(null)
 
   const steps = state.steps || []
+  const provenance = summarizeStepProvenance(steps)
   const activeStep = steps.find((step) => step.id === selectedStepId) || steps[0] || null
 
   useEffect(() => {
@@ -129,6 +137,37 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
     const index = steps.findIndex((step) => step.id === activeStep?.id)
     if (index >= 0) useDuelStore.getState().previewStepBoard(index)
     return true
+  }
+
+  const exportToTextLibrary = async (): Promise<void> => {
+    if (steps.length === 0) {
+      await alertDialog('当前台本还没有步骤，无法导出到文本库。')
+      return
+    }
+    setExporting(true)
+    try {
+      const text = buildScreenplayText(state, { cardNameWrapper: wrapper })
+      const result = await window.api.saveScreenplayToTextLibrary({
+        sourceFilePath: currentProjectPath,
+        title: state.title,
+        text
+      })
+      if (!result.success) {
+        await alertDialog(`导出到文本库失败\n\n${result.error ?? '未知错误'}`)
+        return
+      }
+      if (result.createdNew && result.entry) {
+        await alertDialog(
+          `已另存为新文本《${result.entry.title}》\n\n同名文本已存在，不会覆盖原有内容。`
+        )
+      }
+      await window.api.openTextLibrary()
+    } catch (err) {
+      console.error('[DuelScriptEditorPanel] 导出到文本库失败:', err)
+      await alertDialog('导出到文本库失败')
+    } finally {
+      setExporting(false)
+    }
   }
 
   const autoSaveTitle = async (): Promise<void> => {
@@ -262,7 +301,6 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
                       deleteBlock(step, block.id)
                     }}
                     className="absolute right-1 top-1 rounded p-0.5 text-muted-foreground opacity-0 hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                    title="删除文本"
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -319,30 +357,11 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
                   ? 'text-rose-500'
                   : 'text-muted-foreground'
               )}
-              title={
-                currentProjectPath
-                  ? '当前台本会在修改后自动保存到文档'
-                  : '当前内容还没有保存到台本库，请点击右侧保存按钮'
-              }
             >
               {saveText}
             </span>
           )}
-          <span
-            title={
-              engineActive
-                ? '当前处于引擎模式：动作由引擎自动记录'
-                : '当前为编排模式：动作由编辑器手动记录'
-            }
-            className={cn(
-              'shrink-0 rounded border px-1 text-[9px] leading-4',
-              engineActive
-                ? 'border-emerald-500/30 text-emerald-500'
-                : 'border-amber-500/30 text-amber-500'
-            )}
-          >
-            {engineActive ? '引擎' : '手动'}
-          </span>
+          <StepProvenanceBadge provenance={provenance} />
           <button
             type="button"
             onClick={() => void handleSave()}
@@ -351,14 +370,27 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
             <Save className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="px-2 pb-2">
+        <div className="flex items-center gap-1 px-2 pb-2">
           <input
             value={state.title || ''}
             onChange={(event) => setTitle(event.target.value)}
             onBlur={() => void autoSaveTitle()}
-            className="w-full rounded border border-border/60 bg-background/60 px-2 py-1 text-xs font-semibold text-foreground outline-none focus:border-foreground/30"
+            className="min-w-0 flex-1 rounded border border-border/60 bg-background/60 px-2 py-1 text-xs font-semibold text-foreground outline-none focus:border-foreground/30"
             placeholder="未命名台本"
           />
+          <button
+            type="button"
+            onClick={() => void exportToTextLibrary()}
+            disabled={exporting}
+            className="flex shrink-0 items-center gap-1 rounded border border-border/60 bg-background/60 px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+          >
+            {exporting ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <BookPlus className="h-3 w-3" />
+            )}
+            <span>导出到文本库</span>
+          </button>
         </div>
       </div>
 

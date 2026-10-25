@@ -125,7 +125,7 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           action: () => window.api.openCardNoteWindow()
         },
         {
-          label: '文本素材库',
+          label: '文本库',
           action: () => void window.api.openTextLibrary()
         }
       ]
@@ -141,12 +141,12 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           disabled: !actions.canTestInYgo
         },
         {
-          label: '导入残局脚本',
+          label: '导入脚本',
           shortcut: 'Ctrl+I',
           action: actions.onImportLua
         },
         {
-          label: '导出残局脚本',
+          label: '导出脚本',
           shortcut: 'Ctrl+E',
           action: actions.onExportLua,
           disabled: !actions.canExportLua

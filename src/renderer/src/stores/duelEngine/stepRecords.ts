@@ -19,6 +19,7 @@ export function clearEditorSteps(): void {
   useDuelStore.setState((prev) => ({
     ...prev,
     currentStepIndex: null,
+    sceneEditing: false,
     selectedStepId: null,
     state: { ...prev.state, steps: [] }
   }))

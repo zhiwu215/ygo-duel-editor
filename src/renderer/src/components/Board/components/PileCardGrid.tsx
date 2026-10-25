@@ -28,6 +28,7 @@ interface PileCardGridProps {
   onHold: (card: FieldCard, point: { x: number; y: number }) => void
   onRemove: (card: FieldCard) => void
   onReorder: (fromIndex: number, toIndex: number) => void
+  onContextMenu?: (e: React.MouseEvent, card: FieldCard) => void
 }
 
 export const PileCardGrid: React.FC<PileCardGridProps> = ({
@@ -44,7 +45,8 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
   onTogglePosition,
   onHold,
   onRemove,
-  onReorder
+  onReorder,
+  onContextMenu
 }) => {
   const ids = useMemo(() => cards.map((card) => card.instanceId), [cards])
 
@@ -109,6 +111,7 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
               onHold={onHold}
               holdEnabled={holdEnabled}
               onRemove={onRemove}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>

@@ -7,13 +7,14 @@ import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useTokenStore } from '../../stores/useTokenStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { useEngineInjectDropStore } from '../../stores/useEngineInjectDropStore'
 import { useHeldCardPlacement } from '../../hooks/useHeldCardPlacement'
 import { CardItem, HAND_REORDER_DRAG_TYPE } from './CardItem'
 import { ZoneChainOverlay } from './components/ZoneChainOverlay'
 import { DropHintPopover } from './components/DropHintPopover'
 import { useDeckZoneInteraction } from '../../hooks/useDeckZoneInteraction'
 import { getDropPosOverride, canShowPositionHint } from '../../utils/zoneDrop'
-import { buildInjectCommand } from '../../utils/engineInject'
+import { CARD_SEARCH_DRAG_TYPE } from '../../utils/cardDrag'
 import { resolveActionablePiles } from '../../utils/pileActionIndicator'
 import { ActRing } from '../common/ActRing'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
@@ -125,7 +126,6 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const canEditLocally = !isEngineActive
-  const masterRule = useDuelStore((s) => s.state.masterRule)
   const enginePlaceMatch =
     pendingRequest !== null &&
     (pendingRequest.data.kind === 'place' || pendingRequest.data.kind === 'disfield')
@@ -173,6 +173,13 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   }
 
   const handleDragOver = (e: React.DragEvent): void => {
+    if (isEngineActive) {
+      if (!e.dataTransfer.types.includes(CARD_SEARCH_DRAG_TYPE)) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+      if (!isOver) setIsOver(true)
+      return
+    }
     e.preventDefault()
     const isHandReorder = e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)
     e.dataTransfer.dropEffect = e.dataTransfer.types.includes('text/instanceId') ? 'move' : 'copy'
@@ -190,6 +197,34 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
 
   const handleDrop = (e: React.DragEvent): void => {
     e.preventDefault()
+    if (isEngineActive) {
+      if (!e.dataTransfer.types.includes(CARD_SEARCH_DRAG_TYPE)) return
+      e.stopPropagation()
+      setIsOver(false)
+      if (
+        card &&
+        (location === CardLocation.MZONE ||
+          location === CardLocation.SZONE ||
+          location === CardLocation.PZONE ||
+          location === CardLocation.FZONE)
+      ) {
+        return
+      }
+      try {
+        const dataStr = e.dataTransfer.getData('application/json')
+        if (!dataStr) return
+        const droppedCard = JSON.parse(dataStr) as CdbCard
+        useEngineInjectDropStore.getState().open({
+          card: droppedCard,
+          controller,
+          location,
+          sequence
+        })
+      } catch (err) {
+        console.error('[ZoneSlot] Engine drop failed:', err)
+      }
+      return
+    }
     if (location === CardLocation.HAND && e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) {
       return
     }
@@ -228,30 +263,6 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           overlayDropOnto(card.instanceId, incomingCard, incomingSourceId)
           return
         }
-      }
-      if (!movedInstanceId && !canEditLocally) {
-        const dataStr = e.dataTransfer.getData('application/json')
-        if (!dataStr) return
-        const droppedCard = JSON.parse(dataStr) as CdbCard
-        const isFieldSlot =
-          location === CardLocation.MZONE ||
-          location === CardLocation.SZONE ||
-          location === CardLocation.PZONE ||
-          location === CardLocation.FZONE
-        if (isFieldSlot && card) {
-          useDuelEngineStore.setState({ error: '该格已有卡片，请拖到空位。' })
-          return
-        }
-        const command = buildInjectCommand({
-          card: droppedCard,
-          controller,
-          location,
-          sequence,
-          ctrlKey: e.ctrlKey,
-          masterRule
-        })
-        if (command) void useDuelEngineStore.getState().inject(command)
-        return
       }
       if (movedInstanceId) {
         const targetRect = e.currentTarget.getBoundingClientRect()

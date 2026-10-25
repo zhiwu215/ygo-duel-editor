@@ -14,6 +14,7 @@ export function useStepPlayback(): {
   handlePrevStep: () => void
   handleNextStep: () => void
   handleResetPlayback: () => void
+  handleSceneClick: () => void
   handleStepClick: (index: number, step: DuelStep) => void
   handleRestartFromStep: (index: number, step: DuelStep) => void
 } {
@@ -23,6 +24,7 @@ export function useStepPlayback(): {
   const steps = stepsState || []
 
   const handlePrevStep = (): void => {
+    if (useDuelStore.getState().sceneEditing) return
     if (useDuelEngineStore.getState().isInitialized) {
       void useDuelEngineStore.getState().undo()
     } else {
@@ -35,6 +37,7 @@ export function useStepPlayback(): {
   }
 
   const handleNextStep = (): void => {
+    if (useDuelStore.getState().sceneEditing) return
     if (useDuelEngineStore.getState().isInitialized) {
       void useDuelEngineStore.getState().redo()
     } else {
@@ -47,6 +50,7 @@ export function useStepPlayback(): {
   }
 
   const handleResetPlayback = (): void => {
+    if (useDuelStore.getState().sceneEditing) return
     if (useDuelEngineStore.getState().isInitialized) {
       const first = useDuelEngineStore.getState().timeline[0]
       if (first) void useDuelEngineStore.getState().jumpToStep(first.id)
@@ -55,9 +59,30 @@ export function useStepPlayback(): {
     useDuelStore.getState().resetToOpeningBoard()
   }
 
+  const handleSceneClick = (): void => {
+    const engine = useDuelEngineStore.getState()
+    if (engine.loading) return
+    if (engine.isInitialized) {
+      const first = engine.timeline[0]
+      if (first && engine.currentStepId !== first.id) void engine.jumpToStep(first.id)
+      return
+    }
+    const duel = useDuelStore.getState()
+    if (duel.sceneEditing) {
+      duel.exitSceneMode()
+      return
+    }
+    if (!duel.enterSceneMode()) {
+      void alertDialog(
+        '无法进入布景\n当前台本没有可还原的初始场面。可以继续编排，之后的首次操作会自动记录布景。'
+      )
+    }
+  }
+
   const handleStepClick = (index: number, step: DuelStep): void => {
     const engine = useDuelEngineStore.getState()
     if (engine.loading) return
+    if (useDuelStore.getState().sceneEditing) return
     useDuelStore.getState().setSelectedStepId(step.id)
     useDuelStore.getState().setCurrentStepIndex(index)
     const actId = step.endActId ?? step.actId
@@ -70,6 +95,7 @@ export function useStepPlayback(): {
   }
 
   const handleRestartFromStep = (index: number, step: DuelStep): void => {
+    if (useDuelStore.getState().sceneEditing) return
     if (useDuelEngineStore.getState().replayInfo) return
     const state = useDuelStore.getState().state
     if (isStandardTag(state.matchConfig)) {
@@ -90,7 +116,7 @@ export function useStepPlayback(): {
       title: engine.isInitialized ? '以这一步为起点继续编排' : '以这一步为起点开始编排',
       description: engine.isInitialized
         ? `将以「${label}」的场面重建引擎会话，当前操作流结束（步骤列表保留，可继续添加新操作）。${mergedHint}`
-        : `将以「${label}」的场面启动引擎，引擎以该场面为新起点，台本现有的 ${steps.length} 个步骤会被清空（含台本文本）。${mergedHint}`
+        : `将以「${label}」的场面启动引擎，引擎以该场面为新起点；台本现有的 ${steps.length} 个步骤会保留为历史步骤（文字仍可编辑）。${mergedHint}`
     }).then((ok) => {
       if (!ok) return
       previewStepBoard(index)
@@ -102,6 +128,7 @@ export function useStepPlayback(): {
     handlePrevStep,
     handleNextStep,
     handleResetPlayback,
+    handleSceneClick,
     handleStepClick,
     handleRestartFromStep
   }

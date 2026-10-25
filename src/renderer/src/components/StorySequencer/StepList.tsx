@@ -3,6 +3,7 @@ import { DuelStep } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
+import { useCleanupBlankReplaySteps } from '../../hooks/useCleanupBlankReplaySteps'
 import { Button } from '../ui/button'
 import { Film, PlayCircle, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -11,7 +12,9 @@ import { StepPhaseHeader } from './StepPhaseHeader'
 import { StepTurnHeader } from './StepTurnHeader'
 import { StepCard } from './StepCard'
 import { StepLpChange } from './StepLpChange'
+import { SceneEntry } from './SceneEntry'
 import { buildStepList, getAttackDamageText, resolveStepCardName } from './stepGrouping'
+import { resolveOpeningScene, SCENE_STEP_INDEX } from '../../utils/openingScene'
 import { resolveDuelistName, resolveTeamLabel } from '../../utils/duelistNames'
 
 interface StepListProps {
@@ -25,16 +28,34 @@ function engineIdOf(step: DuelStep): string | undefined {
 
 export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
   const currentStepIndex = useDuelStore((state) => state.currentStepIndex)
+  const sceneEditing = useDuelStore((state) => state.sceneEditing)
   const previewReturn = useDuelStore((state) => state.previewReturn)
   const exitPreview = useDuelStore((state) => state.exitPreview)
-  const { handleStepClick, handleRestartFromStep } = useStepPlayback()
+  const { handleStepClick, handleRestartFromStep, handleSceneClick } = useStepPlayback()
   const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const engineTimeline = useDuelEngineStore((s) => s.timeline)
   const engineCurrentStepId = useDuelEngineStore((s) => s.currentStepId)
   const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
+  const duelState = useDuelStore((s) => s.state)
   const duelists = useDuelStore((s) => s.state.duelists)
   const initialLp = useDuelStore((s) => s.state.initialLp)
   const sharedLp = useDuelStore((s) => s.state.matchConfig?.sharedLp)
+
+  useCleanupBlankReplaySteps(steps)
+
+  const scene = useMemo(
+    () => (engineActive || sceneEditing ? null : resolveOpeningScene(duelState)),
+    [duelState, engineActive, sceneEditing]
+  )
+  const hasActionStep = steps.some(
+    (step) => step.actionType !== 'PHASE_CHANGE' && step.actionType !== 'TURN_CHANGE'
+  )
+  const sceneAvailable = engineActive
+    ? engineTimeline.length > 0
+    : sceneEditing || !hasActionStep || scene !== null
+  const sceneActive = engineActive
+    ? engineCurrentStepId !== null && engineCurrentStepId === engineTimeline[0]?.id
+    : sceneEditing || currentStepIndex === SCENE_STEP_INDEX
 
   const stepList = useMemo(() => buildStepList(steps, initialLp), [steps, initialLp])
   const turnActingDuelistIds = useMemo(() => {
@@ -121,7 +142,30 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="p-2 flex flex-col gap-2 select-text">
-        {isPreviewing ? (
+        <SceneEntry
+          active={sceneActive}
+          available={sceneAvailable}
+          editing={sceneEditing}
+          engine={engineActive}
+          onSelect={handleSceneClick}
+        />
+        {sceneEditing ? (
+          <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
+            <span>
+              布景编辑中：现在摆放、移动或删除卡片都不会记录步骤。布置好起始场面后点「完成布景」。
+            </span>
+            <div>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={handleSceneClick}
+                className="h-6 px-2 text-[10px] border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
+              >
+                完成布景
+              </Button>
+            </div>
+          </div>
+        ) : isPreviewing ? (
           <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md border border-sky-500/40 bg-sky-500/5 text-[10px] leading-relaxed text-sky-600 dark:text-sky-400">
             <span>
               正在预览第 {previewIndex! + 1}{' '}
@@ -158,96 +202,114 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
           )
         )}
         {steps.length === 0 ? (
-          <div className="flex-1 h-full flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none">
+          <div
+            className={cn(
+              'flex-1 h-full flex flex-col items-center justify-center p-6 text-center text-muted-foreground text-xs select-none',
+              sceneEditing && 'opacity-55'
+            )}
+          >
             <Film className="w-10 h-10 text-muted-foreground/30 mb-2.5 animate-pulse" />
             <p className="font-semibold text-foreground/80">
-              {isReplay ? '该回放没有可显示的步骤' : '暂无编排动作步骤'}
+              {isReplay
+                ? '该回放没有可显示的步骤'
+                : sceneEditing
+                  ? '布景编辑中，暂无编排步骤'
+                  : '暂无编排动作步骤'}
             </p>
           </div>
         ) : (
-          stepList.map((item) => {
-            if (item.kind === 'turn') {
-              return (
-                <StepTurnHeader
-                  key={item.key}
-                  turn={item.turn}
-                  turnPlayer={item.turnPlayer}
-                  lp={item.lp}
-                  duelists={duelists}
-                  actingDuelistId={turnActingDuelistIds.get(item.turn)}
-                  sharedLp={sharedLp}
-                />
+          <div
+            className={cn(
+              'flex flex-col gap-2',
+              sceneEditing && 'pointer-events-none select-none opacity-55'
+            )}
+          >
+            {stepList.map((item) => {
+              if (item.kind === 'turn') {
+                return (
+                  <StepTurnHeader
+                    key={item.key}
+                    turn={item.turn}
+                    turnPlayer={item.turnPlayer}
+                    lp={item.lp}
+                    duelists={duelists}
+                    actingDuelistId={turnActingDuelistIds.get(item.turn)}
+                    sharedLp={sharedLp}
+                  />
+                )
+              }
+
+              if (item.kind === 'phase') {
+                return (
+                  <StepPhaseHeader key={item.key} phase={item.phase} turnPlayer={item.turnPlayer} />
+                )
+              }
+
+              const { group } = item
+              const firstEntry = group.entries[0]
+
+              if (group.kind === 'single') {
+                const { step, index } = firstEntry
+                const splitLp =
+                  step.actionType === 'ATTACK' &&
+                  Boolean(step.lpChange) &&
+                  !(step.logEvents && step.logEvents.length > 0)
+                return (
+                  <div key={step.id} className="flex flex-col gap-1.5">
+                    {renderStepCard(step, index, !splitLp)}
+                    {splitLp && step.lpChange && (
+                      <StepLpChange lpChange={step.lpChange} turn={step.turn} />
+                    )}
+                  </div>
+                )
+              }
+
+              const expanded = expandedGroups.has(group.key)
+              const names = group.entries.map(({ step }) => resolveStepCardName(step))
+              const isCurrentPlaying = group.entries.some(({ step, index }) =>
+                isCurrentStepOf(step, index)
               )
-            }
+              const damageText =
+                group.kind === 'attack'
+                  ? getAttackDamageText(firstEntry.step, group.entries[1]?.step)
+                  : undefined
 
-            if (item.kind === 'phase') {
               return (
-                <StepPhaseHeader key={item.key} phase={item.phase} turnPlayer={item.turnPlayer} />
-              )
-            }
-
-            const { group } = item
-            const firstEntry = group.entries[0]
-
-            if (group.kind === 'single') {
-              const { step, index } = firstEntry
-              const splitLp =
-                step.actionType === 'ATTACK' &&
-                Boolean(step.lpChange) &&
-                !(step.logEvents && step.logEvents.length > 0)
-              return (
-                <div key={step.id} className="flex flex-col gap-1.5">
-                  {renderStepCard(step, index, !splitLp)}
-                  {splitLp && step.lpChange && (
-                    <StepLpChange lpChange={step.lpChange} turn={step.turn} />
+                <div key={group.key} className="flex flex-col gap-1.5">
+                  <StepGroupHeader
+                    summary={{
+                      kind: group.kind,
+                      player: firstEntry.step.actionPlayer,
+                      playerName:
+                        resolveDuelistName(duelists, firstEntry.step.actionDuelistId) ??
+                        resolveTeamLabel(
+                          { duelists },
+                          firstEntry.step.actionPlayer,
+                          firstEntry.step.turn
+                        ),
+                      cardCode: firstEntry.step.cardCode,
+                      cardName: names[0],
+                      actionType: firstEntry.step.actionType,
+                      names,
+                      cardCodes: group.entries.map(({ step }) => step.cardCode),
+                      damageText,
+                      count: group.entries.length,
+                      expanded,
+                      isCurrentPlaying,
+                      onToggle: () => toggleGroup(group.key)
+                    }}
+                  />
+                  {expanded && (
+                    <div
+                      className={cn('flex flex-col gap-2 pl-2 ml-1 border-l', 'border-border/60')}
+                    >
+                      {group.entries.map(({ step, index }) => renderStepCard(step, index))}
+                    </div>
                   )}
                 </div>
               )
-            }
-
-            const expanded = expandedGroups.has(group.key)
-            const names = group.entries.map(({ step }) => resolveStepCardName(step))
-            const isCurrentPlaying = group.entries.some(({ step, index }) =>
-              isCurrentStepOf(step, index)
-            )
-            const damageText =
-              group.kind === 'attack'
-                ? getAttackDamageText(firstEntry.step, group.entries[1]?.step)
-                : undefined
-
-            return (
-              <div key={group.key} className="flex flex-col gap-1.5">
-                <StepGroupHeader
-                  summary={{
-                    kind: group.kind,
-                    player: firstEntry.step.actionPlayer,
-                    playerName:
-                      resolveDuelistName(duelists, firstEntry.step.actionDuelistId) ??
-                      resolveTeamLabel(
-                        { duelists },
-                        firstEntry.step.actionPlayer,
-                        firstEntry.step.turn
-                      ),
-                    cardCode: firstEntry.step.cardCode,
-                    cardName: names[0],
-                    actionType: firstEntry.step.actionType,
-                    names,
-                    cardCodes: group.entries.map(({ step }) => step.cardCode),
-                    damageText,
-                    count: group.entries.length,
-                    expanded,
-                    isCurrentPlaying,
-                    onToggle: () => toggleGroup(group.key)
-                  }}
-                />
-                {expanded && (
-                  <div className={cn('flex flex-col gap-2 pl-2 ml-1 border-l', 'border-border/60')}>
-                    {group.entries.map(({ step, index }) => renderStepCard(step, index))}
-                  </div>
-                )}
-              </div>
-            )
-          })
+            })}
+          </div>
         )}
       </div>
     </div>

@@ -36,7 +36,6 @@ export const LinkArrowGrid: React.FC<LinkArrowGridProps> = ({
               type="button"
               onClick={onClear}
               disabled={markers === 0}
-              title="清空连接箭头"
               className={cn(
                 'h-9 w-9 rounded-md border text-[10px] font-semibold transition-colors',
                 markers === 0

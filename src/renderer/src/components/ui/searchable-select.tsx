@@ -63,7 +63,6 @@ export function SearchableSelect<Value extends string | number>({
         <Combobox.Input
           aria-label={ariaLabel}
           placeholder={placeholder}
-          title="可直接输入名称筛选"
           disabled={disabled}
           onFocus={(event) => event.currentTarget.select()}
           className="h-full w-full min-w-0 bg-transparent text-xs outline-none placeholder:text-muted-foreground"

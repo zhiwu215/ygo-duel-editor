@@ -18,7 +18,8 @@ export const ZoneContextMenu: React.FC<{
   location: number
   isEngine: boolean
   onSwitchDeck: () => void
-}> = ({ menuRef, menuPos, controller, location, isEngine, onSwitchDeck }) => (
+  onAddPlaceholder?: () => void
+}> = ({ menuRef, menuPos, controller, location, isEngine, onSwitchDeck, onAddPlaceholder }) => (
   <div
     ref={menuRef}
     style={{ left: menuPos.x, top: menuPos.y }}
@@ -40,6 +41,17 @@ export const ZoneContextMenu: React.FC<{
       >
         <ArrowLeftRight className="w-3.5 h-3.5" />
         <span>切换卡组</span>
+      </Button>
+    )}
+
+    {location === CardLocation.DECK && onAddPlaceholder && (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onAddPlaceholder}
+        className="w-full justify-start h-7 px-2 text-xs font-normal hover:bg-accent cursor-pointer"
+      >
+        添加占位卡
       </Button>
     )}
   </div>

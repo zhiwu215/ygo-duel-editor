@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Edit2 } from 'lucide-react'
-import { CardLocation, Duelist, FieldCard } from '@shared/index'
+import { CardLocation, CdbCard, Duelist, FieldCard } from '@shared/index'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
+import { useEngineInjectDropStore } from '../../../stores/useEngineInjectDropStore'
+import { CARD_SEARCH_DRAG_TYPE } from '../../../utils/cardDrag'
 import { MemoZoneSlot } from '../ZoneSlot'
 import { HandShuffleOverlay } from './HandShuffleOverlay'
 import { TurnOrderBadge } from './TurnOrderBadge'
@@ -16,6 +18,7 @@ import { useHorizontalWheelScroll } from '../../../hooks/useHorizontalWheelScrol
 import { useLpCommit } from '../../../hooks/useLpCommit'
 import { cn } from '../../../lib/utils'
 import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
+import { useContextMenuStore } from '../../../stores/useContextMenuStore'
 
 export const SingleHandTray: React.FC<{
   duelist: Duelist
@@ -25,6 +28,8 @@ export const SingleHandTray: React.FC<{
   totalCount: number
 }> = ({ duelist, controller, isTop, cards, totalCount }) => {
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
+  const openHandMenu = useContextMenuStore((s) => s.openHandMenu)
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const shuffle = useHandShufflePulse(controller)
   const commitLp = useLpCommit()
 
@@ -51,7 +56,6 @@ export const SingleHandTray: React.FC<{
     isOwnedHandCard: (movingCard) => (movingCard.duelistId ?? duelist.id) === duelist.id,
     highlightOnForeignOver: true,
     onParseError: () => useDuelEngineStore.setState({ error: '拖拽数据解析失败，请重试' }),
-    onInjectUnsupported: () => useDuelEngineStore.setState({ error: '该落点不支持剧情安排注入' }),
     onDropFailure: (err) =>
       useDuelEngineStore.setState({
         error: err instanceof Error ? err.message : '拖拽操作失败'
@@ -74,12 +78,50 @@ export const SingleHandTray: React.FC<{
 
   const handleDragEnter = (e: React.DragEvent): void => {
     e.preventDefault()
+    if (e.dataTransfer.types.includes(CARD_SEARCH_DRAG_TYPE)) {
+      if (!isDragOver) setIsDragOver(true)
+      return
+    }
     if (e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) {
       setIsDragOver(false)
       captureHandLayout()
       return
     }
     if (!isDragOver) setIsDragOver(true)
+  }
+
+  const handleEngineDragOver = (e: React.DragEvent<HTMLDivElement>): void => {
+    if (isEngineActive && e.dataTransfer.types.includes(CARD_SEARCH_DRAG_TYPE)) {
+      e.preventDefault()
+      e.stopPropagation()
+      e.dataTransfer.dropEffect = 'copy'
+      if (!isDragOver) setIsDragOver(true)
+      return
+    }
+    handleDragOver(e)
+  }
+
+  const handleEngineDrop = (e: React.DragEvent<HTMLDivElement>): void => {
+    if (!isEngineActive || !e.dataTransfer.types.includes(CARD_SEARCH_DRAG_TYPE)) {
+      handleDrop(e)
+      return
+    }
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    try {
+      const dataStr = e.dataTransfer.getData('application/json')
+      if (!dataStr) return
+      const card = JSON.parse(dataStr) as CdbCard
+      useEngineInjectDropStore.getState().open({
+        card,
+        controller,
+        location: CardLocation.HAND,
+        sequence: cards.length
+      })
+    } catch (err) {
+      console.error('[SingleHandTray] Engine drop failed:', err)
+    }
   }
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>): void => {
@@ -106,6 +148,10 @@ export const SingleHandTray: React.FC<{
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        openHandMenu(controller, duelist.id, e.clientX, e.clientY)
+      }}
       className="relative z-10 w-full max-w-5xl shrink-0 p-1.5 rounded-xl bg-card border border-border/80 shadow-sm flex flex-col gap-1"
     >
       <div className="flex items-center gap-2 text-xs px-1 h-5">
@@ -121,6 +167,7 @@ export const SingleHandTray: React.FC<{
           <div
             onContextMenu={(e) => {
               e.preventDefault()
+              e.stopPropagation()
               setEditingName(duelist.name)
             }}
             className="flex items-center gap-1 group cursor-default hover:bg-muted/50 px-1 py-0.5 rounded"
@@ -158,10 +205,15 @@ export const SingleHandTray: React.FC<{
           ref={scrollContainerRef}
           onDragStartCapture={handleDragStartCapture}
           onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
+          onDragOver={handleEngineDragOver}
           onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          onDrop={handleEngineDrop}
           onClick={handlePlaceHeldCard}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            openHandMenu(controller, duelist.id, e.clientX, e.clientY)
+          }}
           className={cn(
             'h-[100px] w-full px-2 py-0.5 rounded border border-dashed flex items-center gap-1.5 overflow-x-auto overflow-y-hidden transition-colors',
             shuffle.active && 'ring-2 ring-amber-400/70 border-amber-400/60',

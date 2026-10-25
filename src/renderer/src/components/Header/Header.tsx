@@ -2,34 +2,61 @@ import React from 'react'
 import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
-import { MASTER_RULES, MasterRule, SELECTABLE_MASTER_RULES } from '@shared/index'
+import {
+  boardFingerprintMatches,
+  computeBoardFingerprint,
+  MASTER_RULES,
+  MasterRule,
+  SELECTABLE_MASTER_RULES
+} from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { WindowControls } from '../ui/window-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { ShieldCheck, Square, Play, Loader2 } from 'lucide-react'
+import { Check, Clapperboard, ShieldCheck, Square, Play, Loader2 } from 'lucide-react'
 import { ChainModeToggle } from '../Board/ChainModeToggle'
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
 import { TurnPhaseIndicator } from './components/TurnPhaseIndicator'
-import { ExportStatusBadge } from './components/ExportStatusBadge'
 import { useProjectCommands } from '../../hooks/useProjectCommands'
 import { useGlobalShortcuts } from '../../hooks/useGlobalShortcuts'
 import { useStartEngine } from '../../hooks/useStartEngine'
 import { useConfigStore } from '../../stores/useConfigStore'
+import { confirmDialog } from '../../stores/useDialogStore'
 
 export const Header: React.FC = () => {
   const engineMode = useDuelEngineStore((s) => s.engineMode)
   const isEngineLoading = useDuelEngineStore((s) => s.loading)
   const mergedMatch = useDuelEngineStore((s) => s.mergedMatch)
-  const stopEngine = useDuelEngineStore((s) => s.stopEngine)
+  const suspendEngine = useDuelEngineStore((s) => s.suspendEngine)
+  const resumeSuspended = useDuelEngineStore((s) => s.resumeSuspended)
+  const suspendedDoc = useDuelEngineStore((s) => s.suspendedDoc)
   const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const importingReplay = useDuelEngineStore((s) => s.importingReplay)
   const engineSupport = useConfigStore((s) => s.engineSupport)
   const engineUnsupported = engineSupport?.supported === false
-  const { state, setMasterRule, setTitle } = useDuelStore()
+  const { state, setMasterRule, setTitle, previewReturn, sceneEditing, exitSceneMode } =
+    useDuelStore()
   const startEngine = useStartEngine()
+  const canResume = suspendedDoc
+    ? boardFingerprintMatches(
+        suspendedDoc.boardFingerprint,
+        computeBoardFingerprint(previewReturn?.state ?? state)
+      )
+    : false
+
+  const handleResume = async (): Promise<void> => {
+    const restored = await resumeSuspended()
+    if (restored) return
+    const ok = await confirmDialog({
+      title: '继续上次会话失败',
+      description: `${useDuelEngineStore.getState().error ?? '引擎无法恢复上次的会话。'}\n\n要从当前盘面开始新的引擎会话吗？已有步骤会保留为历史。`,
+      confirmText: '开始新会话'
+    })
+    if (!ok) return
+    await startEngine({ skipResume: true })
+  }
 
   const {
     handleNew,
@@ -97,12 +124,6 @@ export const Header: React.FC = () => {
             className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
           />
 
-          <Separator orientation="vertical" className="h-5" />
-
-          <ExportStatusBadge />
-
-          <Separator orientation="vertical" className="h-4" />
-
           <WindowControls className="-mr-3 ml-1" />
         </div>
       </div>
@@ -142,15 +163,27 @@ export const Header: React.FC = () => {
 
           <TurnPhaseIndicator />
 
+          {sceneEditing && (
+            <>
+              <Separator orientation="vertical" className="h-4" />
+              <button
+                type="button"
+                onClick={() => exitSceneMode()}
+                className="flex cursor-pointer items-center gap-1 rounded border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600 transition-colors hover:bg-amber-500/25 dark:text-amber-400"
+              >
+                <Clapperboard className="w-3.5 h-3.5" />
+                <span>布景编辑中</span>
+                <Check className="w-3 h-3" />
+              </button>
+            </>
+          )}
+
           <Separator orientation="vertical" className="h-4" />
 
           {engineMode === 'running' ? (
             <div className="flex items-center gap-1.5">
               {mergedMatch && (
-                <span
-                  title="内置引擎按 1v1 合并同队角色，手牌、目标和效果范围为近似结果"
-                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                >
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                   近似校验
                 </span>
               )}
@@ -168,20 +201,34 @@ export const Header: React.FC = () => {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => stopEngine()}
+                onClick={() => void suspendEngine()}
                 className="h-7 px-2 text-[11px] font-bold gap-1 bg-background/60 text-muted-foreground hover:bg-destructive/10 hover:text-destructive border-border"
               >
                 <Square className="w-3 h-3 fill-current" />
                 <span>退出引擎</span>
               </Button>
             </div>
+          ) : suspendedDoc && canResume ? (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => void handleResume()}
+              disabled={isEngineLoading || engineUnsupported}
+              className="h-7 px-2 text-[11px] font-bold gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+            >
+              {isEngineLoading ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Play className="w-3 h-3 fill-current" />
+              )}
+              <span>{isEngineLoading ? '正在恢复...' : '继续上次会话'}</span>
+            </Button>
           ) : (
             <Button
               variant="outline"
               size="xs"
               onClick={() => void startEngine()}
               disabled={isEngineLoading || engineUnsupported}
-              title={engineUnsupported ? engineSupport.reason : undefined}
               className="h-7 px-2 text-[11px] font-bold gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
             >
               <Play className="w-3 h-3 fill-current" />

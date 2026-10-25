@@ -187,13 +187,13 @@ async function main(): Promise<void> {
 
   retries += answerTimes(source, 4)
 
-  const handInject = source.inject({
+  const handInject = await source.inject({
     op: 'add-card',
     player: 0,
     code: 89631139,
     to: 'hand'
   })
-  const deckInject = source.inject({
+  const deckInject = await source.inject({
     op: 'add-card',
     player: 0,
     code: 46986414,

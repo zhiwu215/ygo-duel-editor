@@ -72,7 +72,6 @@ export const CardScriptField: React.FC<CardScriptFieldProps> = ({
             variant="ghost"
             size="xs"
             className="gap-1"
-            title="在项目脚本目录中显示"
             onClick={() => void window.api.openCustomCardScriptDir()}
           >
             <FolderOpen className="h-3 w-3" />

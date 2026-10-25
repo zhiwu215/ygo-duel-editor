@@ -1,5 +1,5 @@
 import React from 'react'
-import { CardLocation, FieldCard } from '@shared/index'
+import { CardLocation, FIELD_ZONE_SEQUENCE, FieldCard } from '@shared/index'
 import { ZoneSlot, type ZoneColorVariant } from './ZoneSlot'
 
 interface BoardWingSpec {
@@ -62,7 +62,7 @@ export const BoardSector: React.FC<BoardSectorProps> = ({
   const fieldWing: BoardWingSpec = {
     label: '场地魔法',
     location: CardLocation.SZONE,
-    sequence: 5,
+    sequence: FIELD_ZONE_SEQUENCE,
     colorVariant: 'field',
     withCount: false
   }

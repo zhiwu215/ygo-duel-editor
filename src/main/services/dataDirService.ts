@@ -21,7 +21,7 @@ const DATA_FILES = [
   'custom_cards.json',
   'custom_setcodes.json'
 ]
-const DATA_DIRS = ['projects', 'texts', 'custom']
+const DATA_DIRS = ['projects', 'texts', 'text-library', 'custom']
 
 let installDataDirectory: string | null | undefined
 

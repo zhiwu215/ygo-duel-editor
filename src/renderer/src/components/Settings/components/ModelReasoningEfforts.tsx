@@ -21,9 +21,6 @@ import {
 
 const INITIAL_LEVELS: AgentReasoningEffort[] = ['off', 'low', 'medium', 'high']
 
-const REASONING_HELP =
-  'API 参数值会写入请求的推理强度字段，默认与档位名相同；如有不同，以模型提供商的 API 文档为准。Off 表示关闭思考，不需要填写参数值。'
-
 type Entry = readonly [AgentReasoningEffort, string | null]
 
 function defaultValue(level: AgentReasoningEffort): string | null {
@@ -124,17 +121,7 @@ export function ModelReasoningEfforts({
   return (
     <div className="flex flex-col gap-1.5" role="group" aria-label={label}>
       <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-1.5">
-          <span className={MODEL_LABEL}>推理等级</span>
-          <button
-            type="button"
-            title={REASONING_HELP}
-            aria-label="推理等级说明"
-            className="inline-flex h-4 w-4 items-center justify-center rounded-full border-[0.5px] border-foreground/20 text-[9px] leading-none text-[#81858c] transition-colors hover:text-foreground dark:text-[#979da6]"
-          >
-            ?
-          </button>
-        </span>
+        <span className={MODEL_LABEL}>推理等级</span>
         <Switch
           checked={efforts !== undefined}
           aria-label={label}
@@ -192,7 +179,6 @@ export function ModelReasoningEfforts({
               <button
                 type="button"
                 aria-label={`删除档位 ${level}`}
-                title="删除档位"
                 disabled={disabled}
                 onClick={() => write(entries.filter((_entry, at) => at !== index))}
                 className={MODEL_DANGER_ICON_BUTTON}

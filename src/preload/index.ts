@@ -20,7 +20,8 @@ import {
   Answer,
   InjectCommand,
   TimingPolicy,
-  FavoritesState
+  FavoritesState,
+  EngineCardRef
 } from '@shared/index'
 
 const api: IpcApi = {
@@ -84,15 +85,34 @@ const api: IpcApi = {
 
   getTextList: () => ipcRenderer.invoke('library:text-list'),
   importTextFile: () => ipcRenderer.invoke('library:text-import'),
-  getTextChapters: (textId: string) => ipcRenderer.invoke('library:text-chapters', textId),
-  getTextChapterContent: (textId: string, chapterId: string) =>
+  getTextChapters: (textId) => ipcRenderer.invoke('library:text-chapters', textId),
+  getTextChapterContent: (textId, chapterId) =>
     ipcRenderer.invoke('library:text-chapter-content', textId, chapterId),
-  updateTextChapterContent: (textId: string, chapterId: string, content: string) =>
+  updateTextChapterContent: (textId, chapterId, content) =>
     ipcRenderer.invoke('library:text-chapter-update', textId, chapterId, content),
-  updateTextChapterTitle: (textId: string, chapterId: string, title: string) =>
+  updateTextChapterTitle: (textId, chapterId, title) =>
     ipcRenderer.invoke('library:text-chapter-title-update', textId, chapterId, title),
-  deleteText: (id: string) => ipcRenderer.invoke('library:text-delete', id),
-  resplitText: (id: string) => ipcRenderer.invoke('library:text-resplit', id),
+  deleteText: (id) => ipcRenderer.invoke('library:text-delete', id),
+  resplitText: (id) => ipcRenderer.invoke('library:text-resplit', id),
+
+  getTextLibraryTree: () => ipcRenderer.invoke('text-library:list'),
+  readTextLibraryEntry: (relativePath) => ipcRenderer.invoke('text-library:read', relativePath),
+  saveScreenplayToTextLibrary: (request) =>
+    ipcRenderer.invoke('text-library:save-screenplay', request),
+  updateTextLibraryEntry: (relativePath, content) =>
+    ipcRenderer.invoke('text-library:update', relativePath, content),
+  deleteTextLibraryEntry: (relativePath) => ipcRenderer.invoke('text-library:delete', relativePath),
+  deleteTextLibraryFolder: (relativePath) =>
+    ipcRenderer.invoke('text-library:delete-folder', relativePath),
+  exportTextLibraryEntry: (relativePath) =>
+    ipcRenderer.invoke('text-library:export-file', relativePath),
+  onTextLibraryUpdated: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('text-library:updated', handler)
+    return () => {
+      ipcRenderer.removeListener('text-library:updated', handler)
+    }
+  },
 
   openCardNoteWindow: () => ipcRenderer.invoke('window:open-card-notes'),
   openTextLibrary: () => ipcRenderer.invoke('window:open-text-library'),
@@ -130,6 +150,11 @@ const api: IpcApi = {
     ipcRenderer.invoke('duel-engine:submit-answer', answer),
   duelEngineInject: (command: InjectCommand) => ipcRenderer.invoke('duel-engine:inject', command),
   duelEngineGetPendingRequest: () => ipcRenderer.invoke('duel-engine:get-pending-request'),
+  duelEngineGetProvenance: (ref: EngineCardRef) =>
+    ipcRenderer.invoke('duel-engine:get-provenance', ref),
+  duelEngineReplaceCard: (ref: EngineCardRef, newCode: number) =>
+    ipcRenderer.invoke('duel-engine:replace-card', ref, newCode),
+  duelEngineRemoveCard: (ref: EngineCardRef) => ipcRenderer.invoke('duel-engine:remove-card', ref),
   duelEngineJumpToStep: (stepId) => ipcRenderer.invoke('duel-engine:jump-to-step', stepId),
   duelEngineGetTimeline: () => ipcRenderer.invoke('duel-engine:get-timeline'),
   duelEngineImportReplay: () => ipcRenderer.invoke('duel-engine:import-replay'),

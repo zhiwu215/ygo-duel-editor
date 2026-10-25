@@ -14,6 +14,7 @@ import {
   normalizeMatchConfig
 } from '@shared/index'
 import { isDuelStarted } from '../../utils/duelStart'
+import { dropBlankEventSteps } from '../../utils/stepSanitize'
 import type { DuelStore } from './types'
 
 export interface SessionSlice {
@@ -39,15 +40,17 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
 
   loadProjectAndStart: (newState) => {
     const normalized = normalizeDuelState(newState)
+    const state = { ...normalized, steps: dropBlankEventSteps(normalized.steps ?? []) }
     set({
-      state: normalized,
+      state,
       currentTurn: 1,
       currentPhase: 'DP',
       currentChain: 0,
-      activeTurnPlayer: normalized.turnPlayer ?? 0,
-      duelStarted: isDuelStarted(normalized),
+      activeTurnPlayer: state.turnPlayer ?? 0,
+      duelStarted: isDuelStarted(state),
       previewReturn: null,
       currentStepIndex: null,
+      sceneEditing: false,
       selectedStepId: null,
       selectedCardId: null,
       expandedDuelistId: null,
@@ -59,11 +62,13 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
 
   loadState: (newState) => {
     const normalized = normalizeDuelState(newState)
+    const state = { ...normalized, steps: dropBlankEventSteps(normalized.steps ?? []) }
     set(() => ({
-      state: normalized,
+      state,
       currentProjectPath: null,
-      activeTurnPlayer: normalized.turnPlayer ?? 0,
-      duelStarted: isDuelStarted(normalized),
+      sceneEditing: false,
+      activeTurnPlayer: state.turnPlayer ?? 0,
+      duelStarted: isDuelStarted(state),
       selectedCardId: null,
       expandedDuelistId: null,
       activeDuelistIds: [null, null]
@@ -83,6 +88,7 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
       return {
         state: baseState,
         currentProjectPath: null,
+        sceneEditing: false,
         duelStarted: false,
         selectedCardId: null,
         activeStatPopoverCardId: null,

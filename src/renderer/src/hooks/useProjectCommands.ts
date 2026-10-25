@@ -6,14 +6,17 @@ import { alertDialog, confirmDialog, promptDialog } from '../stores/useDialogSto
 import { buildPuzzleStateFromEngineBoard } from '../utils/engineBoardToPuzzle'
 import { openDuelDocument, saveDuelDocument } from '../utils/duelDocumentActions'
 import { flushDuelDocumentAutosave } from '../utils/duelDocumentAutosave'
-import { formatCoverageWarning } from '../utils/coverageWarning'
+import { coverageAdvice, formatCoverageWarning } from '../utils/coverageWarning'
 import {
   ContentCoverageDetail,
   DEFAULT_DUEL_TEST_SETTINGS,
   EngineExportReplayResult,
+  PLACEHOLDER_CARD_NAME,
   isExportableMatch,
   isInGameTestSupported,
-  isStandardTag
+  isStandardTag,
+  placeholderKindLabel,
+  placeholderKindOf
 } from '@shared/index'
 
 export interface ProjectCommands {
@@ -40,7 +43,11 @@ export function useProjectCommands(): ProjectCommands {
       description: '确认清空当前局面并新建对局？'
     }).then(async (ok) => {
       if (!ok) return
+      if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode()
       await flushDuelDocumentAutosave()
+      const engine = useDuelEngineStore.getState()
+      if (engine.isInitialized) engine.stopEngine()
+      engine.setSuspendedDoc(null)
       resetDuel()
     })
   }, [resetDuel])
@@ -73,9 +80,18 @@ export function useProjectCommands(): ProjectCommands {
 
   const handleExportLua = useCallback(async (): Promise<void> => {
     if (!isExportableMatch(state.matchConfig)) return
-    const res = await window.api.exportLuaFile(state)
+    const choice = await confirmDialog({
+      title: '导出脚本',
+      description: '选择导出为残局还是整局。',
+      confirmText: '残局',
+      extraAction: { text: '整局', value: 'full' },
+      destructive: false
+    })
+    if (choice !== true && choice !== 'full') return
+    const duelType = choice === 'full' ? 'full' : 'puzzle'
+    const res = await window.api.exportLuaFile({ ...state, duelType })
     if (res.success && res.filePath) {
-      void alertDialog(`残局脚本导出成功！\n路径: ${res.filePath}`)
+      void alertDialog(`脚本导出成功！\n路径: ${res.filePath}`)
     } else if (res.error) {
       void alertDialog(`导出失败: ${res.error}`)
     }
@@ -88,7 +104,12 @@ export function useProjectCommands(): ProjectCommands {
       try {
         const cards = await window.api.getCardsByIds(ids)
         const names: Record<number, string> = {}
-        for (const id of ids) names[id] = cards[id]?.name ?? ''
+        for (const id of ids) {
+          const kind = placeholderKindOf(id)
+          names[id] = kind
+            ? `${PLACEHOLDER_CARD_NAME}（${placeholderKindLabel(kind)}）`
+            : (cards[id]?.name ?? '')
+        }
         return names
       } catch {
         return {}
@@ -111,7 +132,7 @@ export function useProjectCommands(): ProjectCommands {
         const detail = formatCoverageWarning(res.coverage, names)
         const choice = await confirmDialog({
           title: '当前游戏可能无法完整测试该对局',
-          description: `${detail}\n\n这些内容通常来自扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏。`,
+          description: `${detail}\n\n${coverageAdvice(res.coverage)}`,
           confirmText: '同步并启动',
           extraAction: { text: '去设置切换目录', value: 'settings' },
           destructive: false
@@ -125,8 +146,15 @@ export function useProjectCommands(): ProjectCommands {
             return
           }
           const retry = await window.api.testInYgo(state, false, testSettings)
-          if (!retry.success && retry.error) {
+          if (retry.success) return
+          if (retry.errorCode === 'content-missing' && retry.coverage) {
+            const retryNames = await resolveCoverageNames(retry.coverage)
+            const retryDetail = formatCoverageWarning(retry.coverage, retryNames)
+            void alertDialog(`同步后仍缺少以下内容，无法启动游戏测试\n\n${retryDetail}`)
+          } else if (retry.error) {
             void alertDialog(`同步后仍然无法启动游戏测试\n\n${retry.error}`)
+          } else {
+            void alertDialog('同步后仍然无法启动游戏测试。')
           }
         }
         return
@@ -154,45 +182,57 @@ export function useProjectCommands(): ProjectCommands {
     const res = await window.api.importLuaFile()
     if (res.success && res.state) {
       await flushDuelDocumentAutosave()
+      const engine = useDuelEngineStore.getState()
+      if (engine.isInitialized) engine.stopEngine()
+      engine.setSuspendedDoc(null)
       loadState(res.state)
     } else if (res.error) {
       void alertDialog(`导入失败: ${res.error}`)
     }
   }, [loadState])
 
-  const reportReplayResult = useCallback((res: EngineExportReplayResult): void => {
-    if (res.success) {
-      const gameType = useConfigStore.getState().config.gameType
-      const detail =
-        gameType === 'mdpro3'
-          ? `回放: ${res.yrp3dPath ?? ''}\n\n之后在 MDPro3 的「回放」界面也可以随时观看。`
-          : `录像: ${res.yrpPath ?? ''}${res.luaPath ? `\n残局脚本: ${res.luaPath}` : ''}\n\n${
-              res.manualHint ??
-              (res.luaPath
-                ? '之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。'
-                : '之后在 ygopro 的「录像回放」中也可以随时观看。')
-            }`
-      void alertDialog(
-        `对局回放导出成功${res.launched && !res.manualHint ? '，已在游戏中打开回放' : ''}\n\n${detail}`
-      )
-      return
-    }
-    if (res.errorCode === 'no-game-directory') {
-      void confirmDialog({
-        title: '尚未设置游戏目录',
-        description: '导出对局回放前，需要先在 设置 → 路径 中选择游戏主目录 (ygopro 或 MDPro3)。',
-        confirmText: '打开设置'
-      }).then((ok) => {
-        if (ok) void window.api.openSettingsWindow('paths')
-      })
-    } else if (res.errorCode === 'game-not-found') {
-      void alertDialog(
-        `未在游戏目录中找到游戏主程序 (ygopro.exe / MDPro3.exe)\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
-      )
-    } else if (res.error) {
-      void alertDialog(`导出对局回放失败\n\n${res.error}`)
-    }
-  }, [])
+  const reportReplayResult = useCallback(
+    (res: EngineExportReplayResult): void => {
+      if (res.success) {
+        const gameType = useConfigStore.getState().config.gameType
+        const detail =
+          gameType === 'mdpro3'
+            ? `回放: ${res.yrp3dPath ?? ''}\n\n之后在 MDPro3 的「回放」界面也可以随时观看。`
+            : `录像: ${res.yrpPath ?? ''}${res.luaPath ? `\n残局脚本: ${res.luaPath}` : ''}\n\n${
+                res.manualHint ??
+                (res.luaPath
+                  ? '之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。'
+                  : '之后在 ygopro 的「录像回放」中也可以随时观看。')
+              }`
+        void alertDialog(
+          `对局回放导出成功${res.launched && !res.manualHint ? '，已在游戏中打开回放' : ''}\n\n${detail}`
+        )
+        return
+      }
+      if (res.errorCode === 'content-missing' && res.coverage) {
+        void (async () => {
+          const names = await resolveCoverageNames(res.coverage!)
+          const detail = formatCoverageWarning(res.coverage!, names)
+          void alertDialog(`同步后仍缺少以下内容，无法导出对局回放\n\n${detail}`)
+        })()
+      } else if (res.errorCode === 'no-game-directory') {
+        void confirmDialog({
+          title: '尚未设置游戏目录',
+          description: '导出对局回放前，需要先在 设置 → 路径 中选择游戏主目录 (ygopro 或 MDPro3)。',
+          confirmText: '打开设置'
+        }).then((ok) => {
+          if (ok) void window.api.openSettingsWindow('paths')
+        })
+      } else if (res.errorCode === 'game-not-found') {
+        void alertDialog(
+          `未在游戏目录中找到游戏主程序 (ygopro.exe / MDPro3.exe)\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
+        )
+      } else if (res.error) {
+        void alertDialog(`导出对局回放失败\n\n${res.error}`)
+      }
+    },
+    [resolveCoverageNames]
+  )
 
   const handleExportYrp = useCallback(async (): Promise<void> => {
     if (useDuelEngineStore.getState().replayInfo) return
@@ -267,7 +307,7 @@ export function useProjectCommands(): ProjectCommands {
         const detail = formatCoverageWarning(res.coverage, names)
         const choice = await confirmDialog({
           title: '当前游戏可能无法完整回放该对局',
-          description: `${detail}\n\n这些内容通常来自扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏。`,
+          description: `${detail}\n\n${coverageAdvice(res.coverage)}`,
           confirmText: '同步并启动',
           extraAction: { text: '去设置切换目录', value: 'settings' },
           destructive: false

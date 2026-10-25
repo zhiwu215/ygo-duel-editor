@@ -52,7 +52,6 @@ export function ProviderRow({
         <span
           role="img"
           aria-label={STATUS_TITLE[status]}
-          title={STATUS_TITLE[status]}
           className={cn('h-2 w-2 shrink-0 rounded-full', STATUS_CLASS[status])}
         />
         <div className="ml-auto flex shrink-0 items-center gap-1">

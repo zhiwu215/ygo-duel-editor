@@ -27,7 +27,6 @@ export const EffectCategoryGrid: React.FC<EffectCategoryGridProps> = ({
             type="button"
             role="checkbox"
             aria-checked={checked}
-            title={category.label}
             onClick={() => onToggle(category.mask)}
             className="flex items-start gap-1.5 rounded px-1 py-1 text-left text-[11px] text-foreground/85 outline-none transition-colors hover:bg-neutral-500/15 focus-visible:bg-neutral-500/20"
           >

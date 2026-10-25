@@ -55,12 +55,15 @@ const entries = [
   'attack-smoke',
   'atk-propagation-smoke',
   'inject-smoke',
+  'placeholder-convert-smoke',
+  'placeholder-game-smoke',
   'renderer-inject-smoke',
   'renderer-repos-smoke',
   'renderer-turn-steps-smoke',
   'hand-shuffle-smoke',
   'policy-smoke',
   'provenance-smoke',
+  'tag-card-edit-smoke',
   'session-doc-smoke',
   'yrp-export-smoke',
   'yrp-tag-smoke',
@@ -73,7 +76,9 @@ const entries = [
   'turn-progression-smoke',
   'editor-battle-smoke',
   'undo-opening-smoke',
+  'scene-opening-smoke',
   'autosave-smoke',
+  'session-suspend-smoke',
   'card-relations-smoke'
 ]
 

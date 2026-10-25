@@ -261,7 +261,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         e.stopPropagation()
         closeCommandMenu()
         closeContextMenu()
-        if (isEngineActive && !isPileZone) return
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
         openMenu(card, e.clientX, e.clientY)

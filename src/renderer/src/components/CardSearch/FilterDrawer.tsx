@@ -454,7 +454,6 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
     <button
       type="button"
       onClick={() => setFilters({ showUnofficial: !showUnofficial })}
-      title="OCG/TCG/先行卡以外的卡：动漫、Rush、卡片力量、自定义等"
       className="flex items-center gap-1.5 w-full px-1.5 py-1 rounded-md hover:bg-muted/40 cursor-pointer text-muted-foreground hover:text-foreground transition-colors text-left"
     >
       {showUnofficial ? (

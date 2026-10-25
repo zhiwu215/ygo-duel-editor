@@ -284,6 +284,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
   ) => {
     get().withSingleUndoStep(() => {
       const fromCard = get().state.cards.find((c) => c.instanceId === instanceId)
+      const boardBefore = createLightweightSnapshot(get().state.cards)
       const effectivePos = resolveTargetPosition(
         toLocation,
         customPos,
@@ -319,6 +320,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
           toController: toController ?? fromCard.controller,
           fromPosition: fromCard.position,
           toPosition: effectivePos,
+          boardBefore,
           description:
             resolvedLabel?.description ??
             (name
@@ -344,6 +346,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
           .state.cards.filter((c) => moves.some((m) => m.instanceId === c.instanceId))
           .map((c) => [c.instanceId, c])
       )
+      const boardBefore = createLightweightSnapshot(get().state.cards)
       const effectiveMoves = moves.map((m) => {
         const fromCard = fromCards.get(m.instanceId)
         return {
@@ -379,6 +382,9 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
           toSequence: m.toSequence,
           fromController: fromCard.controller,
           toController: m.toController ?? fromCard.controller,
+          fromPosition: fromCard.position,
+          toPosition: m.customPos,
+          boardBefore,
           description: name
             ? `将【${name}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
             : `移动卡片至${LOCATION_NAMES[m.toLocation] ?? '区域'}`,
@@ -431,6 +437,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
   updateCardPosition: (instanceId, position) => {
     get().withSingleUndoStep(() => {
       const oldPos = get().state.cards.find((c) => c.instanceId === instanceId)?.position
+      const boardBefore = createLightweightSnapshot(get().state.cards)
       set((prev) => {
         const targetCard = prev.state.cards.find((c) => c.instanceId === instanceId)
         if (!targetCard) return prev
@@ -469,6 +476,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
                   fromSequence: card.sequence,
                   toLocation: card.location,
                   toSequence: card.sequence,
+                  boardBefore,
                   description: name ? `发动【${name}】` : '发动魔法陷阱',
                   op: { type: 'position', instanceId, position }
                 }
@@ -484,6 +492,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
                   toSequence: card.sequence,
                   fromPosition: oldPos,
                   toPosition: position,
+                  boardBefore,
                   description: name ? `【${name}】变更表示形式` : '变更表示形式',
                   op: { type: 'position', instanceId, position }
                 }

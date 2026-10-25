@@ -180,12 +180,6 @@ export function ProviderModelCatalog({
     setCandidates(null)
   }
 
-  const fetchTitle = !supported
-    ? '模型接口不可用'
-    : !baseUrl.trim()
-      ? '请先填写 API 地址，再获取。'
-      : undefined
-
   return (
     <section className="flex flex-col gap-2" aria-label="模型目录">
       <div className="flex min-w-0 items-center gap-2">
@@ -203,7 +197,6 @@ export function ProviderModelCatalog({
             type="button"
             onClick={() => void fetchModelsFromProvider()}
             disabled={pulling || !supported || !baseUrl.trim()}
-            title={fetchTitle}
             className={MODEL_LINK_BUTTON}
           >
             {pulling ? '正在询问提供商…' : '获取可用模型'}

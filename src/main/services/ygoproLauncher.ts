@@ -24,6 +24,7 @@ import {
   ReplayFileEntry,
   ReplayFileListResult,
   TestInGameResult,
+  isPlaceholderCard,
   isStandardTag
 } from '@shared/index'
 import { configService } from './configService'
@@ -35,6 +36,8 @@ import { buildYrp3dMessages } from './yrp3dMessages'
 import { sanitizeFileName, sanitizeProjectFileName } from '../utils/fileName'
 import { toErrorMessage } from '../utils/errors'
 import { completeCardDetails } from './completeCardDetails'
+import { mapPlaceholderCodesForGame } from './placeholderGameCards'
+import { syncCustomCardsToGame } from './customGameSync'
 
 export class YgoproLauncher {
   public async selectGameDirectory(window?: BrowserWindow): Promise<string | null> {
@@ -149,19 +152,23 @@ export class YgoproLauncher {
       return { success: false, errorCode: 'no-game-directory' }
     }
     const gameType = configService.get().gameType ?? 'ygopro'
+    const gameState = mapPlaceholderCodesForGame(state)
+    if (collectStateCardIds(gameState).some(isPlaceholderCard)) {
+      await syncCustomCardsToGame()
+    }
 
     if (gameType === 'mdpro3') {
       const exePath = join(gameDir, 'MDPro3.exe')
       if (!existsSync(exePath)) {
         return { success: false, errorCode: 'game-not-found', error: gameDir }
       }
-      const coverage = await this.checkCoverageOrDeferred(gameDir, gameType, state, force)
+      const coverage = await this.checkCoverageOrDeferred(gameDir, gameType, gameState, force)
       if (coverage.blocked) {
         return { success: false, errorCode: 'content-missing', coverage: coverage.coverage }
       }
       try {
-        completeCardDetails(state)
-        const luaContent = generateLuaScript(state, { test })
+        completeCardDetails(gameState)
+        const luaContent = generateLuaScript(gameState, { test })
 
         const puzzleDir = join(gameDir, 'Puzzle')
         const testDir = join(puzzleDir, 'yde-test')
@@ -192,14 +199,14 @@ export class YgoproLauncher {
       return { success: false, errorCode: 'game-not-found', error: gameDir }
     }
 
-    const coverage = await this.checkCoverageOrDeferred(gameDir, gameType, state, force)
+    const coverage = await this.checkCoverageOrDeferred(gameDir, gameType, gameState, force)
     if (coverage.blocked) {
       return { success: false, errorCode: 'content-missing', coverage: coverage.coverage }
     }
 
     try {
-      completeCardDetails(state)
-      const luaContent = generateLuaScript(state, { test })
+      completeCardDetails(gameState)
+      const luaContent = generateLuaScript(gameState, { test })
 
       const isEdopro = this.isEdoproExe(exePath)
       const name = sanitizeFileName(state.title).trim() || 'puzzle'
@@ -390,12 +397,17 @@ export class YgoproLauncher {
       return {
         success: false,
         errorCode: 'replay-failed',
-        error: '2v2 回放不支持剧情注入（inject）操作；请从无注入的开局重新导出。'
+        error: '2v2 回放不支持注入（inject）操作；请从无注入的开局重新导出。'
       }
     }
     const names = this.buildReplayNames(params.state, isTag)
     const initParams = duelDirector.getInitParams()
-    const replayState = isTag && initParams?.puzzleState ? initParams.puzzleState : params.state
+    const rawReplayState = isTag && initParams?.puzzleState ? initParams.puzzleState : params.state
+    const replayState =
+      gameType === 'mdpro3' ? rawReplayState : mapPlaceholderCodesForGame(rawReplayState)
+    if (collectStateCardIds(replayState).some(isPlaceholderCard)) {
+      await syncCustomCardsToGame()
+    }
     let tagReplay: TagReplayData | null = null
     let tagYrpBytes: Uint8Array | null = null
     if (isTag) {
@@ -435,7 +447,7 @@ export class YgoproLauncher {
     const coverage = await this.checkCoverageOrDeferred(
       gameDir,
       gameType,
-      params.state,
+      replayState,
       params.force ?? false
     )
     if (coverage.blocked) {
@@ -448,7 +460,7 @@ export class YgoproLauncher {
         return { success: false, errorCode: 'game-not-found', error: gameDir }
       }
       try {
-        const { messages } = duelDirector.recordMessageStream()
+        const { messages } = await duelDirector.recordMessageStream()
         if (!tagReplay) completeCardDetails(replayState)
         const luaContent = tagReplay ? null : generateLuaScript(replayState, { forReplay: true })
 

@@ -10,19 +10,30 @@ import {
   decodeSessionOp,
   parseEngineSessionDoc,
   resolveMasterRuleFromDuelRule,
-  MASTER_RULES
+  MASTER_RULES,
+  CardLocation,
+  EngineCard,
+  FIELD_ZONE_SEQUENCE
 } from '@shared/index'
 import {
   Answer,
+  EngineCardEditResult,
+  EngineCardRef,
   EngineInjectResult,
+  EngineProvenance,
   EngineRequest,
   EngineSubmitAnswerResult,
   InjectCommand,
   TimingPolicy,
   normalizeTimingPolicy
 } from '@shared/engine/protocol'
-import { createDuelFromYrp, createOcgcoreDuelFromSnapshot } from 'koishipro-core.js'
-import { bindEngineCapabilities, getOcgcoreEngine, setScriptErrorListener } from './ocgcore-engine'
+import { createDuelFromYrp } from 'koishipro-core.js'
+import {
+  bindEngineCapabilities,
+  createDuelFromSnapshot,
+  getOcgcoreEngine,
+  setScriptErrorListener
+} from './ocgcore-engine'
 import { computeDiff } from './diff-resolver'
 import { encodeAnswer, describeAnswer } from './answer-encoder'
 import { describeInject, executeInject, injectCardName, verifyInject } from './injector'
@@ -36,6 +47,17 @@ import {
   type EngineReplayStartPayload
 } from './replay-session'
 import { advanceEngine, isAutoFinishableUnselect } from './engine-pump'
+import {
+  initializeProvenance,
+  nodeIdForOp,
+  resolveProvenanceRecord,
+  trackInject
+} from './provenance-tracker'
+import {
+  replaceCard as replaceCardOp,
+  removeCard as removeCardOp,
+  type CardEditorDeps
+} from './card-editor'
 
 interface SessionSnapshot {
   seed: number[]
@@ -100,13 +122,14 @@ export class DuelSession {
     state.duel = state.ocgcore!.createDuelV2(state.seed)
     if (state.initParams.puzzleState) {
       setupFromPuzzleState(state, state.initParams.puzzleState)
+      initializeProvenance(state, this.readBoard())
     } else {
       setupFromDeckParams(state, state.initParams)
     }
     return advanceEngine(state)
   }
 
-  private replayTo(stepId: string, freshIdentity = false): void {
+  private async replayTo(stepId: string, freshIdentity = false): Promise<void> {
     const state = this.state
     const target = state.timeline.getStep(stepId)
     if (!target) {
@@ -132,7 +155,14 @@ export class DuelSession {
         }
         if (op.type === 'inject') {
           if (op.removed) continue
-          executeInject(state.duel!, op.command, this.readBoard())
+          await this.rebaseDuelFromRequestSnapshot()
+          const before = this.readBoard()
+          executeInject(state.duel!, op.command, before)
+          trackInject(state, before, this.readBoard(), index, op.command)
+          advanceEngine(state)
+          if (state.lastAdvanceRetried) {
+            throw new Error(`重放第 ${index + 1} 条操作（注入）时引擎拒绝了重放。`)
+          }
           continue
         }
         for (const response of op.responses) {
@@ -196,6 +226,7 @@ export class DuelSession {
     state.replaying = false
     state.replay = null
     state.recordingMessages = null
+    state.provenance.clear()
   }
 
   private captureSessionState(): SessionSnapshot {
@@ -211,7 +242,7 @@ export class DuelSession {
     }
   }
 
-  private restoreSessionState(snapshot: SessionSnapshot): void {
+  private async restoreSessionState(snapshot: SessionSnapshot): Promise<void> {
     const state = this.state
     this.disposeDuel()
     state.timeline.clear()
@@ -224,7 +255,7 @@ export class DuelSession {
     if (!snapshot.initParams || !snapshot.currentStepId) return
     state.timeline.restore(snapshot.timeline, snapshot.currentStepId)
     try {
-      this.replayTo(snapshot.currentStepId)
+      await this.replayTo(snapshot.currentStepId)
     } catch (err) {
       console.error('[duel-session] 恢复导入前的对局失败:', err)
     }
@@ -271,7 +302,7 @@ export class DuelSession {
       state.ops = ops
       state.timingPolicy = { ...parsed.timingPolicy }
       state.timeline.restore(parsed.timeline, parsed.currentStepId)
-      this.replayTo(parsed.currentStepId)
+      await this.replayTo(parsed.currentStepId)
 
       const boardState = this.readBoard()
       const node = state.timeline.getStep(parsed.currentStepId)?.node
@@ -287,7 +318,7 @@ export class DuelSession {
         currentStepId: parsed.currentStepId
       }
     } catch (err) {
-      this.restoreSessionState(previous)
+      await this.restoreSessionState(previous)
       throw new Error(`导入对局剧本失败：${err instanceof Error ? err.message : String(err)}`)
     }
   }
@@ -395,7 +426,7 @@ export class DuelSession {
         currentStepId
       }
     } catch (err) {
-      this.restoreSessionState(previous)
+      await this.restoreSessionState(previous)
       throw err
     }
   }
@@ -488,11 +519,12 @@ export class DuelSession {
 
   private async rebaseDuelFromRequestSnapshot(): Promise<void> {
     const state = this.state
+    const replaying = state.replaying
     const snapshot = state.requestSnapshot
     if (!snapshot) {
-      throw new Error('当前请求没有可用的引擎快照，无法重新校验剧情安排。')
+      throw new Error('当前请求没有可用的引擎快照，无法重新校验注入。')
     }
-    const duel = await createOcgcoreDuelFromSnapshot(snapshot)
+    const duel = await createDuelFromSnapshot(snapshot)
     await bindEngineCapabilities(duel.ocgcoreWrapper)
     this.disposeDuel()
     state.duel = duel
@@ -502,7 +534,7 @@ export class DuelSession {
     state.accumulatedLogs = []
     state.accumulatedEvents = []
     state.lastHintDesc = undefined
-    state.replaying = false
+    state.replaying = replaying
   }
 
   async inject(command: InjectCommand): Promise<EngineInjectResult> {
@@ -511,20 +543,25 @@ export class DuelSession {
       throw new Error('回放模式为只读，请先退出回放。')
     }
     if (!state.duel || state.duel.ended) {
-      throw new Error('当前没有进行中的对局，无法执行剧情安排。')
+      throw new Error('当前没有进行中的对局，无法执行注入。')
     }
 
-    const before = this.readBoard()
     this.truncateToCurrentStep()
+    if (!state.requestSnapshot) {
+      const current = state.timeline.getCurrentStep()
+      if (current) await this.replayTo(current.node.id)
+    }
     await this.rebaseDuelFromRequestSnapshot()
+    const before = this.readBoard()
     const outcome = executeInject(state.duel!, command, before)
     advanceEngine(state)
     const boardState = this.readBoard()
     const warning = outcome.warning ?? verifyInject(command, before, boardState)
 
     const opIndex = state.ops.length
+    trackInject(state, before, boardState, opIndex, command)
     const title = describeInject(command, outcome.label, injectCardName(command))
-    const logs = [`[剧情安排] ${outcome.label}`]
+    const logs = [`[注入] ${outcome.label}`]
     if (warning) logs.push(warning)
 
     const node = state.timeline.addStep(
@@ -556,11 +593,11 @@ export class DuelSession {
 
     const previousStepId = state.timeline.getCurrentStep()?.node.id ?? null
     try {
-      this.replayTo(stepId)
+      await this.replayTo(stepId)
     } catch (err) {
       if (previousStepId && previousStepId !== stepId) {
         try {
-          this.replayTo(previousStepId)
+          await this.replayTo(previousStepId)
         } catch (rollbackError) {
           console.error('[duel-session] 跳转失败后回滚到原步骤也失败:', rollbackError)
         }
@@ -584,6 +621,88 @@ export class DuelSession {
     }
   }
 
+  private resolveCard(ref: EngineCardRef): { instanceId: string; card: EngineCard } | null {
+    let board: EngineBoardState
+    try {
+      board = this.getBoardState()
+    } catch {
+      return null
+    }
+    const exact = ref.instanceId
+      ? board.allCards.find((card) => card.instanceId === ref.instanceId)
+      : undefined
+    if (exact) return { instanceId: exact.instanceId, card: exact }
+
+    const location = ref.location === CardLocation.FZONE ? CardLocation.SZONE : ref.location
+    const sequence = ref.location === CardLocation.FZONE ? FIELD_ZONE_SEQUENCE : ref.sequence
+    const matchesSeat = (card: EngineCard): boolean =>
+      ref.duelistId === undefined ||
+      card.duelistId === undefined ||
+      card.duelistId === ref.duelistId
+    const positional = board.allCards.find(
+      (card) =>
+        card.controller === ref.controller &&
+        card.location === location &&
+        card.sequence === sequence &&
+        matchesSeat(card)
+    )
+    if (positional) return { instanceId: positional.instanceId, card: positional }
+
+    const loose = board.allCards.find(
+      (card) =>
+        card.controller === ref.controller &&
+        card.sequence === sequence &&
+        ((card.location & location) !== 0 || (location & card.location) !== 0) &&
+        matchesSeat(card)
+    )
+    return loose ? { instanceId: loose.instanceId, card: loose } : null
+  }
+
+  private cardEditorDeps(): CardEditorDeps {
+    return {
+      resolveCard: (ref) => this.resolveCard(ref),
+      readBoard: () => this.readBoard(),
+      truncateToCurrentStep: () => this.truncateToCurrentStep(),
+      replayTo: (stepId, freshIdentity) => this.replayTo(stepId, freshIdentity)
+    }
+  }
+
+  getProvenance(ref: EngineCardRef): EngineProvenance {
+    const state = this.state
+    const resolved = this.resolveCard(ref)
+    if (!resolved) return { kind: 'unknown' }
+    const record = resolveProvenanceRecord(state, resolved.card)
+    if (!record?.origin) return { kind: 'unknown' }
+    if (record.origin.kind === 'initial') {
+      return {
+        kind: 'initial',
+        controller: record.initial?.controller ?? resolved.card.controller,
+        location: record.initial?.location ?? resolved.card.location,
+        sequence: record.initial?.sequence ?? resolved.card.sequence,
+        code: record.code,
+        duelistId: record.initial?.duelistId
+      }
+    }
+    const op = state.ops[record.origin.opIndex]
+    if (op?.type !== 'inject') return { kind: 'unknown' }
+    return {
+      kind: 'inject',
+      opIndex: record.origin.opIndex,
+      nodeId: nodeIdForOp(state, record.origin.opIndex),
+      command: op.command
+    }
+  }
+
+  async replaceCard(ref: EngineCardRef, newCode: number): Promise<EngineCardEditResult> {
+    if (this.state.replay) throw new Error('回放模式为只读，请先退出回放。')
+    return replaceCardOp(this.state, this.cardEditorDeps(), ref, newCode)
+  }
+
+  async removeCard(ref: EngineCardRef): Promise<EngineCardEditResult> {
+    if (this.state.replay) throw new Error('回放模式为只读，请先退出回放。')
+    return removeCardOp(this.state, this.cardEditorDeps(), ref)
+  }
+
   getTimeline(): EngineTimelineNode[] {
     return this.state.timeline.getAllNodes()
   }
@@ -600,7 +719,10 @@ export class DuelSession {
     return headPendingQuery(this.state)?.request ?? null
   }
 
-  recordMessageStream(): { messages: Uint8Array[]; responses: Uint8Array[] } {
+  async recordMessageStream(): Promise<{
+    messages: Uint8Array[]
+    responses: Uint8Array[]
+  }> {
     const state = this.state
     if (state.replay) {
       throw new Error('回放模式为只读，无法导出 MDPro3 回放。')
@@ -613,7 +735,7 @@ export class DuelSession {
     state.recordingMessages = []
     let messages: Uint8Array[]
     try {
-      this.replayTo(current.node.id)
+      await this.replayTo(current.node.id)
       messages = state.recordingMessages ?? []
     } finally {
       state.recordingMessages = null

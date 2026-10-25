@@ -24,7 +24,6 @@ export function AttachmentChips({
             <div
               key={card.id}
               className="group flex w-[220px] max-w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card/80 p-1.5 shadow-xs"
-              title={card.name}
             >
               <CardImage
                 code={card.id}
@@ -43,7 +42,6 @@ export function AttachmentChips({
               <button
                 type="button"
                 aria-label={`移除 ${card.name}`}
-                title="移除"
                 onClick={() => onRemoveCard(card.id)}
                 className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
               >
@@ -56,10 +54,7 @@ export function AttachmentChips({
 
       {text && (
         <div className="flex flex-wrap gap-1.5">
-          <div
-            className="group flex w-[220px] max-w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card/80 p-2 shadow-xs"
-            title={text.title}
-          >
+          <div className="group flex w-[220px] max-w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card/80 p-2 shadow-xs">
             <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs leading-tight font-medium text-foreground">
@@ -72,7 +67,6 @@ export function AttachmentChips({
             <button
               type="button"
               aria-label={`移除 ${text.title}`}
-              title="移除"
               onClick={onRemoveText}
               className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
             >

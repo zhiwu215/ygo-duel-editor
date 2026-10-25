@@ -15,6 +15,7 @@ import {
 } from './services/gameContent'
 import { imageService } from './services/imageService'
 import { libraryService } from './services/libraryService'
+import { textLibraryService } from './services/textLibraryService'
 import { seedCurrentGameLanguage } from './services/gameLanguagePreference'
 import { installWindowCloseGuard } from './services/windowCloseGuard'
 
@@ -147,6 +148,7 @@ app.whenReady().then(() => {
   }
 
   libraryService.reloadDataDirectory()
+  textLibraryService.reloadDataDirectory()
 
   createWindow()
 

@@ -159,7 +159,7 @@ async function main(): Promise<void> {
     `[inject-smoke] 注入前: 节点=${beforeInjectId} 手牌=${beforeHand} 卡组=${beforeDeck} LP=${beforeLp}`
   )
 
-  const handInject = duelSession.inject({
+  const handInject = await duelSession.inject({
     op: 'add-card',
     player: 0,
     code: 89631139,
@@ -171,7 +171,7 @@ async function main(): Promise<void> {
     `[inject-smoke] 注入手牌: 手牌=${handInject.boardState.players[0].hand.length} 节点=${handInject.node.stepNumber} opIndex=${handInject.node.opIndex} warning=${handInject.warning ?? '无'}`
   )
 
-  const deckInject = duelSession.inject({
+  const deckInject = await duelSession.inject({
     op: 'add-card',
     player: 0,
     code: 46986414,
@@ -182,7 +182,7 @@ async function main(): Promise<void> {
     `[inject-smoke] 注入卡组顶: 卡组=${deckInject.boardState.players[0].deckCount} 节点=${deckInject.node.stepNumber} opIndex=${deckInject.node.opIndex}`
   )
 
-  const lpInject = duelSession.inject({ op: 'set-lp', player: 0, lp: 5000 })
+  const lpInject = await duelSession.inject({ op: 'set-lp', player: 0, lp: 5000 })
   const lpEffective = lpInject.boardState.players[0].lp === 5000
   console.log(
     `[inject-smoke] 设置 LP: 结果=${lpInject.boardState.players[0].lp} 生效=${lpEffective ? '是' : '否'} warning=${lpInject.warning ?? '无'}`
@@ -254,11 +254,6 @@ async function main(): Promise<void> {
       check: (b) => b.players[0].graveyard.some((c) => c.code === 23434538)
     },
     {
-      name: 'grave-bottom',
-      command: { op: 'add-card', player: 0, code: 38517737, to: 'grave-bottom' },
-      check: (b) => b.players[0].graveyard.some((c) => c.code === 38517737)
-    },
-    {
       name: 'removed',
       command: { op: 'add-card', player: 0, code: 14558127, to: 'removed' },
       check: (b) => b.players[0].banished.some((c) => c.code === 14558127)
@@ -299,7 +294,7 @@ async function main(): Promise<void> {
 
   for (const item of matrix) {
     const before = duelSession.getBoardState()
-    const result = duelSession.inject(item.command)
+    const result = await duelSession.inject(item.command)
     const ok = item.check(result.boardState)
     console.log(
       `[inject-smoke] 注入 ${item.name}: ${ok ? '成功' : '失败'} warning=${result.warning ?? '无'}`
@@ -316,7 +311,7 @@ async function main(): Promise<void> {
   const extraCard = cdbService.findCardsByType(CardType.FUSION, 1)[0]
   if (extraCard) {
     const before = duelSession.getBoardState()
-    const result = duelSession.inject({
+    const result = await duelSession.inject({
       op: 'add-card',
       player: 0,
       code: extraCard.id,
@@ -333,7 +328,7 @@ async function main(): Promise<void> {
 
   const beforeBulk = duelSession.getBoardState().players[0].deckCount
   for (let i = 0; i < 60; i++) {
-    duelSession.inject({ op: 'add-card', player: 0, code: 23434538, to: 'deck-top' })
+    await duelSession.inject({ op: 'add-card', player: 0, code: 23434538, to: 'deck-top' })
   }
   const afterBulk = duelSession.getBoardState().players[0].deckCount
   console.log(

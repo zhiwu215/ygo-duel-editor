@@ -17,6 +17,7 @@ interface PromptDialogProps {
   confirmText?: string
   cancelText?: string
   initialValue?: string
+  validate?: (text: string) => string | null
   onConfirm: (text: string) => void
   onCancel: () => void
 }
@@ -28,10 +29,12 @@ export const PromptDialog: React.FC<PromptDialogProps> = ({
   confirmText = '确定',
   cancelText = '取消',
   initialValue = '',
+  validate,
   onConfirm,
   onCancel
 }) => {
   const [text, setText] = useState(initialValue)
+  const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -41,6 +44,11 @@ export const PromptDialog: React.FC<PromptDialogProps> = ({
   }, [open])
 
   const submit = (): void => {
+    const message = validate?.(text) ?? null
+    if (message) {
+      setError(message)
+      return
+    }
     onConfirm(text)
   }
 
@@ -52,19 +60,26 @@ export const PromptDialog: React.FC<PromptDialogProps> = ({
           <DialogDescription className="sr-only">{title}</DialogDescription>
         </DialogHeader>
 
-        <Input
-          ref={inputRef}
-          value={text}
-          placeholder={placeholder}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              submit()
-            }
-          }}
-          className="h-8 text-xs"
-        />
+        <div className="space-y-1.5">
+          <Input
+            ref={inputRef}
+            value={text}
+            placeholder={placeholder}
+            onChange={(e) => {
+              setText(e.target.value)
+              setError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                submit()
+              }
+            }}
+            aria-invalid={error !== null}
+            className="h-8 text-xs"
+          />
+          {error && <span className="block text-[11px] text-destructive">{error}</span>}
+        </div>
 
         <DialogFooter className="flex-row justify-end gap-2 border-t bg-transparent p-0 pt-3">
           <Button variant="outline" size="sm" onClick={onCancel} className="h-7 text-xs">

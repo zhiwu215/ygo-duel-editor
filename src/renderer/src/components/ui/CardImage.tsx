@@ -1,5 +1,6 @@
 import type { ImgHTMLAttributes } from 'react'
 import { getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import { isPlaceholderCard } from '@shared/index'
 
 type CardImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'onError'> & {
   code: number | undefined
@@ -15,10 +16,16 @@ export function CardImage({
   onFallback,
   ...rest
 }: CardImageProps) {
+  const source = isPlaceholderCard(code)
+    ? UNKNOWN_CARD_IMAGE
+    : code && code > 0
+      ? getCardImageUrl(code, small)
+      : fallback
+
   return (
     <img
       {...rest}
-      src={code && code > 0 ? getCardImageUrl(code, small) : fallback}
+      src={source}
       onError={(e) => {
         const el = e.currentTarget
         if (el.src !== fallback) el.src = fallback

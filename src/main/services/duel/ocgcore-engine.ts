@@ -2,6 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import {
   createOcgcoreWrapper,
+  createOcgcoreDuelFromSnapshot,
+  OcgcoreDuel,
   OcgcoreMessageType,
   ZipScriptReader,
   DirScriptReader,
@@ -134,4 +136,8 @@ export async function getOcgcoreEngine(): Promise<OcgcoreWrapper> {
   await bindEngineCapabilities(ocgcoreInstance)
 
   return ocgcoreInstance
+}
+
+export function createDuelFromSnapshot(snapshot: Uint8Array): Promise<OcgcoreDuel> {
+  return createOcgcoreDuelFromSnapshot(snapshot)
 }

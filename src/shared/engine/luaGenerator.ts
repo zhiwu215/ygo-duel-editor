@@ -125,6 +125,7 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
   const flags: string[] = []
   if (state.firstTurnAttack) flags.push('DUEL_ATTACK_FIRST_TURN')
   if (isTag) flags.push('DUEL_TAG_MODE')
+  if (!forReplay && !isFull) flags.push('DUEL_SIMPLE_AI')
   if (!randomDeck) flags.push('DUEL_PSEUDO_SHUFFLE')
   const flagStr = flags.length > 0 ? flags.join(' + ') : '0'
 

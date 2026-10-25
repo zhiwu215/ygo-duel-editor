@@ -3,9 +3,11 @@ import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Search } from 
 import { DuelDocumentEntry, DuelDocumentFolder, DuelDocumentTree } from '@shared/index'
 import { Input } from '../ui/input'
 import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
+import { StepProvenanceBadge } from '../common/StepProvenanceBadge'
 import { alertDialog, confirmDialog, promptDialog } from '../../stores/useDialogStore'
 import { buildDuelDocument } from '../../utils/duelDocumentBuild'
 import { flushDuelDocumentAutosave } from '../../utils/duelDocumentAutosave'
+import { findDocumentTitleConflict } from '../../utils/duelDocumentTree'
 import { cn } from '../../lib/utils'
 
 interface ScreenplayLibrarySidebarProps {
@@ -26,29 +28,15 @@ function formatTime(timestamp: number): string {
   return `${date.getMonth() + 1}/${date.getDate()}`
 }
 
-interface SourceBadge {
-  label: string
-  title: string
-  className: string
-}
-
-function sourceBadge(entry: DuelDocumentEntry): SourceBadge | null {
-  if (entry.stepCount === 0) return null
-  if (entry.manualStepCount === 0) {
-    return {
-      label: '引擎',
-      title: `${entry.stepCount} 步全部由引擎记录，卡片处理已由引擎校验`,
-      className: 'border-emerald-500/30 text-emerald-500'
-    }
-  }
-  return {
-    label: '手动',
-    title:
-      entry.engineStepCount === 0
-        ? `${entry.stepCount} 步全部为手动编排，卡片处理未经引擎校验`
-        : `${entry.stepCount} 步中有 ${entry.manualStepCount} 步为手动编排，卡片处理未经引擎校验`,
-    className: 'border-amber-500/30 text-amber-500'
-  }
+function titleConflictMessage(
+  tree: DuelDocumentTree | null,
+  folderPath: string,
+  title: string,
+  excludeFilePath?: string
+): string | null {
+  if (!tree) return null
+  const existing = findDocumentTitleConflict(tree, folderPath, title, excludeFilePath)
+  return existing ? `已存在同名台本「${existing.title}」，请换一个标题。` : null
 }
 
 export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> = ({
@@ -109,7 +97,8 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
     const title = await promptDialog({
       title: '新建台本',
       placeholder: '台本标题',
-      confirmText: '创建'
+      confirmText: '创建',
+      validate: (value) => titleConflictMessage(tree, folderPath, value.trim() || '未命名对局')
     })
     if (title === null) return
     const trimmed = title.trim() || '未命名对局'
@@ -153,7 +142,12 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
       title: '重命名台本',
       placeholder: '台本标题',
       initialValue: entry.title,
-      confirmText: '保存'
+      confirmText: '保存',
+      validate: (value) => {
+        const nextTitle = value.trim() || entry.title
+        if (nextTitle === entry.title) return null
+        return titleConflictMessage(tree, entry.categoryPath, nextTitle, entry.filePath)
+      }
     })
     if (title === null) return
     if (entry.filePath === currentFilePath) await flushDuelDocumentAutosave()
@@ -239,7 +233,6 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
 
   const renderDocument = (entry: DuelDocumentEntry, indent: number): React.JSX.Element => {
     const active = entry.filePath === currentFilePath
-    const badge = sourceBadge(entry)
     return (
       <div
         key={entry.filePath}
@@ -262,14 +255,7 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
       >
         <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
         <span className="min-w-0 flex-1 truncate">{entry.title}</span>
-        {badge && (
-          <span
-            title={badge.title}
-            className={cn('shrink-0 rounded border px-1 text-[9px] leading-4', badge.className)}
-          >
-            {badge.label}
-          </span>
-        )}
+        <StepProvenanceBadge provenance={entry} />
         <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground/60">
           {formatTime(entry.updatedAt)}
         </span>

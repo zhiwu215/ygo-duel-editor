@@ -4,6 +4,7 @@ import { registerCdbIpc } from './cdbIpc'
 import { registerCustomCardIpc } from './customCardIpc'
 import { registerProjectIpc } from './projectIpc'
 import { registerLibraryIpc } from './libraryIpc'
+import { registerTextLibraryIpc } from './textLibraryIpc'
 import { registerNoteIpc } from './noteIpc'
 import { registerDeckIpc } from './deckIpc'
 import { registerAgentIpc } from './agentIpc'
@@ -18,6 +19,7 @@ export function registerAllIpcHandlers(): void {
   registerCustomCardIpc()
   registerProjectIpc()
   registerLibraryIpc()
+  registerTextLibraryIpc()
   registerNoteIpc()
   registerDeckIpc()
   registerAgentIpc()

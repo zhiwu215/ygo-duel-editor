@@ -20,7 +20,6 @@ const INJECT_CARD_TARGETS = new Set([
   'deck-bottom',
   'deck-shuffle',
   'grave-top',
-  'grave-bottom',
   'removed',
   'extra',
   'mzone',
@@ -316,6 +315,14 @@ export function parseEngineSessionDoc(value: unknown): EngineSessionDoc {
   }
   const timeline = value.timeline.map((node, index) => parseTimelineNode(node, index))
   const currentStepId = readString(value.currentStepId, 'currentStepId')
+  if (value.suspended !== undefined && typeof value.suspended !== 'boolean') {
+    fail('suspended 必须是布尔值。')
+  }
+  const suspended = value.suspended === true
+  const boardFingerprint =
+    value.boardFingerprint === undefined
+      ? undefined
+      : readString(value.boardFingerprint, 'boardFingerprint')
 
   const nodeById = new Map<string, EngineTimelineNode>()
   for (const node of timeline) {
@@ -354,6 +361,8 @@ export function parseEngineSessionDoc(value: unknown): EngineSessionDoc {
     ops,
     timeline,
     currentStepId,
-    timingPolicy
+    timingPolicy,
+    ...(suspended ? { suspended: true } : {}),
+    ...(boardFingerprint !== undefined ? { boardFingerprint } : {})
   }
 }

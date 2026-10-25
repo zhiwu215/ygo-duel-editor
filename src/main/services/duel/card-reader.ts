@@ -1,5 +1,5 @@
 import { CardData } from 'ygopro-msg-encode'
-import { CardType, CdbCard } from '@shared/index'
+import { CardType, CdbCard, placeholderCardType, placeholderKindOf } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
 import { splitSetcode } from '../../db/setcode'
 
@@ -54,6 +54,24 @@ export function engineCardDataFromCdbCard(card: CdbCard): Partial<CardData> {
 }
 
 export function readEngineCardData(code: number): Partial<CardData> | null {
+  const placeholderKind = placeholderKindOf(code)
+  if (placeholderKind) {
+    return {
+      code,
+      alias: 0,
+      setcode: [],
+      type: placeholderCardType(placeholderKind),
+      level: 0,
+      lscale: 0,
+      rscale: 0,
+      attribute: 0,
+      race: 0,
+      attack: 0,
+      defense: 0,
+      linkMarker: 0,
+      ruleCode: 0
+    }
+  }
   const card = cdbService.getCardById(code)
   if (!card) return null
   return engineCardDataFromCdbCard(card)

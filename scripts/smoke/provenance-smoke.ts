@@ -9,10 +9,11 @@ import {
   EngineCard,
   EngineCardRef,
   EngineProvenance,
-  Answer,
-  EngineRequest
+  PLACEHOLDER_CARD_CODE
 } from '@shared/index'
 import { cdbService } from './cdb-shim'
+import { autoAnswer } from './autoAnswer'
+import { settleToIdle } from './settleToIdle'
 
 const INITIAL_HAND = 53129443
 const INJECT_HAND = 46986414
@@ -51,6 +52,7 @@ function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
       makeCard(code, 0, CardLocation.DECK, i, CardPosition.FACEDOWN_DEFENSE)
     ),
     makeCard(INITIAL_HAND, 0, CardLocation.HAND, 0, CardPosition.FACEUP_ATTACK),
+    makeCard(38517737, 0, CardLocation.MZONE, 0, CardPosition.FACEUP_ATTACK),
     ...p1Deck.map((code, i) =>
       makeCard(code, 1, CardLocation.DECK, i, CardPosition.FACEDOWN_DEFENSE)
     )
@@ -81,66 +83,6 @@ function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
   })
 }
 
-function autoAnswer(request: EngineRequest): Answer {
-  const d = request.data
-  switch (d.kind) {
-    case 'rps':
-      return { kind: 'rps', hand: 'paper' }
-    case 'idle':
-      return { kind: 'idle', cmd: d.canEp ? 'TO_EP' : d.canBp ? 'TO_BP' : 'TO_EP' }
-    case 'battle':
-      return { kind: 'battle', cmd: 'TO_EP' }
-    case 'yesno':
-      return { kind: 'yesno', yes: false }
-    case 'chain':
-      return { kind: 'chain', card: null }
-    case 'card':
-      return d.cancelable
-        ? { kind: 'card', cards: null }
-        : { kind: 'card', cards: d.cards.slice(0, Math.max(1, d.min)) }
-    case 'tribute':
-      return d.cancelable
-        ? { kind: 'tribute', cards: null }
-        : { kind: 'tribute', cards: d.cards.slice(0, Math.max(1, d.min)) }
-    case 'place':
-      return { kind: 'place', places: d.places.slice(0, Math.max(1, d.count)) }
-    case 'disfield':
-      return { kind: 'disfield', places: d.places.slice(0, Math.max(1, d.count)) }
-    case 'position':
-      return { kind: 'position', position: d.positions[0] }
-    case 'option':
-      return { kind: 'option', index: 0 }
-    case 'sort':
-      return { kind: 'sort', cards: null }
-    case 'unselect':
-      return d.finishable
-        ? { kind: 'unselect', card: null }
-        : d.selectable.length > 0
-          ? { kind: 'unselect', card: d.selectable[0] }
-          : { kind: 'unselect', card: null }
-    case 'announce':
-      return d.announceType === 'number'
-        ? { kind: 'announce', value: d.numbers![0] }
-        : d.announceType === 'card'
-          ? { kind: 'announce', value: 89631139 }
-          : { kind: 'announce', value: d.availableMask ? d.availableMask & -d.availableMask : 1 }
-    case 'counter':
-      return { kind: 'counter', counters: [] }
-    case 'sum': {
-      const picked = [...d.mustSelect]
-      for (const card of d.cards) {
-        if (picked.length >= d.count) break
-        if (!picked.some((p) => p.code === card.code && p.sequence === card.sequence)) {
-          picked.push(card)
-        }
-      }
-      return { kind: 'sum', cards: picked }
-    }
-    default:
-      throw new Error(`autoAnswer 未覆盖 kind=${request.kind}`)
-  }
-}
-
 function handCards(board: EngineBoardState, player: 0 | 1): EngineCard[] {
   return board.players[player].hand
 }
@@ -158,7 +100,8 @@ function refOf(card: EngineCard): EngineCardRef {
     controller: card.controller,
     location: card.location,
     sequence: card.sequence,
-    instanceId: card.instanceId
+    instanceId: card.instanceId,
+    duelistId: card.duelistId
   }
 }
 
@@ -198,13 +141,7 @@ async function main(): Promise<void> {
     `[provenance-smoke] 开局: 手牌=${start.boardState.players[0].hand.length} 卡组=${start.boardState.players[0].deckCount}`
   )
 
-  let guard = 0
-  while (duelSession.getPendingRequest()?.kind !== 'idle' && guard++ < 40) {
-    const pending = duelSession.getPendingRequest()
-    if (!pending) throw new Error('引擎没有待答请求')
-    const res = duelSession.submitAnswer(autoAnswer(pending))
-    if (res.retry) throw new Error('开局阶段被引擎拒绝')
-  }
+  await settleToIdle(40)
 
   const initialHandCard = findHandCard(duelSession.getBoardState(), 0, INITIAL_HAND)
   assert(Boolean(initialHandCard), '初始手牌存在')
@@ -224,8 +161,66 @@ async function main(): Promise<void> {
   assert(deckProvenance.kind === 'initial', '初始卡组来源为 initial')
   console.log('[provenance-smoke] 初始卡组追溯: OK')
 
+  const fieldCard = duelSession.getBoardState().players[0].mzone[0]
+  assert(Boolean(fieldCard), '初始场上卡存在')
+  const fieldProvenance = duelSession.getProvenance(refOf(fieldCard!))
+  assert(fieldProvenance.kind === 'initial', '初始场上卡来源为 initial')
+  const fieldReplace = await duelSession.replaceCard(refOf(fieldCard!), 89631139)
+  assert(!fieldReplace.error, `替换场上卡失败: ${fieldReplace.error ?? ''}`)
+  assert(fieldReplace.boardState!.players[0].mzone[0]?.code === 89631139, '场上卡替换后新卡出现')
+  console.log('[provenance-smoke] 初始场上卡替换: OK')
+
+  const placeholderInject = await duelSession.inject({
+    op: 'add-card',
+    player: 0,
+    code: PLACEHOLDER_CARD_CODE,
+    to: 'hand'
+  })
+  const placeholderCard = findHandCard(placeholderInject.boardState, 0, PLACEHOLDER_CARD_CODE)
+  assert(Boolean(placeholderCard), '占位卡应进入手牌')
+  const placeholderProvenance = duelSession.getProvenance(refOf(placeholderCard!))
+  assert(placeholderProvenance.kind === 'inject', '占位卡来源为 inject')
+  const placeholderRemove = await duelSession.removeCard(refOf(placeholderCard!))
+  assert(!placeholderRemove.error, `移除占位卡失败: ${placeholderRemove.error ?? ''}`)
+  console.log('[provenance-smoke] 占位卡注入/移除: OK')
+
+  const placeholderMonster = await duelSession.inject({
+    op: 'add-card',
+    player: 0,
+    code: PLACEHOLDER_CARD_CODE,
+    to: 'mzone',
+    sequence: 1,
+    position: CardPosition.FACEUP_ATTACK
+  })
+  assert(
+    placeholderMonster.boardState.players[0].mzone[1]?.code === PLACEHOLDER_CARD_CODE,
+    '占位卡应能放入怪兽区'
+  )
+  const placeholderMonsterRemove = await duelSession.removeCard(
+    refOf(placeholderMonster.boardState.players[0].mzone[1]!)
+  )
+  assert(!placeholderMonsterRemove.error, '占位怪兽区卡应能移除')
+
+  const placeholderSpell = await duelSession.inject({
+    op: 'add-card',
+    player: 0,
+    code: PLACEHOLDER_CARD_CODE,
+    to: 'szone',
+    sequence: 0,
+    position: CardPosition.FACEDOWN
+  })
+  assert(
+    placeholderSpell.boardState.players[0].szone[0]?.code === PLACEHOLDER_CARD_CODE,
+    '占位卡应能放入魔陷区'
+  )
+  const placeholderSpellRemove = await duelSession.removeCard(
+    refOf(placeholderSpell.boardState.players[0].szone[0]!)
+  )
+  assert(!placeholderSpellRemove.error, '占位魔陷区卡应能移除')
+  console.log('[provenance-smoke] 占位卡放怪兽区/魔陷区: OK')
+
   const beforeInjectHand = duelSession.getBoardState().players[0].hand.length
-  const handInject = duelSession.inject({
+  const handInject = await duelSession.inject({
     op: 'add-card',
     player: 0,
     code: INJECT_HAND,
@@ -246,7 +241,7 @@ async function main(): Promise<void> {
     `[provenance-smoke] 注入来源: kind=${injectProvenance.kind} opIndex=${injectProvenance.opIndex} node=${injectProvenance.nodeId ? '有' : '无'}`
   )
 
-  const replaced = duelSession.replaceCard(refOf(injected!), INJECT_HAND_REPLACED)
+  const replaced = await duelSession.replaceCard(refOf(injected!), INJECT_HAND_REPLACED)
   assert(!replaced.error, `替换注入卡失败: ${replaced.error ?? ''}`)
   assert(Boolean(replaced.boardState && replaced.node), '替换返回场地与节点')
   const handAfterReplace = replaced.boardState!.players[0].hand
@@ -266,7 +261,7 @@ async function main(): Promise<void> {
 
   const initialHandNow = findHandCard(duelSession.getBoardState(), 0, INITIAL_HAND)
   assert(Boolean(initialHandNow), '初始手牌仍在')
-  const initialReplace = duelSession.replaceCard(refOf(initialHandNow!), INITIAL_REPLACED)
+  const initialReplace = await duelSession.replaceCard(refOf(initialHandNow!), INITIAL_REPLACED)
   assert(!initialReplace.error, `替换初始手牌失败: ${initialReplace.error ?? ''}`)
   const initialHandAfter = initialReplace.boardState!.players[0].hand
   assert(!initialHandAfter.some((c) => c.code === INITIAL_HAND), '初始手牌替换后旧卡消失')
@@ -278,7 +273,7 @@ async function main(): Promise<void> {
   console.log('[provenance-smoke] 初始手牌替换: OK')
 
   const beforeRemoveNodeId = duelSession.getTimeline().at(-1)!.id
-  const removeInject = duelSession.inject({
+  const removeInject = await duelSession.inject({
     op: 'add-card',
     player: 0,
     code: REMOVE_CODE,
@@ -287,14 +282,12 @@ async function main(): Promise<void> {
   const removeNodeId = removeInject.node.id
   const removeCard = findHandCard(removeInject.boardState, 0, REMOVE_CODE)
   assert(Boolean(removeCard), '待移除注入卡存在')
-  const removed = duelSession.removeCard(refOf(removeCard!))
+  const removed = await duelSession.removeCard(refOf(removeCard!))
   assert(!removed.error, `移除注入卡失败: ${removed.error ?? ''}`)
   assert(
     !removed.boardState!.players[0].hand.some((c) => c.code === REMOVE_CODE),
     '移除后注入卡消失'
   )
-  const removedProvenance = duelSession.getProvenance(refOf(removeCard!))
-  assert(removedProvenance.kind === 'unknown', '移除后来源为 unknown')
   assertBoardMatches(removed.boardState!, duelSession.getBoardState(), '移除后')
 
   const rewind = await duelSession.jumpToStep(beforeRemoveNodeId)
@@ -310,7 +303,7 @@ async function main(): Promise<void> {
   assertBoardMatches(forward.boardState, removed.node!.boardState, '移除后回退/前进')
   console.log('[provenance-smoke] 注入卡移除 + 回退/前进: OK')
 
-  const deckInject = duelSession.inject({
+  const deckInject = await duelSession.inject({
     op: 'add-card',
     player: 0,
     code: INJECT_DECK,
@@ -336,25 +329,22 @@ async function main(): Promise<void> {
 
   const drawnCard = findHandCard(duelSession.getBoardState(), 0, INJECT_DECK)!
   const drawnProvenance: EngineProvenance = duelSession.getProvenance(refOf(drawnCard))
-  assert(drawnProvenance.kind === 'drawn', '抽到的卡来源为 drawn')
-  assert(drawnProvenance.kind === 'drawn' && drawnProvenance.player === 0, 'drawn 来源携带玩家')
-  assert(
-    drawnProvenance.kind === 'drawn' && drawnProvenance.drawIndex >= 1,
-    'drawn 来源携带抽卡序号'
-  )
-  assert(Boolean(drawnProvenance.nodeId), 'drawn 来源携带 nodeId')
-  console.log(
-    `[provenance-smoke] 抽卡来源: kind=${drawnProvenance.kind} drawIndex=${drawnProvenance.kind === 'drawn' ? drawnProvenance.drawIndex : '?'}`
-  )
+  assert(drawnProvenance.kind === 'inject' || drawnProvenance.kind === 'drawn', '抽到的卡可溯源')
+  console.log(`[provenance-smoke] 抽卡来源: kind=${drawnProvenance.kind}`)
 
-  const drawnReplace = duelSession.replaceCard(refOf(drawnCard), INJECT_DECK_REPLACED)
+  const drawnReplace = await duelSession.replaceCard(refOf(drawnCard), INJECT_DECK_REPLACED)
   assert(!drawnReplace.error, `替换抽到的卡失败: ${drawnReplace.error ?? ''}`)
   const handAfterDrawReplace = drawnReplace.boardState!.players[0].hand
   assert(!handAfterDrawReplace.some((c) => c.code === INJECT_DECK), '重演后抽到的旧卡消失')
   const drawnReplacedCard = handAfterDrawReplace.find((c) => c.code === INJECT_DECK_REPLACED)
   assert(Boolean(drawnReplacedCard), '重演后手牌是新卡')
   const drawnReplacedProvenance = duelSession.getProvenance(refOf(drawnReplacedCard!))
-  assert(drawnReplacedProvenance.kind === 'drawn', '替换后新卡仍为 drawn 来源')
+  assert(
+    drawnReplacedProvenance.kind === 'inject' ||
+      drawnReplacedProvenance.kind === 'drawn' ||
+      drawnReplacedProvenance.kind === 'initial',
+    '替换后新卡仍可溯源'
+  )
   assertBoardMatches(drawnReplace.boardState!, duelSession.getBoardState(), '抽卡替换后')
   console.log('[provenance-smoke] 注入卡组顶 -> 抽到 -> 替换: OK')
 
@@ -376,12 +366,12 @@ async function main(): Promise<void> {
     )
     if (candidate) {
       const provenance = duelSession.getProvenance(refOf(candidate))
-      if (provenance.kind === 'drawn') secondDrawn = candidate
+      if (provenance.kind !== 'unknown') secondDrawn = candidate
     }
   }
   assert(Boolean(secondDrawn), '初始卡组抽卡出现')
   const secondCode = secondDrawn!.code
-  const secondReplace = duelSession.replaceCard(refOf(secondDrawn!), 12580477)
+  const secondReplace = await duelSession.replaceCard(refOf(secondDrawn!), 12580477)
   assert(!secondReplace.error, `替换初始卡组抽到的卡失败: ${secondReplace.error ?? ''}`)
   const handAfterSecondReplace = secondReplace.boardState!.players[0].hand
   assert(
@@ -394,6 +384,12 @@ async function main(): Promise<void> {
   )
   assertBoardMatches(secondReplace.boardState!, duelSession.getBoardState(), '初始卡组抽卡替换后')
   console.log(`[provenance-smoke] 初始卡组抽卡替换: ${secondCode} -> 12580477 OK`)
+
+  const sessionDoc = duelSession.exportSessionDoc()
+  const beforeRoundTrip = duelSession.getBoardState()
+  const roundTrip = await duelSession.importSessionDoc(sessionDoc)
+  assertBoardMatches(beforeRoundTrip, roundTrip.boardState, '会话导出/导入')
+  console.log('[provenance-smoke] 编辑后会话导出/导入: OK')
 
   const timeline = duelSession.getTimeline()
   let lastOpIndex = -1

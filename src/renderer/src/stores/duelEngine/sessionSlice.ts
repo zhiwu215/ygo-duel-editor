@@ -5,11 +5,15 @@ import {
   EngineSessionDoc,
   InjectCommand,
   alignFirstPlayerSeat,
+  computeBoardFingerprint,
+  createLightweightSnapshot,
   isEngineSupportedMatch,
-  normalizeTimingPolicy
+  normalizeTimingPolicy,
+  reversePileSequences,
+  reverseStepBoards
 } from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
-import { reversePileSequences } from '../../utils/pileSequences'
+import { detachStepsFromTimeline } from '../../utils/stepHistory'
 import { syncJumpToStepWrapped } from './boardReconcile'
 import { chainStateAtNode } from './chainState'
 import { engineErrorMessage } from './engineErrorMessage'
@@ -17,7 +21,6 @@ import { clearIdentities } from './identityMap'
 import {
   appendDiscardNotice,
   clearEngineSteps,
-  clearEditorSteps,
   discardFutureSteps,
   restoreEngineSteps,
   splitTimeline
@@ -44,6 +47,29 @@ function enterEnginePileOrder(): void {
   }))
 }
 
+function preserveStepsForNewSession(reverseBoards: boolean): void {
+  useDuelStore.setState((prev) => {
+    const steps = prev.state.steps
+    if (!steps || steps.length === 0) return prev
+    const detached = detachStepsFromTimeline(steps)
+    return {
+      ...prev,
+      state: {
+        ...prev.state,
+        steps: reverseBoards ? reverseStepBoards(detached) : detached
+      }
+    }
+  })
+}
+
+function restoreStepPileOrder(): void {
+  useDuelStore.setState((prev) => {
+    const steps = prev.state.steps
+    if (!steps || steps.length === 0) return prev
+    return { ...prev, state: { ...prev.state, steps: reverseStepBoards(steps) } }
+  })
+}
+
 export interface SessionSlice {
   engineMode: EngineMode
   isInitialized: boolean
@@ -53,9 +79,13 @@ export interface SessionSlice {
   handShuffle: HandShuffleSignal | null
   boardChains: DuelChainCard[]
   mergedMatch: boolean
+  suspendedDoc: EngineSessionDoc | null
 
   startEngine: (options?: { allowMergedMatch?: boolean }) => Promise<void>
   stopEngine: () => void
+  suspendEngine: () => Promise<void>
+  resumeSuspended: () => Promise<boolean>
+  setSuspendedDoc: (doc: EngineSessionDoc | null) => void
   inject: (command: InjectCommand) => Promise<boolean>
   clearInjectNotice: () => void
   clearError: () => void
@@ -75,6 +105,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   handShuffle: null,
   boardChains: [],
   mergedMatch: false,
+  suspendedDoc: null,
 
   startEngine: async (options) => {
     const support = window.api.getDuelEngineSupport ? await window.api.getDuelEngineSupport() : null
@@ -93,6 +124,9 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       })
       return
     }
+    if (useDuelStore.getState().sceneEditing) {
+      useDuelStore.getState().exitSceneMode()
+    }
     set({ loading: true, error: null })
     const wasInitialized = get().isInitialized
     try {
@@ -104,6 +138,17 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
         )
       }
       const currentDuelState = structuredClone(aligned)
+      if ((currentDuelState.steps ?? []).length === 0) {
+        const openingCards = createLightweightSnapshot(currentDuelState.cards)
+        useDuelStore.setState((prev) => ({
+          ...prev,
+          state: {
+            ...prev.state,
+            initialBoardSnapshot: openingCards,
+            initialLp: [prev.state.players[0]?.lp ?? 8000, prev.state.players[1]?.lp ?? 8000]
+          }
+        }))
+      }
       duelStore.commitPreview()
       await window.api.duelEngineSetPolicy(get().timingPolicy)
 
@@ -113,15 +158,18 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
 
       const res = await window.api.duelEngineInit(initParams)
       clearEngineSteps()
-      if (!wasInitialized) clearEditorSteps()
-      clearIdentities()
-      if (!wasInitialized) enterEnginePileOrder()
+      if (!wasInitialized) {
+        clearIdentities()
+        enterEnginePileOrder()
+      }
+      preserveStepsForNewSession(!wasInitialized)
       const timeline = [res.initialNode]
       set({
         engineMode: 'running',
         isInitialized: true,
         loading: false,
         mergedMatch,
+        suspendedDoc: null,
         boardState: res.boardState,
         pendingRequest: res.pendingRequest,
         lastAttacker: null,
@@ -130,7 +178,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
         currentStepId: res.initialNode.id
       })
       syncJumpToStepWrapped(res.boardState)
-      restoreEngineSteps(timeline)
+      restoreEngineSteps(get().timeline)
       useDuelStore.setState({ duelStarted: true })
     } catch (err) {
       console.error('[useDuelEngineStore] startEngine failed:', err)
@@ -189,9 +237,37 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
     })
   },
 
+  suspendEngine: async () => {
+    if (!get().isInitialized) return
+    if (get().replayInfo) {
+      get().stopEngine()
+      return
+    }
+    useDuelStore.getState().exitPreview()
+    const doc = await get().getSessionDoc()
+    if (!doc) {
+      set({ error: '无法读取引擎会话快照，已保留当前会话。' })
+      return
+    }
+    const boardFingerprint = computeBoardFingerprint(useDuelStore.getState().state, {
+      enginePileOrder: true
+    })
+    set({ suspendedDoc: { ...doc, suspended: true, boardFingerprint } })
+    get().stopEngine()
+  },
+
+  resumeSuspended: async () => {
+    const doc = get().suspendedDoc
+    if (!doc) return false
+    useDuelStore.getState().exitPreview()
+    return get().restoreSessionDoc(doc)
+  },
+
+  setSuspendedDoc: (doc) => set({ suspendedDoc: doc }),
+
   inject: async (command) => {
     if (!get().isInitialized) {
-      set({ error: '引擎尚未启动，无法执行剧情安排。' })
+      set({ error: '引擎尚未启动，无法执行注入。' })
       return false
     }
     set({ loading: true, error: null })
@@ -227,7 +303,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       console.error('[useDuelEngineStore] inject failed:', err)
       set({
         loading: false,
-        error: err instanceof Error ? err.message : '剧情安排执行失败'
+        error: err instanceof Error ? err.message : '注入执行失败'
       })
       return false
     }
@@ -268,6 +344,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
         loading: false,
         mergedMatch: false,
         error: null,
+        suspendedDoc: null,
         boardState: payload.boardState,
         pendingRequest: payload.pendingRequest ?? null,
         lastAttacker: null,
@@ -278,6 +355,8 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       })
       syncJumpToStepWrapped(payload.boardState)
       restoreEngineSteps(payload.timeline)
+      useDuelStore.setState({ sceneEditing: false })
+      if (doc.suspended) restoreStepPileOrder()
       useDuelStore.setState({ duelStarted: true })
       return true
     } catch (err) {

@@ -2,10 +2,12 @@ import { ipcMain } from 'electron'
 import { dataDirService } from '../services/dataDirService'
 import { customCardService } from '../services/customCardService'
 import { libraryService } from '../services/libraryService'
+import { textLibraryService } from '../services/textLibraryService'
 
 const reloadDataServices = (): void => {
   customCardService.resetCache()
   libraryService.reloadDataDirectory()
+  textLibraryService.reloadDataDirectory()
 }
 
 export function registerDataDirIpc(): void {

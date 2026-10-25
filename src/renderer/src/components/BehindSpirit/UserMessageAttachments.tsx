@@ -23,7 +23,6 @@ export function UserMessageAttachments({
             <div
               key={card.id}
               className="flex w-[220px] max-w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card/80 p-1.5 shadow-xs"
-              title={card.name}
             >
               <CardImage
                 code={card.id}
@@ -47,10 +46,7 @@ export function UserMessageAttachments({
       )}
 
       {text && (
-        <div
-          className="flex w-[220px] max-w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card/80 p-2 shadow-xs"
-          title={text.title}
-        >
+        <div className="flex w-[220px] max-w-full min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card/80 p-2 shadow-xs">
           <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
             <p className="truncate text-xs leading-tight font-medium text-foreground">

@@ -27,7 +27,6 @@ export const ChainModal: React.FC<{ request: EngineRequest; data: DataOf<'chain'
             variant="outline"
             size="sm"
             disabled={loading || data.forced}
-            title={data.forced ? '存在强制发动的效果，不能放弃连锁' : undefined}
             onClick={() => submitAnswer({ kind: 'chain', card: null })}
           >
             放弃连锁

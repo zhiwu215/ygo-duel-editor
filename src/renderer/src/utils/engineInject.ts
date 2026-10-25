@@ -1,6 +1,11 @@
-import { CardLocation, CardPosition, CardUtils, CdbCard, InjectCommand } from '@shared/index'
-
-const FIELD_ZONE_SEQUENCE = 5
+import {
+  CardLocation,
+  CardPosition,
+  CardUtils,
+  CdbCard,
+  FIELD_ZONE_SEQUENCE,
+  InjectCommand
+} from '@shared/index'
 
 export interface InjectDropTarget {
   card: CdbCard
@@ -9,10 +14,11 @@ export interface InjectDropTarget {
   sequence: number
   ctrlKey: boolean
   masterRule: number
+  position?: number
 }
 
 export function buildInjectCommand(target: InjectDropTarget): InjectCommand | null {
-  const { card, controller, location, sequence, ctrlKey, masterRule } = target
+  const { card, controller, location, sequence, ctrlKey, masterRule, position } = target
   const base = { op: 'add-card' as const, player: controller, code: card.id }
 
   switch (location) {
@@ -27,27 +33,35 @@ export function buildInjectCommand(target: InjectDropTarget): InjectCommand | nu
     case CardLocation.EXTRA:
       return { ...base, to: 'extra' }
     case CardLocation.FZONE:
-      return { ...base, to: 'fzone' }
+      return { ...base, to: 'fzone', position }
     case CardLocation.MZONE:
       return {
         ...base,
         to: 'mzone',
         sequence,
-        position: ctrlKey ? CardPosition.FACEDOWN_DEFENSE : CardPosition.FACEUP_ATTACK
+        position: position ?? (ctrlKey ? CardPosition.FACEDOWN_DEFENSE : CardPosition.FACEUP_ATTACK)
       }
     case CardLocation.SZONE: {
-      if (sequence === FIELD_ZONE_SEQUENCE) return { ...base, to: 'fzone' }
+      if (sequence === FIELD_ZONE_SEQUENCE) {
+        return { ...base, to: 'fzone', position }
+      }
       const pendulumSlot = CardUtils.isPendulum(card.type) && (sequence === 0 || sequence === 4)
       return {
         ...base,
         to: 'szone',
         sequence,
-        position: ctrlKey || pendulumSlot ? CardPosition.FACEUP : CardPosition.FACEDOWN
+        position:
+          position ?? (ctrlKey || pendulumSlot ? CardPosition.FACEUP : CardPosition.FACEDOWN)
       }
     }
     case CardLocation.PZONE: {
       const mapped = masterRule >= 4 ? (sequence === 0 ? 0 : 4) : sequence === 0 ? 6 : 7
-      return { ...base, to: 'szone', sequence: mapped, position: CardPosition.FACEUP }
+      return {
+        ...base,
+        to: 'szone',
+        sequence: mapped,
+        position: position ?? CardPosition.FACEUP
+      }
     }
     default:
       return null

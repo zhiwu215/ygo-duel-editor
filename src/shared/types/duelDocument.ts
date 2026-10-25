@@ -1,4 +1,5 @@
 import type { DuelPuzzleState } from './duel'
+import type { StepProvenance } from './story'
 import type { EngineSessionDoc } from '../engine/sessionDoc'
 
 export interface DuelDocument {
@@ -6,16 +7,13 @@ export interface DuelDocument {
   engine?: EngineSessionDoc
 }
 
-export interface DuelDocumentEntry {
+export interface DuelDocumentEntry extends StepProvenance {
   filePath: string
   fileName: string
   name: string
   title: string
   categoryPath: string
   updatedAt: number
-  stepCount: number
-  engineStepCount: number
-  manualStepCount: number
 }
 
 export interface DuelDocumentFolder {

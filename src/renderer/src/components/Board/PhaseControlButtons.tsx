@@ -30,6 +30,7 @@ export const PhaseStatusButton: React.FC = () => {
 
 export const PhaseMiddleButton: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
+  const sceneEditing = useDuelStore((s) => s.sceneEditing)
   const insertPhaseJump = useDuelStore((s) => s.insertPhaseJump)
   const activeTurnPlayer = useDuelStore((s) => s.activeTurnPlayer)
   const executeDrawCard = useDuelStore((s) => s.executeDrawCard)
@@ -38,6 +39,7 @@ export const PhaseMiddleButton: React.FC = () => {
   const canEnterBp = canBp(pendingRequest)
   const canEnterM2 = canM2(pendingRequest)
 
+  if (sceneEditing) return null
   if (currentPhase === 'DP') {
     if (isEngine) return null
     return (
@@ -99,12 +101,14 @@ export const PhaseMiddleButton: React.FC = () => {
 
 export const PhaseEpButton: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
+  const sceneEditing = useDuelStore((s) => s.sceneEditing)
   const insertPhaseJump = useDuelStore((s) => s.insertPhaseJump)
   const insertTurnChange = useDuelStore((s) => s.insertTurnChange)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const canEnterEp = canEp(pendingRequest)
 
+  if (sceneEditing) return null
   if (currentPhase === 'DP' || currentPhase === 'SP') {
     if (isEngine) return null
     return (

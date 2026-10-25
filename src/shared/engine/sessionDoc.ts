@@ -35,6 +35,8 @@ export interface EngineSessionDoc {
   timeline: EngineTimelineNode[]
   currentStepId: string
   timingPolicy: TimingPolicy
+  suspended?: boolean
+  boardFingerprint?: string
 }
 
 export interface EngineSessionImportPayload {

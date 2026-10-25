@@ -34,17 +34,15 @@ export const LibraryGrid: React.FC<LibraryGridProps> = ({
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
         <FileText className="w-10 h-10 text-muted-foreground/30 mb-3" strokeWidth={1.5} />
-        <p className="text-xs font-semibold">{search ? '没有匹配的文本' : '素材库还是空的'}</p>
-        <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed max-w-sm">
-          {search
-            ? '换个关键词试试'
-            : '支持 txt / md / epub。导入后会按章节拆分存档到本地，只需导入一次，之后随时回来挑选章节编排对局。'}
+        <p className="text-xs font-semibold">{search ? '没有匹配的文本' : '还没有导入素材文本'}</p>
+        <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed max-w-sm">
+          {search ? '换个关键词试试' : '支持 txt / md / epub。导入后会按章节拆分存档到本地。'}
         </p>
         {!search && (
           <button
             type="button"
             onClick={onImport}
-            className="mt-4 flex items-center gap-1.5 px-3 h-8 rounded-md border border-border text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer"
+            className="mt-3 flex items-center gap-1.5 px-3 h-8 rounded-md border border-border text-xs font-medium hover:bg-muted/60 transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span>导入文本</span>

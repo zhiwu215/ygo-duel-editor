@@ -20,7 +20,7 @@ const FONT_SIZE_ROWS: { role: FontSizeRole; title: string; description: string }
   {
     role: 'content',
     title: '文本字号',
-    description: '影响素材库正文、剧本台词与卡片笔记的字号'
+    description: '影响文本库正文、剧本台词与卡片笔记的字号'
   },
   {
     role: 'code',

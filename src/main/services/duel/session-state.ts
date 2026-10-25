@@ -8,6 +8,7 @@ import type {
 import { DEFAULT_TIMING_POLICY, type TimingPolicy } from '@shared/engine/protocol'
 import type { DuelOperation } from '@shared/engine/session-doc'
 import type { ReplayPlayback } from './replay-session'
+import type { ProvenanceRecord } from './provenance-tracker'
 import { FieldReader } from './field-reader'
 import { EngineTimelineManager } from './timeline-manager'
 import { createDuelLogContext, type DuelLogContext } from './duel-log'
@@ -45,6 +46,7 @@ export interface SessionState {
   replaying: boolean
   replay: ReplayPlayback | null
   recordingMessages: Uint8Array[] | null
+  provenance: Map<string, ProvenanceRecord>
 }
 
 export function createSessionState(): SessionState {
@@ -71,6 +73,7 @@ export function createSessionState(): SessionState {
     timingPolicy: { ...DEFAULT_TIMING_POLICY },
     replaying: false,
     replay: null,
-    recordingMessages: null
+    recordingMessages: null,
+    provenance: new Map()
   }
 }

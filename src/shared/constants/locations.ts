@@ -11,6 +11,8 @@ export const CardLocation = {
   PZONE: 0x200
 } as const
 
+export const FIELD_ZONE_SEQUENCE = 5
+
 export const LOCATION_NAMES: Record<number, string> = {
   [CardLocation.DECK]: '主卡组',
   [CardLocation.HAND]: '手牌',

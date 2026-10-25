@@ -35,7 +35,6 @@ function LogCardThumb({
     <div
       className="relative shrink-0 overflow-hidden rounded-[1px] border border-border bg-muted shadow-sm"
       style={{ width, height }}
-      title={nameOf(card)}
     >
       <CardThumb
         code={card.code}
@@ -202,7 +201,6 @@ export const StepLogRows: React.FC<StepLogRowsProps> = ({ step, events }) => {
           <div
             key={`log-${index}-effect`}
             className="truncate px-2 pb-1 pl-[38px] text-[9px] text-muted-foreground"
-            title={event.effectText}
           >
             {event.effectText}
           </div>
@@ -231,7 +229,6 @@ export const StepLogRows: React.FC<StepLogRowsProps> = ({ step, events }) => {
           <div
             key={`log-${index}-effect`}
             className="truncate bg-muted/30 px-2 py-1 pl-[38px] text-[9px] text-muted-foreground"
-            title={event.effectText}
           >
             {event.effectText}
           </div>

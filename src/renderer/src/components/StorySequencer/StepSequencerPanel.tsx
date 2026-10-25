@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { DuelStep, DuelPhase, PHASE_NAMES } from '@shared/index'
+import { DuelStep, DuelPhase, PHASE_NAMES, PHASE_SHORT_NAMES } from '@shared/index'
 import type { Answer } from '@shared/engine/protocol'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
@@ -10,21 +10,33 @@ import { Button } from '../ui/button'
 import { StepList } from './StepList'
 import { StepEditDialog } from './StepEditDialog'
 import { ALL_PHASES } from './stepGrouping'
+import { SCENE_STEP_INDEX } from '../../utils/openingScene'
 import { formatReplayVersus } from '../../utils/replayMatch'
 import { cn } from '../../lib/utils'
-import { ArrowLeft, ArrowRight, LogOut, Pause, PencilLine, Play, RotateCcw } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  LogOut,
+  Pause,
+  PencilLine,
+  Play,
+  RotateCcw
+} from 'lucide-react'
 
 const EMPTY_STEPS: DuelStep[] = []
 
 export const StepSequencerPanel: React.FC = () => {
   const steps = useDuelStore((state) => state.state.steps) ?? EMPTY_STEPS
   const currentStepIndex = useDuelStore((state) => state.currentStepIndex)
+  const sceneEditing = useDuelStore((state) => state.sceneEditing)
   const currentPhase = useDuelStore((state) => state.currentPhase)
   const currentChain = useDuelStore((state) => state.currentChain)
   const resetChain = useDuelStore((state) => state.resetChain)
   const insertPhaseChange = useDuelStore((state) => state.insertPhaseChange)
   const insertTurnChange = useDuelStore((state) => state.insertTurnChange)
   const insertPhaseJump = useDuelStore((state) => state.insertPhaseJump)
+  const exitSceneMode = useDuelStore((state) => state.exitSceneMode)
 
   const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const engineLoading = useDuelEngineStore((s) => s.loading)
@@ -127,6 +139,10 @@ export const StepSequencerPanel: React.FC = () => {
             <div className="flex-1 text-[10px] font-extrabold py-0.5 rounded bg-muted/30 border border-border/40 text-center text-foreground/90">
               {PHASE_NAMES[displayPhase]}
             </div>
+          ) : sceneEditing ? (
+            <div className="flex-1 text-[10px] font-extrabold py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-center text-amber-600 dark:text-amber-400">
+              布景编辑中 · 阶段推进暂停（{PHASE_SHORT_NAMES[currentPhase]}）
+            </div>
           ) : (
             <>
               <div className="flex items-center gap-0.5 bg-background/80 p-0.5 rounded-md border border-border/70 flex-1">
@@ -134,12 +150,14 @@ export const StepSequencerPanel: React.FC = () => {
                   const isActive = currentPhase === p
                   const command = enginePhaseCommand(p)
                   const engineDisabled = isEngine && !command
+                  const disabled = engineDisabled || sceneEditing
                   return (
                     <button
                       key={p}
                       type="button"
-                      disabled={engineDisabled}
+                      disabled={disabled}
                       onClick={() => {
+                        if (sceneEditing) return
                         if (isEngine) {
                           if (command) submitEngine(command)
                           return
@@ -148,7 +166,7 @@ export const StepSequencerPanel: React.FC = () => {
                       }}
                       className={cn(
                         'flex-1 text-[10px] font-extrabold py-0.5 rounded transition-all text-center',
-                        engineDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
+                        disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
                         isActive
                           ? 'bg-primary text-primary-foreground shadow-xs'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -164,8 +182,9 @@ export const StepSequencerPanel: React.FC = () => {
                 <Button
                   size="xs"
                   variant="outline"
-                  disabled={isEngine && (!advanceCommand || engineLoading)}
+                  disabled={sceneEditing || (isEngine && (!advanceCommand || engineLoading))}
                   onClick={() => {
+                    if (sceneEditing) return
                     if (isEngine) {
                       if (advanceCommand) submitEngine(advanceCommand)
                       return
@@ -180,8 +199,9 @@ export const StepSequencerPanel: React.FC = () => {
                 <Button
                   size="xs"
                   variant="secondary"
-                  disabled={isEngine && (!turnEndCmd || engineLoading)}
+                  disabled={sceneEditing || (isEngine && (!turnEndCmd || engineLoading))}
                   onClick={() => {
+                    if (sceneEditing) return
                     if (isEngine) {
                       if (turnEndCmd) submitEngine(turnEndCmd)
                       return
@@ -202,9 +222,21 @@ export const StepSequencerPanel: React.FC = () => {
 
       <div className="p-2 border-t border-border/60 bg-muted/20 flex items-center justify-between select-none shrink-0">
         <div className="flex items-center gap-1">
+          {sceneEditing && (
+            <Button
+              size="xs"
+              variant="default"
+              onClick={() => exitSceneMode()}
+              className="h-7 px-2 text-[10px] font-bold gap-1"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>完成布景</span>
+            </Button>
+          )}
           <Button
             size="icon-xs"
             variant="ghost"
+            disabled={sceneEditing}
             onClick={goReset}
             className="h-7 w-7 text-muted-foreground"
             aria-label="回到初始局面"
@@ -233,8 +265,11 @@ export const StepSequencerPanel: React.FC = () => {
             size="icon-xs"
             variant="ghost"
             disabled={
+              sceneEditing ||
               steps.length === 0 ||
-              (isReplay ? (replayStepIndex ?? -1) <= 0 : currentStepIndex === 0)
+              (isReplay
+                ? (replayStepIndex ?? -1) <= 0
+                : currentStepIndex === SCENE_STEP_INDEX || currentStepIndex === 0)
             }
             onClick={goPrev}
             className="h-7 w-7 text-muted-foreground"
@@ -248,6 +283,7 @@ export const StepSequencerPanel: React.FC = () => {
             size="icon-xs"
             variant="ghost"
             disabled={
+              sceneEditing ||
               steps.length === 0 ||
               (isReplay
                 ? replayStepIndex === steps.length - 1
@@ -266,7 +302,6 @@ export const StepSequencerPanel: React.FC = () => {
               value={speed}
               onChange={(event) => setSpeed(Number(event.target.value))}
               aria-label="播放速度"
-              title="播放速度"
               className="h-7 rounded-md border border-border/60 bg-background px-1 text-[10px] font-medium text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             >
               {speeds.map((value) => (
@@ -279,13 +314,17 @@ export const StepSequencerPanel: React.FC = () => {
         </div>
 
         <span className="text-[11px] font-mono font-medium text-muted-foreground">
-          {isReplay
-            ? (replayStepIndex ?? -1) >= 0
-              ? `第 ${(replayStepIndex ?? 0) + 1} / ${steps.length} 步`
-              : '初始局面'
-            : currentStepIndex !== null
-              ? `第 ${currentStepIndex + 1} / ${steps.length} 步`
-              : '初始局面'}
+          {sceneEditing
+            ? '布景编辑中'
+            : isReplay
+              ? (replayStepIndex ?? -1) >= 0
+                ? `第 ${(replayStepIndex ?? 0) + 1} / ${steps.length} 步`
+                : '初始局面'
+              : currentStepIndex === SCENE_STEP_INDEX
+                ? '布景'
+                : currentStepIndex !== null
+                  ? `第 ${currentStepIndex + 1} / ${steps.length} 步`
+                  : '初始局面'}
         </span>
       </div>
 

@@ -1,6 +1,7 @@
 import localCover from '../assets/textures/cover.jpg'
 import localCover2 from '../assets/textures/cover2.jpg'
 import localUnknown from '../assets/textures/unknown.jpg'
+import { isPlaceholderCard } from '@shared/index'
 
 export const CARD_BACK_IMAGE = localCover
 
@@ -19,6 +20,7 @@ export function getCardBack(controller: 0 | 1 = 0): string {
 }
 
 export function getCardImageUrl(code: number | undefined, small = false): string {
+  if (isPlaceholderCard(code)) return UNKNOWN_CARD_IMAGE
   if (!code || code <= 0) {
     return CARD_BACK_IMAGE
   }

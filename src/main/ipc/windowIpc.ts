@@ -3,7 +3,7 @@ import type { IpcMainInvokeEvent } from 'electron'
 import { deckService } from '../services/deckService'
 import { settingsWindowService } from '../services/settingsWindowService'
 import { cardNoteService } from '../services/cardNoteService'
-import { textLibraryService } from '../services/textLibraryService'
+import { textLibraryWindowService } from '../services/textLibraryWindowService'
 
 const resolveSenderWindow = (event: IpcMainInvokeEvent): BrowserWindow | null =>
   BrowserWindow.fromWebContents(event.sender)
@@ -25,7 +25,7 @@ export function registerWindowIpc(): void {
   })
 
   ipcMain.handle('window:open-text-library', async () => {
-    textLibraryService.openWindow()
+    textLibraryWindowService.openWindow()
   })
 
   ipcMain.handle('window:open-settings', async (_, section) => {

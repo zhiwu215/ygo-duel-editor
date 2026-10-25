@@ -6,11 +6,27 @@
 import fs from 'fs'
 import path from 'path'
 import { createRequire } from 'module'
+import { fileURLToPath } from 'url'
 import { cdbService } from './cdb-shim'
 import { readEngineCardData } from '../../src/main/services/duel/card-reader'
 
 declare const __filename: string
 const coreRequire = createRequire(__filename)
+
+const originalFetch = globalThis.fetch
+globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+  if (url.startsWith('file:')) {
+    const filePath = fileURLToPath(url)
+    return Promise.resolve(
+      new Response(new Uint8Array(fs.readFileSync(filePath)), {
+        status: 200,
+        headers: { 'Content-Type': 'application/wasm' }
+      })
+    )
+  }
+  return originalFetch(input, init)
+}) as typeof fetch
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ocgcoreInstance: any = null
@@ -33,6 +49,13 @@ export async function getOcgcoreEngine(): Promise<any> {
   ocgcoreInstance = await createOcgcoreWrapper({ wasmBinary })
   await bindEngineCapabilities(ocgcoreInstance)
   return ocgcoreInstance
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function createDuelFromSnapshot(snapshot: Uint8Array): Promise<any> {
+  const { createOcgcoreDuelFromSnapshot } = await import('koishipro-core.js')
+  const wasmBinary = new Uint8Array(fs.readFileSync(path.join(wasmDir(), 'libocgcore.wasm')))
+  return createOcgcoreDuelFromSnapshot(snapshot, { wasmBinary })
 }
 
 export function isEngineReady(): boolean {

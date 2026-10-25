@@ -6,58 +6,23 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
-  Hand,
-  ArrowUpToLine,
-  ArrowDownToLine,
-  Ghost,
-  Ban,
-  Layers,
   X,
-  Plus,
-  Swords
+  Plus
 } from 'lucide-react'
 import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
 import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { InjectCommand, CdbCard, CardType, CardUtils } from '@shared/index'
+import { CdbCard } from '@shared/index'
 import { setCardDragImage } from '../../utils/cardImage'
+import { CARD_SEARCH_DRAG_TYPE } from '../../utils/cardDrag'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
-import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { useDelayedLoading } from '../../hooks/useDelayedLoading'
 import { CardRowItem } from './CardRowItem'
 import { FavoriteCategoryBar } from './FavoriteCategoryBar'
 import { FavoriteCategoryPopover } from './FavoriteCategoryPopover'
-
-type AddCardTarget = Extract<InjectCommand, { op: 'add-card' }>['to']
-
-const INJECT_MENU_ITEMS: {
-  label: string
-  to: AddCardTarget
-  icon: React.ComponentType<{ className?: string }>
-}[] = [
-  { label: '加入手牌', to: 'hand', icon: Hand },
-  { label: '置于卡组顶', to: 'deck-top', icon: ArrowUpToLine },
-  { label: '置于卡组底', to: 'deck-bottom', icon: ArrowDownToLine },
-  { label: '置于墓地', to: 'grave-top', icon: Ghost },
-  { label: '除外', to: 'removed', icon: Ban },
-  { label: '加入额外卡组', to: 'extra', icon: Layers }
-]
-
-function fieldTargetFor(card: CdbCard): AddCardTarget | null {
-  if (CardUtils.isMonster(card.type)) return 'mzone'
-  if (CardUtils.isSpell(card.type) || CardUtils.isTrap(card.type)) {
-    return card.type & CardType.FIELD ? 'fzone' : 'szone'
-  }
-  return null
-}
-
-function fieldTargetLabel(target: AddCardTarget): string {
-  if (target === 'mzone') return '放置到场上'
-  return target === 'fzone' ? '放置到场地魔法区' : '放置到魔陷区'
-}
 
 export const CardSearchPanel: React.FC = () => {
   const {
@@ -83,22 +48,15 @@ export const CardSearchPanel: React.FC = () => {
 
   const { setHoveredCard } = useDuelStore()
   const { isFavorite, toggleFavorite, loadFavorites } = useFavoritesStore()
-  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
   const showSearchProgress = useDelayedLoading(isLoading)
   const [localKw, setLocalKw] = useState(keyword)
-  const [injectMenu, setInjectMenu] = useState<{ card: CdbCard; x: number; y: number } | null>(null)
   const [favoriteMenu, setFavoriteMenu] = useState<{
     card: CdbCard
     x: number
     y: number
   } | null>(null)
-  const injectMenuRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const fieldTarget = injectMenu ? fieldTargetFor(injectMenu.card) : null
-
-  const closeInjectMenu = (): void => setInjectMenu(null)
-
-  useDismissOnOutside(injectMenuRef, injectMenu !== null, closeInjectMenu)
 
   useEffect(() => {
     void loadFavorites()
@@ -125,7 +83,6 @@ export const CardSearchPanel: React.FC = () => {
   }
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>): void => {
-    setInjectMenu(null)
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
     if (scrollHeight - scrollTop - clientHeight < 300) {
       loadMore()
@@ -133,30 +90,11 @@ export const CardSearchPanel: React.FC = () => {
   }
 
   const handleDragStart = useCallback((e: React.DragEvent, card: CdbCard): void => {
+    e.dataTransfer.setData(CARD_SEARCH_DRAG_TYPE, '1')
     e.dataTransfer.setData('application/json', JSON.stringify(card))
     e.dataTransfer.effectAllowed = 'copy'
     setCardDragImage(e.dataTransfer, e.currentTarget)
   }, [])
-
-  const handleRowContextMenu = useCallback(
-    (e: React.MouseEvent, card: CdbCard): void => {
-      if (!isEngineActive) return
-      e.preventDefault()
-      e.stopPropagation()
-      setInjectMenu({ card, x: e.clientX, y: e.clientY })
-    },
-    [isEngineActive]
-  )
-
-  const injectCard = useCallback((card: CdbCard, to: AddCardTarget): void => {
-    setInjectMenu(null)
-    void useDuelEngineStore.getState().inject({ op: 'add-card', player: 0, code: card.id, to })
-  }, [])
-
-  const handleRowDoubleClick = useCallback(
-    (card: CdbCard): void => injectCard(card, 'hand'),
-    [injectCard]
-  )
 
   const handleFavoriteClick = useCallback(
     (code: number, anchor: DOMRect): void => {
@@ -279,9 +217,7 @@ export const CardSearchPanel: React.FC = () => {
                 isFavorite={isFavorite(card.id)}
                 onToggleFavorite={handleFavoriteClick}
                 onHover={setHoveredCard}
-                onDragStart={handleDragStart}
-                onContextMenu={handleRowContextMenu}
-                onRowDoubleClick={isEngineActive ? handleRowDoubleClick : undefined}
+                onDragStart={isReplay ? undefined : handleDragStart}
               />
             ))}
 
@@ -294,48 +230,6 @@ export const CardSearchPanel: React.FC = () => {
           </div>
         )}
       </div>
-
-      {injectMenu && (
-        <div
-          ref={injectMenuRef}
-          style={{
-            left: Math.max(8, Math.min(injectMenu.x, window.innerWidth - 176)),
-            top: Math.max(8, Math.min(injectMenu.y, window.innerHeight - 270))
-          }}
-          className="fixed z-[70] min-w-40 bg-popover/95 backdrop-blur-md text-popover-foreground border border-border rounded-lg shadow-2xl p-1.5 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-75 select-none"
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-b border-border/50 mb-1 truncate">
-            剧情安排：{injectMenu.card.name}
-          </div>
-          {fieldTarget && (
-            <button
-              type="button"
-              title="直接放到场上，不走召唤流程"
-              onClick={() => injectCard(injectMenu.card, fieldTarget)}
-              className="w-full flex items-center gap-2 h-7 px-2 rounded-md text-xs text-left text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-            >
-              {fieldTarget === 'mzone' ? (
-                <Swords className="w-3.5 h-3.5 shrink-0" />
-              ) : (
-                <Layers className="w-3.5 h-3.5 shrink-0" />
-              )}
-              <span>{fieldTargetLabel(fieldTarget)}</span>
-            </button>
-          )}
-          {INJECT_MENU_ITEMS.map((item) => (
-            <button
-              key={item.to}
-              type="button"
-              onClick={() => injectCard(injectMenu.card, item.to)}
-              className="w-full flex items-center gap-2 h-7 px-2 rounded-md text-xs text-left hover:bg-muted/60 transition-colors cursor-pointer"
-            >
-              <item.icon className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
 
       {favoriteMenu && (
         <FavoriteCategoryPopover

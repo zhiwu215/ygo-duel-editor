@@ -1,26 +1,15 @@
 import { useEffect, useState, type JSX } from 'react'
-import { Plus } from 'lucide-react'
 import type { FavoriteCategory } from '@shared/index'
-import { isInAnyCategory, useFavoritesStore } from '../../stores/useFavoritesStore'
+import { useFavoritesStore } from '../../stores/useFavoritesStore'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { confirmDialog, promptDialog } from '../../stores/useDialogStore'
 import { ContextMenu } from '../ui/ContextMenu'
-import { cn } from '../../lib/utils'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '../ui/select'
 
-function chipClass(active: boolean): string {
-  return cn(
-    'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors cursor-pointer',
-    active
-      ? 'border-amber-500 bg-amber-500 text-neutral-950'
-      : 'border-border/70 text-muted-foreground hover:bg-muted hover:text-foreground'
-  )
-}
+const UNGROUPED_VALUE = '__ungrouped__'
 
 export function FavoriteCategoryBar(): JSX.Element {
   const categories = useFavoritesStore((s) => s.categories)
-  const favorites = useFavoritesStore((s) => s.favorites)
-  const categorySets = useFavoritesStore((s) => s.categorySets)
-  const ungroupedCount = favorites.filter((code) => !isInAnyCategory(categorySets, code)).length
   const addCategory = useFavoritesStore((s) => s.addCategory)
   const renameCategory = useFavoritesStore((s) => s.renameCategory)
   const deleteCategory = useFavoritesStore((s) => s.deleteCategory)
@@ -31,6 +20,8 @@ export function FavoriteCategoryBar(): JSX.Element {
     y: number
     category: FavoriteCategory
   } | null>(null)
+
+  const currentCategory = categories.find((category) => category.id === favoriteCategoryId) ?? null
 
   useEffect(() => {
     if (!favoriteCategoryId) return
@@ -48,6 +39,16 @@ export function FavoriteCategoryBar(): JSX.Element {
     if (!trimmed) return
     const id = await addCategory(trimmed)
     if (id) setFilters({ favoriteCategoryId: id })
+  }
+
+  const openManageMenu = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    if (!currentCategory) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    setMenu({
+      x: rect.left,
+      y: rect.bottom + 4,
+      category: currentCategory
+    })
   }
 
   const renameCategoryPrompt = async (category: FavoriteCategory): Promise<void> => {
@@ -76,39 +77,45 @@ export function FavoriteCategoryBar(): JSX.Element {
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/40 bg-muted/10 px-2 py-1.5">
-      <button
-        type="button"
-        onClick={() => setFilters({ favoriteCategoryId: null })}
-        className={chipClass(favoriteCategoryId === null)}
+    <div className="flex shrink-0 items-center gap-2 border-b border-border/40 bg-muted/10 px-2 py-1.5">
+      <Select
+        value={favoriteCategoryId ?? UNGROUPED_VALUE}
+        onValueChange={(value) =>
+          setFilters({ favoriteCategoryId: value === UNGROUPED_VALUE ? null : value })
+        }
       >
-        未分组
-        {ungroupedCount > 0 && <span className="ml-1 font-mono opacity-70">{ungroupedCount}</span>}
-      </button>
-
-      {categories.map((category) => (
-        <button
-          key={category.id}
-          type="button"
-          onClick={() => setFilters({ favoriteCategoryId: category.id })}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            setMenu({ x: e.clientX, y: e.clientY, category })
-          }}
-          className={chipClass(favoriteCategoryId === category.id)}
-        >
-          {category.name}
-          <span className="ml-1 font-mono opacity-70">{category.cards.length}</span>
-        </button>
-      ))}
+        <SelectTrigger size="sm" className="h-6 w-44 bg-background/60 text-[11px]">
+          <span className="min-w-0 flex-1 truncate text-left">
+            {currentCategory?.name ?? '未分组'}
+          </span>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={UNGROUPED_VALUE}>未分组</SelectItem>
+          {categories.map((category) => (
+            <SelectItem key={category.id} value={category.id}>
+              {category.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       <button
         type="button"
         onClick={() => void createCategory()}
-        className="ml-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-amber-500 hover:text-amber-500"
+        className="shrink-0 rounded border border-dashed border-border px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-amber-500 hover:text-amber-500"
       >
-        <Plus className="h-3 w-3" />
+        新建分类
       </button>
+
+      {currentCategory && (
+        <button
+          type="button"
+          onClick={openManageMenu}
+          className="shrink-0 rounded border border-border px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          管理
+        </button>
+      )}
 
       {menu && (
         <ContextMenu

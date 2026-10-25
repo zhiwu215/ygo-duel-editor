@@ -40,7 +40,6 @@ export const LpInput: React.FC<LpInputProps> = ({
   return (
     <div
       aria-label={label ?? 'LP'}
-      title={label ?? 'LP'}
       className={cn(
         'relative select-none bg-black/55',
         size === 'sm' ? 'h-5 w-24' : 'h-6 w-28',

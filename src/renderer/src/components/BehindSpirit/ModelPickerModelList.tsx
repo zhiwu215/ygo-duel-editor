@@ -116,7 +116,6 @@ export function ModelPickerModelList({
                       onHover(at, event.currentTarget)
                     }}
                     onClick={() => onPick(group.id, model.id)}
-                    title={model.name ?? model.id}
                     className={PICKER_OPTION}
                   >
                     <span className="min-w-0 flex-1 truncate">{model.name ?? model.id}</span>

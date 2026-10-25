@@ -8,7 +8,8 @@ import {
   Answer,
   InjectCommand,
   TimingPolicy,
-  EngineImportReplayResult
+  EngineImportReplayResult,
+  EngineCardRef
 } from '@shared/index'
 
 export function registerDuelEngineIpc(): void {
@@ -88,6 +89,33 @@ export function registerDuelEngineIpc(): void {
 
   ipcMain.handle('duel-engine:get-pending-request', () => {
     return duelDirector.getPendingRequest()
+  })
+
+  ipcMain.handle('duel-engine:get-provenance', (_, ref: EngineCardRef) => {
+    try {
+      return duelDirector.getProvenance(ref)
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:get-provenance:', err)
+      return { kind: 'unknown' }
+    }
+  })
+
+  ipcMain.handle('duel-engine:replace-card', async (_, ref: EngineCardRef, newCode: number) => {
+    try {
+      return await duelDirector.replaceCard(ref, newCode)
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:replace-card:', err)
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('duel-engine:remove-card', async (_, ref: EngineCardRef) => {
+    try {
+      return await duelDirector.removeCard(ref)
+    } catch (err: unknown) {
+      console.error('[duelEngineIpc] Error in duel-engine:remove-card:', err)
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
   })
 
   ipcMain.handle('duel-engine:import-replay', async (event): Promise<EngineImportReplayResult> => {

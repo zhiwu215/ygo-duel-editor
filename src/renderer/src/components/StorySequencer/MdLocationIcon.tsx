@@ -2,7 +2,6 @@ import React from 'react'
 import { DuelLogCardRef } from '@shared/index'
 import { cn } from '../../lib/utils'
 import { locationIcon } from './mdpro3LogAssets'
-import { zoneLabel } from './stepLogFormat'
 
 interface MdLocationIconProps {
   card: DuelLogCardRef | undefined
@@ -18,7 +17,6 @@ export const MdLocationIcon: React.FC<MdLocationIconProps> = ({ card, size = 35,
     <span
       className={cn('relative inline-flex shrink-0 items-center justify-center', className)}
       style={{ width: size, height: size }}
-      title={zoneLabel(card)}
     >
       <img
         src={icon.base}

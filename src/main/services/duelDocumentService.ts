@@ -18,7 +18,11 @@ import {
   DuelDocumentReadResult,
   DuelDocumentWriteResult
 } from '@shared/index'
-import { parseDuelDocumentJson, serializeDuelDocument } from '@shared/index'
+import {
+  parseDuelDocumentJson,
+  serializeDuelDocument,
+  summarizeStepProvenance
+} from '@shared/index'
 import { dataDirService } from './dataDirService'
 import { sanitizeFileName } from '../utils/fileName'
 import { toErrorMessageOr } from '../utils/errors'
@@ -47,6 +51,10 @@ function uniquePath(target: string): string {
     candidate = `${base}_${index}${extension}`
   }
   return candidate
+}
+
+function isSamePath(left: string, right: string): boolean {
+  return resolve(left).toLowerCase() === resolve(right).toLowerCase()
 }
 
 export class DuelDocumentService {
@@ -109,7 +117,10 @@ export class DuelDocumentService {
     try {
       const folder = folderPath ? this.resolveRelative(folderPath) : this.rootPath
       const title = sanitizeSegment(document.state.title || '', '未命名对局')
-      const target = uniquePath(join(folder, `${title}${DOCUMENT_EXTENSION}`))
+      const target = join(folder, `${title}${DOCUMENT_EXTENSION}`)
+      if (existsSync(target)) {
+        return { success: false, error: '已存在同名台本。' }
+      }
       return this.writeDocument(target, document)
     } catch (err) {
       return { success: false, error: toErrorMessageOr(err, '新建对局文档失败') }
@@ -204,15 +215,17 @@ export class DuelDocumentService {
       }
       const document = read.document
       document.state.title = title.trim() || document.state.title
-      const target = uniquePath(
-        join(
-          dirname(filePath),
-          `${sanitizeSegment(document.state.title, '未命名对局')}${DOCUMENT_EXTENSION}`
-        )
+      const target = join(
+        dirname(filePath),
+        `${sanitizeSegment(document.state.title, '未命名对局')}${DOCUMENT_EXTENSION}`
       )
+      const keepPath = isSamePath(target, filePath)
+      if (!keepPath && existsSync(target)) {
+        return { success: false, error: '已存在同名台本。' }
+      }
       const write = this.writeDocument(target, document)
       if (!write.success) return write
-      if (target !== filePath) rmSync(filePath, { force: true })
+      if (!keepPath) rmSync(filePath, { force: true })
       return write
     } catch (err) {
       return { success: false, error: toErrorMessageOr(err, '重命名对局文档失败') }
@@ -300,13 +313,7 @@ export class DuelDocumentService {
   ): DuelDocumentEntry {
     const stat = statSync(filePath)
     const name = basename(filePath, extname(filePath))
-    const steps = document.state.steps ?? []
-    const engineStepCount = steps.filter(
-      (step) =>
-        step.origin === 'engine' ||
-        step.origin === 'replay' ||
-        (!step.origin && step.actId !== undefined)
-    ).length
+    const provenance = summarizeStepProvenance(document.state.steps)
     return {
       filePath,
       fileName: basename(filePath),
@@ -314,9 +321,7 @@ export class DuelDocumentService {
       title: document.state.title?.trim() || name,
       categoryPath,
       updatedAt: stat.mtimeMs,
-      stepCount: steps.length,
-      engineStepCount,
-      manualStepCount: steps.length - engineStepCount
+      ...provenance
     }
   }
 }

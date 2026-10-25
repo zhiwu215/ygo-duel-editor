@@ -33,6 +33,7 @@ export interface EditorStepInput {
   op?: ManualOp
   ops?: ManualOp[]
   lpChange?: { player: 0 | 1; oldLp: number; newLp: number }
+  boardBefore?: LightweightCardSnapshot[]
   boardAfter?: LightweightCardSnapshot[]
 }
 
@@ -44,6 +45,7 @@ export interface StepLabel {
 export function recordEditorStep(input: EditorStepInput): void {
   if (useDuelEngineStore.getState().isInitialized) return
   const duel = useDuelStore.getState()
+  if (duel.sceneEditing) return
   const actionPlayer = input.controller ?? duel.activeTurnPlayer
   const viewerDuelistId = duel.activeDuelistIds[actionPlayer]
   const teamDuelists = (duel.state.duelists || []).filter((d) => d.team === actionPlayer)
@@ -53,6 +55,20 @@ export function recordEditorStep(input: EditorStepInput): void {
       : undefined) ??
     teamDuelists.find((duelist) => duelist.id === viewerDuelistId) ??
     teamDuelists[0]
+  const existing = duel.state.steps || []
+  const hasActionStep = existing.some(
+    (item) => item.actionType !== 'PHASE_CHANGE' && item.actionType !== 'TURN_CHANGE'
+  )
+  if (!hasActionStep && input.boardBefore) {
+    useDuelStore.setState((prev) => ({
+      ...prev,
+      state: {
+        ...prev.state,
+        initialBoardSnapshot: input.boardBefore,
+        initialLp: [prev.state.players[0]?.lp ?? 8000, prev.state.players[1]?.lp ?? 8000]
+      }
+    }))
+  }
   const step: DuelStep = {
     id: createStepId(),
     turn: duel.currentTurn,
@@ -93,6 +109,7 @@ export function recordEditorStep(input: EditorStepInput): void {
     duel.previewStepBoard(selected + 1)
   } else {
     duel.addStep(step)
+    duel.setCurrentStepIndex((useDuelStore.getState().state.steps || []).length - 1)
   }
 }
 

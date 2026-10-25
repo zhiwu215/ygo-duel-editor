@@ -13,7 +13,10 @@ import type { FavoritesState } from '../favorites'
 import { EngineBoardState, EngineDuelInitParams, EngineTimelineNode } from '../duelEngine'
 import {
   Answer,
+  EngineCardEditResult,
+  EngineCardRef,
   EngineInjectResult,
+  EngineProvenance,
   EngineRequest,
   InjectCommand,
   TimingPolicy
@@ -66,6 +69,14 @@ import {
 } from './engine'
 import { CardNote, CardNoteEntry, CardNoteKind } from './note'
 import { TextChapter, TextMeta } from './text'
+import {
+  TextLibraryDeleteResult,
+  TextLibraryExportResult,
+  TextLibraryListResult,
+  TextLibraryReadResult,
+  TextLibrarySaveRequest,
+  TextLibraryWriteResult
+} from '../textLibrary'
 
 export interface IpcApi {
   getAppVersion: () => Promise<string>
@@ -161,6 +172,22 @@ export interface IpcApi {
   deleteText: (id: string) => Promise<{ success: boolean; error?: string }>
 
   resplitText: (id: string) => Promise<{ success: boolean; text?: TextMeta; error?: string }>
+
+  getTextLibraryTree: () => Promise<TextLibraryListResult>
+
+  readTextLibraryEntry: (relativePath: string) => Promise<TextLibraryReadResult>
+
+  saveScreenplayToTextLibrary: (request: TextLibrarySaveRequest) => Promise<TextLibraryWriteResult>
+
+  updateTextLibraryEntry: (relativePath: string, content: string) => Promise<TextLibraryWriteResult>
+
+  deleteTextLibraryEntry: (relativePath: string) => Promise<TextLibraryDeleteResult>
+
+  deleteTextLibraryFolder: (relativePath: string) => Promise<TextLibraryDeleteResult>
+
+  exportTextLibraryEntry: (relativePath: string) => Promise<TextLibraryExportResult>
+
+  onTextLibraryUpdated: (callback: () => void) => () => void
 
   openCardNoteWindow: () => Promise<void>
   openTextLibrary: () => Promise<void>
@@ -278,6 +305,9 @@ export interface IpcApi {
   duelEngineSubmitAnswer: (answer: Answer) => Promise<EngineSubmitAnswerResult>
   duelEngineInject: (command: InjectCommand) => Promise<EngineInjectResult>
   duelEngineGetPendingRequest: () => Promise<EngineRequest | null>
+  duelEngineGetProvenance: (ref: EngineCardRef) => Promise<EngineProvenance>
+  duelEngineReplaceCard: (ref: EngineCardRef, newCode: number) => Promise<EngineCardEditResult>
+  duelEngineRemoveCard: (ref: EngineCardRef) => Promise<EngineCardEditResult>
   duelEngineJumpToStep: (stepId: string) => Promise<{
     boardState: EngineBoardState
     currentStepId: string

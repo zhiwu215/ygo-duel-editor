@@ -13,6 +13,7 @@ import {
   CustomCardOpenDirResult,
   CustomCardSyncResult,
   CustomCardSyncTarget,
+  PLACEHOLDER_SPELL_TRAP_CARD_CODE,
   customPoolMask
 } from '@shared/index'
 import { configService } from './configService'
@@ -21,6 +22,7 @@ import { writeCustomCardsCdb } from './customCardLibrary'
 import { getCustomScriptInfo } from './customCardScript'
 import { cdbService } from '../db/cdbService'
 import { CUSTOM_CDB_NAME, invalidateGameContentScan } from './gameContent'
+import { placeholderGameCards, placeholderSpellScript } from './placeholderGameCards'
 import { broadcastToWindows } from './broadcast'
 
 const MANIFEST_NAME = '.yde-custom-sync.json'
@@ -177,7 +179,7 @@ export async function syncCustomCardsToGame(): Promise<CustomCardSyncResult> {
   try {
     const cards = customCardService.list()
     await writeCustomCardsCdb(
-      cards,
+      [...cards, ...placeholderGameCards()],
       join(expansionsDir, CUSTOM_CDB_NAME),
       customPoolMask(cdbService.getPoolSchema())
     )
@@ -197,6 +199,12 @@ export async function syncCustomCardsToGame(): Promise<CustomCardSyncResult> {
         desiredPics.add(toRelative(expansionsDir, target))
       }
     }
+
+    const placeholderScriptPath = join(scriptDir, `c${PLACEHOLDER_SPELL_TRAP_CARD_CODE}.lua`)
+    mkdirSync(scriptDir, { recursive: true })
+    writeFileSync(placeholderScriptPath, placeholderSpellScript(), 'utf-8')
+    result.scripts++
+    desiredScripts.add(toRelative(expansionsDir, placeholderScriptPath))
 
     for (const relativePath of [...previous.scripts, ...previous.pics]) {
       if (desiredScripts.has(relativePath) || desiredPics.has(relativePath)) continue

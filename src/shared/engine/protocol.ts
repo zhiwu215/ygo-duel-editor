@@ -169,7 +169,6 @@ export type InjectCommand =
         | 'deck-bottom'
         | 'deck-shuffle'
         | 'grave-top'
-        | 'grave-bottom'
         | 'removed'
         | 'extra'
         | 'mzone'
@@ -194,4 +193,45 @@ export interface EngineInjectResult {
   boardState: EngineBoardState
   node: EngineTimelineNode
   warning?: string
+}
+
+export interface EngineCardRef {
+  controller: 0 | 1
+  location: number
+  sequence: number
+  instanceId?: string
+  duelistId?: string
+}
+
+export type EngineProvenance =
+  | {
+      kind: 'initial'
+      controller: 0 | 1
+      location: number
+      sequence: number
+      code: number
+      duelistId?: string
+    }
+  | {
+      kind: 'inject'
+      opIndex: number
+      nodeId: string | null
+      command: InjectCommand
+    }
+  | {
+      kind: 'drawn'
+      opIndex: number
+      nodeId: string | null
+      player: 0 | 1
+      drawIndex: number
+    }
+  | { kind: 'unknown' }
+
+export interface EngineCardEditResult {
+  boardState?: EngineBoardState
+  pendingRequest?: EngineRequest | null
+  node?: EngineTimelineNode
+  currentStepId?: string
+  warning?: string
+  error?: string
 }

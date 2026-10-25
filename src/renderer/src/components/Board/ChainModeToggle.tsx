@@ -17,35 +17,30 @@ interface ChainModeOption {
   value: ChainPolicy
   label: string
   icon: LucideIcon
-  description: string
 }
 
 const SMART_CHAIN_MODE: ChainModeOption = {
   value: 'smart',
   label: '智能连锁',
-  icon: ChainSmartIcon,
-  description: '仅在关键时点询问（可选诱发、连锁结算中），其余窗口自动通过'
+  icon: ChainSmartIcon
 }
 
 const CHAIN_MODES: ChainModeOption[] = [
   {
     value: 'all',
     label: '全部连锁',
-    icon: ChainAllIcon,
-    description: '每个连锁窗口都询问，包含没有候选的空窗口'
+    icon: ChainAllIcon
   },
   {
     value: 'ignore',
     label: '忽略连锁',
-    icon: ChainBrokenIcon,
-    description: '无强制效果时从不询问连锁'
+    icon: ChainBrokenIcon
   },
   SMART_CHAIN_MODE,
   {
     value: 'available',
     label: '可用连锁',
-    icon: ChainAvailableIcon,
-    description: '只要有可连锁候选就停下询问'
+    icon: ChainAvailableIcon
   }
 ]
 
@@ -68,7 +63,6 @@ export const ChainModeToggle: React.FC = () => {
             className="h-7 px-2.5 text-[11px] font-medium gap-1 bg-background/60 text-foreground border-border hover:bg-accent hover:text-accent-foreground cursor-pointer"
           />
         }
-        title={`时点策略：${current.label}`}
         aria-label={`时点策略：${current.label}`}
       >
         <span>{current.label}</span>
@@ -80,7 +74,6 @@ export const ChainModeToggle: React.FC = () => {
           return (
             <DropdownMenuItem
               key={mode.value}
-              title={mode.description}
               className="items-center gap-2 cursor-pointer"
               onClick={() => update(mode.value)}
             >

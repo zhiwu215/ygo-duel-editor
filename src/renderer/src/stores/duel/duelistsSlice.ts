@@ -28,7 +28,7 @@ export interface DuelistsSlice {
   toggleSharedLp: () => void
 }
 
-export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice> = (set) => ({
+export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice> = (set, get) => ({
   expandedDuelistId: null,
   activeDuelistIds: [null, null],
   setExpandedDuelistId: (id) => set({ expandedDuelistId: id }),
@@ -41,7 +41,8 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
       return { activeDuelistIds }
     }),
 
-  switchMatchConfig: (newConfig) =>
+  switchMatchConfig: (newConfig) => {
+    if (get().sceneEditing) get().exitSceneMode()
     set((prev) => {
       const currentConfig = normalizeMatchConfig(
         prev.state.matchConfig || {
@@ -78,6 +79,7 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
         activeDuelistIds: [null, null] as [string | null, string | null],
         selectedCardId: null,
         currentStepIndex: null,
+        sceneEditing: false,
         currentTurn: 1,
         currentPhase: 'DP' as const,
         currentChain: 0
@@ -130,7 +132,8 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
         ...resetRuntime,
         duelStarted: false
       }
-    }),
+    })
+  },
 
   updateDuelist: (duelistId, patch) =>
     set((prev) => {

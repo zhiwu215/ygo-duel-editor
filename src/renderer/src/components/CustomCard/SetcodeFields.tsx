@@ -64,7 +64,6 @@ export const SetcodeFields: React.FC<SetcodeFieldsProps> = ({
                 onChange={(event) => onChange(index, formatSetcodeInput(event.target.value))}
                 onFocus={(event) => event.currentTarget.select()}
                 aria-label={`字段 ${index + 1} 代码`}
-                title="直接输入 4 位十六进制；0x 只是前缀"
                 placeholder="0000"
                 maxLength={6}
                 spellCheck={false}
@@ -83,13 +82,6 @@ export const SetcodeFields: React.FC<SetcodeFieldsProps> = ({
               variant="ghost"
               size="icon-xs"
               disabled={!hasCode || Boolean(knownName)}
-              title={
-                knownName
-                  ? '名称来自 strings.conf'
-                  : hasCode
-                    ? '给这个自定义代码起一个本地名称'
-                    : '先填写字段代码'
-              }
               aria-label="编辑字段名称"
               onClick={() => onRename(normalizedHex)}
             >

@@ -1,6 +1,7 @@
 import { OcgcoreDuelOptionFlag, OcgcoreDuelRule, _OcgcoreConstants } from 'koishipro-core.js'
 import {
   CardLocation,
+  FIELD_ZONE_SEQUENCE,
   createStandardTagDuelists,
   findTagHandMismatches,
   formatTagHandMismatches,
@@ -11,8 +12,6 @@ import type { DuelPuzzleState, EngineDuelInitParams, FieldCard } from '@shared/i
 import type { SessionState } from './session-state'
 
 const { OcgcoreScriptConstants } = _OcgcoreConstants
-
-const FIELD_ZONE_SEQUENCE = 5
 
 const MASTER_RULE_TO_DUEL_RULE: Record<number, OcgcoreDuelRule> = {
   2: OcgcoreDuelRule.Rule2,

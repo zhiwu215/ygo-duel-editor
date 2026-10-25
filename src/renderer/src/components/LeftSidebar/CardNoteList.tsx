@@ -156,7 +156,6 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
                 <button
                   type="button"
                   disabled={!canSync}
-                  title={canSync ? '自定义卡同步' : '未配置游戏目录'}
                   aria-label="自定义卡同步"
                   className="flex items-center gap-0.5 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer disabled:pointer-events-none disabled:opacity-40"
                 >
@@ -184,7 +183,6 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
               </button>
               <button
                 type="button"
-                title="打开脚本目录"
                 onClick={() => {
                   setGameMenuOpen(false)
                   void openSyncDirectory('script')
@@ -196,7 +194,6 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
               </button>
               <button
                 type="button"
-                title="打开卡库目录"
                 onClick={() => {
                   setGameMenuOpen(false)
                   void openSyncDirectory('cdb')
@@ -208,7 +205,6 @@ export const CardNoteList: React.FC<CardNoteListProps> = ({
               </button>
               <button
                 type="button"
-                title="打开卡图目录"
                 onClick={() => {
                   setGameMenuOpen(false)
                   void openSyncDirectory('pics')

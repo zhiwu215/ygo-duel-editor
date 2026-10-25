@@ -50,6 +50,7 @@ export function executeEditorAttack(attacker: FieldCard, target: FieldCard | nul
     lpChange = { player, oldLp, newLp }
   }
   const destroyedCards = duel.state.cards.filter((c) => destroyedIds.has(c.instanceId))
+  const boardBefore = createLightweightSnapshot(duel.state.cards)
   const destroyedGraveKeys = new Set(destroyedCards.map(duelistKey))
   const boardAfter = createLightweightSnapshot(
     duel.state.cards.filter((c) => !destroyedIds.has(c.instanceId))
@@ -94,6 +95,7 @@ export function executeEditorAttack(attacker: FieldCard, target: FieldCard | nul
       targetCardName: targetName ?? undefined,
       targetPlayer: targetName ? undefined : opponent,
       description,
+      boardBefore,
       boardAfter,
       ops,
       lpChange

@@ -1,4 +1,4 @@
-import { ContentCoverageDetail } from '@shared/index'
+import { ContentCoverageDetail, isPlaceholderCard } from '@shared/index'
 
 export function formatCoverageWarning(
   coverage: ContentCoverageDetail,
@@ -16,6 +16,17 @@ export function formatCoverageWarning(
     )
   }
   return parts.join('\n')
+}
+
+export function coverageAdvice(coverage: ContentCoverageDetail): string {
+  const ids = [...new Set([...coverage.missingDataIds, ...coverage.missingScriptIds])]
+  if (ids.length > 0 && ids.every(isPlaceholderCard)) {
+    return '占位卡会随「同步并启动」写入游戏的自定义卡库 (yde-custom.cdb)，无需准备扩展卡库。'
+  }
+  if (ids.some(isPlaceholderCard)) {
+    return '这些内容通常来自扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏。占位卡会随「同步并启动」写入游戏的自定义卡库。'
+  }
+  return '这些内容通常来自扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏。'
 }
 
 function sampleIds(ids: number[], names: Record<number, string>): string {

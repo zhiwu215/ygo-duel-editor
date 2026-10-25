@@ -11,7 +11,10 @@ import {
   InjectCommand,
   TimingPolicy,
   EngineSessionDoc,
-  EngineSessionImportPayload
+  EngineSessionImportPayload,
+  EngineCardRef,
+  EngineCardEditResult,
+  EngineProvenance
 } from '@shared/index'
 import { getOcgcoreEngine } from './ocgcore-engine'
 import { duelSession } from './duel-session'
@@ -70,6 +73,18 @@ export class DuelDirector {
     return duelSession.jumpToStep(stepId)
   }
 
+  getProvenance(ref: EngineCardRef): EngineProvenance {
+    return duelSession.getProvenance(ref)
+  }
+
+  async replaceCard(ref: EngineCardRef, newCode: number): Promise<EngineCardEditResult> {
+    return duelSession.replaceCard(ref, newCode)
+  }
+
+  async removeCard(ref: EngineCardRef): Promise<EngineCardEditResult> {
+    return duelSession.removeCard(ref)
+  }
+
   getTimeline(): EngineTimelineNode[] {
     return duelSession.getTimeline()
   }
@@ -94,7 +109,7 @@ export class DuelDirector {
     return duelSession.hasInjectOps()
   }
 
-  recordMessageStream(): { messages: Uint8Array[]; responses: Uint8Array[] } {
+  recordMessageStream(): Promise<{ messages: Uint8Array[]; responses: Uint8Array[] }> {
     return duelSession.recordMessageStream()
   }
 

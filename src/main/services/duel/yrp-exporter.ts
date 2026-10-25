@@ -174,7 +174,7 @@ async function replayAndCapture(input: YrpExportInput): Promise<{
   consumed: Uint8Array[]
 }> {
   if (input.ops.some((op) => op.type === 'inject')) {
-    throw new Error('对局包含剧情安排（inject）操作，yrp 格式无法表达对局中注入的卡片，无法导出。')
+    throw new Error('对局包含注入（inject）操作，yrp 格式无法表达对局中注入的卡片，无法导出。')
   }
 
   const state = createSessionState()

@@ -1,9 +1,10 @@
-import { DuelStep } from '@shared/index'
+import { DuelStep, PLACEHOLDER_CARD_NAME, isPlaceholderCard } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useCustomCardStore } from '../stores/useCustomCardStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 
 export function findCardName(code: number): string | undefined {
+  if (isPlaceholderCard(code)) return PLACEHOLDER_CARD_NAME
   if (!code) return undefined
   return (
     useDuelStore.getState().state.cards.find((c) => c.code === code)?.card?.name ||

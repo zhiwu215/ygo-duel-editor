@@ -9,10 +9,12 @@ import {
   FieldCard,
   LightweightCardSnapshot,
   PlayerState,
+  createLightweightSnapshot,
   createStepId,
   replayManualSteps
 } from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
+import { resolveOpeningScene, SCENE_STEP_INDEX, type OpeningScene } from '../../utils/openingScene'
 import { applyLpToDuelists, createLpFlash } from './lpSlice'
 import { pickNarrativeStepPatch } from './stepPatch'
 import type { DuelStore } from './types'
@@ -27,6 +29,7 @@ export interface StepsSlice {
   currentChain: number
   activeTurnPlayer: 0 | 1
   duelStarted: boolean
+  sceneEditing: boolean
 
   setActiveRightTab: (tab: 'search' | 'steps') => void
   setCurrentStepIndex: (index: number | null) => void
@@ -51,6 +54,8 @@ export interface StepsSlice {
   insertTurnChange: () => void
 
   previewStepBoard: (stepIndex: number | null) => void
+  enterSceneMode: () => boolean
+  exitSceneMode: () => boolean
   resetToOpeningBoard: () => void
 }
 
@@ -76,6 +81,29 @@ function restoreCardsFromSnapshot(
       customDef: s.customDef
     }
   })
+}
+
+function scenePatch(prev: DuelStore, scene: OpeningScene): Partial<DuelStore> {
+  const cards = restoreCardsFromSnapshot(prev.state.cards, scene.cards)
+  const players: [PlayerState, PlayerState] = [
+    { ...prev.state.players[0], lp: scene.lp[0] },
+    { ...prev.state.players[1], lp: scene.lp[1] }
+  ]
+  const duelists = applyLpToDuelists(
+    applyLpToDuelists(prev.state.duelists, 0, scene.lp[0], prev.state.matchConfig),
+    1,
+    scene.lp[1],
+    prev.state.matchConfig
+  )
+  return {
+    currentStepIndex: SCENE_STEP_INDEX,
+    currentTurn: scene.turn,
+    currentPhase: scene.phase,
+    currentChain: 0,
+    activeTurnPlayer: scene.turnPlayer,
+    lpFlash: null,
+    state: { ...prev.state, cards, players, duelists }
+  }
 }
 
 function insertPileTop(
@@ -284,6 +312,7 @@ function withDerivation(nextState: DerivationSource): Partial<DuelStore> {
 }
 
 function refreshPreviewIfActive(get: () => DuelStore): void {
+  if (get().sceneEditing) return
   const index = get().currentStepIndex
   if (index !== null) get().previewStepBoard(index)
 }
@@ -332,11 +361,16 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   currentChain: 0,
   activeTurnPlayer: 0,
   duelStarted: false,
+  sceneEditing: false,
 
   setActiveRightTab: (tab) => set({ activeRightTab: tab }),
-  setCurrentStepIndex: (index) => set({ currentStepIndex: index }),
+  setCurrentStepIndex: (index) => {
+    if (get().sceneEditing && index !== SCENE_STEP_INDEX) return
+    set({ currentStepIndex: index })
+  },
   setSelectedStepId: (id) => set({ selectedStepId: id }),
   openScreenplayWithStep: (stepId) => {
+    if (get().sceneEditing) return
     const selected =
       stepId !== undefined ? stepId : get().selectedStepId || get().state.steps?.[0]?.id || null
     set({
@@ -366,6 +400,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   setDuelStarted: (started) => set({ duelStarted: started }),
 
   addStep: (stepData) => {
+    if (get().sceneEditing) return
     set((prev) => {
       const newStep: DuelStep = {
         ...stepData,
@@ -386,6 +421,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
 
   insertStep: (step) => {
     if (useDuelEngineStore.getState().isInitialized) return
+    if (get().sceneEditing) return
     set((prev) => {
       const existing = prev.state.steps || []
       if (existing.some((s) => s.id === step.id)) return prev
@@ -410,28 +446,26 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     const demote = !engineActive && Object.keys(nextPatch).some((key) => key !== 'texts')
     set((prev) => {
       const existing = prev.state.steps || []
-      const nextState: DerivationSource = {
-        ...prev,
-        state: {
-          ...prev.state,
-          steps: existing.map((s) =>
-            s.id === stepId
-              ? {
-                  ...s,
-                  ...nextPatch,
-                  ...(demote && s.origin !== 'manual' ? { origin: 'manual' as const } : {})
-                }
-              : s
-          )
-        }
+      const steps = existing.map((s) =>
+        s.id === stepId
+          ? {
+              ...s,
+              ...nextPatch,
+              ...(demote && s.origin !== 'manual' ? { origin: 'manual' as const } : {})
+            }
+          : s
+      )
+      if (prev.sceneEditing) {
+        return { state: { ...prev.state, steps } }
       }
-      return withDerivation(nextState)
+      return withDerivation({ ...prev, state: { ...prev.state, steps } })
     })
     refreshPreviewIfActive(get)
   },
 
   deleteStep: (stepId) => {
     if (useDuelEngineStore.getState().isInitialized) return
+    if (get().sceneEditing) return
     const prevSteps = get().state.steps || []
     const deletedIdx = prevSteps.findIndex((s) => s.id === stepId)
     if (deletedIdx === -1) return
@@ -462,6 +496,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
 
   moveStep: (stepId, direction) => {
     if (useDuelEngineStore.getState().isInitialized) return
+    if (get().sceneEditing) return
     set((prev) => {
       const existing = [...(prev.state.steps || [])]
       const idx = existing.findIndex((s) => s.id === stepId)
@@ -482,6 +517,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
 
   insertPhaseChange: () => {
     if (useDuelEngineStore.getState().isInitialized) return
+    if (get().sceneEditing) return
     insertMarkerAtPlayhead(get, set, (pos) => {
       const isTurnRoll = pos.phase === 'EP'
       const flip = (pos.turnPlayer === 0 ? 1 : 0) as 0 | 1
@@ -499,6 +535,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
 
   insertTurnChange: () => {
     if (useDuelEngineStore.getState().isInitialized) return
+    if (get().sceneEditing) return
     insertMarkerAtPlayhead(get, set, (pos) => ({
       id: createStepId(),
       turn: pos.turn,
@@ -512,6 +549,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
 
   insertPhaseJump: (target: DuelPhase) => {
     if (useDuelEngineStore.getState().isInitialized) return
+    if (get().sceneEditing) return
     insertMarkerAtPlayhead(get, set, (pos) => ({
       id: createStepId(),
       turn: pos.turn,
@@ -524,6 +562,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   },
 
   previewStepBoard: (stepIndex) => {
+    if (get().sceneEditing) return
     const engineRunning = useDuelEngineStore.getState().isInitialized
     if (engineRunning) get().pauseUndoTracking()
     try {
@@ -604,6 +643,58 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     }
   },
 
+  enterSceneMode: () => {
+    if (get().sceneEditing) return true
+    if (useDuelEngineStore.getState().isInitialized) return false
+    const scene = resolveOpeningScene(get().state)
+    const hasActionStep = (get().state.steps ?? []).some(
+      (step) => step.actionType !== 'PHASE_CHANGE' && step.actionType !== 'TURN_CHANGE'
+    )
+    if (!scene && hasActionStep) return false
+    get().pauseUndoTracking()
+    try {
+      if (scene) {
+        set((prev) => ({ ...scenePatch(prev, scene), sceneEditing: true }))
+      } else {
+        set({ sceneEditing: true, currentStepIndex: SCENE_STEP_INDEX })
+      }
+    } finally {
+      get().resumeUndoTracking()
+    }
+    return true
+  },
+
+  exitSceneMode: () => {
+    if (!get().sceneEditing) return false
+    const current = get()
+    const scene: OpeningScene = {
+      cards: createLightweightSnapshot(current.state.cards),
+      lp: [current.state.players[0]?.lp ?? 8000, current.state.players[1]?.lp ?? 8000],
+      turn: current.currentTurn,
+      phase: current.currentPhase,
+      turnPlayer: current.activeTurnPlayer
+    }
+    get().pauseUndoTracking()
+    try {
+      set((prev) => {
+        const derived = withDerivation({
+          ...prev,
+          state: {
+            ...prev.state,
+            initialBoardSnapshot: scene.cards,
+            initialLp: scene.lp
+          }
+        })
+        const next = { ...prev, ...derived }
+        return { ...derived, ...scenePatch(next, scene), sceneEditing: false }
+      })
+    } finally {
+      get().resumeUndoTracking()
+    }
+    get().clearUndoHistory()
+    return true
+  },
+
   resetToOpeningBoard: () =>
     set((prev) => {
       const snapshot = prev.state.initialBoardSnapshot ?? []
@@ -632,6 +723,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         currentPhase: 'DP',
         currentChain: 0,
         duelStarted: false,
+        sceneEditing: false,
         activeTurnPlayer: firstPlayer,
         state: { ...prev.state, steps: [], cards: finalCards, turnPlayer: firstPlayer }
       }

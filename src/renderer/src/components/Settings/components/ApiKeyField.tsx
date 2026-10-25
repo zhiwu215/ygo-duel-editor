@@ -22,17 +22,7 @@ export function ApiKeyField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="flex items-center gap-2.5">
-        <span className={MODEL_LABEL}>API 密钥</span>
-        <button
-          type="button"
-          title="API 密钥仅保存在本地配置文件，不会发送到模型提供商以外的位置。"
-          aria-label="认证说明"
-          className="inline-flex h-4 w-4 items-center justify-center rounded-full border-[0.5px] border-foreground/20 text-[9px] leading-none text-[#81858c] transition-colors hover:text-foreground dark:text-[#979da6]"
-        >
-          ?
-        </button>
-      </span>
+      <span className={MODEL_LABEL}>API 密钥</span>
       <div className="relative">
         <input
           type={show ? 'text' : 'password'}

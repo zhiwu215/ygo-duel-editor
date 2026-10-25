@@ -12,6 +12,7 @@ import {
   EngineTimelineNode
 } from '@shared/index'
 import { resolveCardName } from './cardNames'
+import { isReplayPromptText } from './replayPrompt'
 import { mapPhaseToDuelPhase } from '../stores/duelEngine/boardReconcile'
 
 interface ReplayCardMove {
@@ -167,13 +168,6 @@ function hasBoardChange(
     }
   }
   return false
-}
-
-const REPLAY_PROMPT_PATTERN =
-  /是否(?:连锁|发动)|是否.*?发动|主要阶段行动|优先权|等待对方|请选择\/取消选择/
-
-function isReplayPrompt(text: string | undefined): boolean {
-  return text !== undefined && REPLAY_PROMPT_PATTERN.test(text)
 }
 
 function statusIsNegated(status: number | undefined): boolean {
@@ -342,7 +336,7 @@ export function buildReplaySteps(timeline: EngineTimelineNode[]): DuelStep[] {
       shuffled && !rawDescription.includes('手牌切洗')
         ? `${rawDescription}（手牌切洗）`
         : rawDescription
-    const prompt = isReplayPrompt(description) || isReplayPrompt(node.title)
+    const prompt = isReplayPromptText(description) || isReplayPromptText(node.title)
     if (prompt && !move && !shuffled && !activated && !logAction && !hasChainLog) {
       if (!statusChange) return
       description = statusIsNegated(statusChange.card.status) ? '效果被无效' : '效果状态变化'
@@ -355,12 +349,19 @@ export function buildReplaySteps(timeline: EngineTimelineNode[]): DuelStep[] {
     const lpChange = findReplayLpChange(prev?.boardState, node.boardState)
     const logCard = logAction ? logActionCard(logAction) : undefined
     const logFrom = logAction ? logActionFrom(logAction) : undefined
+    const hasCard = Boolean(
+      move || drawEvent || activation || statusChange || positionChange || logCard
+    )
+    if (!description.trim() && !hasCard && !lpChange) return
     const actionDuelistId =
       (drawEvent ? node.boardState.activeDuelist?.[drawEvent.player] : undefined) ??
       move?.fromDuelistId ??
       activation?.before.duelistId ??
       statusChange?.before.duelistId ??
-      node.boardState.activeDuelist?.[logCard?.controller ?? node.player]
+      node.boardState.activeDuelist?.[logCard?.controller ?? node.player] ??
+      node.boardState.duelists?.find(
+        (duelist) => duelist.team === (logCard?.controller ?? node.player)
+      )?.id
     steps.push({
       id: `replay_${node.id}`,
       actId: node.id,
@@ -378,10 +379,17 @@ export function buildReplaySteps(timeline: EngineTimelineNode[]): DuelStep[] {
             (logAction
               ? logActionType(logAction, node.boardState)
               : classifyNonMoveAction(prev?.boardState, node.boardState))),
-      instanceId: activation?.card.instanceId ?? statusChange?.card.instanceId,
+      instanceId:
+        activation?.card.instanceId ??
+        statusChange?.card.instanceId ??
+        positionChange?.card.instanceId,
       cardCode: drawEvent
         ? (move?.code ?? drawEvent.codes[0])
-        : (move?.code ?? activation?.card.code ?? statusChange?.card.code ?? logCard?.code),
+        : (move?.code ??
+          activation?.card.code ??
+          statusChange?.card.code ??
+          positionChange?.card.code ??
+          logCard?.code),
       cardName: drawEvent
         ? move
           ? resolveCardName(move.code)

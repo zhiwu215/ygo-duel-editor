@@ -14,7 +14,8 @@ import {
   Trash2
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { duelActionLabel, resolveStepCardName } from './stepGrouping'
+import { resolveStepCardName } from './stepGrouping'
+import { duelActionLabel } from '../../utils/stepLabels'
 import { StepLogRows } from './StepLogRows'
 import { MdLocationIcon } from './MdLocationIcon'
 import { MDLOG_ASSETS, MDLOG_COLORS, maskStyle } from './mdpro3LogAssets'
@@ -93,8 +94,10 @@ export const StepCard: React.FC<StepCardProps> = ({
   const displayCardName = resolveStepCardName(step)
   const isShuffleStep = step.description?.includes('手牌切洗') ?? false
   const isNegatedStep = step.description?.includes('效果被无效') ?? false
-  const actingDuelistName = duelists?.find((d) => d.id === step.actionDuelistId)?.name
-  const playerLabel = actingDuelistName ?? sideName(step.actionPlayer)
+  const actingDuelist =
+    duelists?.find((duelist) => duelist.id === step.actionDuelistId) ??
+    duelists?.find((duelist) => duelist.team === step.actionPlayer)
+  const playerLabel = actingDuelist?.name ?? sideName(step.actionPlayer)
   const chainNumber = step.chainIndex && step.chainIndex > 0 ? step.chainIndex : step.chainBadge
   const fromCard = cardFromStep(
     step,
@@ -174,7 +177,6 @@ export const StepCard: React.FC<StepCardProps> = ({
                 <CardThumb
                   code={step.cardCode}
                   name={displayCardName}
-                  title={displayCardName}
                   imageClassName="block"
                   className="h-full w-full"
                 />
@@ -185,7 +187,6 @@ export const StepCard: React.FC<StepCardProps> = ({
                   'absolute left-[10px] top-[7px] truncate text-[16px] font-bold leading-tight text-foreground',
                   hasZones ? 'max-w-[112px]' : 'max-w-[150px]'
                 )}
-                title={displayCardName}
               >
                 {displayCardName}
               </div>
@@ -195,7 +196,6 @@ export const StepCard: React.FC<StepCardProps> = ({
                   'absolute right-[8px] top-[9px] max-w-[74px] truncate text-right text-[9px] font-semibold',
                   playerAccent
                 )}
-                title={playerLabel}
               >
                 {playerLabel}
               </div>
@@ -268,10 +268,7 @@ export const StepCard: React.FC<StepCardProps> = ({
           ))}
 
         {summaryEffectText && (
-          <div
-            className="truncate bg-muted/30 px-2 py-1 text-[9px] leading-snug text-muted-foreground"
-            title={summaryEffectText}
-          >
+          <div className="truncate bg-muted/30 px-2 py-1 text-[9px] leading-snug text-muted-foreground">
             {summaryEffectText}
           </div>
         )}

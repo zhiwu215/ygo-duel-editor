@@ -1,11 +1,12 @@
 import type { StateCreator } from 'zustand'
-import { EngineReplaySummary } from '@shared/index'
+import { EngineReplaySummary, reversePileSequences } from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
 import { buildPuzzleStateFromEngineBoard } from '../../utils/engineBoardToPuzzle'
 import { buildReplayMatchState, formatReplayVersus } from '../../utils/replayMatch'
 import { snapshotEngineBoard } from '../../utils/engineBoardSnapshot'
-import { reversePileSequences } from '../../utils/pileSequences'
 import { buildReplaySteps } from '../../utils/replayTimelineToSteps'
+import { withReplayStepNames } from '../../utils/replayStepNames'
+import { dropBlankEventSteps } from '../../utils/stepSanitize'
 import { mapPhaseToDuelPhase, syncJumpToStepWrapped } from './boardReconcile'
 import { clearIdentities } from './identityMap'
 import { clearEngineSteps, recordEngineStep } from './stepRecords'
@@ -57,7 +58,8 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       clearEngineSteps()
       clearIdentities()
       useDuelStore.getState().exitPreview()
-      const replaySteps = buildReplaySteps(timeline)
+      useDuelStore.setState({ sceneEditing: false })
+      const replaySteps = dropBlankEventSteps(await withReplayStepNames(buildReplaySteps(timeline)))
       for (const step of replaySteps) recordEngineStep(step.actId!, step)
       const initialNode = timeline[0]
       const replayMatch = buildReplayMatchState(info, initialNode?.boardState ?? boardState)
@@ -84,6 +86,7 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
         importingReplay: false,
         mergedMatch: false,
         error: null,
+        suspendedDoc: null,
         boardState: initialNode ? initialNode.boardState : boardState,
         pendingRequest: null,
         boardChains: [],
@@ -172,6 +175,7 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       error: null,
       replayInfo: null,
       preReplay: null,
+      suspendedDoc: null,
       boardState: null,
       pendingRequest: null,
       lastAttacker: null,

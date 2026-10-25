@@ -77,7 +77,6 @@ export function ModelPickerMenu(): JSX.Element {
     effortLevels.length > 0 && currentEffort
       ? AGENT_REASONING_EFFORT_LABELS[currentEffort]
       : undefined
-  const triggerLabel = effortLabel ? `${modelLabel} · ${effortLabel}` : modelLabel
   const triggerAria = activeModel
     ? effortLabel
       ? `选择模型，当前 ${modelLabel}，推理等级 ${effortLabel}`
@@ -349,7 +348,6 @@ export function ModelPickerMenu(): JSX.Element {
         ref={triggerRef}
         type="button"
         onClick={() => (open ? close(true) : openMenu())}
-        title={triggerLabel || '选择模型'}
         aria-label={triggerAria}
         aria-haspopup="menu"
         aria-expanded={open}

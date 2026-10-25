@@ -35,7 +35,7 @@ function clearTimer(): void {
 function canSaveNow(): boolean {
   if (suspended) return false
   const duel = useDuelStore.getState()
-  if (!duel.currentProjectPath || duel.previewReturn) return false
+  if (!duel.currentProjectPath || duel.previewReturn || duel.sceneEditing) return false
   const engine = useDuelEngineStore.getState()
   return !engine.loading && !engine.replayInfo
 }

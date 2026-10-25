@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Answer, CardLocation, CardPosition } from '@shared/index'
+import {
+  Answer,
+  CardLocation,
+  CardPosition,
+  PLACEHOLDER_MONSTER_CARD_CODE,
+  PLACEHOLDER_SPELL_TRAP_CARD_CODE,
+  placeholderKindOf
+} from '@shared/index'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -15,17 +22,20 @@ export const CardCommandMenu: React.FC = () => {
   const anchorRect = store.anchorRect
   const onClose = store.closeMenu
 
-  const [showOptions, setShowOptions] = useState(false)
+  const [optionsCardId, setOptionsCardId] = useState<string | null>(null)
+  const showOptions = optionsCardId !== null && optionsCardId === card?.instanceId
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handlePointerDown = (e: MouseEvent): void => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOptionsCardId(null)
         onClose()
       }
     }
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
+        setOptionsCardId(null)
         onClose()
       }
     }
@@ -39,6 +49,8 @@ export const CardCommandMenu: React.FC = () => {
 
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngine = useDuelEngineStore((s) => s.isInitialized)
+  const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
+  const engineLoading = useDuelEngineStore((s) => s.loading)
   const cards = useDuelStore((s) => s.state.cards)
   const currentPhase = useDuelStore((s) => s.currentPhase)
 
@@ -65,9 +77,44 @@ export const CardCommandMenu: React.FC = () => {
 
   if (!card || !anchorRect) return null
 
+  const placeholderKind = placeholderKindOf(card.code)
+  const canSwitchPlaceholder =
+    isEngine &&
+    !isReplay &&
+    !engineLoading &&
+    card.location === CardLocation.HAND &&
+    placeholderKind !== null
+  const showPlaceholderChoice = canSwitchPlaceholder && placeholderKind === 'neutral'
+
   const submitAnswer = (answer: Answer): void => {
     void useDuelEngineStore.getState().submitAnswer(answer)
     onClose()
+  }
+
+  const convertPlaceholder = async (targetCode: number): Promise<void> => {
+    if (!canSwitchPlaceholder) return
+    const rect = anchorRect
+    const ref = {
+      controller: card.controller,
+      location: card.location,
+      sequence: card.sequence,
+      instanceId: card.instanceId,
+      duelistId: card.duelistId
+    }
+    onClose()
+    const replaced = await useDuelEngineStore.getState().replaceCard(ref, targetCode)
+    if (!replaced) return
+    const nextCard = useDuelStore
+      .getState()
+      .state.cards.find(
+        (item) =>
+          item.controller === card.controller &&
+          item.location === card.location &&
+          item.sequence === card.sequence &&
+          item.duelistId === card.duelistId &&
+          item.code === targetCode
+      )
+    if (nextCard) useCardCommandMenuStore.getState().openMenu(nextCard, rect)
   }
 
   const handleSummon = (): void => {
@@ -87,7 +134,7 @@ export const CardCommandMenu: React.FC = () => {
   const handleActivate = (): void => {
     if (actionMap) {
       if (actionMap.activate.length > 1) {
-        setShowOptions(true)
+        setOptionsCardId(card.instanceId)
         return
       }
       if (actionMap.activate.length === 1) {
@@ -147,7 +194,7 @@ export const CardCommandMenu: React.FC = () => {
       ? '攻击（可直攻）'
       : '攻击'
 
-  const buttonCount = useRequestActions
+  const actionButtonCount = useRequestActions
     ? (actionMap?.summon ? 1 : 0) +
       (actionMap?.spSummon ? 1 : 0) +
       (actionMap?.set ? 1 : 0) +
@@ -158,6 +205,8 @@ export const CardCommandMenu: React.FC = () => {
     : isEditorAttackable
       ? 1
       : 0
+  const placeholderButtonCount = showPlaceholderChoice ? 2 : canSwitchPlaceholder ? 1 : 0
+  const buttonCount = showPlaceholderChoice ? 2 : actionButtonCount + placeholderButtonCount
 
   const activateOptionList: { id: string; label: string }[] =
     actionMap?.activate.map((spec, i) => ({
@@ -217,12 +266,29 @@ export const CardCommandMenu: React.FC = () => {
           ))}
           <button
             type="button"
-            onClick={() => setShowOptions(false)}
+            onClick={() => setOptionsCardId(null)}
             className="w-full px-2 py-1 text-center text-[11px] text-neutral-400 hover:text-neutral-200 mt-1 cursor-pointer"
           >
             返回
           </button>
         </div>
+      ) : showPlaceholderChoice ? (
+        <>
+          <button
+            type="button"
+            onClick={() => void convertPlaceholder(PLACEHOLDER_MONSTER_CARD_CODE)}
+            className={buttonClass}
+          >
+            作为怪兽
+          </button>
+          <button
+            type="button"
+            onClick={() => void convertPlaceholder(PLACEHOLDER_SPELL_TRAP_CARD_CODE)}
+            className={buttonClass}
+          >
+            作为魔陷
+          </button>
+        </>
       ) : (
         <>
           {actionMap?.activate.length ? (
@@ -275,6 +341,21 @@ export const CardCommandMenu: React.FC = () => {
               className={cn(buttonClass, 'text-teal-700 dark:text-teal-400')}
             >
               发动连锁
+            </button>
+          ) : null}
+          {canSwitchPlaceholder ? (
+            <button
+              type="button"
+              onClick={() =>
+                void convertPlaceholder(
+                  placeholderKind === 'monster'
+                    ? PLACEHOLDER_SPELL_TRAP_CARD_CODE
+                    : PLACEHOLDER_MONSTER_CARD_CODE
+                )
+              }
+              className={buttonClass}
+            >
+              {placeholderKind === 'monster' ? '转为魔陷' : '转为怪兽'}
             </button>
           ) : null}
         </>

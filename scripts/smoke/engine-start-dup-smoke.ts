@@ -1,8 +1,8 @@
 /**
- * 引擎启动复现冒烟：编排模式布置手牌/卡组（产生带 manualOps 的编排步骤）后启动引擎，
+ * 引擎启动复现冒烟：编排模式布置手牌/卡组后启动引擎，
  * 验证：
  * 1. 启动后编辑器棋盘不翻倍（手牌/卡组数量不变），无重复 instanceId（选中不双高亮）
- * 2. 编排步骤被清空（布景步骤不是对局步骤）
+ * 2. 编排步骤保留为历史（不被清空），引擎步骤追加在后
  * 3. 卡组/手牌序号连续无重复
  * 4. 先退出再启动、连续启动两次，结果一致
  */
@@ -100,7 +100,12 @@ function logBoard(label: string): void {
   console.log(`[${label}] 步骤 ${steps} 条, 重复 instanceId: ${dupIds.join(', ') || '无'}`)
 }
 
-function assertHealthy(context: string, handCount: number, deckCount: number): void {
+function assertHealthy(
+  context: string,
+  handCount: number,
+  deckCount: number,
+  expectedSteps: number
+): void {
   const { hand, deck, steps, dupIds } = boardSummary()
   assert(dupIds.length === 0, `${context}存在重复 instanceId: ${dupIds.join(', ')}`)
   assert(hand.length === handCount, `${context}手牌应为 ${handCount} 张，实际 ${hand.length} 张`)
@@ -114,18 +119,19 @@ function assertHealthy(context: string, handCount: number, deckCount: number): v
     JSON.stringify(deck.map((c) => c.sequence)) === JSON.stringify(seqRange(deck.length)),
     `${context}卡组序号应连续 [0..${deckCount - 1}]，实际 [${deck.map((c) => c.sequence).join(',')}]`
   )
-  assert(steps === 0, `${context}编排步骤应被清空，实际残留 ${steps} 条`)
+  assert(steps === expectedSteps, `${context}步骤应为 ${expectedSteps} 条，实际 ${steps} 条`)
 }
 
 async function startEngineAndAssert(
   context: string,
   handCount: number,
-  deckCount: number
+  deckCount: number,
+  expectedSteps: number
 ): Promise<void> {
   await useDuelEngineStore.getState().startEngine()
   assert(useDuelEngineStore.getState().isInitialized, `${context}启动后引擎应处于激活状态`)
   logBoard(`${context}启动后`)
-  assertHealthy(context, handCount, deckCount)
+  assertHealthy(context, handCount, deckCount, expectedSteps)
 }
 
 async function main(): Promise<void> {
@@ -189,13 +195,11 @@ async function main(): Promise<void> {
 
   logBoard('启动前')
   const before = useDuelStore.getState().state
+  const layoutSteps = (before.steps || []).length
   assert(before.cards.length === 5, `布置后棋盘应有 5 张卡，实际 ${before.cards.length} 张`)
-  assert(
-    (before.steps || []).length === 7,
-    `布置后应有 7 条编排步骤，实际 ${(before.steps || []).length} 条`
-  )
+  assert(layoutSteps >= 2, `布置后应记录编排步骤，实际 ${layoutSteps} 条`)
 
-  await startEngineAndAssert('首次启动：', 2, 3)
+  await startEngineAndAssert('首次启动：', 2, 3, layoutSteps)
 
   for (let i = 0; i < 2; i++) {
     const pending = useDuelEngineStore.getState().pendingRequest
@@ -207,7 +211,7 @@ async function main(): Promise<void> {
     )
     const { dupIds, steps } = boardSummary()
     assert(dupIds.length === 0, `作答后出现重复 instanceId: ${dupIds.join(', ')}`)
-    assert(steps > 0, `作答后应产生引擎步骤，实际 ${steps} 条`)
+    assert(steps > layoutSteps, `作答后应追加引擎步骤，实际 ${steps} 条`)
   }
   logBoard('作答后')
 
@@ -230,9 +234,9 @@ async function main(): Promise<void> {
   const { hand: midHand, deck: midDeck } = boardSummary()
   useDuelEngineStore.getState().stopEngine()
   assert(!useDuelEngineStore.getState().isInitialized, 'stopEngine 后引擎应退出')
-  await startEngineAndAssert('退出后再启动：', midHand.length, midDeck.length)
+  await startEngineAndAssert('退出后再启动：', midHand.length, midDeck.length, afterAnswers.steps)
 
-  await startEngineAndAssert('连续再启动：', midHand.length, midDeck.length)
+  await startEngineAndAssert('连续再启动：', midHand.length, midDeck.length, afterAnswers.steps)
 
   console.log('[engine-start-dup] ALL PASSED')
   process.exit(0)

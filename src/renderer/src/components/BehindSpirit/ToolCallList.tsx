@@ -161,7 +161,6 @@ function WebSearchSources({ details }: { details: AgentWebSearchDetails }): JSX.
         <button
           key={`${source.url}:${index}`}
           type="button"
-          title={source.url}
           onClick={() => openExternalLink(source.url)}
           className="flex w-full min-w-0 items-start gap-1.5 rounded px-1 py-0.5 text-left transition-colors hover:bg-muted/60"
         >
@@ -201,7 +200,6 @@ function WebToolDetails({ details }: { details: AgentWebToolDetails }): JSX.Elem
       <div className="space-y-0.5 px-0.5">
         <button
           type="button"
-          title={details.url}
           onClick={() => openExternalLink(details.url)}
           className="flex w-full min-w-0 items-center gap-1 rounded text-left text-[10px] leading-relaxed text-foreground/85 transition-colors hover:bg-muted/60"
         >

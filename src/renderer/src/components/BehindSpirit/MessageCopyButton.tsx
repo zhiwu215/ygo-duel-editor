@@ -35,7 +35,6 @@ export function MessageCopyButton({ text, className }: MessageCopyButtonProps): 
   return (
     <button
       type="button"
-      title={copied ? '已复制' : '复制'}
       aria-label={copied ? '已复制' : '复制'}
       onClick={() => void copy()}
       className={cn(

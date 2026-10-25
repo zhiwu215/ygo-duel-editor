@@ -203,6 +203,12 @@ export interface DuelStepTextBlock {
 
 export type DuelStepOrigin = 'engine' | 'manual' | 'replay'
 
+export interface StepProvenance {
+  stepCount: number
+  engineStepCount: number
+  manualStepCount: number
+}
+
 export interface DuelStep {
   id: string
   turn: number

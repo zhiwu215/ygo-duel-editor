@@ -1,7 +1,8 @@
+import { CardLocation } from '@shared/index'
 import { EngineRequest, RequestCard } from '@shared/engine/protocol'
 
 export interface CardEngineActions {
-  requestKind: 'idle' | 'battle'
+  requestKind: 'idle' | 'battle' | 'chain'
   summon?: RequestCard
   spSummon?: RequestCard
   mset?: RequestCard
@@ -9,6 +10,7 @@ export interface CardEngineActions {
   repos?: RequestCard
   activate: RequestCard[]
   attack?: RequestCard
+  chain?: RequestCard
 }
 
 interface EngineCardIdentity {
@@ -18,11 +20,26 @@ interface EngineCardIdentity {
   duelistId?: string
 }
 
+function sameCardPosition(requestCard: RequestCard, card: EngineCardIdentity): boolean {
+  if (requestCard.location === card.location && requestCard.sequence === card.sequence) return true
+  if (
+    requestCard.location === CardLocation.FZONE &&
+    card.location === CardLocation.SZONE &&
+    card.sequence === 5
+  ) {
+    return true
+  }
+  return (
+    requestCard.location === CardLocation.SZONE &&
+    requestCard.sequence === 5 &&
+    card.location === CardLocation.FZONE
+  )
+}
+
 export function isRequestCardAt(requestCard: RequestCard, card: EngineCardIdentity): boolean {
   return (
     requestCard.controller === card.controller &&
-    requestCard.location === card.location &&
-    requestCard.sequence === card.sequence &&
+    sameCardPosition(requestCard, card) &&
     (!requestCard.duelistId || requestCard.duelistId === card.duelistId)
   )
 }
@@ -66,7 +83,7 @@ export function deriveCardEngineActions(
 ): CardEngineActions | null {
   if (!request || !card) return null
   const d = request.data
-  if (d.kind !== 'idle' && d.kind !== 'battle') return null
+  if (d.kind !== 'idle' && d.kind !== 'battle' && d.kind !== 'chain') return null
   const key = {
     code: card.code,
     controller: card.controller,
@@ -101,6 +118,19 @@ export function deriveCardEngineActions(
     }
   }
 
+  if (d.kind === 'chain') {
+    return {
+      requestKind: 'chain',
+      summon: undefined,
+      spSummon: undefined,
+      mset: undefined,
+      sset: undefined,
+      repos: undefined,
+      activate: [],
+      chain: matchCard(d.chains, key)
+    }
+  }
+
   return null
 }
 
@@ -123,6 +153,7 @@ export function hasCardEngineActions(
     actions.sset ||
     actions.repos ||
     actions.attack ||
+    actions.chain ||
     actions.activate.length > 0
   )
 }

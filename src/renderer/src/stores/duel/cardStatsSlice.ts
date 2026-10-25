@@ -5,6 +5,7 @@ import type { DuelStore } from './types'
 export interface CardStatsSlice {
   setCardCounter: (instanceId: string, counterType: number, count: number) => void
   removeCardCounter: (instanceId: string, counterType: number) => void
+  syncCardCounters: (instanceId: string, counters?: Record<number, number>) => void
 
   registerCustomCounter: (name: string) => number
   setCardCustomStats: (instanceId: string, customAtk?: number, customDef?: number) => void
@@ -45,6 +46,21 @@ export const createCardStatsSlice: StateCreator<DuelStore, [], [], CardStatsSlic
           }
           return c
         })
+      }
+    })),
+
+  syncCardCounters: (instanceId, counters) =>
+    set((prev) => ({
+      state: {
+        ...prev.state,
+        cards: prev.state.cards.map((c) =>
+          c.instanceId === instanceId
+            ? {
+                ...c,
+                counters: counters && Object.keys(counters).length > 0 ? { ...counters } : undefined
+              }
+            : c
+        )
       }
     })),
 

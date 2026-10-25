@@ -1,8 +1,9 @@
-import React, { memo, useMemo, useState } from 'react'
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { FieldCard, CdbCard, CardLocation, CardPosition, CardUtils } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDropHintStore } from '../../stores/useDropHintStore'
 import { usePileListStore } from '../../stores/usePileListStore'
+import { usePileActionMenuStore } from '../../stores/usePileActionMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useTokenStore } from '../../stores/useTokenStore'
@@ -100,6 +101,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const hintZone = useDropHintStore((s) => s.zone)
   const showHint = useDropHintStore((s) => s.show)
   const openPile = usePileListStore((s) => s.openPile)
+  const openPileActionMenu = usePileActionMenuStore((s) => s.openMenu)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openZoneMenu = useContextMenuStore((s) => s.openZoneMenu)
   const pendingToken = useTokenStore((s) => s.pendingToken)
@@ -126,6 +128,10 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const canEditLocally = !isEngineActive
+  const actionablePiles = useMemo(
+    () => resolveActionablePiles(pendingRequest, controller),
+    [pendingRequest, controller]
+  )
   const enginePlaceMatch =
     pendingRequest !== null &&
     (pendingRequest.data.kind === 'place' || pendingRequest.data.kind === 'disfield')
@@ -305,13 +311,46 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const isFromZoneBadge = (e: React.MouseEvent): boolean =>
     Boolean((e.target as Element | null)?.closest?.('[data-zone-badge]'))
 
+  const pileActionTimerRef = useRef<number | null>(null)
+
+  useEffect(
+    () => () => {
+      if (pileActionTimerRef.current !== null) {
+        window.clearTimeout(pileActionTimerRef.current)
+      }
+    },
+    []
+  )
+
+  const clearPileActionTimer = (): void => {
+    if (pileActionTimerRef.current !== null) {
+      window.clearTimeout(pileActionTimerRef.current)
+      pileActionTimerRef.current = null
+    }
+  }
+
+  const handlePileActionClick = (e: React.MouseEvent): boolean => {
+    if (!isPileZone || !isEngineActive || !actionablePiles.has(location)) return false
+    if ((count ?? 0) <= 0 || isFromZoneBadge(e)) return false
+    if (e.detail > 1) {
+      clearPileActionTimer()
+      e.stopPropagation()
+      openPile(controller, location)
+      return true
+    }
+    e.stopPropagation()
+    clearPileActionTimer()
+    const rect = e.currentTarget.getBoundingClientRect()
+    pileActionTimerRef.current = window.setTimeout(() => {
+      pileActionTimerRef.current = null
+      openPileActionMenu(controller, location, rect)
+    }, 200)
+    return true
+  }
+
   const config = VARIANT_CONFIGS[colorVariant] || VARIANT_CONFIGS.monster
   const IconComponent = config.icon
 
-  const actionablePiles = useMemo(
-    () => resolveActionablePiles(pendingRequest, controller),
-    [pendingRequest, controller]
-  )
   const showActionRing =
     isPileZone && actionablePiles.has(location) && (Boolean(card) || (count ?? 0) > 0)
 
@@ -341,6 +380,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       onDrop={handleDrop}
       onClickCapture={(e) => {
         if (placeHeldCardOnSlot(e)) return
+        if (handlePileActionClick(e)) return
         if (location !== CardLocation.DECK) return
         if (!canEditLocally) return
         if (isFromZoneBadge(e)) return
@@ -364,7 +404,12 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
         const hasMats = card?.overlayMaterials && card.overlayMaterials.length > 0
         if (card && (isXyz || hasMats)) {
           openOverlayList(card.instanceId)
-        } else if (isPileZone && count !== undefined && count > 0) {
+        } else if (
+          isPileZone &&
+          count !== undefined &&
+          count > 0 &&
+          !actionablePiles.has(location)
+        ) {
           openPile(controller, location)
         }
       }}
@@ -395,7 +440,11 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           onClick={(e) => {
             if (isPileZone) {
               e.stopPropagation()
-              openPile(controller, location)
+              if (isEngineActive && actionablePiles.has(location)) {
+                openPileActionMenu(controller, location, e.currentTarget.getBoundingClientRect())
+              } else {
+                openPile(controller, location)
+              }
             }
           }}
           className={cn(

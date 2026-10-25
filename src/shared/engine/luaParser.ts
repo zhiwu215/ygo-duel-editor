@@ -42,12 +42,13 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
   const playerInfoRegex =
     /Debug\.SetPlayerInfo\s*\(\s*([0-3])\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i
   const addCardRegex =
-    /Debug\.AddCard\s*\(\s*(\d+)\s*,\s*([0-3])\s*,\s*([0-3])\s*,\s*([^,]+)\s*,\s*(\d+)\s*,\s*([^,)]+)\s*\)/i
+    /(?:local\s+(\w+)\s*=\s*)?Debug\.AddCard\s*\(\s*(\d+)\s*,\s*([0-3])\s*,\s*([0-3])\s*,\s*([^,]+)\s*,\s*(\d+)\s*,\s*([^,)]+)\s*\)/i
   const hintRegex = /Debug\.ShowHint\s*\(\s*["'](.*)["']\s*\)/i
-  const addCounterRegex = /(?:\w+):add_counter\s*\(\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*(\d+)\s*\)/i
+  const addCounterRegex = /(\w+):AddCounter\s*\(\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*(\d+)\s*\)/
 
   let isTag = false
   let lastAddedCard: FieldCard | null = null
+  const cardByVar = new Map<string, FieldCard>()
 
   for (const line of lines) {
     const trimmed = line.trim()
@@ -97,17 +98,17 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
     }
     const cardMatch = trimmed.match(addCardRegex)
     if (cardMatch) {
-      const code = parseInt(cardMatch[1], 10)
-      const rawOwner = parseInt(cardMatch[2], 10)
-      const rawController = parseInt(cardMatch[3], 10)
+      const code = parseInt(cardMatch[2], 10)
+      const rawOwner = parseInt(cardMatch[3], 10)
+      const rawController = parseInt(cardMatch[4], 10)
       if (rawController === 2 || rawController === 3 || rawOwner === 2 || rawOwner === 3) {
         isTag = true
       }
       const controller: 0 | 1 = rawController === 0 || rawController === 2 ? 0 : 1
       const owner: 0 | 1 = rawOwner === 0 || rawOwner === 2 ? 0 : 1
-      const location = parseLocationValue(cardMatch[4])
-      const sequence = parseInt(cardMatch[5], 10)
-      const position = parsePositionValue(cardMatch[6])
+      const location = parseLocationValue(cardMatch[5])
+      const sequence = parseInt(cardMatch[6], 10)
+      const position = parsePositionValue(cardMatch[7])
       let duelistId = controller === 0 ? 'duelist_0_0' : 'duelist_1_0'
       if (rawController === 2) {
         duelistId = 'duelist_0_1'
@@ -138,22 +139,25 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
           duelistId
         }
         state.cards.push(fieldCard)
+        if (cardMatch[1]) cardByVar.set(cardMatch[1], fieldCard)
         lastAddedCard = fieldCard
       }
       continue
     }
     const counterMatch = trimmed.match(addCounterRegex)
-    if (counterMatch && lastAddedCard) {
-      const typeStr = counterMatch[1].trim()
+    if (counterMatch) {
+      const target = cardByVar.get(counterMatch[1]) ?? lastAddedCard
+      if (!target) continue
+      const typeStr = counterMatch[2].trim()
       const typeNum =
         typeStr.startsWith('0x') || typeStr.startsWith('0X')
           ? parseInt(typeStr, 16)
           : parseInt(typeStr, 10)
-      const count = parseInt(counterMatch[2], 10)
-      if (!lastAddedCard.counters) {
-        lastAddedCard.counters = {}
+      const count = parseInt(counterMatch[3], 10)
+      if (!target.counters) {
+        target.counters = {}
       }
-      lastAddedCard.counters[typeNum] = (lastAddedCard.counters[typeNum] || 0) + count
+      target.counters[typeNum] = (target.counters[typeNum] || 0) + count
       continue
     }
   }

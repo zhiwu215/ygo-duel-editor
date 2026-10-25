@@ -1,10 +1,12 @@
 import React from 'react'
+import { Eye } from 'lucide-react'
 import {
   DuelLogCardRef,
   DuelLogEvent,
   DuelStep,
   POSITION_NAMES,
-  resolveCounterName
+  resolveCounterName,
+  summaryEventIndex
 } from '@shared/index'
 import { CardThumb } from '../ui/CardThumb'
 import { cn } from '../../lib/utils'
@@ -119,21 +121,6 @@ function Band({
       {card && <LogCardThumb card={card} width={25} height={32} />}
     </div>
   )
-}
-
-function summaryEventIndex(step: DuelStep, events: DuelLogEvent[]): number {
-  const cardCode = step.cardCode
-  if (!cardCode) return -1
-  const matches = (card: DuelLogCardRef): boolean => card.code === cardCode
-  for (let i = 0; i < events.length; i++) {
-    const event = events[i]
-    if (event.kind === 'summon' && matches(event.card)) return i
-    if (event.kind === 'set' && matches(event.card)) return i
-    if (event.kind === 'activate' && matches(event.card)) return i
-    if (event.kind === 'attack' && matches(event.attacker)) return i
-    if (event.kind === 'move' && matches(event.move.card)) return i
-  }
-  return -1
 }
 
 export const StepLogRows: React.FC<StepLogRowsProps> = ({ step, events }) => {
@@ -437,6 +424,7 @@ export const StepLogRows: React.FC<StepLogRowsProps> = ({ step, events }) => {
         event.source === 'hand' ? '公开手牌' : event.source === 'field' ? '公开盖卡' : '公开卡组'
       rows.push(
         <div key={`log-${index}`} className="flex h-[26px] items-center gap-1.5 px-2 text-[10px]">
+          <Eye className="h-3 w-3 shrink-0 text-sky-600" />
           <span className="shrink-0 font-bold text-sky-600">{source}</span>
           <span className="min-w-0 truncate text-muted-foreground">
             {event.cards.map((card) => nameOf(card)).join('、')}

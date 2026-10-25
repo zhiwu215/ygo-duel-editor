@@ -74,6 +74,12 @@ function syncJumpToStepToDuelStore(
       }
     }))
   }
+  const countersKey = (counters: Record<number, number> | undefined): string =>
+    Object.entries(counters ?? {})
+      .filter(([, count]) => count > 0)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([type, count]) => `${type}:${count}`)
+      .join(',')
 
   for (const card of currentCards) {
     if (isInactivePrivate(card)) continue
@@ -132,6 +138,11 @@ function syncJumpToStepToDuelStore(
     syncStatus(card.instanceId, ec.status)
     if (ec.status !== undefined) card.status = ec.status
 
+    if (countersKey(ec.counters) !== countersKey(card.counters)) {
+      duelStore.syncCardCounters(card.instanceId, ec.counters)
+      card.counters = ec.counters ? { ...ec.counters } : undefined
+    }
+
     if (ec.location === CardLocation.MZONE && ec.location === card.location) {
       const engineMats = ec.overlayMaterials
       const editorMats = card.overlayMaterials
@@ -168,6 +179,9 @@ function syncJumpToStepToDuelStore(
       ec.instanceId
     )
     syncStatus(ec.instanceId, ec.status)
+    if (countersKey(ec.counters)) {
+      duelStore.syncCardCounters(ec.instanceId, ec.counters)
+    }
     currentCards.push({
       instanceId: ec.instanceId,
       code: ec.card.id,
@@ -178,6 +192,7 @@ function syncJumpToStepToDuelStore(
       sequence: ecPosition.sequence,
       position: ec.position,
       overlayMaterials: [...ec.overlayMaterials],
+      counters: ec.counters ? { ...ec.counters } : undefined,
       status: ec.status,
       duelistId: ec.duelistId
     })

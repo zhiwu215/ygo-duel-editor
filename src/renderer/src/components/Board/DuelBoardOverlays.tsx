@@ -9,6 +9,7 @@ import { DuelSelectionBar } from './DuelSelectionBar'
 import { DeckSwitcherModal } from './DeckSwitcherModal'
 import { CardContextMenu } from './CardContextMenu'
 import { CardCommandMenu } from './CardCommandMenu'
+import { PileActionMenu } from './PileActionMenu'
 import { CardStatPopover } from './components/CardStatPopover'
 import { EngineCardEditBusy } from './components/EngineCardEditBusy'
 import { EngineCardReplaceDialog } from './components/EngineCardReplaceDialog'
@@ -41,6 +42,8 @@ export const DuelBoardOverlays: React.FC = () => {
       <CardContextMenu />
 
       <CardCommandMenu />
+
+      <PileActionMenu />
 
       <AttackTargetingBar />
 

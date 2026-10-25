@@ -18,6 +18,7 @@ interface PileCardTileProps {
   chainIndexes?: number[]
   actionsDisabled?: boolean
   onSelect: (card: FieldCard) => void
+  onCardClick?: (e: React.MouseEvent, card: FieldCard) => boolean
   onHoverChange: (card: FieldCard, hovering: boolean) => void
   onTogglePosition?: (card: FieldCard) => void
   onHold: (card: FieldCard, point: { x: number; y: number }) => void
@@ -36,6 +37,7 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   chainIndexes,
   actionsDisabled = false,
   onSelect,
+  onCardClick,
   onHoverChange,
   onTogglePosition,
   onHold,
@@ -60,7 +62,10 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
       }}
       {...attributes}
       {...listeners}
-      onClick={() => onSelect(card)}
+      onClick={(event) => {
+        if (onCardClick?.(event, card)) return
+        onSelect(card)
+      }}
       onContextMenu={onContextMenu ? (e) => onContextMenu(e, card) : undefined}
       onMouseEnter={() => onHoverChange(card, true)}
       onMouseLeave={() => onHoverChange(card, false)}

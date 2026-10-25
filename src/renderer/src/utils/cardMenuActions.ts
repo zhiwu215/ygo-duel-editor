@@ -1,8 +1,7 @@
 import { Answer, CardPosition } from '@shared/index'
 import type { CardEngineActions } from './engineActions'
-import { resolveCardName } from './cardNames'
 
-export type CardEngineActionKey = 'summon' | 'spSummon' | 'set' | 'repos' | 'attack'
+export type CardEngineActionKey = 'summon' | 'spSummon' | 'set' | 'repos' | 'attack' | 'chain'
 
 export interface CardEngineActionSpec {
   label: string
@@ -15,6 +14,7 @@ export interface CardEngineActionMap {
   set?: CardEngineActionSpec
   repos?: CardEngineActionSpec
   attack?: CardEngineActionSpec
+  chain?: CardEngineActionSpec
   activate: CardEngineActionSpec[]
 }
 
@@ -49,9 +49,7 @@ export function buildCardEngineActionMap(
     }
   }
   map.activate = actions.activate.map((cardReq, index) => ({
-    label: `发动 [${resolveCardName(cardReq.code)}]${
-      actions.activate.length > 1 ? `（效果 ${index + 1}）` : ''
-    }`,
+    label: actions.activate.length > 1 ? `发动（效果 ${index + 1}）` : '发动',
     answer:
       actions.requestKind === 'battle'
         ? { kind: 'battle', cmd: 'ACTIVATE', card: cardReq }
@@ -65,6 +63,9 @@ export function buildCardEngineActionMap(
   }
   if (actions.attack) {
     map.attack = { label: '攻击', answer: { kind: 'battle', cmd: 'ATTACK', card: actions.attack } }
+  }
+  if (actions.chain) {
+    map.chain = { label: '发动', answer: { kind: 'chain', card: actions.chain } }
   }
 
   return map

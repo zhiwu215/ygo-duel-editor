@@ -4,7 +4,9 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
+import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useHeldCardStore } from '../../stores/useHeldCardStore'
+import { hasCardEngineActions } from '../../utils/engineActions'
 import { resolveCardName } from '../../utils/cardNames'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { useCardDataMap } from '../../hooks/useCardDataMap'
@@ -39,8 +41,10 @@ export const PileListModal: React.FC = () => {
 const PileListContent: React.FC = () => {
   const { target, closePile } = usePileListStore()
   const openMenu = useContextMenuStore((s) => s.openMenu)
+  const openCardMenu = useCardCommandMenuStore((s) => s.openMenu)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const boardChains = useDuelEngineStore((s) => s.boardChains)
+  const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const {
     state,
     activeDuelistIds,
@@ -337,6 +341,13 @@ const PileListContent: React.FC = () => {
               selectedCardId={selectedCardId}
               chainIndexesByInstance={chainIndexesByInstance}
               getCardName={(card) => getCardName(card.code)}
+              onCardClick={(event, card) => {
+                if (!isEngineActive || !hasCardEngineActions(pendingRequest, card)) return false
+                event.preventDefault()
+                event.stopPropagation()
+                openCardMenu(card, event.currentTarget.getBoundingClientRect())
+                return true
+              }}
               onSelect={handleSelect}
               onHoverChange={handleHoverChange}
               onTogglePosition={handleTogglePosition}
@@ -346,6 +357,10 @@ const PileListContent: React.FC = () => {
                 if (!isEngineActive) return
                 event.preventDefault()
                 event.stopPropagation()
+                if (hasCardEngineActions(pendingRequest, card)) {
+                  openCardMenu(card, event.currentTarget.getBoundingClientRect())
+                  return
+                }
                 openMenu(card, event.clientX, event.clientY)
               }}
               onReorder={(fromIndex, toIndex) => {

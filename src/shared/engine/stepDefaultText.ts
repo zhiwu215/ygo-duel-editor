@@ -1,10 +1,14 @@
 import type { DuelActionType, DuelStep, DuelStepTextBlock } from '../types/story'
+import { cardNameWrapperPair } from './cardNameWrap'
+import { formatStepLogEventLines } from './stepLogText'
 
-export const CARD_NAME_WRAPPERS = ['「」', '『』', '[]', '【】'] as const
-
-export type CardNameWrapper = (typeof CARD_NAME_WRAPPERS)[number]
-
-export const DEFAULT_CARD_NAME_WRAPPER: CardNameWrapper = '「」'
+export {
+  CARD_NAME_WRAPPERS,
+  DEFAULT_CARD_NAME_WRAPPER,
+  normalizeCardNameWrapper,
+  cardNameWrapperPair
+} from './cardNameWrap'
+export type { CardNameWrapper } from './cardNameWrap'
 
 const NARRATION_ACTIONS = new Set<DuelActionType>([
   'DRAW',
@@ -45,17 +49,6 @@ const ACTION_LABELS: Partial<Record<DuelActionType, string>> = {
   DETACH_MATERIAL: '取除素材'
 }
 
-export function normalizeCardNameWrapper(value: string | undefined): CardNameWrapper {
-  return CARD_NAME_WRAPPERS.includes(value as CardNameWrapper)
-    ? (value as CardNameWrapper)
-    : DEFAULT_CARD_NAME_WRAPPER
-}
-
-export function cardNameWrapperPair(value: string | undefined): { open: string; close: string } {
-  const normalized = normalizeCardNameWrapper(value)
-  return { open: normalized[0], close: normalized[1] }
-}
-
 export function buildDefaultStepText(
   step: DuelStep,
   actorName: string,
@@ -86,14 +79,28 @@ export function buildDefaultTextBlock(
   return { id: `default-${step.id}`, text, auto: true }
 }
 
+function buildDefaultTextBlocks(
+  step: DuelStep,
+  actorName: string,
+  wrapper: string | undefined
+): DuelStepTextBlock[] {
+  const blocks: DuelStepTextBlock[] = []
+  const summary = buildDefaultTextBlock(step, actorName, wrapper)
+  if (summary) blocks.push(summary)
+  const lines = formatStepLogEventLines(step, step.logEvents ?? [], wrapper)
+  lines.forEach((text, index) => {
+    blocks.push({ id: `default-${step.id}-${index}`, text, auto: true })
+  })
+  return blocks
+}
+
 export function displayStepTextBlocks(
   step: DuelStep,
   actorName: string,
   wrapper: string | undefined
 ): DuelStepTextBlock[] {
   if (step.texts !== undefined) return step.texts
-  const block = buildDefaultTextBlock(step, actorName, wrapper)
-  return block ? [block] : []
+  return buildDefaultTextBlocks(step, actorName, wrapper)
 }
 
 export function refreshAutoTextBlock(
@@ -102,11 +109,10 @@ export function refreshAutoTextBlock(
   wrapper: string | undefined
 ): DuelStepTextBlock[] | undefined {
   if (step.texts === undefined) return undefined
-  const autoBlock = step.texts.find((block) => block.auto)
-  if (!autoBlock) return step.texts
-  const next = buildDefaultTextBlock(step, actorName, wrapper)
-  if (!next) return step.texts.filter((block) => block.id !== autoBlock.id)
-  return step.texts.map((block) =>
-    block.id === autoBlock.id ? { ...block, text: next.text } : block
+  if (!step.texts.some((block) => block.auto)) return step.texts
+  const userBlocks = step.texts.filter((block) => !block.auto)
+  const autoBlocks = buildDefaultTextBlocks(step, actorName, wrapper).filter(
+    (block) => !userBlocks.some((userBlock) => userBlock.id === block.id)
   )
+  return [...autoBlocks, ...userBlocks]
 }

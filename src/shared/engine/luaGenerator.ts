@@ -170,6 +170,9 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
     { loc: CardLocation.DECK, name: '主卡组 (DECK)' }
   ]
 
+  const counterLines: string[] = []
+  let counterSeq = 0
+
   const emitCard = (card: FieldCard, location: number, sequence: number): void => {
     const locName = getLocationConstName(location)
     const posName = getPositionConstName(card.position)
@@ -190,8 +193,9 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
     const owner = !isTag && isPrivatePile ? targetController : card.owner
 
     if (hasCounters) {
+      const counterVar = `counterCard${++counterSeq}`
       lines.push(
-        `local c = Debug.AddCard(${card.code}, ${owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
+        `local ${counterVar} = Debug.AddCard(${card.code}, ${owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
       )
       for (const [typeIdStr, count] of Object.entries(card.counters!)) {
         const countNum = Number(count)
@@ -199,7 +203,9 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
         if (countNum > 0) {
           const hexStr = `0x${typeNum.toString(16)}`
           const counterName = resolveCounterName(typeNum, state.customCounters)
-          lines.push(`c:add_counter(${hexStr}, ${countNum}) -- 放置${countNum}个${counterName}`)
+          counterLines.push(
+            `${counterVar}:AddCounter(${hexStr}, ${countNum}) -- 放置${countNum}个${counterName}`
+          )
         }
       }
     } else {
@@ -267,6 +273,11 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
   }
   lines.push(`-- 4. 结束初始化`)
   lines.push(`Debug.ReloadFieldEnd()`)
+  if (counterLines.length > 0) {
+    lines.push('')
+    lines.push('-- 指示物在场地初始化完成后放置')
+    lines.push(...counterLines)
+  }
   if (forReplay) {
     lines.push(`local e1=Effect.GlobalEffect()`)
     lines.push(`e1:SetType(EFFECT_TYPE_FIELD)`)

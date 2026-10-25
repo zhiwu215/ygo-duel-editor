@@ -14,6 +14,7 @@ import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { usePileListStore } from '../../stores/usePileListStore'
 import { CardHudOverlay } from './components/CardHudOverlay'
+import { CardAttackActionButton } from './components/CardAttackActionButton'
 import { CardFieldStats } from './components/CardFieldStats'
 import { OverlayMaterialStack } from './components/OverlayMaterialStack'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
@@ -21,14 +22,9 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useSelectionStore } from '../../stores/useSelectionStore'
 import { useAttackTargetingStore } from '../../stores/useAttackTargetingStore'
 import { isFaceupMonster } from '../../utils/battleDamage'
-import {
-  isRequestCardAt,
-  hasCardEngineActions,
-  deriveCardEngineActions
-} from '../../utils/engineActions'
+import { hasCardEngineActions, deriveCardEngineActions } from '../../utils/engineActions'
 import { resolveHoverRelationMark } from '../../utils/cardRelationMarks'
 import {
-  ATTACK_TARGET_DESC_HINT,
   resolveCardSelectionMatch,
   resolveCardRole,
   type CardSelectionMatch
@@ -53,7 +49,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const {
     selectedCardId,
     hoveredInstanceId,
-    currentPhase,
     setSelectedCardId,
     setHoveredCard,
     setHoveredInstanceId
@@ -63,7 +58,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const canDrag = !isEngineActive
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const boardState = useDuelEngineStore((s) => s.boardState)
-  const lastAttacker = useDuelEngineStore((s) => s.lastAttacker)
   const selectedKeys = useSelectionStore((s) => s.selectedKeys)
 
   const cardEngineActions = useMemo(
@@ -103,22 +97,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     [editorTargetActive, selectionMatch]
   )
 
-  const editorAttackerId = useAttackTargetingStore((s) => s.attacker?.instanceId ?? null)
-  const isEditorAttackable =
-    !isEngineActive &&
-    currentPhase === 'BP' &&
-    card.location === CardLocation.MZONE &&
-    card.position === CardPosition.FACEUP_ATTACK
-  const isDeclaredAttacker =
-    pendingRequest?.data.kind === 'card' &&
-    pendingRequest.descHint === ATTACK_TARGET_DESC_HINT &&
-    lastAttacker !== null &&
-    isRequestCardAt(lastAttacker, card)
-  const showAttackMark =
-    isEditorAttackable ||
-    editorAttackerId === card.instanceId ||
-    Boolean(cardEngineActions?.attack) ||
-    isDeclaredAttacker
   const hoverRelationMark = useMemo(
     () =>
       isEngineActive && boardState
@@ -137,6 +115,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   useFieldCardCdb(card)
 
   const { openMenu, closeMenu: closeContextMenu } = useContextMenuStore()
+  const openCardMenu = useCardCommandMenuStore((s) => s.openMenu)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openPile = usePileListStore((s) => s.openPile)
   const { closeMenu: closeCommandMenu } = useCardCommandMenuStore()
@@ -263,7 +242,11 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         closeContextMenu()
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
-        openMenu(card, e.clientX, e.clientY)
+        if (isEngineActive && hasRequestActions) {
+          openCardMenu(card, e.currentTarget.getBoundingClientRect())
+        } else {
+          openMenu(card, e.clientX, e.clientY)
+        }
       }}
       className={cn(
         'w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none',
@@ -278,6 +261,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         }`}
       >
         <OverlayMaterialStack card={card} />
+
+        <CardAttackActionButton card={card} />
 
         <motion.div
           initial={false}
@@ -329,8 +314,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
           </div>
         </motion.div>
 
-        {showAttackMark && <CardFieldMarks mark="attack" controller={card.controller} />}
-        {fieldMark && <CardFieldMarks mark={fieldMark} controller={card.controller} />}
+        {fieldMark && <CardFieldMarks mark={fieldMark} />}
       </div>
 
       {(isSetOnField || isPublicHand) && (

@@ -211,8 +211,8 @@ export class AgentService {
 
       if (lastAssistant?.stopReason === 'length') {
         const errMsg = this.streamText
-          ? '回答因超出单次回复长度上限被截断，内容不完整。可在「设置 → 模型设置 → 对话」中调高「单次回复上限」后重试。'
-          : '模型回复超出单次回复长度上限即被截断，未输出任何内容。请在「设置 → 模型设置 → 对话」中调高「单次回复上限」后重试。'
+          ? '回答达到模型的最大输出上限被截断，内容不完整。请在「设置 → 模型设置」中调高该模型的「最大输出 token 数」后重试。'
+          : '模型把最大输出配额用在了思考上，没有给出回答。请在「设置 → 模型设置」中调高该模型的「最大输出 token 数」，或降低推理等级后重试。'
         this.emitEvent({ type: 'error', message: errMsg })
         return { success: false, error: errMsg }
       }

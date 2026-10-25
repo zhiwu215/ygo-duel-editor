@@ -171,6 +171,33 @@ function snapshotMatchesStep(snapshot: LightweightCardSnapshot[], step: DuelStep
   return true
 }
 
+export function sceneSignature(scene: OpeningScene): string {
+  const cards = [...scene.cards]
+    .sort((left, right) =>
+      left.instanceId < right.instanceId ? -1 : left.instanceId > right.instanceId ? 1 : 0
+    )
+    .map((card) => ({
+      instanceId: card.instanceId,
+      code: card.code,
+      controller: card.controller,
+      owner: card.owner ?? card.controller,
+      location: card.location,
+      sequence: card.sequence,
+      position: card.position,
+      overlayMaterials: card.overlayMaterials,
+      duelistId: card.duelistId,
+      customAtk: card.customAtk,
+      customDef: card.customDef
+    }))
+  return JSON.stringify({
+    cards,
+    lp: scene.lp,
+    turn: scene.turn,
+    phase: scene.phase,
+    turnPlayer: scene.turnPlayer
+  })
+}
+
 export function resolveOpeningScene(state: DuelPuzzleState): OpeningScene | null {
   const steps = state.steps ?? []
   const first = steps[0]

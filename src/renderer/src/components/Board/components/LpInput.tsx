@@ -1,6 +1,7 @@
 import React from 'react'
 import { CalculatorInput } from './CalculatorInput'
 import { useAnimatedNumber } from '../../../hooks/useAnimatedNumber'
+import { useDuelStore } from '../../../stores/useDuelStore'
 import { cn } from '../../../lib/utils'
 import lpBarTexture from '../../../assets/textures/lp.png'
 import lpFrameTexture from '../../../assets/textures/lpf.png'
@@ -26,12 +27,14 @@ export const LpInput: React.FC<LpInputProps> = ({
   maxLp = 8000,
   className
 }) => {
-  const animatedLp = useAnimatedNumber(lp)
+  const displayLp = useDuelStore((s) => (player === undefined ? undefined : s.lpDisplay[player]))
+  const shownLp = displayLp ?? lp
+  const animatedLp = useAnimatedNumber(shownLp)
   const placement =
     popoverPlacement === 'auto' ? (player === 0 ? 'top' : 'bottom') : popoverPlacement
-  const exceedsMax = maxLp > 0 && lp > maxLp
-  const layers = exceedsMax ? Math.floor(lp / maxLp) : 0
-  const partialLp = exceedsMax ? lp % maxLp : Math.max(0, lp)
+  const exceedsMax = maxLp > 0 && animatedLp > maxLp
+  const layers = exceedsMax ? Math.floor(animatedLp / maxLp) : 0
+  const partialLp = exceedsMax ? animatedLp % maxLp : Math.max(0, animatedLp)
   const percent = Math.max(0, Math.min(100, maxLp > 0 ? (partialLp / maxLp) * 100 : 0))
   const backgroundRow = exceedsMax ? (layers - 1) % 5 : 0
   const fillRow = exceedsMax ? layers % 5 : 0

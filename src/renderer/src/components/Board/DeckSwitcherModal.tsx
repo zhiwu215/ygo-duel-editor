@@ -1,13 +1,19 @@
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { DeckData } from '@shared/index'
+import { DeckData, groupLeafName } from '@shared/index'
 import { useDeckSwitcherStore } from '../../stores/useDeckSwitcherStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDismissOnOutside } from '../../hooks/useDismissOnOutside'
 import { resolveViewerDuelist } from '../../utils/duelistNames'
+import {
+  getGroupBreadcrumb,
+  getSearchMatchedDecks,
+  getVisibleGroups
+} from '../../utils/deckLibraryView'
 import { CardImage } from '../ui/CardImage'
-import { ArrowLeftRight, X, Search, Layers, SquarePen, Plus } from 'lucide-react'
+import { DeckFolderTile } from '../common/DeckFolderTile'
+import { X, Search, Layers, SquarePen, Plus, Folder, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '../../lib/utils'
@@ -35,6 +41,8 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
   )
 
   const [decks, setDecks] = useState<DeckData[]>([])
+  const [groups, setGroups] = useState<string[]>([])
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [query, setQuery] = useState<string>('')
 
@@ -57,10 +65,16 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
     window.api
       .getDeckLibrary()
       .then((library) => {
-        if (!cancelled) setDecks(library.decks)
+        if (!cancelled) {
+          setDecks(library.decks)
+          setGroups(library.groups)
+        }
       })
       .catch(() => {
-        if (!cancelled) setDecks([])
+        if (!cancelled) {
+          setDecks([])
+          setGroups([])
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -83,13 +97,19 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
     preventDefaultOnEscape: true
   })
 
-  const filteredDecks = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return decks
-    return decks.filter((d) =>
-      [d.name, d.group, ...(d.tags || [])].filter(Boolean).join(' ').toLowerCase().includes(q)
-    )
-  }, [decks, query])
+  const matchedDecks = useMemo(() => getSearchMatchedDecks(decks, query), [decks, query])
+
+  const visibleDecks = useMemo(() => {
+    if (matchedDecks) return matchedDecks
+    return decks.filter((deck) => (deck.group?.trim() || null) === selectedGroup)
+  }, [decks, matchedDecks, selectedGroup])
+
+  const visibleGroups = useMemo(
+    () => (matchedDecks ? [] : getVisibleGroups(groups, selectedGroup, null)),
+    [groups, selectedGroup, matchedDecks]
+  )
+
+  const breadcrumb = useMemo(() => getGroupBreadcrumb(selectedGroup), [selectedGroup])
 
   const handleApply = (deck: DeckData): void => {
     if (useDuelEngineStore.getState().isInitialized) {
@@ -132,7 +152,6 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 shrink-0">
             <div className="flex items-center gap-2">
-              <ArrowLeftRight className="w-4 h-4 text-blue-500" />
               <h2 className="font-bold text-sm tracking-tight">切换卡组</h2>
               <span
                 className={cn(
@@ -161,7 +180,7 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索卡组名 / 分组 / 标签..."
+                aria-label="搜索卡组"
                 className="h-7 text-xs pl-8 pr-2"
               />
             </div>
@@ -177,52 +196,126 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
             </Button>
           </div>
 
+          {breadcrumb.length > 0 && !matchedDecks && (
+            <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border/60 bg-muted/20 px-4 py-1.5 text-xs text-muted-foreground">
+              <button
+                type="button"
+                onClick={() => setSelectedGroup(null)}
+                className="flex items-center gap-1 transition-colors hover:text-foreground cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>全部</span>
+              </button>
+              {breadcrumb.map((path, index) => (
+                <span key={path} className="flex min-w-0 items-center gap-1">
+                  <ChevronRight className="w-3 h-3 shrink-0 opacity-50" />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGroup(path)}
+                    className={cn(
+                      'flex min-w-0 items-center gap-1 transition-colors hover:text-foreground cursor-pointer',
+                      index === breadcrumb.length - 1 && 'font-semibold text-foreground'
+                    )}
+                  >
+                    {index === 0 && <Folder className="w-3.5 h-3.5 shrink-0" />}
+                    <span className="truncate">{groupLeafName(path)}</span>
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           <ScrollArea className="flex-1 min-h-[240px]">
             <div className="p-4">
               {isLoading ? (
                 <p className="text-xs text-muted-foreground py-12 text-center">正在读取卡组库...</p>
-              ) : filteredDecks.length === 0 ? (
+              ) : decks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
                   <Layers className="w-9 h-9 opacity-25 stroke-[1.5]" />
                   <p className="text-xs">
-                    {decks.length === 0
-                      ? '卡组库还是空的 —— 先在「卡组」窗口里创建并保存一副卡组吧'
-                      : '没有匹配的卡组'}
+                    卡组库还是空的 —— 先在「卡组」窗口里创建并保存一副卡组吧
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
-                  {filteredDecks.map((deck) => {
-                    const cover = deck.coverCard || deck.extra[0] || deck.main[0]
-                    return (
-                      <button
-                        key={deck.id || deck.name}
-                        type="button"
-                        onClick={() => handleApply(deck)}
-                        onContextMenu={(e) => handleDeckContextMenu(e, deck)}
-                        className="flex items-center gap-2.5 p-2 rounded-lg border border-border/70 hover:border-blue-500/70 hover:bg-blue-500/[0.06] text-left transition-colors cursor-pointer"
-                      >
-                        <CardImage
-                          code={cover}
-                          small
-                          alt={deck.name}
-                          className="w-8 h-[46px] object-cover rounded shrink-0 border border-border/60"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold truncate">{deck.name}</p>
-                          <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                            主 {deck.main.length} / 额外 {deck.extra.length}
-                          </p>
-                          {(deck.group || (deck.tags && deck.tags.length > 0)) && (
-                            <p className="text-[10px] text-muted-foreground/80 truncate mt-0.5">
-                              {[deck.group, ...(deck.tags || [])].filter(Boolean).join(' · ')}
-                            </p>
-                          )}
-                        </div>
-                      </button>
+                <>
+                  {visibleGroups.length > 0 && (
+                    <div className="mb-4">
+                      <div className="mb-1.5 flex items-center gap-1.5 px-1 text-xs font-semibold text-muted-foreground">
+                        <Folder className="h-3.5 w-3.5" />
+                        <span>{selectedGroup === null ? '分组' : '子分组'}</span>
+                      </div>
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1">
+                        {visibleGroups.map((group) => (
+                          <DeckFolderTile
+                            key={group}
+                            label={groupLeafName(group)}
+                            onClick={() => setSelectedGroup(group)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedGroup === null &&
+                    !matchedDecks &&
+                    visibleGroups.length > 0 &&
+                    visibleDecks.length > 0 && (
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                        <span>未分组</span>
+                        <span className="font-mono text-[10px] opacity-70">
+                          ({visibleDecks.length})
+                        </span>
+                      </div>
+                    )}
+
+                  {visibleDecks.length > 0 ? (
+                    <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
+                      {visibleDecks.map((deck) => {
+                        const cover = deck.coverCard || deck.extra[0] || deck.main[0]
+                        return (
+                          <button
+                            key={deck.id || deck.name}
+                            type="button"
+                            onClick={() => handleApply(deck)}
+                            onContextMenu={(e) => handleDeckContextMenu(e, deck)}
+                            className="flex items-center gap-2.5 p-2 rounded-lg border border-border/70 hover:border-blue-500/70 hover:bg-blue-500/[0.06] text-left transition-colors cursor-pointer"
+                          >
+                            <CardImage
+                              code={cover}
+                              small
+                              alt={deck.name}
+                              className="w-8 h-[46px] object-cover rounded shrink-0 border border-border/60"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold truncate">{deck.name}</p>
+                              <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                                主 {deck.main.length} / 额外 {deck.extra.length}
+                              </p>
+                              {(deck.group || (deck.tags && deck.tags.length > 0)) && (
+                                <p className="text-[10px] text-muted-foreground/80 truncate mt-0.5">
+                                  {[deck.group, ...(deck.tags || [])].filter(Boolean).join(' · ')}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    (matchedDecks || visibleGroups.length === 0) && (
+                      <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
+                        <Layers className="w-9 h-9 opacity-25 stroke-[1.5]" />
+                        <p className="text-xs">
+                          {matchedDecks
+                            ? '没有匹配的卡组'
+                            : selectedGroup
+                              ? '该分组内还没有卡组'
+                              : '没有可切换的卡组'}
+                        </p>
+                      </div>
                     )
-                  })}
-                </div>
+                  )}
+                </>
               )}
             </div>
           </ScrollArea>

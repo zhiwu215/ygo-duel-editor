@@ -1,30 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { BrainCircuit, ChevronRight } from 'lucide-react'
 import { MarkdownContent } from './MarkdownContent'
+import { reasoningPreview } from '../../utils/reasoningPreview'
 import { cn } from '../../lib/utils'
-
-function firstLine(text: string): string {
-  const newline = text.indexOf('\n')
-  return newline === -1 ? text : text.slice(0, newline)
-}
-
-function latestCompletedParagraphFirstLine(text: string): string {
-  let summary = ''
-  let paragraphStart = 0
-  const separator = /\r?\n(?:[\t ]*\r?\n)+/g
-  while (true) {
-    const nextParagraph = separator.exec(text)
-    const paragraphEnd =
-      nextParagraph === null ? text.length : nextParagraph.index + nextParagraph[0].indexOf('\n')
-    const newline = text.indexOf('\n', paragraphStart)
-    if (newline !== -1 && newline <= paragraphEnd) {
-      const candidate = text.slice(paragraphStart, newline).trim()
-      if (candidate !== '') summary = candidate
-    }
-    if (nextParagraph === null) return summary
-    paragraphStart = nextParagraph.index + nextParagraph[0].length
-  }
-}
 
 interface ReasoningRowProps {
   text: string
@@ -34,7 +12,7 @@ interface ReasoningRowProps {
 export function ReasoningRow({ text, running }: ReasoningRowProps): JSX.Element | null {
   const [expanded, setExpanded] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
-  const summaryText = running ? latestCompletedParagraphFirstLine(text) : firstLine(text)
+  const summaryText = reasoningPreview(text, running)
   const summary = useMemo(() => summaryText.replaceAll('**', ''), [summaryText])
   const hasText = text.trim().length > 0
 

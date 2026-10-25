@@ -1,5 +1,11 @@
 import React from 'react'
-import { ACTION_TYPE_COLORS, DuelLogCardRef, DuelStep, POSITION_NAMES } from '@shared/index'
+import {
+  ACTION_TYPE_COLORS,
+  DuelLogCardRef,
+  DuelStep,
+  POSITION_NAMES,
+  isHandShuffleNote
+} from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { CardThumb } from '../ui/CardThumb'
@@ -92,7 +98,7 @@ export const StepCard: React.FC<StepCardProps> = ({
   const hasBoardSnapshot = Boolean(step.boardAfter && step.boardAfter.length > 0)
   const playableFromHere = hasBoardSnapshot && stepEngineIndex === undefined
   const displayCardName = resolveStepCardName(step)
-  const isShuffleStep = step.description?.includes('手牌切洗') ?? false
+  const isShuffleStep = isHandShuffleNote(step.description)
   const isNegatedStep = step.description?.includes('效果被无效') ?? false
   const actingDuelist =
     duelists?.find((duelist) => duelist.id === step.actionDuelistId) ??
@@ -182,22 +188,18 @@ export const StepCard: React.FC<StepCardProps> = ({
                 />
               </div>
 
-              <div
-                className={cn(
-                  'absolute left-[10px] top-[7px] truncate text-[16px] font-bold leading-tight text-foreground',
-                  hasZones ? 'max-w-[112px]' : 'max-w-[150px]'
-                )}
-              >
-                {displayCardName}
-              </div>
-
-              <div
-                className={cn(
-                  'absolute right-[8px] top-[9px] max-w-[74px] truncate text-right text-[9px] font-semibold',
-                  playerAccent
-                )}
-              >
-                {playerLabel}
+              <div className="absolute left-[10px] right-[8px] top-[7px] flex items-start gap-2">
+                <span className="min-w-0 flex-1 truncate text-[16px] font-bold leading-tight text-foreground">
+                  {displayCardName}
+                </span>
+                <span
+                  className={cn(
+                    'max-w-[74px] shrink-0 truncate text-right text-[9px] font-semibold',
+                    playerAccent
+                  )}
+                >
+                  {playerLabel}
+                </span>
               </div>
 
               <div

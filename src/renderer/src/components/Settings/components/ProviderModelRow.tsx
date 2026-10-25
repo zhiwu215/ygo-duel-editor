@@ -1,8 +1,13 @@
 import type { JSX } from 'react'
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
-import { AgentProviderModelConfig } from '@shared/index'
+import {
+  AgentProviderModelConfig,
+  DEFAULT_AGENT_CONTEXT_WINDOW,
+  DEFAULT_AGENT_MAX_OUTPUT_TOKENS
+} from '@shared/index'
 import { Checkbox } from '../../ui/checkbox'
 import { cn } from '../../../lib/utils'
+import { formatModelCapacity } from '../../../utils/modelCapacity'
 import { ModelInputTypes } from './ModelInputTypes'
 import { ModelReasoningEfforts } from './ModelReasoningEfforts'
 import {
@@ -103,7 +108,7 @@ export function ProviderModelRow({
                 type="text"
                 inputMode="numeric"
                 value={contextWindowText}
-                placeholder="256K"
+                placeholder={formatModelCapacity(DEFAULT_AGENT_CONTEXT_WINDOW)}
                 aria-label={`上下文窗口 ${position}`}
                 aria-invalid={capacityError !== undefined}
                 onChange={(event) => onCapacityChange('contextWindow', event.target.value)}
@@ -116,7 +121,7 @@ export function ProviderModelRow({
                 type="text"
                 inputMode="numeric"
                 value={maxTokensText}
-                placeholder="32K"
+                placeholder={formatModelCapacity(DEFAULT_AGENT_MAX_OUTPUT_TOKENS)}
                 aria-label={`最大输出 token 数 ${position}`}
                 aria-invalid={capacityError !== undefined}
                 onChange={(event) => onCapacityChange('maxTokens', event.target.value)}

@@ -16,6 +16,10 @@ import {
 
 export const DEFAULT_AGENT_API_FORMAT: AgentApiFormat = 'openai-chat-completions'
 
+export const DEFAULT_AGENT_CONTEXT_WINDOW = 1_000_000
+
+export const DEFAULT_AGENT_MAX_OUTPUT_TOKENS = 128_000
+
 const AGENT_DEFAULTS_VERSION = 3
 
 const DEFAULT_AGENT_PROVIDER_PRESET_ID = 'deepseek'

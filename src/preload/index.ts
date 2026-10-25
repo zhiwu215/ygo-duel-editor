@@ -7,6 +7,7 @@ import {
   AppConfig,
   DeckData,
   AgentStreamEvent,
+  CustomCardScriptGenerateEvent,
   CardNote,
   CardNoteKind,
   DuelTestSettings,
@@ -57,6 +58,15 @@ const api: IpcApi = {
     ipcRenderer.invoke('customcard:import-script', code, filePath),
   testCustomCardScript: (input) => ipcRenderer.invoke('customcard:test-script', input),
   generateCustomCardScript: (input) => ipcRenderer.invoke('customcard:generate-script', input),
+  abortCustomCardScriptGeneration: () => ipcRenderer.invoke('customcard:abort-generate-script'),
+  onCustomCardScriptGenerateEvent: (callback) => {
+    const handler = (_: unknown, event: unknown): void =>
+      callback(event as CustomCardScriptGenerateEvent)
+    ipcRenderer.on('customcard:generate-script-progress', handler)
+    return () => {
+      ipcRenderer.removeListener('customcard:generate-script-progress', handler)
+    }
+  },
   saveCustomCardScriptContent: (code, content) =>
     ipcRenderer.invoke('customcard:save-script-content', code, content),
   deleteCustomCardScript: (code) => ipcRenderer.invoke('customcard:delete-script', code),

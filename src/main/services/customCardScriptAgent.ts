@@ -1,135 +1,114 @@
-import type { AgentModelConfig } from '@shared/index'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import type {
+  AgentModelConfig,
+  CustomCardScriptGenerateEvent,
+  CustomCardScriptGenerateResult
+} from '@shared/index'
 import {
+  DEFAULT_AGENT_MAX_OUTPUT_TOKENS,
   isLocalEndpoint,
   normalizeCardStrings,
   resolveActiveRuntime,
-  type CustomCard,
-  type CustomCardScriptGenerateResult,
-  type CustomScriptTestPlan
+  type CustomCard
 } from '@shared/index'
 import { acquireSession, type SessionConfig } from './agent/piSessionFactory'
 import { configService } from './configService'
 import { cdbService } from '../db/cdbService'
-import { runCustomCardScriptTest } from './customCardScriptTest'
+import { collectCustomCardScriptReferences } from './customCardScriptReferences'
+import { extractLuaScriptBlock, extractStreamingScript } from './customCardScriptStream'
 import {
-  collectCustomCardScriptReferences,
-  type CustomCardScriptReference
-} from './customCardScriptReferences'
+  buildScriptRepairPrompt,
+  buildScriptUserPrompt,
+  CUSTOM_CARD_SCRIPT_SYSTEM_PROMPT
+} from './customCardScriptPrompt'
+import { normalizeScriptText, scriptStructureProblem } from './customCardScriptDraft'
 
-const MAX_REPAIR_ROUNDS = 3
+const MAX_ATTEMPTS = 2
 
-const SYSTEM_PROMPT = `你是 YGOPro Lua 卡片脚本生成器，为自定义卡生成可直接被 ocgcore 执行的完整脚本。
+const GENERATION_TIMEOUT_MS = 6 * 60 * 1000
 
-只输出一个 JSON 对象，不要输出 Markdown 代码块或额外解释。JSON 结构：
-{
-  "script": "完整的 c<卡密>.lua 内容",
-  "strings": ["与 aux.Stringid(id, n) 对应的文本，最多 16 条，缺失用空字符串"],
-  "category": 0,
-  "testPlan": {
-    "version": 1,
-    "seed": 42,
-    "setup": [...],
-    "checks": [...]
-  },
-  "notes": "可选说明"
+interface ActiveGeneration {
+  session: AgentSession | null
+  aborted: boolean
+  timedOut: boolean
 }
 
-脚本规则：
-- 第一行写 -- c<卡密>.lua <卡名>，第二行写 local s,id,o=GetID()
-- 在 s.initial_effect(c) 中注册所有效果
-- 只实现效果文本明确描述的行为，不臆造 API
-- 魔法/陷阱的效果发动用对应 EFFECT_TYPE_ACTIVATE 结构；怪兽效果按时点注册
-- SetCost/SetTarget 的 chk==0 只检查可行性，不修改状态
-- 文本明确“以……为对象”时用 Duel.SelectTarget；处理后选择用 operation 里的 Duel.SelectMatchingCard
-- 需要提示/描述时使用 aux.Stringid(id,n)，并在 strings 的同一 n 写入文本
-- 不使用 EDOPro 专有 API
+interface PiAssistantMessage {
+  role: 'assistant'
+  stopReason: string
+  errorMessage?: string
+}
 
-category 是效果分类位掩码，根据效果选择；可用分类会在用户消息里给出。
-testPlan 使用给定 schema；至少包含 load-script、assert-no-redtext、start-duel、advance，能断言 LP/区域数量时补上。
-如果效果需要玩家做选择，在 testPlan.responses 里按顺序提供 select-card / yes-no / chain / option / position 响应；响应项会用完即移除，未提供的交互自动回退到默认选择。`
-
-interface ParsedDraft {
+interface ScriptDraft {
   script: string
   strings: string[]
-  category: number
-  testPlan?: CustomScriptTestPlan
+  category?: number
   notes?: string
 }
 
-function parseJsonObject(text: string): ParsedDraft {
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  if (start < 0 || end <= start) throw new Error('模型没有返回 JSON 对象。')
-  const raw = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>
-  const script = typeof raw.script === 'string' ? raw.script.trim() : ''
-  if (!script) throw new Error('模型返回的脚本为空。')
-  return {
-    script,
-    strings: normalizeCardStrings(raw.strings),
-    category: Number.isFinite(Number(raw.category)) ? Number(raw.category) : 0,
-    testPlan:
-      raw.testPlan && typeof raw.testPlan === 'object'
-        ? (raw.testPlan as CustomScriptTestPlan)
-        : undefined,
-    notes: typeof raw.notes === 'string' ? raw.notes : undefined
+let activeGeneration: ActiveGeneration | null = null
+
+export async function abortCustomCardScriptGeneration(): Promise<boolean> {
+  const generation = activeGeneration
+  if (!generation) return false
+  generation.aborted = true
+  try {
+    await generation.session?.abort()
+  } catch {
+    void 0
   }
+  return true
 }
 
-function buildUserPrompt(
-  card: CustomCard,
-  existingScript: string | undefined,
-  references: CustomCardScriptReference[]
-): string {
-  const categories = cdbService
-    .getSearchFilterOptions()
-    .effectCategories.map((item) => `- ${item.mask}: ${item.label}`)
-    .join('\n')
-  const referenceText =
-    references.length > 0
-      ? references
-          .map((item) => `--- ${item.name} (${item.code}) ---\n${item.script.trim()}`)
-          .join('\n\n')
-      : '（没有找到可用的相似卡脚本）'
-  return `【卡片数据】
-${JSON.stringify(
-  {
-    id: card.id,
-    name: card.name,
-    desc: card.desc,
-    type: card.type,
-    attribute: card.attribute,
-    race: card.race,
-    level: card.level,
-    lscale: card.lscale,
-    rscale: card.rscale,
-    atk: card.atk,
-    def: card.def,
-    linkMarkers: card.linkMarkers,
-    alias: card.alias,
-    ot: card.ot,
-    setcode: card.setcode,
-    category: card.category,
-    strings: card.strings
-  },
-  null,
-  2
-)}
+function describeTruncation(outputLimit: number, output: string): string {
+  if (output.trim().length === 0) {
+    return `模型把全部输出配额（${outputLimit} tokens）用在了思考上，没有写出脚本。请在「设置 → 模型」调高该模型的「最大输出 token 数」，或降低推理等级后重试。`
+  }
+  return `模型输出达到上限（${outputLimit} tokens）被截断，脚本不完整。请在「设置 → 模型」调高该模型的「最大输出 token 数」后重试。`
+}
 
-【可用效果分类】
-${categories || '（当前数据库没有分类文本，category 填 0）'}
+function parseDraft(text: string, card: CustomCard): { draft: ScriptDraft } | { error: string } {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  let raw: Record<string, unknown> | null = null
+  if (start >= 0 && end > start) {
+    try {
+      raw = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>
+    } catch {
+      raw = null
+    }
+  }
 
-【相似卡脚本参考】
-${referenceText}
+  if (raw && typeof raw.script === 'string' && raw.script.trim().length > 0) {
+    const category = Number(raw.category)
+    return {
+      draft: {
+        script: normalizeScriptText(raw.script, card),
+        strings: normalizeCardStrings(raw.strings),
+        category: raw.category !== undefined && Number.isFinite(category) ? category : undefined,
+        notes: typeof raw.notes === 'string' && raw.notes.trim() ? raw.notes.trim() : undefined
+      }
+    }
+  }
 
-【现有脚本】
-${existingScript?.trim() || '（无）'}
+  const lua = extractLuaScriptBlock(text)
+  if (lua) {
+    return {
+      draft: {
+        script: normalizeScriptText(lua, card),
+        strings: normalizeCardStrings(undefined)
+      }
+    }
+  }
 
-请生成脚本、strings、category 和测试计划。`
+  if (!raw) return { error: start < 0 ? '没有返回 JSON 对象' : '返回的 JSON 无法解析' }
+  return { error: '脚本为空' }
 }
 
 export async function generateCustomCardScript(
   card: CustomCard,
-  existingScript?: string
+  existingScript: string | undefined,
+  emit: (event: CustomCardScriptGenerateEvent) => void
 ): Promise<CustomCardScriptGenerateResult> {
   const appConfig = configService.get()
   const merged = {
@@ -147,7 +126,7 @@ export async function generateCustomCardScript(
     apiKey: runtime.apiKey,
     model: runtime.model || 'deepseek-chat',
     apiFormat: runtime.apiFormat,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: CUSTOM_CARD_SCRIPT_SYSTEM_PROMPT,
     reasoningEfforts: runtime.reasoningEfforts,
     reasoningEffort: runtime.reasoningEffort,
     contextWindow: runtime.contextWindow,
@@ -158,71 +137,124 @@ export async function generateCustomCardScript(
   }
 
   let streamText = ''
-  const session = await acquireSession(
-    cfg,
-    [],
-    {
-      emitEvent: () => undefined,
-      onTextDelta: (delta) => {
-        streamText += delta
-      },
-      onThinkingDelta: () => undefined
-    },
-    { cache: false, systemPrompt: SYSTEM_PROMPT }
-  )
+  let sentScriptLength = 0
+  let watchdog: NodeJS.Timeout | undefined
+  const generation: ActiveGeneration = { session: null, aborted: false, timedOut: false }
+  activeGeneration = generation
+
+  const emitStatus = (message: string): void => emit({ type: 'status', message })
 
   try {
-    const references = collectCustomCardScriptReferences(card)
-    let prompt = buildUserPrompt(card, existingScript, references)
-    let lastDraft: ParsedDraft | null = null
-    let lastReport: CustomCardScriptGenerateResult['report']
+    const categories = cdbService
+      .getSearchFilterOptions()
+      .effectCategories.map((item) => `- ${item.mask}: ${item.label}`)
+      .join('\n')
 
-    for (let round = 0; round < MAX_REPAIR_ROUNDS; round++) {
+    emitStatus('正在检索相似卡脚本参考…')
+    const references = collectCustomCardScriptReferences(card)
+    emitStatus(
+      references.length > 0
+        ? `已找到 ${references.length} 个相似卡脚本参考：${references.map((item) => item.name).join('、')}`
+        : '没有找到相似卡脚本参考，按通用规则生成'
+    )
+
+    emitStatus('正在初始化模型会话…')
+    const session = await acquireSession(
+      cfg,
+      [],
+      {
+        emitEvent: (event) => {
+          if (event.type === 'status') emitStatus(event.message)
+        },
+        onTextDelta: (delta) => {
+          streamText += delta
+          const script = extractStreamingScript(streamText)
+          if (script.length > sentScriptLength) {
+            emit({ type: 'script_delta', delta: script.slice(sentScriptLength) })
+            sentScriptLength = script.length
+          }
+        },
+        onThinkingDelta: (delta) => emit({ type: 'thinking_delta', delta })
+      },
+      { cache: false, systemPrompt: CUSTOM_CARD_SCRIPT_SYSTEM_PROMPT }
+    )
+    generation.session = session
+    if (generation.aborted) return { success: false, error: '生成已中断。' }
+
+    watchdog = setTimeout(() => {
+      generation.timedOut = true
+      void session.abort().catch(() => undefined)
+    }, GENERATION_TIMEOUT_MS)
+
+    let prompt = buildScriptUserPrompt({ card, existingScript, references, categories })
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
       streamText = ''
+      sentScriptLength = 0
+      emit({ type: 'attempt_start' })
+      emitStatus(attempt === 0 ? '模型正在分析效果并生成脚本…' : '模型正在根据校验结果修正脚本…')
+
       await session.prompt(prompt)
-      const draft = parseJsonObject(streamText)
-      lastDraft = draft
-      const report = await runCustomCardScriptTest({
-        card,
-        script: draft.script,
-        plan: draft.testPlan
-      })
-      lastReport = report
-      if (report.ok) {
+      if (generation.timedOut) return { success: false, error: '生成超时（6 分钟），已停止。' }
+      if (generation.aborted) return { success: false, error: '生成已中断。' }
+
+      const lastAssistantMsg = [...session.messages]
+        .reverse()
+        .find((message) => (message as PiAssistantMessage).role === 'assistant')
+      const lastAssistant = lastAssistantMsg as PiAssistantMessage | undefined
+      if (lastAssistant?.stopReason === 'aborted') {
+        return { success: false, error: '生成已中断。' }
+      }
+      if (lastAssistant?.stopReason === 'error') {
+        return { success: false, error: lastAssistant.errorMessage || '模型请求失败。' }
+      }
+      if (lastAssistant?.stopReason === 'length') {
         return {
-          success: true,
-          script: draft.script,
-          strings: draft.strings,
-          category: draft.category,
-          testPlan: draft.testPlan,
-          report,
-          notes: draft.notes
+          success: false,
+          error: describeTruncation(cfg.maxTokens ?? DEFAULT_AGENT_MAX_OUTPUT_TOKENS, streamText)
         }
       }
-      prompt = `上一版脚本测试失败：
-${report.errors.join('\n')}
 
-请修复并重新输出完整的 JSON，不要只输出补丁。原卡片数据：
-${buildUserPrompt(card, existingScript, references)}`
+      const parsed = parseDraft(streamText, card)
+      if ('error' in parsed) {
+        if (attempt + 1 < MAX_ATTEMPTS) {
+          prompt = buildScriptRepairPrompt(parsed.error)
+          continue
+        }
+        return { success: false, error: `模型输出无法使用：${parsed.error}。请重试或更换模型。` }
+      }
+
+      const problem = scriptStructureProblem(parsed.draft.script, card.id, card.desc)
+      if (problem) {
+        if (attempt + 1 < MAX_ATTEMPTS) {
+          prompt = buildScriptRepairPrompt(`脚本结构不完整（${problem}）`)
+          continue
+        }
+        return { success: false, error: `脚本结构不完整：${problem}。请重试或更换模型。` }
+      }
+
+      emitStatus(`脚本已生成（${parsed.draft.script.split('\n').length} 行），等待应用`)
+      return {
+        success: true,
+        script: parsed.draft.script,
+        strings: parsed.draft.strings,
+        category: parsed.draft.category,
+        notes: parsed.draft.notes
+      }
     }
 
-    return {
-      success: false,
-      script: lastDraft?.script,
-      strings: lastDraft?.strings,
-      category: lastDraft?.category,
-      testPlan: lastDraft?.testPlan,
-      report: lastReport,
-      error: lastReport?.errors[0] ?? '脚本测试未通过。'
-    }
+    return { success: false, error: '脚本生成失败。' }
   } catch (err: unknown) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : '脚本生成失败'
-    }
+    if (generation.timedOut) return { success: false, error: '生成超时（6 分钟），已停止。' }
+    if (generation.aborted) return { success: false, error: '生成已中断。' }
+    const message = err instanceof Error ? err.message : '脚本生成失败'
+    emitStatus(`生成失败：${message}`)
+    return { success: false, error: message }
   } finally {
+    if (watchdog) clearTimeout(watchdog)
+    if (activeGeneration === generation) activeGeneration = null
     try {
-      session.dispose()
+      generation.session?.dispose()
     } catch {}
   }
 }

@@ -15,6 +15,7 @@ import {
 import { useDuelStore } from '../useDuelStore'
 import { detachStepsFromTimeline } from '../../utils/stepHistory'
 import { syncJumpToStepWrapped } from './boardReconcile'
+import { cancelLpSequence } from './lpSequence'
 import { chainStateAtNode } from './chainState'
 import { engineErrorMessage } from './engineErrorMessage'
 import { clearIdentities } from './identityMap'
@@ -32,12 +33,6 @@ type EngineMode = 'idle' | 'running' | 'paused'
 interface EngineInjectNotice {
   kind: 'success' | 'warning'
   message: string
-}
-
-interface HandShuffleSignal {
-  id: number
-  players: (0 | 1)[]
-  duelists?: string[]
 }
 
 function enterEnginePileOrder(): void {
@@ -76,7 +71,6 @@ export interface SessionSlice {
   loading: boolean
   error: string | null
   injectNotice: EngineInjectNotice | null
-  handShuffle: HandShuffleSignal | null
   boardChains: DuelChainCard[]
   mergedMatch: boolean
   suspendedDoc: EngineSessionDoc | null
@@ -102,12 +96,12 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   loading: false,
   error: null,
   injectNotice: null,
-  handShuffle: null,
   boardChains: [],
   mergedMatch: false,
   suspendedDoc: null,
 
   startEngine: async (options) => {
+    cancelLpSequence()
     const support = window.api.getDuelEngineSupport ? await window.api.getDuelEngineSupport() : null
     if (support && !support.supported) {
       set({ loading: false, error: support.reason ?? '当前游戏目录不支持内置引擎。' })
@@ -179,6 +173,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       })
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(get().timeline)
+      get().playStepEffects(res.initialNode)
       useDuelStore.setState({ duelStarted: true })
     } catch (err) {
       console.error('[useDuelEngineStore] startEngine failed:', err)
@@ -193,6 +188,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   },
 
   stopEngine: () => {
+    cancelLpSequence()
     const { replayInfo, preReplay } = get()
     useDuelStore.getState().exitPreview()
     if (replayInfo) {
@@ -221,6 +217,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
     }
     clearEngineSteps()
     clearIdentities()
+    get().clearStepEffects()
     set({
       engineMode: 'idle',
       isInitialized: false,
@@ -228,7 +225,6 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       mergedMatch: false,
       error: null,
       injectNotice: null,
-      handShuffle: null,
       boardChains: [],
       pendingRequest: null,
       lastAttacker: null,
@@ -270,6 +266,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       set({ error: '引擎尚未启动，无法执行注入。' })
       return false
     }
+    cancelLpSequence()
     set({ loading: true, error: null })
     try {
       const res = await window.api.duelEngineInject(command)
@@ -298,6 +295,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       })
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(get().timeline)
+      get().playStepEffects(res.node)
       return true
     } catch (err) {
       console.error('[useDuelEngineStore] inject failed:', err)
@@ -323,6 +321,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   },
 
   restoreSessionDoc: async (doc) => {
+    cancelLpSequence()
     set({ loading: true, error: null })
     try {
       const res = await window.api.restoreDuelEngineSession(doc)
@@ -338,6 +337,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       const payload = res.payload
       clearEngineSteps()
       clearIdentities()
+      get().clearStepEffects()
       set({
         engineMode: 'running',
         isInitialized: true,

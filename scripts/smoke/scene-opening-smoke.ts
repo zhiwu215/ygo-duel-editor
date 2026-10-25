@@ -3,6 +3,7 @@
  * 1. 首个动作步骤记录时保存操作前盘面与 LP
  * 2. 布景优先按首个步骤反推，不依赖可能过期的初始快照
  * 3. 进入布景模式还原手牌、怪兽区、回合阶段与当前步骤指针
+ * 4. 仅查看布景保留步骤；修改布景后完成会清空步骤，作为新起点
  */
 import { CardLocation, CardPosition, CdbCard, DuelPhase, normalizeDuelState } from '@shared/index'
 import { useDuelStore } from '../../src/renderer/src/stores/useDuelStore'
@@ -138,17 +139,21 @@ function sceneModeTest(): void {
   assert(useDuelStore.getState().currentStepIndex === 0, '第一条步骤应成为当前步骤')
 
   assert(useDuelStore.getState().enterSceneMode(), '有步骤后应能再次进入布景')
+  assert(!useDuelStore.getState().isSceneDirty(), '刚进入布景不应视为已修改')
   const third = useDuelStore.getState().state.cards.find((c) => c.location === CardLocation.HAND)!
   useDuelStore.getState().moveCard(third.instanceId, CardLocation.MZONE, 2)
   assert(useDuelStore.getState().state.steps?.length === 1, '再次布置布景也不应记录步骤')
+  assert(useDuelStore.getState().isSceneDirty(), '移动卡片后布景应标记为已修改')
   assert(useDuelStore.getState().exitSceneMode(), '再次完成布景应成功')
   const afterSecond = useDuelStore.getState()
+  assert(!useDuelStore.getState().isSceneDirty(), '完成布景后不应保留修改标记')
   assert(
     afterSecond.state.initialBoardSnapshot?.filter((c) => c.location === CardLocation.MZONE)
       .length === 2,
     '再次完成布景应保存新的摆放'
   )
-  assert(afterSecond.state.steps?.length === 1, '再次完成布景不应改变步骤数')
+  assert(afterSecond.state.steps?.length === 0, '修改布景后完成应清空原有步骤，作为新的起点')
+  assert(afterSecond.selectedStepId === null, '修改布景后应清空步骤选中状态')
   assert(afterSecond.currentStepIndex === SCENE_STEP_INDEX, '再次完成布景后应停在布景')
   console.log('[scene] 布景编辑模式通过')
 }
@@ -204,6 +209,7 @@ function main(): void {
   assert(scene.turn === 1 && scene.phase === 'DP', '布景应还原到首个步骤所在回合与阶段')
 
   assert(useDuelStore.getState().enterSceneMode(), '进入布景应成功')
+  assert(!useDuelStore.getState().isSceneDirty(), '仅查看布景不应视为已修改')
   const preview = useDuelStore.getState()
   assert(preview.sceneEditing, '进入布景后应处于布景编辑')
   assert(preview.currentStepIndex === SCENE_STEP_INDEX, '布景下当前步骤指针应为布景')
@@ -214,6 +220,7 @@ function main(): void {
   assert(useDuelStore.getState().exitSceneMode(), '完成布景应成功')
   const afterScene = useDuelStore.getState()
   assert(!afterScene.sceneEditing, '完成布景后应退出布景编辑')
+  assert(afterScene.state.steps?.length === 1, '仅查看布景不应清空原有步骤')
   assert(afterScene.currentStepIndex === SCENE_STEP_INDEX, '完成布景后应停在布景')
 
   const nextHandCard = afterScene.state.cards.find(

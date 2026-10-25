@@ -13,7 +13,7 @@ function openingDrawOrder(duelists: Duelist[] | undefined): Duelist[] {
 
 export interface ExecutionsSlice {
   executeDrawCard: (controller: 0 | 1, duelistId?: string) => void
-  executeOpeningDraw: () => void
+  startDuel: (drawOpeningHand: boolean) => void
 }
 
 export const createExecutionsSlice: StateCreator<DuelStore, [], [], ExecutionsSlice> = (
@@ -60,13 +60,15 @@ export const createExecutionsSlice: StateCreator<DuelStore, [], [], ExecutionsSl
     )
   },
 
-  executeOpeningDraw: () => {
+  startDuel: (drawOpeningHand) => {
     const { state, executeDrawCard, setDuelStarted } = get()
     const duelists = openingDrawOrder(state.duelists)
     get().withSingleUndoStep(() => {
-      for (const duelist of duelists) {
-        for (let i = 0; i < OPENING_HAND_SIZE; i++) {
-          executeDrawCard(duelist.team, duelist.id)
+      if (drawOpeningHand) {
+        for (const duelist of duelists) {
+          for (let i = 0; i < OPENING_HAND_SIZE; i++) {
+            executeDrawCard(duelist.team, duelist.id)
+          }
         }
       }
       setDuelStarted(true)

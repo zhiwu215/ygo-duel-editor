@@ -88,8 +88,12 @@ export interface CustomCardScriptGenerateResult {
   script?: string
   strings?: string[]
   category?: number
-  testPlan?: CustomScriptTestPlan
-  report?: CustomScriptTestReport
   error?: string
   notes?: string
 }
+
+export type CustomCardScriptGenerateEvent =
+  | { type: 'status'; message: string }
+  | { type: 'attempt_start' }
+  | { type: 'thinking_delta'; delta: string }
+  | { type: 'script_delta'; delta: string }

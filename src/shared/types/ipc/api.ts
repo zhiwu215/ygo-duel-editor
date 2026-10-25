@@ -1,6 +1,10 @@
 import { CdbCard } from '../card'
 import { CustomCard, CustomCardInput } from '../customCard'
-import type { CustomCardScriptGenerateResult, CustomScriptTestReport } from '../customCardScript'
+import type {
+  CustomCardScriptGenerateEvent,
+  CustomCardScriptGenerateResult,
+  CustomScriptTestReport
+} from '../customCardScript'
 import { DuelPuzzleState } from '../duel'
 import type { DuelDocument } from '../duelDocument'
 import {
@@ -118,6 +122,10 @@ export interface IpcApi {
     card: CustomCard
     existingScript?: string
   }) => Promise<CustomCardScriptGenerateResult>
+  abortCustomCardScriptGeneration: () => Promise<boolean>
+  onCustomCardScriptGenerateEvent: (
+    callback: (event: CustomCardScriptGenerateEvent) => void
+  ) => () => void
   saveCustomCardScriptContent: (code: number, content: string) => Promise<CustomCardScriptResult>
   openCustomCardScriptDir: () => Promise<void>
   openCustomCardSyncDir: (target: CustomCardSyncTarget) => Promise<CustomCardOpenDirResult>

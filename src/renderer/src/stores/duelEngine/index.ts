@@ -4,6 +4,7 @@ import { createPolicySlice } from './policySlice'
 import { createReplaySlice } from './replaySlice'
 import { createRequestSlice } from './requestSlice'
 import { createSessionSlice } from './sessionSlice'
+import { createStepEffectSlice } from './stepEffectSlice'
 import type { DuelEngineStore } from './types'
 
 export const useDuelEngineStore = create<DuelEngineStore>()((...a) => ({
@@ -11,6 +12,7 @@ export const useDuelEngineStore = create<DuelEngineStore>()((...a) => ({
   ...createSessionSlice(...a),
   ...createRequestSlice(...a),
   ...createReplaySlice(...a),
+  ...createStepEffectSlice(...a),
   ...createCardEditSlice(...a)
 }))
 

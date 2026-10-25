@@ -61,6 +61,7 @@ const entries = [
   'renderer-repos-smoke',
   'renderer-turn-steps-smoke',
   'hand-shuffle-smoke',
+  'hand-shuffle-timing-smoke',
   'policy-smoke',
   'provenance-smoke',
   'tag-card-edit-smoke',

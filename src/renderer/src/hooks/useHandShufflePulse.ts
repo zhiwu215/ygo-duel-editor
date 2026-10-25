@@ -1,7 +1,4 @@
-import { useEffect, useState } from 'react'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
-
-export const HAND_SHUFFLE_PULSE_MS = 1600
 
 export interface HandShufflePulse {
   tick: number
@@ -9,20 +6,12 @@ export interface HandShufflePulse {
 }
 
 export function useHandShufflePulse(controller: 0 | 1, duelistId?: string): HandShufflePulse {
-  const signal = useDuelEngineStore((s) => s.handShuffle)
-  const [expiredId, setExpiredId] = useState(0)
-  const matches = signal
-    ? signal.duelists && signal.duelists.length > 0
-      ? Boolean(duelistId && signal.duelists.includes(duelistId))
-      : signal.players.includes(controller)
-    : false
-  const signalId = signal && matches ? signal.id : 0
+  const effect = useDuelEngineStore((s) => s.stepEffects[0] ?? null)
+  const shuffled = effect && effect.kind === 'shuffle-hand' ? effect : null
+  const matches =
+    shuffled !== null &&
+    (shuffled.duelistId ? shuffled.duelistId === duelistId : shuffled.player === controller)
+  const effectId = shuffled && matches ? shuffled.id : 0
 
-  useEffect(() => {
-    if (!signalId) return
-    const timer = setTimeout(() => setExpiredId(signalId), HAND_SHUFFLE_PULSE_MS)
-    return () => clearTimeout(timer)
-  }, [signalId])
-
-  return { tick: signalId, active: signalId !== 0 && signalId !== expiredId }
+  return { tick: effectId, active: Boolean(effectId) }
 }

@@ -33,6 +33,8 @@ export function useStartEngine(): (options?: { skipResume?: boolean }) => Promis
         await alertDialog(`内置引擎不可用\n${support.reason ?? '当前游戏目录不支持内置规则校验。'}`)
         return
       }
+      const wasSceneEditing = useDuelStore.getState().sceneEditing
+      if (wasSceneEditing) useDuelStore.getState().exitSceneMode()
       const state = useDuelStore.getState().state
       if (isStandardTag(state.matchConfig)) {
         const mismatches = findTagHandMismatches(state)
@@ -52,6 +54,10 @@ export function useStartEngine(): (options?: { skipResume?: boolean }) => Promis
           destructive: false
         })
         if (ok !== true) return
+      }
+      if (wasSceneEditing) {
+        if ((useDuelStore.getState().state.steps ?? []).length > 0) clearEditorSteps()
+        useDuelEngineStore.getState().setSuspendedDoc(null)
       }
       useDuelStore.getState().exitPreview()
       if (useDuelEngineStore.getState().suspendedDoc) {

@@ -5,7 +5,10 @@ import { customSetcodeService } from '../services/customSetcodeService'
 import { imageService } from '../services/imageService'
 import { openCustomScriptDir } from '../services/customCardScript'
 import { runCustomCardScriptTest } from '../services/customCardScriptTest'
-import { generateCustomCardScript } from '../services/customCardScriptAgent'
+import {
+  generateCustomCardScript,
+  abortCustomCardScriptGeneration
+} from '../services/customCardScriptAgent'
 import {
   cleanCustomCardsFromGame,
   openCustomCardSyncDirectory,
@@ -71,10 +74,18 @@ export function registerCustomCardIpc(): void {
 
   ipcMain.handle(
     'customcard:generate-script',
-    async (_, input: { card: CustomCard; existingScript?: string }) => {
-      return generateCustomCardScript(input.card, input.existingScript)
+    async (event, input: { card: CustomCard; existingScript?: string }) => {
+      return generateCustomCardScript(input.card, input.existingScript, (progress) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('customcard:generate-script-progress', progress)
+        }
+      })
     }
   )
+
+  ipcMain.handle('customcard:abort-generate-script', () => {
+    return abortCustomCardScriptGeneration()
+  })
 
   ipcMain.handle('customcard:save-script-content', (_, code: number, content: string) => {
     return customCardService.saveScriptContent(code, content)

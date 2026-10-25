@@ -47,19 +47,19 @@ export const YesNoModal: React.FC<{ request: EngineRequest; data: DataOf<'yesno'
         ) : (
           <>
             <Button
+              size="sm"
+              disabled={loading}
+              onClick={() => submitAnswer({ kind: 'yesno', yes: true })}
+            >
+              是
+            </Button>
+            <Button
               variant="outline"
               size="sm"
               disabled={loading}
               onClick={() => submitAnswer({ kind: 'yesno', yes: false })}
             >
               否
-            </Button>
-            <Button
-              size="sm"
-              disabled={loading}
-              onClick={() => submitAnswer({ kind: 'yesno', yes: true })}
-            >
-              是
             </Button>
           </>
         )

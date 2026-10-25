@@ -13,7 +13,8 @@ import {
   MASTER_RULES,
   CardLocation,
   EngineCard,
-  FIELD_ZONE_SEQUENCE
+  FIELD_ZONE_SEQUENCE,
+  withHandShuffleNote
 } from '@shared/index'
 import {
   Answer,
@@ -486,10 +487,9 @@ export class DuelSession {
       state.ops.push({ type: 'auto', responses: autoResponses })
     }
 
-    const shuffledHands = state.accumulatedEvents.some((event) => event.kind === 'shuffle-hand')
     const pendingRequest = headPendingQuery(state)?.request ?? null
     const node = state.timeline.addStep(
-      shuffledHands ? `${logText}（手牌切洗）` : logText,
+      withHandShuffleNote(logText, state.accumulatedEvents),
       actingPlayer,
       boardState,
       pendingRequest,

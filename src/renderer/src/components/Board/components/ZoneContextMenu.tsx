@@ -1,7 +1,6 @@
 import React from 'react'
 import { CardLocation } from '@shared/index'
 import type { RefObject } from 'react'
-import { ArrowLeftRight } from 'lucide-react'
 import { Button } from '../../ui/button'
 
 const LOCATION_LABELS: Record<number, string> = {
@@ -37,9 +36,8 @@ export const ZoneContextMenu: React.FC<{
         size="sm"
         disabled={isEngine}
         onClick={onSwitchDeck}
-        className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
+        className="w-full justify-start h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
       >
-        <ArrowLeftRight className="w-3.5 h-3.5" />
         <span>切换卡组</span>
       </Button>
     )}

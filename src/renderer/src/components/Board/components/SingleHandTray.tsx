@@ -8,6 +8,7 @@ import { useEngineInjectDropStore } from '../../../stores/useEngineInjectDropSto
 import { CARD_SEARCH_DRAG_TYPE } from '../../../utils/cardDrag'
 import { MemoZoneSlot } from '../ZoneSlot'
 import { HandShuffleOverlay } from './HandShuffleOverlay'
+import { HandShuffleShake } from './HandShuffleShake'
 import { TurnOrderBadge } from './TurnOrderBadge'
 import { LpInput } from './LpInput'
 import { EditableNameChip } from './EditableNameChip'
@@ -30,7 +31,7 @@ export const SingleHandTray: React.FC<{
   const updateDuelist = useDuelStore((s) => s.updateDuelist)
   const openHandMenu = useContextMenuStore((s) => s.openHandMenu)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
-  const shuffle = useHandShufflePulse(controller)
+  const shuffle = useHandShufflePulse(controller, duelist.id)
   const commitLp = useLpCommit()
 
   const [editingName, setEditingName] = useState<string | null>(null)
@@ -250,16 +251,7 @@ export const SingleHandTray: React.FC<{
                   className={cn(draggedHandCardId === c.instanceId ? 'hidden' : 'shrink-0')}
                   data-hand-instance-id={c.instanceId}
                 >
-                  <motion.div
-                    key={shuffle.tick}
-                    initial={{ y: 0, rotate: 0 }}
-                    animate={
-                      shuffle.tick > 0
-                        ? { y: [0, -8, 0], rotate: [0, idx % 2 === 0 ? -2.5 : 2.5, 0] }
-                        : { y: 0, rotate: 0 }
-                    }
-                    transition={{ duration: 0.5, delay: idx * 0.045, ease: 'easeInOut' }}
-                  >
+                  <HandShuffleShake tick={shuffle.tick} index={idx}>
                     <MemoZoneSlot
                       label={`${duelist.name} ${idx + 1}`}
                       controller={controller}
@@ -268,7 +260,7 @@ export const SingleHandTray: React.FC<{
                       card={c}
                       duelistId={duelist.id}
                     />
-                  </motion.div>
+                  </HandShuffleShake>
                 </motion.div>
                 {isGapAfter && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
               </React.Fragment>

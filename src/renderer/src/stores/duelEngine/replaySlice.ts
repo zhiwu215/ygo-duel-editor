@@ -9,6 +9,7 @@ import { withReplayStepNames } from '../../utils/replayStepNames'
 import { dropBlankEventSteps } from '../../utils/stepSanitize'
 import { mapPhaseToDuelPhase, syncJumpToStepWrapped } from './boardReconcile'
 import { clearIdentities } from './identityMap'
+import { cancelLpSequence } from './lpSequence'
 import { clearEngineSteps, recordEngineStep } from './stepRecords'
 import type { PreviewReturn } from '../duel/previewSlice'
 import type { DuelEngineStore } from './types'
@@ -29,6 +30,7 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
   preReplay: null,
 
   importReplay: async () => {
+    cancelLpSequence()
     const hadReplay = get().replayInfo !== null
     const unsubscribe = window.api.onReplayImportStarting(() => {
       set({ importingReplay: true })
@@ -57,6 +59,7 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
       const replayInfo = { ...info, ...(res.filePath ? { filePath: res.filePath } : {}) }
       clearEngineSteps()
       clearIdentities()
+      get().clearStepEffects()
       useDuelStore.getState().exitPreview()
       useDuelStore.setState({ sceneEditing: false })
       const replaySteps = dropBlankEventSteps(await withReplayStepNames(buildReplaySteps(timeline)))
@@ -166,6 +169,7 @@ export const createReplaySlice: ReplaySliceCreator = (set, get) => ({
     void window.api.duelEngineExitReplay().catch(() => undefined)
     clearEngineSteps()
     clearIdentities()
+    get().clearStepEffects()
     useDuelStore.getState().exitPreview()
     set({
       engineMode: 'idle',

@@ -10,6 +10,7 @@ interface DuelistHandStripCollapsedProps {
   isTop: boolean
   isActiveViewer: boolean
   isDragOver: boolean
+  shuffleActive: boolean
   ref?: React.Ref<HTMLDivElement>
   onClick: (e: React.MouseEvent) => void
   onDragEnter: (e: React.DragEvent) => void
@@ -24,6 +25,7 @@ export const DuelistHandStripCollapsed: React.FC<DuelistHandStripCollapsedProps>
   isTop,
   isActiveViewer,
   isDragOver,
+  shuffleActive,
   ref,
   onClick,
   onDragEnter,
@@ -44,6 +46,7 @@ export const DuelistHandStripCollapsed: React.FC<DuelistHandStripCollapsedProps>
       className={cn(
         'w-9 shrink-0 h-[136px] rounded border-2 transition-all cursor-pointer select-none flex flex-col items-center justify-between py-1 px-0.5',
         isActiveViewer && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
+        shuffleActive && 'ring-2 ring-amber-400/70 border-amber-400/60',
         isDragOver
           ? isTop
             ? 'border-red-500 ring-2 ring-red-500/30 bg-red-500/10'

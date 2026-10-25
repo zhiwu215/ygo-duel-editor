@@ -9,7 +9,9 @@ import {
   EngineBoardState,
   EngineCard,
   EngineStepEvent,
-  EngineTimelineNode
+  EngineTimelineNode,
+  hasHandShuffle,
+  withHandShuffleNote
 } from '@shared/index'
 import { resolveCardName } from './cardNames'
 import { isReplayPromptText } from './replayPrompt'
@@ -310,7 +312,7 @@ export function buildReplaySteps(timeline: EngineTimelineNode[]): DuelStep[] {
     const activation = activated ? positionChange : undefined
     const statusChange = findReplayStatusChange(prev?.boardState, node.boardState)
     const statusChanged = statusChange !== undefined
-    const shuffled = node.events.some((event) => event.kind === 'shuffle-hand')
+    const shuffled = hasHandShuffle(node.events)
     const drawEvent = node.events.find(
       (event): event is Extract<EngineStepEvent, { kind: 'draw' }> => event.kind === 'draw'
     )
@@ -332,10 +334,7 @@ export function buildReplaySteps(timeline: EngineTimelineNode[]): DuelStep[] {
       return
     }
     const rawDescription = describeReplayStep(move, node)
-    let description =
-      shuffled && !rawDescription.includes('手牌切洗')
-        ? `${rawDescription}（手牌切洗）`
-        : rawDescription
+    let description = withHandShuffleNote(rawDescription, node.events)
     const prompt = isReplayPromptText(description) || isReplayPromptText(node.title)
     if (prompt && !move && !shuffled && !activated && !logAction && !hasChainLog) {
       if (!statusChange) return

@@ -3,6 +3,8 @@ import { DuelStep, DuelPhase, PHASE_NAMES, PHASE_SHORT_NAMES } from '@shared/ind
 import type { Answer } from '@shared/engine/protocol'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { clearEditorSteps } from '../../stores/duelEngine/stepRecords'
+import { confirmDialog } from '../../stores/useDialogStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
 import { useReplayPlayback } from '../../hooks/useReplayPlayback'
 import { phaseJumpCommand, phaseAdvanceCommand, turnEndCommand } from '../../utils/phaseFlow'
@@ -16,12 +18,12 @@ import { cn } from '../../lib/utils'
 import {
   ArrowLeft,
   ArrowRight,
-  Check,
   LogOut,
   Pause,
   PencilLine,
   Play,
-  RotateCcw
+  RotateCcw,
+  Trash2
 } from 'lucide-react'
 
 const EMPTY_STEPS: DuelStep[] = []
@@ -36,7 +38,6 @@ export const StepSequencerPanel: React.FC = () => {
   const insertPhaseChange = useDuelStore((state) => state.insertPhaseChange)
   const insertTurnChange = useDuelStore((state) => state.insertTurnChange)
   const insertPhaseJump = useDuelStore((state) => state.insertPhaseJump)
-  const exitSceneMode = useDuelStore((state) => state.exitSceneMode)
 
   const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const engineLoading = useDuelEngineStore((s) => s.loading)
@@ -93,6 +94,22 @@ export const StepSequencerPanel: React.FC = () => {
     setEditingStepId(step.id)
   }
 
+  const handleClearSteps = async (): Promise<void> => {
+    if (steps.length === 0) return
+    const ok = await confirmDialog({
+      title: '清空全部步骤',
+      description: `确认清空全部 ${steps.length} 个步骤？${
+        isEngine ? '当前引擎会话会退出，盘面会保留，之后可重新启动校验。' : '盘面会保留。'
+      }`,
+      confirmText: '清空',
+      destructive: true
+    })
+    if (!ok) return
+    if (isEngine) stopEngine()
+    useDuelEngineStore.getState().setSuspendedDoc(null)
+    clearEditorSteps()
+  }
+
   const handleConvert = (): void => {
     pause()
     convertReplayToPuzzle()
@@ -129,6 +146,17 @@ export const StepSequencerPanel: React.FC = () => {
                 结算
               </button>
             </div>
+          )}
+          {steps.length > 0 && !isReplay && !sceneEditing && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => void handleClearSteps()}
+              className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-destructive gap-1"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>清空</span>
+            </Button>
           )}
         </div>
       </div>
@@ -222,17 +250,6 @@ export const StepSequencerPanel: React.FC = () => {
 
       <div className="p-2 border-t border-border/60 bg-muted/20 flex items-center justify-between select-none shrink-0">
         <div className="flex items-center gap-1">
-          {sceneEditing && (
-            <Button
-              size="xs"
-              variant="default"
-              onClick={() => exitSceneMode()}
-              className="h-7 px-2 text-[10px] font-bold gap-1"
-            >
-              <Check className="w-3.5 h-3.5" />
-              <span>完成布景</span>
-            </Button>
-          )}
           <Button
             size="icon-xs"
             variant="ghost"

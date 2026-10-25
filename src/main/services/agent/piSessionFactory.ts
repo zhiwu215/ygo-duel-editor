@@ -8,6 +8,8 @@ import {
   AgentStreamEvent,
   cleanAgentApiKey,
   defaultAgentReasoningEffort,
+  DEFAULT_AGENT_CONTEXT_WINDOW,
+  DEFAULT_AGENT_MAX_OUTPUT_TOKENS,
   hasAgentReasoning,
   toPiApiType
 } from '@shared/index'
@@ -40,8 +42,6 @@ export type SessionConfig = AgentModelConfig &
   > & { webEnabled?: boolean }
 
 const PROVIDER_TIMEOUT_MS = 60_000
-
-const DEFAULT_CONTEXT_WINDOW = 131_072
 
 const LOCAL_ENDPOINT_PLACEHOLDER_KEY = 'local-no-key'
 
@@ -124,8 +124,8 @@ export async function acquireSession(
             name: cfg.model,
             reasoning,
             ...(cfg.reasoningEfforts ? { thinkingLevelMap: cfg.reasoningEfforts } : {}),
-            contextWindow: cfg.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
-            ...(cfg.maxTokens ? { maxTokens: cfg.maxTokens } : {}),
+            contextWindow: cfg.contextWindow ?? DEFAULT_AGENT_CONTEXT_WINDOW,
+            maxTokens: cfg.maxTokens ?? DEFAULT_AGENT_MAX_OUTPUT_TOKENS,
             input: cfg.input && cfg.input.length > 0 ? cfg.input : ['text'],
             ...(Object.keys(compat).length > 0 ? { compat } : {})
           }

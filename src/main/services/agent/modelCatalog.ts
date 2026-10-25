@@ -37,15 +37,39 @@ function inputField(model: RawModel): AgentModelInput[] | undefined {
   return undefined
 }
 
+function objectField(model: RawModel, key: string): RawModel | undefined {
+  const value = model[key]
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
+  return value as RawModel
+}
+
 function toModelInfo(model: RawModel): AgentModelInfo | null {
   const id = textField(model, 'id') ?? textField(model, 'name')
   if (!id) return null
   const rawName = textField(model, 'display_name') ?? textField(model, 'name')
   const info: AgentModelInfo = { id }
   if (rawName && rawName !== id) info.name = rawName
-  const contextWindow = numberField(model, ['context_window', 'context_length', 'max_input_tokens'])
+  const limit = objectField(model, 'limit')
+  const topProvider = objectField(model, 'top_provider')
+  const contextWindow =
+    numberField(model, [
+      'contextWindow',
+      'context_window',
+      'context_length',
+      'max_input_tokens',
+      'input_token_limit'
+    ]) ?? (limit ? numberField(limit, ['context']) : undefined)
   if (contextWindow) info.contextWindow = contextWindow
-  const maxTokens = numberField(model, ['max_tokens', 'max_output_tokens'])
+  const maxTokens =
+    numberField(model, [
+      'maxOutputTokens',
+      'max_output_tokens',
+      'maxTokens',
+      'max_tokens',
+      'output_token_limit'
+    ]) ??
+    (limit ? numberField(limit, ['output']) : undefined) ??
+    (topProvider ? numberField(topProvider, ['max_completion_tokens']) : undefined)
   if (maxTokens) info.maxTokens = maxTokens
   const input = inputField(model)
   if (input) info.input = input

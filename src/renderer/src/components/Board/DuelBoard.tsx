@@ -10,6 +10,7 @@ import { DuelBoardOverlays } from './DuelBoardOverlays'
 import { PhaseStatusButton, PhaseMiddleButton, PhaseEpButton } from './PhaseControlButtons'
 import { DuelStartButton } from './DuelStartButton'
 import { useBoardAutoScale } from '../../hooks/useBoardAutoScale'
+import { useStepEffectPlayer } from '../../hooks/useStepEffectPlayer'
 import { getPileTopCard, getPileCount } from '../../utils/duelBoardQuery'
 import { resolveOwnerScope } from '../../utils/duelistNames'
 
@@ -27,6 +28,8 @@ export const DuelBoard: React.FC = () => {
   const middleSlot = duelStarted || isEngineActive ? <PhaseMiddleButton /> : <DuelStartButton />
 
   const { viewportRef, wrapperRef, boardRef, scale, naturalW } = useBoardAutoScale()
+
+  useStepEffectPlayer()
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {

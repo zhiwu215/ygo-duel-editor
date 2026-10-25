@@ -18,10 +18,9 @@ interface DropChoice {
   to?: Extract<InjectCommand, { op: 'add-card' }>['to']
 }
 
-function choicesFor(location: number, sequence: number): { label: string; choices: DropChoice[] } {
+function choicesFor(location: number, sequence: number): { choices: DropChoice[] } {
   if (location === CardLocation.MZONE) {
     return {
-      label: '放置到怪兽区',
       choices: [
         { label: '表侧攻击', position: CardPosition.FACEUP_ATTACK },
         { label: '表侧守备', position: CardPosition.FACEUP_DEFENSE },
@@ -31,7 +30,6 @@ function choicesFor(location: number, sequence: number): { label: string; choice
   }
   if (location === CardLocation.EXTRA) {
     return {
-      label: '加入额外卡组',
       choices: [
         { label: '里侧', position: CardPosition.FACEDOWN_DEFENSE },
         { label: '表侧', position: CardPosition.FACEUP }
@@ -40,7 +38,6 @@ function choicesFor(location: number, sequence: number): { label: string; choice
   }
   if (location === CardLocation.DECK) {
     return {
-      label: '加入卡组',
       choices: [
         { label: '卡组顶', to: 'deck-top' },
         { label: '卡组底', to: 'deck-bottom' }
@@ -48,20 +45,19 @@ function choicesFor(location: number, sequence: number): { label: string; choice
     }
   }
   if (location === CardLocation.HAND) {
-    return { label: '加入手牌', choices: [{ label: '加入手牌', to: 'hand' }] }
+    return { choices: [{ label: '加入手牌', to: 'hand' }] }
   }
   if (location === CardLocation.GRAVE) {
-    return { label: '加入墓地', choices: [{ label: '加入墓地', to: 'grave-top' }] }
+    return { choices: [{ label: '加入墓地', to: 'grave-top' }] }
   }
   if (location === CardLocation.REMOVED) {
-    return { label: '除外', choices: [{ label: '除外', to: 'removed' }] }
+    return { choices: [{ label: '除外', to: 'removed' }] }
   }
   if (
     location === CardLocation.FZONE ||
     (location === CardLocation.SZONE && sequence === FIELD_ZONE_SEQUENCE)
   ) {
     return {
-      label: '放置到场地魔法区',
       choices: [
         { label: '表侧', position: CardPosition.FACEUP },
         { label: '里侧', position: CardPosition.FACEDOWN }
@@ -69,7 +65,6 @@ function choicesFor(location: number, sequence: number): { label: string; choice
     }
   }
   return {
-    label: '放置到魔陷区',
     choices: [
       { label: '里侧', position: CardPosition.FACEDOWN },
       { label: '表侧', position: CardPosition.FACEUP }
@@ -103,7 +98,11 @@ export const EngineInjectDropDialog: React.FC = () => {
 
   if (!target) return null
 
-  const { label, choices } = choicesFor(target.location, target.sequence)
+  const { choices } = choicesFor(target.location, target.sequence)
+  const destinationLabel =
+    target.location === CardLocation.SZONE && target.sequence === FIELD_ZONE_SEQUENCE
+      ? '场地魔法区'
+      : (LOCATION_NAMES[target.location] ?? '')
 
   const choose = async (choice: DropChoice): Promise<void> => {
     if (loading) return
@@ -139,9 +138,7 @@ export const EngineInjectDropDialog: React.FC = () => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-sm font-semibold">放置「{target.card.name}」</div>
-        <div className="mt-0.5 text-[11px] text-muted-foreground">
-          {label} · {LOCATION_NAMES[target.location] ?? ''}
-        </div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">目标：{destinationLabel}</div>
 
         <div className="mt-4 flex flex-col gap-1.5">
           {choices.map((choice) => (

@@ -9,6 +9,7 @@ import { MemoZoneSlot } from '../ZoneSlot'
 import { TurnOrderBadge } from './TurnOrderBadge'
 import { LpInput } from './LpInput'
 import { HandShuffleOverlay } from './HandShuffleOverlay'
+import { HandShuffleShake } from './HandShuffleShake'
 import { cn } from '../../../lib/utils'
 import { HAND_REORDER_DRAG_TYPE } from '../CardItem'
 import { DuelistHandStripCollapsed } from './DuelistHandStripCollapsed'
@@ -172,6 +173,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         isTop={isTop}
         isActiveViewer={isActiveViewer}
         isDragOver={isDragOver}
+        shuffleActive={shuffleActive}
         ref={ref}
         onClick={(e) => {
           if (
@@ -300,16 +302,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
                 className={cn(draggedHandCardId === c.instanceId ? 'hidden' : 'shrink-0')}
                 data-hand-instance-id={c.instanceId}
               >
-                <motion.div
-                  key={shuffleTick}
-                  initial={{ y: 0, rotate: 0 }}
-                  animate={
-                    shuffleTick > 0
-                      ? { y: [0, -8, 0], rotate: [0, idx % 2 === 0 ? -2.5 : 2.5, 0] }
-                      : { y: 0, rotate: 0 }
-                  }
-                  transition={{ duration: 0.5, delay: idx * 0.045, ease: 'easeInOut' }}
-                >
+                <HandShuffleShake tick={shuffleTick} index={idx}>
                   <MemoZoneSlot
                     label={`${duelist.name} ${idx + 1}`}
                     controller={controller}
@@ -318,7 +311,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
                     card={c}
                     duelistId={duelist.id}
                   />
-                </motion.div>
+                </HandShuffleShake>
               </motion.div>
               {isGapAfter && <div aria-hidden="true" className="w-[64px] h-[92px] shrink-0" />}
             </React.Fragment>

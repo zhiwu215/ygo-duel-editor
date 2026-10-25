@@ -12,7 +12,8 @@ import {
   EngineTimelineNode,
   LOCATION_NAMES,
   RequestCard,
-  createLightweightSnapshot
+  createLightweightSnapshot,
+  withHandShuffleNote
 } from '@shared/index'
 import { resolveCardName } from '../../utils/cardNames'
 import { useDuelStore } from '../useDuelStore'
@@ -280,7 +281,13 @@ function patchHostStep(
 ): void {
   const next = appendNodeLogs(host, node)
   const summary = summaryPatch(host.step, node.logEvents ?? [])
-  storeEngineStep(host.id, null, { ...next, ...summary, ...patch, endActId: node.id })
+  storeEngineStep(host.id, null, {
+    ...next,
+    ...summary,
+    ...patch,
+    description: withHandShuffleNote(next.description ?? '', node.events),
+    endActId: node.id
+  })
 }
 
 function targetCardsOf(events: DuelLogEvent[], selected: RequestCard[]): DuelLogCardRef[] {

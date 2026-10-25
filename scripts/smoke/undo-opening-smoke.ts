@@ -1,7 +1,8 @@
 /**
  * 撤销粒度冒烟：验证「一次用户操作 = 一条撤销记录」。
- * 1. 点击「开始」抽满起手后，一次撤销应把手牌、抽卡步骤、duelStarted 全部还原
- * 2. 单张移动（含步骤记录）一次撤销即可还原
+ * 1. 点击「开始 → 抽 5 张」抽满起手后，一次撤销应把手牌、抽卡步骤、duelStarted 全部还原
+ * 2. 点击「开始 → 不抽牌」不抽牌，只开始对局，一次撤销应只还原 duelStarted
+ * 3. 单张移动（含步骤记录）一次撤销即可还原
  */
 import { CardLocation, CardPosition, CdbCard, DuelPhase, normalizeDuelState } from '@shared/index'
 import { useDuelStore } from '../../src/renderer/src/stores/useDuelStore'
@@ -97,7 +98,7 @@ function stepCount(): number {
 }
 
 function checkOpeningDrawUndo(): void {
-  useDuelStore.getState().executeOpeningDraw()
+  useDuelStore.getState().startDuel(true)
   assert(
     countAt(CardLocation.HAND) === 10,
     `开局后手牌应为 10 张，实际 ${countAt(CardLocation.HAND)}`
@@ -128,6 +129,22 @@ function checkOpeningDrawUndo(): void {
   useDuelStore.temporal.getState().undo()
 }
 
+function checkSkipOpeningDrawUndo(): void {
+  useDuelStore.getState().startDuel(false)
+  assert(
+    countAt(CardLocation.HAND) === 0,
+    `不抽牌开局后手牌应保持 0 张，实际 ${countAt(CardLocation.HAND)} 张`
+  )
+  assert(stepCount() === 0, `不抽牌开局不应产生步骤，实际 ${stepCount()} 条`)
+  assert(useDuelStore.getState().duelStarted, '不抽牌开局后 duelStarted 应为 true')
+  assert(undoCount() === 1, `不抽牌开局应只产生 1 条撤销记录，实际 ${undoCount()} 条`)
+
+  useDuelStore.temporal.getState().undo()
+  assert(!useDuelStore.getState().duelStarted, '撤销后 duelStarted 应回到 false')
+  assert(countAt(CardLocation.HAND) === 0, '撤销后手牌应保持 0 张')
+  assert(stepCount() === 0, '撤销后不应产生步骤')
+}
+
 function checkSingleMoveUndo(): void {
   const top = useDuelStore
     .getState()
@@ -153,5 +170,6 @@ function checkSingleMoveUndo(): void {
 installGlobals()
 setup()
 checkOpeningDrawUndo()
+checkSkipOpeningDrawUndo()
 checkSingleMoveUndo()
 console.log('[undo] ALL PASSED')

@@ -6,7 +6,7 @@ import {
   displayStepTextBlocks,
   summarizeStepProvenance
 } from '@shared/index'
-import { ArrowLeft, BookPlus, Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { ArrowLeft, BookPlus, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
@@ -134,8 +134,6 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
       if (result.error) await alertDialog(`保存失败\n\n${result.error}`)
       return false
     }
-    const index = steps.findIndex((step) => step.id === activeStep?.id)
-    if (index >= 0) useDuelStore.getState().previewStepBoard(index)
     return true
   }
 
@@ -362,13 +360,6 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
             </span>
           )}
           <StepProvenanceBadge provenance={provenance} />
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <Save className="h-3.5 w-3.5" />
-          </button>
         </div>
         <div className="flex items-center gap-1 px-2 pb-2">
           <input

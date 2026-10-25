@@ -11,6 +11,7 @@ import { useDuelStore } from '../useDuelStore'
 import { syncJumpToStepWrapped } from './boardReconcile'
 import { applyChainEvents, chainStateAtNode } from './chainState'
 import { engineErrorMessage } from './engineErrorMessage'
+import { cancelLpSequence, lpSequenceSteps, playLpSequence } from './lpSequence'
 import { discardFutureSteps, hasEngineStep, restoreEngineSteps, splitTimeline } from './stepRecords'
 import { appendEngineStepFromAnswer } from './stepRecording'
 import type { DuelEngineStore } from './types'
@@ -41,6 +42,11 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
   submitAnswer: async (answer) => {
     const request = get().pendingRequest
     if (!request) return
+    cancelLpSequence()
+    const previousLp: [number, number] = [
+      get().boardState?.players[0].lp ?? useDuelStore.getState().state.players[0]?.lp ?? 8000,
+      get().boardState?.players[1].lp ?? useDuelStore.getState().state.players[1]?.lp ?? 8000
+    ]
     set({ loading: true, error: null })
     try {
       const res: EngineSubmitAnswerResult = await window.api.duelEngineSubmitAnswer(answer)
@@ -52,29 +58,15 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
         })
         return
       }
+      const lpSteps = res.node ? lpSequenceSteps(res.node) : []
+      const animateLp = lpSteps.length >= 2
+      const pendingAfterSequence = res.pendingRequest ?? null
       const prevTimeline = get().timeline
       const previewExited = useDuelStore.getState().previewReturn !== null
       useDuelStore.getState().exitPreview()
       const { kept, dropped } = splitTimeline(prevTimeline, get().currentStepId)
       const newTimeline = res.node ? [...kept, res.node] : prevTimeline
       const discarded = res.node ? discardFutureSteps(kept, dropped) : 0
-      const shuffledPlayers = [
-        ...new Set(
-          (res.node?.events ?? [])
-            .filter((event) => event.kind === 'shuffle-hand')
-            .map((event) => event.player)
-        )
-      ]
-      const activeDuelist = get().boardState?.activeDuelist
-      const shuffledDuelists = activeDuelist
-        ? [
-            ...new Set(
-              shuffledPlayers
-                .map((player) => activeDuelist[player])
-                .filter((duelistId): duelistId is string => Boolean(duelistId))
-            )
-          ]
-        : []
       const nextBoardChains = applyChainEvents(
         get().boardChains,
         res.node?.events ?? [],
@@ -85,7 +77,7 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
         loading: false,
         error: null,
         boardState: res.boardState ?? get().boardState,
-        pendingRequest: res.pendingRequest ?? null,
+        pendingRequest: animateLp ? null : pendingAfterSequence,
         boardChains: nextBoardChains,
         lastAttacker:
           answer.kind === 'battle' && answer.cmd === 'ATTACK' && answer.card
@@ -93,10 +85,6 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
             : get().lastAttacker,
         timeline: newTimeline,
         currentStepId: res.node?.id ?? get().currentStepId,
-        handShuffle:
-          shuffledPlayers.length > 0
-            ? { id: Date.now(), players: shuffledPlayers, duelists: shuffledDuelists }
-            : get().handShuffle,
         injectNotice:
           discarded > 0
             ? { kind: 'warning', message: `已从该步骤重新编排，丢弃之后的 ${discarded} 步。` }
@@ -104,8 +92,17 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
               ? { kind: 'warning', message: '已退出步骤预览，回到引擎当前场面。' }
               : get().injectNotice
       })
+      get().playStepEffects(res.node)
+      if (animateLp) {
+        const nodeId = res.node?.id
+        playLpSequence(lpSteps, previousLp, () => {
+          if (get().currentStepId === nodeId && get().pendingRequest === null) {
+            set({ pendingRequest: pendingAfterSequence })
+          }
+        })
+      }
       if (res.boardState) {
-        syncJumpToStepWrapped(res.boardState)
+        syncJumpToStepWrapped(res.boardState, { silentLp: animateLp })
       }
       if (res.node) {
         restoreEngineSteps(newTimeline)
@@ -137,6 +134,7 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
   jumpToStep: async (stepId: string): Promise<boolean> => {
     if (get().loading) return false
     if (get().currentStepId === stepId) return true
+    cancelLpSequence()
     const node = get().timeline.find((item) => item.id === stepId)
     if (!node) {
       console.warn(`[useDuelEngineStore] 步骤 ${stepId} 不在当前引擎时间线，已跳过跳转`)
@@ -145,23 +143,6 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
     const previewExited = useDuelStore.getState().previewReturn !== null
     if (get().replayInfo) {
       try {
-        const shuffledPlayers = [
-          ...new Set(
-            node.events
-              .filter((event) => event.kind === 'shuffle-hand')
-              .map((event) => event.player)
-          )
-        ]
-        const activeDuelist = node.boardState.activeDuelist
-        const shuffledDuelists = activeDuelist
-          ? [
-              ...new Set(
-                shuffledPlayers
-                  .map((player) => activeDuelist[player])
-                  .filter((duelistId): duelistId is string => Boolean(duelistId))
-              )
-            ]
-          : []
         useDuelStore.getState().exitPreview()
         set({
           loading: false,
@@ -170,14 +151,11 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
           pendingRequest: null,
           boardChains: chainStateAtNode(get().timeline, stepId),
           currentStepId: stepId,
-          handShuffle:
-            shuffledPlayers.length > 0
-              ? { id: Date.now(), players: shuffledPlayers, duelists: shuffledDuelists }
-              : get().handShuffle,
           injectNotice: previewExited
             ? { kind: 'warning', message: '已退出步骤预览，回到回放当前场面。' }
             : get().injectNotice
         })
+        get().playStepEffects(node)
         syncJumpToStepWrapped(node.boardState)
         restoreEngineSteps(get().timeline)
         return true
@@ -207,6 +185,7 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
           ? { kind: 'warning', message: '已退出步骤预览，回到引擎当前场面。' }
           : get().injectNotice
       })
+      get().playStepEffects(node)
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(get().timeline)
       return true

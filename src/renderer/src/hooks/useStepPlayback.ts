@@ -8,13 +8,13 @@ import {
 } from '@shared/index'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
+import { clearEditorSteps } from '../stores/duelEngine/stepRecords'
 import { alertDialog, confirmDialog } from '../stores/useDialogStore'
 
 export function useStepPlayback(): {
   handlePrevStep: () => void
   handleNextStep: () => void
   handleResetPlayback: () => void
-  handleSceneClick: () => void
   handleStepClick: (index: number, step: DuelStep) => void
   handleRestartFromStep: (index: number, step: DuelStep) => void
 } {
@@ -59,26 +59,6 @@ export function useStepPlayback(): {
     useDuelStore.getState().resetToOpeningBoard()
   }
 
-  const handleSceneClick = (): void => {
-    const engine = useDuelEngineStore.getState()
-    if (engine.loading) return
-    if (engine.isInitialized) {
-      const first = engine.timeline[0]
-      if (first && engine.currentStepId !== first.id) void engine.jumpToStep(first.id)
-      return
-    }
-    const duel = useDuelStore.getState()
-    if (duel.sceneEditing) {
-      duel.exitSceneMode()
-      return
-    }
-    if (!duel.enterSceneMode()) {
-      void alertDialog(
-        '无法进入布景\n当前台本没有可还原的初始场面。可以继续编排，之后的首次操作会自动记录布景。'
-      )
-    }
-  }
-
   const handleStepClick = (index: number, step: DuelStep): void => {
     const engine = useDuelEngineStore.getState()
     if (engine.loading) return
@@ -112,14 +92,19 @@ export function useStepPlayback(): {
     const mergedHint = mergedMatch
       ? '\n\n当前为多人数模式：内置引擎会把同队角色合并成同一方，召唤/发动仍可校验，但手牌和目标会混在一起。'
       : ''
+    const clearedHint =
+      steps.length > 0 ? `当前 ${steps.length} 个步骤会被清空，作为新的起点。` : ''
     void confirmDialog({
       title: engine.isInitialized ? '以这一步为起点继续编排' : '以这一步为起点开始编排',
       description: engine.isInitialized
-        ? `将以「${label}」的场面重建引擎会话，当前操作流结束（步骤列表保留，可继续添加新操作）。${mergedHint}`
-        : `将以「${label}」的场面启动引擎，引擎以该场面为新起点；台本现有的 ${steps.length} 个步骤会保留为历史步骤（文字仍可编辑）。${mergedHint}`
+        ? `将以「${label}」的场面重建引擎会话，当前操作流结束。${clearedHint}${mergedHint}`
+        : `将以「${label}」的场面启动引擎，引擎以该场面为新起点。${clearedHint}${mergedHint}`,
+      confirmText: steps.length > 0 ? '清空并开始' : '开始',
+      destructive: steps.length > 0
     }).then((ok) => {
       if (!ok) return
       previewStepBoard(index)
+      clearEditorSteps()
       void useDuelEngineStore.getState().startEngine({ allowMergedMatch: mergedMatch })
     })
   }
@@ -128,7 +113,6 @@ export function useStepPlayback(): {
     handlePrevStep,
     handleNextStep,
     handleResetPlayback,
-    handleSceneClick,
     handleStepClick,
     handleRestartFromStep
   }

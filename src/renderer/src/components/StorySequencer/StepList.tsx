@@ -12,9 +12,7 @@ import { StepPhaseHeader } from './StepPhaseHeader'
 import { StepTurnHeader } from './StepTurnHeader'
 import { StepCard } from './StepCard'
 import { StepLpChange } from './StepLpChange'
-import { SceneEntry } from './SceneEntry'
 import { buildStepList, getAttackDamageText, resolveStepCardName } from './stepGrouping'
-import { resolveOpeningScene, SCENE_STEP_INDEX } from '../../utils/openingScene'
 import { resolveDuelistName, resolveTeamLabel } from '../../utils/duelistNames'
 
 interface StepListProps {
@@ -31,31 +29,16 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
   const sceneEditing = useDuelStore((state) => state.sceneEditing)
   const previewReturn = useDuelStore((state) => state.previewReturn)
   const exitPreview = useDuelStore((state) => state.exitPreview)
-  const { handleStepClick, handleRestartFromStep, handleSceneClick } = useStepPlayback()
+  const { handleStepClick, handleRestartFromStep } = useStepPlayback()
   const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const engineTimeline = useDuelEngineStore((s) => s.timeline)
   const engineCurrentStepId = useDuelEngineStore((s) => s.currentStepId)
   const isReplay = useDuelEngineStore((s) => s.replayInfo !== null)
-  const duelState = useDuelStore((s) => s.state)
   const duelists = useDuelStore((s) => s.state.duelists)
   const initialLp = useDuelStore((s) => s.state.initialLp)
   const sharedLp = useDuelStore((s) => s.state.matchConfig?.sharedLp)
 
   useCleanupBlankReplaySteps(steps)
-
-  const scene = useMemo(
-    () => (engineActive || sceneEditing ? null : resolveOpeningScene(duelState)),
-    [duelState, engineActive, sceneEditing]
-  )
-  const hasActionStep = steps.some(
-    (step) => step.actionType !== 'PHASE_CHANGE' && step.actionType !== 'TURN_CHANGE'
-  )
-  const sceneAvailable = engineActive
-    ? engineTimeline.length > 0
-    : sceneEditing || !hasActionStep || scene !== null
-  const sceneActive = engineActive
-    ? engineCurrentStepId !== null && engineCurrentStepId === engineTimeline[0]?.id
-    : sceneEditing || currentStepIndex === SCENE_STEP_INDEX
 
   const stepList = useMemo(() => buildStepList(steps, initialLp), [steps, initialLp])
   const turnActingDuelistIds = useMemo(() => {
@@ -142,28 +125,11 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="p-2 flex flex-col gap-2 select-text">
-        <SceneEntry
-          active={sceneActive}
-          available={sceneAvailable}
-          editing={sceneEditing}
-          engine={engineActive}
-          onSelect={handleSceneClick}
-        />
         {sceneEditing ? (
           <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
             <span>
-              布景编辑中：现在摆放、移动或删除卡片都不会记录步骤。布置好起始场面后点「完成布景」。
+              布景编辑中：摆放、移动或删除卡片不会记录步骤。修改布景或从布景启动引擎会清空原有步骤，作为新的起点；仅查看后完成布景不受影响。
             </span>
-            <div>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={handleSceneClick}
-                className="h-6 px-2 text-[10px] border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
-              >
-                完成布景
-              </Button>
-            </div>
           </div>
         ) : isPreviewing ? (
           <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md border border-sky-500/40 bg-sky-500/5 text-[10px] leading-relaxed text-sky-600 dark:text-sky-400">

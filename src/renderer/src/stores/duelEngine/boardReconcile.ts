@@ -17,11 +17,17 @@ export function applyEngineWrite(apply: () => void): void {
   useDuelStore.getState().withSingleUndoStep(apply)
 }
 
-export function syncJumpToStepWrapped(boardState: EngineBoardState): void {
-  applyEngineWrite(() => syncJumpToStepToDuelStore(boardState))
+export function syncJumpToStepWrapped(
+  boardState: EngineBoardState,
+  options?: { silentLp?: boolean }
+): void {
+  applyEngineWrite(() => syncJumpToStepToDuelStore(boardState, options))
 }
 
-function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
+function syncJumpToStepToDuelStore(
+  boardState: EngineBoardState,
+  options?: { silentLp?: boolean }
+): void {
   const duelStore = useDuelStore.getState()
   const masterRule = duelStore.state.masterRule
   const currentCards = [...duelStore.state.cards]
@@ -177,8 +183,8 @@ function syncJumpToStepToDuelStore(boardState: EngineBoardState): void {
     })
   }
 
-  duelStore.setPlayerLp(0, boardState.players[0].lp)
-  duelStore.setPlayerLp(1, boardState.players[1].lp)
+  duelStore.setPlayerLp(0, boardState.players[0].lp, { silent: options?.silentLp })
+  duelStore.setPlayerLp(1, boardState.players[1].lp, { silent: options?.silentLp })
   duelStore.setCurrentPhase(mapPhaseToDuelPhase(boardState.phase))
   duelStore.setTurnPlayer(boardState.turnPlayer)
   duelStore.setCurrentTurn(boardState.turn)

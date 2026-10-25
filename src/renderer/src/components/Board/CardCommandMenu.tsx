@@ -178,12 +178,6 @@ export const CardCommandMenu: React.FC = () => {
     onClose()
   }
 
-  const handleChain = (): void => {
-    if (actionMap?.chain) {
-      submitAnswer(actionMap.chain.answer)
-    }
-  }
-
   const reposLabel = reposActionLabel(card.position)
 
   const attackLabel = useRequestActions
@@ -200,8 +194,7 @@ export const CardCommandMenu: React.FC = () => {
       (actionMap?.set ? 1 : 0) +
       (actionMap?.repos ? 1 : 0) +
       (actionMap?.attack ? 1 : 0) +
-      (actionMap?.activate.length ? 1 : 0) +
-      (actionMap?.chain ? 1 : 0)
+      (actionMap?.activate.length ? 1 : 0)
     : isEditorAttackable
       ? 1
       : 0
@@ -332,15 +325,6 @@ export const CardCommandMenu: React.FC = () => {
               className={cn(buttonClass, 'text-rose-700 dark:text-rose-400')}
             >
               {attackLabel}
-            </button>
-          ) : null}
-          {actionMap?.chain ? (
-            <button
-              type="button"
-              onClick={handleChain}
-              className={cn(buttonClass, 'text-teal-700 dark:text-teal-400')}
-            >
-              发动连锁
             </button>
           ) : null}
           {canSwitchPlaceholder ? (

@@ -1,7 +1,7 @@
 import { EngineRequest, RequestCard } from '@shared/engine/protocol'
 
 export interface CardEngineActions {
-  requestKind: 'idle' | 'battle' | 'chain'
+  requestKind: 'idle' | 'battle'
   summon?: RequestCard
   spSummon?: RequestCard
   mset?: RequestCard
@@ -9,7 +9,6 @@ export interface CardEngineActions {
   repos?: RequestCard
   activate: RequestCard[]
   attack?: RequestCard
-  chain?: RequestCard
 }
 
 interface EngineCardIdentity {
@@ -67,7 +66,7 @@ export function deriveCardEngineActions(
 ): CardEngineActions | null {
   if (!request || !card) return null
   const d = request.data
-  if (d.kind !== 'idle' && d.kind !== 'battle' && d.kind !== 'chain') return null
+  if (d.kind !== 'idle' && d.kind !== 'battle') return null
   const key = {
     code: card.code,
     controller: card.controller,
@@ -85,8 +84,7 @@ export function deriveCardEngineActions(
       sset: matchCard(d.ssetable, key),
       repos: matchCard(d.reposable, key),
       activate: matchCards(d.activatable, key),
-      attack: undefined,
-      chain: undefined
+      attack: undefined
     }
   }
 
@@ -99,23 +97,7 @@ export function deriveCardEngineActions(
       sset: undefined,
       repos: undefined,
       activate: matchCards(d.activatable, key),
-      attack: matchCard(d.attackable, key),
-      chain: undefined
-    }
-  }
-
-  if (d.kind === 'chain') {
-    const chain = matchCard(d.chains, key)
-    return {
-      requestKind: 'chain',
-      summon: undefined,
-      spSummon: undefined,
-      mset: undefined,
-      sset: undefined,
-      repos: undefined,
-      activate: [],
-      attack: undefined,
-      chain
+      attack: matchCard(d.attackable, key)
     }
   }
 
@@ -141,7 +123,6 @@ export function hasCardEngineActions(
     actions.sset ||
     actions.repos ||
     actions.attack ||
-    actions.chain ||
     actions.activate.length > 0
   )
 }

@@ -14,10 +14,18 @@ import {
   replayManualSteps
 } from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
-import { resolveOpeningScene, SCENE_STEP_INDEX, type OpeningScene } from '../../utils/openingScene'
+import {
+  resolveOpeningScene,
+  SCENE_STEP_INDEX,
+  sceneSignature,
+  type OpeningScene
+} from '../../utils/openingScene'
+import { isDuelStarted } from '../../utils/duelStart'
 import { applyLpToDuelists, createLpFlash } from './lpSlice'
 import { pickNarrativeStepPatch } from './stepPatch'
 import type { DuelStore } from './types'
+
+let sceneEntrySignature: string | null = null
 
 export interface StepsSlice {
   activeRightTab: 'search' | 'steps'
@@ -56,6 +64,7 @@ export interface StepsSlice {
   previewStepBoard: (stepIndex: number | null) => void
   enterSceneMode: () => boolean
   exitSceneMode: () => boolean
+  isSceneDirty: () => boolean
   resetToOpeningBoard: () => void
 }
 
@@ -103,6 +112,16 @@ function scenePatch(prev: DuelStore, scene: OpeningScene): Partial<DuelStore> {
     activeTurnPlayer: scene.turnPlayer,
     lpFlash: null,
     state: { ...prev.state, cards, players, duelists }
+  }
+}
+
+function sceneOf(prev: DuelStore): OpeningScene {
+  return {
+    cards: createLightweightSnapshot(prev.state.cards),
+    lp: [prev.state.players[0]?.lp ?? 8000, prev.state.players[1]?.lp ?? 8000],
+    turn: prev.currentTurn,
+    phase: prev.currentPhase,
+    turnPlayer: prev.activeTurnPlayer
   }
 }
 
@@ -661,39 +680,51 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     } finally {
       get().resumeUndoTracking()
     }
+    sceneEntrySignature = sceneSignature(sceneOf(get()))
     return true
   },
 
   exitSceneMode: () => {
     if (!get().sceneEditing) return false
     const current = get()
-    const scene: OpeningScene = {
-      cards: createLightweightSnapshot(current.state.cards),
-      lp: [current.state.players[0]?.lp ?? 8000, current.state.players[1]?.lp ?? 8000],
-      turn: current.currentTurn,
-      phase: current.currentPhase,
-      turnPlayer: current.activeTurnPlayer
-    }
+    const scene = sceneOf(current)
+    const changed = sceneEntrySignature !== null && sceneSignature(scene) !== sceneEntrySignature
+    sceneEntrySignature = null
     get().pauseUndoTracking()
     try {
       set((prev) => {
-        const derived = withDerivation({
-          ...prev,
-          state: {
-            ...prev.state,
-            initialBoardSnapshot: scene.cards,
-            initialLp: scene.lp
-          }
-        })
+        const nextState = {
+          ...prev.state,
+          initialBoardSnapshot: scene.cards,
+          initialLp: scene.lp,
+          ...(changed ? { steps: [] } : {})
+        }
+        const derived = withDerivation({ ...prev, state: nextState })
         const next = { ...prev, ...derived }
-        return { ...derived, ...scenePatch(next, scene), sceneEditing: false }
+        return {
+          ...derived,
+          ...scenePatch(next, scene),
+          sceneEditing: false,
+          ...(changed
+            ? {
+                selectedStepId: null,
+                duelStarted: isDuelStarted({ cards: nextState.cards, steps: [] })
+              }
+            : {})
+        }
       })
     } finally {
       get().resumeUndoTracking()
     }
+    if (changed) useDuelEngineStore.getState().setSuspendedDoc(null)
     get().clearUndoHistory()
     return true
   },
+
+  isSceneDirty: () =>
+    get().sceneEditing &&
+    sceneEntrySignature !== null &&
+    sceneSignature(sceneOf(get())) !== sceneEntrySignature,
 
   resetToOpeningBoard: () =>
     set((prev) => {

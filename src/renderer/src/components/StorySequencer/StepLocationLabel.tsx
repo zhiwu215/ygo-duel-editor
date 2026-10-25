@@ -1,7 +1,7 @@
 import React from 'react'
 import { CardLocation } from '@shared/index'
 import { cn } from '../../lib/utils'
-import extraDeckIcon from '../../assets/history/summon.png'
+import extraDeckIcon from '../../assets/log/extra.png'
 
 interface StepLocationLabelProps {
   player: 0 | 1

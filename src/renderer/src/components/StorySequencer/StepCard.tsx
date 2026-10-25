@@ -26,8 +26,8 @@ import { StepLogRows } from './StepLogRows'
 import { MdLocationIcon } from './MdLocationIcon'
 import { MDLOG_ASSETS, MDLOG_COLORS, maskStyle } from './mdpro3LogAssets'
 import { sideName, summonLabel } from './stepLogFormat'
-import negatedIcon from '../../assets/textures/negated.png'
-import targetedIcon from '../../assets/history/targeted.png'
+import negatedIcon from '../../assets/card/negated.png'
+import targetedIcon from '../../assets/log/targeted.png'
 import { ChainGlyph } from '../common/ChainGlyph'
 
 interface StepCardProps {

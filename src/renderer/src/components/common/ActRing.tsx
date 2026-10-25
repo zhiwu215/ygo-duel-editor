@@ -1,5 +1,5 @@
 import React from 'react'
-import actTexture from '../../assets/textures/act.png'
+import actTexture from '../../assets/board/act.png'
 import { cn } from '../../lib/utils'
 
 export const ActRing: React.FC<{ className?: string }> = ({ className }) => (

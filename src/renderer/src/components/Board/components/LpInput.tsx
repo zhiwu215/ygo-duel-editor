@@ -3,8 +3,8 @@ import { CalculatorInput } from './CalculatorInput'
 import { useAnimatedNumber } from '../../../hooks/useAnimatedNumber'
 import { useDuelStore } from '../../../stores/useDuelStore'
 import { cn } from '../../../lib/utils'
-import lpBarTexture from '../../../assets/textures/lp.png'
-import lpFrameTexture from '../../../assets/textures/lpf.png'
+import lpBarTexture from '../../../assets/board/lp-bar.png'
+import lpFrameTexture from '../../../assets/board/lp-frame.png'
 
 export interface LpInputProps {
   lp: number

@@ -1,6 +1,6 @@
 import React from 'react'
 import { cardPoolSpriteY, CARD_POOL_SPRITE_HEIGHT, CARD_POOL_SPRITE_ROWS } from '@shared/index'
-import cardPoolSprite from '../../assets/textures/ot.png'
+import cardPoolSprite from '../../assets/card/pool.png'
 import { cn } from '../../lib/utils'
 
 interface CardScopeBadgeProps {

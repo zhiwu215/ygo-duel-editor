@@ -34,8 +34,8 @@ import { useFieldCardCdb } from '../../hooks/useFieldCardCdb'
 import { CardThumb } from '../ui/CardThumb'
 import { ActRing } from '../common/ActRing'
 import { CardFieldMarks, type CardFieldMark } from './components/CardFieldMarks'
-import negatedIcon from '../../assets/textures/negated.png'
-import { getCardBack, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
+import negatedIcon from '../../assets/card/negated.png'
+import { CARD_BACK_IMAGE, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { cn } from '../../lib/utils'
 
 export const HAND_REORDER_DRAG_TYPE = 'application/x-ygo-hand-reorder'
@@ -293,7 +293,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
             <CardThumb
               code={card.code}
               name={resolveCardName(card.code)}
-              fallback={showCardBack ? getCardBack(card.controller) : UNKNOWN_CARD_IMAGE}
+              fallback={showCardBack ? CARD_BACK_IMAGE : UNKNOWN_CARD_IMAGE}
               showName={!isFacedown || isHand}
               nameClassName="text-[10px]"
               className="h-full w-full"

@@ -1,11 +1,8 @@
-import localCover from '../assets/textures/cover.jpg'
-import localCover2 from '../assets/textures/cover2.jpg'
-import localUnknown from '../assets/textures/unknown.jpg'
+import localBack from '../assets/card/back.jpg'
+import localUnknown from '../assets/card/unknown.jpg'
 import { isPlaceholderCard } from '@shared/index'
 
-export const CARD_BACK_IMAGE = localCover
-
-export const CARD_BACK_OPPONENT_IMAGE = localCover2
+export const CARD_BACK_IMAGE = localBack
 
 export const UNKNOWN_CARD_IMAGE = localUnknown
 
@@ -13,10 +10,6 @@ let imageVersion = 0
 
 export function bumpCardImageVersion(): void {
   imageVersion += 1
-}
-
-export function getCardBack(controller: 0 | 1 = 0): string {
-  return controller === 1 ? CARD_BACK_OPPONENT_IMAGE : CARD_BACK_IMAGE
 }
 
 export function getCardImageUrl(code: number | undefined, small = false): string {

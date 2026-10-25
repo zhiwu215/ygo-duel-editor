@@ -1,5 +1,5 @@
 import React from 'react'
-import chainTexture from '../../assets/textures/chain.png'
+import chainTexture from '../../assets/board/chain.png'
 import { cn } from '../../lib/utils'
 
 export const ChainGlyph: React.FC<{ className?: string }> = ({ className }) => (

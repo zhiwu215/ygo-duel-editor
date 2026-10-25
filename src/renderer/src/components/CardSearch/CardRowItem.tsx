@@ -5,7 +5,7 @@ import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFo
 import { CardImage } from '../ui/CardImage'
 import { CardScopeBadge } from '../ui/CardScopeBadge'
 import { cn } from '../../lib/utils'
-import limitSprite from '../../assets/textures/lim.png'
+import limitSprite from '../../assets/card/limit.png'
 
 const LIMIT_SPRITE_SIZE = 64
 const LIMIT_BADGE_SIZE = 24

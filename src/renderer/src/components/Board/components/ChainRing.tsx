@@ -1,5 +1,5 @@
 import React from 'react'
-import chainNumbers from '../../../assets/textures/number.png'
+import chainNumbers from '../../../assets/board/chain-number.png'
 import { ChainGlyph } from '../../common/ChainGlyph'
 import { cn } from '../../../lib/utils'
 

@@ -1,6 +1,6 @@
 import React from 'react'
-import equipTexture from '../../../assets/textures/equip.png'
-import targetTexture from '../../../assets/textures/target.png'
+import equipTexture from '../../../assets/board/equip.png'
+import targetTexture from '../../../assets/board/target.png'
 
 export type CardFieldMark = 'target' | 'equip'
 

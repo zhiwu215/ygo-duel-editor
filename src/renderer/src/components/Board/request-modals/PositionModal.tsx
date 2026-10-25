@@ -1,7 +1,7 @@
 import React from 'react'
 import { CardPosition } from '@shared/index'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
-import { getCardBack, getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../../utils/cardImage'
+import { CARD_BACK_IMAGE, getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../../utils/cardImage'
 import { cn } from '../../../lib/utils'
 import { RequestModalShell } from './RequestModalShell'
 import type { DataOf } from './engine'
@@ -42,7 +42,7 @@ export const PositionModal: React.FC<{ data: DataOf<'position'> }> = ({ data }) 
               className="flex h-[176px] w-[176px] items-center justify-center rounded-md border border-border/70 bg-background/60 transition-colors hover:border-foreground/40 hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-60"
             >
               <img
-                src={POSITION_FACEDOWN.has(position) ? getCardBack() : faceImage}
+                src={POSITION_FACEDOWN.has(position) ? CARD_BACK_IMAGE : faceImage}
                 alt={label}
                 draggable={false}
                 className={cn(

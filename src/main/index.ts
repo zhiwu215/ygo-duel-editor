@@ -3,6 +3,7 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import './services/userDataProfile'
 import { registerAllIpcHandlers } from './ipc/registerIpc'
 import { configService } from './services/configService'
 import { cdbService } from './db/cdbService'
@@ -18,6 +19,7 @@ import { libraryService } from './services/libraryService'
 import { textLibraryService } from './services/textLibraryService'
 import { seedCurrentGameLanguage } from './services/gameLanguagePreference'
 import { installWindowCloseGuard } from './services/windowCloseGuard'
+import { updateService } from './services/updateService'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -92,6 +94,7 @@ app.whenReady().then(() => {
   })
 
   registerAllIpcHandlers()
+  updateService.startAutoCheck()
 
   protocol.handle('ygopic', async (request) => {
     try {

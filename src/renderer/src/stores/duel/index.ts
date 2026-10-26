@@ -33,9 +33,22 @@ export const useDuelStore = create<DuelStore>()(
       ...createUndoSlice(...a)
     }),
     {
-      partialize: (state) => ({ state: state.state, duelStarted: state.duelStarted }),
+      partialize: (state) => ({
+        state: state.state,
+        duelStarted: state.duelStarted,
+        currentTurn: state.currentTurn,
+        currentPhase: state.currentPhase,
+        currentChain: state.currentChain,
+        activeTurnPlayer: state.activeTurnPlayer,
+        currentStepIndex: state.currentStepIndex
+      }),
       equality: (past, current) =>
-        past.state === current.state && past.duelStarted === current.duelStarted,
+        past.state === current.state &&
+        past.duelStarted === current.duelStarted &&
+        past.currentTurn === current.currentTurn &&
+        past.currentPhase === current.currentPhase &&
+        past.currentChain === current.currentChain &&
+        past.activeTurnPlayer === current.activeTurnPlayer,
       limit: 50
     }
   )

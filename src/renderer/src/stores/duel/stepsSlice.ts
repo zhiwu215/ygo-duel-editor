@@ -62,10 +62,10 @@ export interface StepsSlice {
   insertTurnChange: () => void
 
   previewStepBoard: (stepIndex: number | null) => void
+  previewTimelineStart: () => void
   enterSceneMode: () => boolean
   exitSceneMode: () => boolean
   isSceneDirty: () => boolean
-  resetToOpeningBoard: () => void
 }
 
 function restoreCardsFromSnapshot(
@@ -157,6 +157,23 @@ function homePileLocation(card: FieldCard): number {
   return isExtraType || card.location === CardLocation.EXTRA
     ? CardLocation.EXTRA
     : CardLocation.DECK
+}
+
+function openingCards(state: DuelPuzzleState): FieldCard[] {
+  const snapshot = state.initialBoardSnapshot ?? []
+  if (snapshot.length === 0) return state.cards
+  const restored = restoreCardsFromSnapshot(state.cards, snapshot)
+  const restoredIds = new Set(restored.map((card) => card.instanceId))
+  const extras = state.cards.filter((card) => !restoredIds.has(card.instanceId))
+  const teamDuelistId = (controller: 0 | 1): string => {
+    const teamDuelists = (state.duelists || []).filter((duelist) => duelist.team === controller)
+    return teamDuelists[0]?.id || `duelist_${controller}_0`
+  }
+  let cards = restored
+  for (const extra of extras) {
+    cards = insertPileTop(cards, extra, teamDuelistId(extra.controller), homePileLocation(extra))
+  }
+  return cards
 }
 
 export { createStepId } from '@shared/index'
@@ -583,7 +600,8 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   previewStepBoard: (stepIndex) => {
     if (get().sceneEditing) return
     const engineRunning = useDuelEngineStore.getState().isInitialized
-    if (engineRunning) get().pauseUndoTracking()
+    const wasTracking = get().isUndoTracking()
+    if (wasTracking) get().pauseUndoTracking()
     try {
       set((prev) => {
         const steps = prev.state.steps || []
@@ -658,7 +676,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         }
       })
     } finally {
-      if (engineRunning) get().resumeUndoTracking()
+      if (wasTracking) get().resumeUndoTracking()
     }
   },
 
@@ -726,37 +744,35 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     sceneEntrySignature !== null &&
     sceneSignature(sceneOf(get())) !== sceneEntrySignature,
 
-  resetToOpeningBoard: () =>
+  previewTimelineStart: () => {
+    if (get().sceneEditing) return
+    if (useDuelEngineStore.getState().isInitialized) return
     set((prev) => {
-      const snapshot = prev.state.initialBoardSnapshot ?? []
-      const restoredCards = restoreCardsFromSnapshot(prev.state.cards, snapshot)
-      const restoredIds = new Set(restoredCards.map((c) => c.instanceId))
-      const extras = prev.state.cards.filter((c) => !restoredIds.has(c.instanceId))
-
-      const teamDuelistId = (controller: 0 | 1): string => {
-        const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
-        return teamDuelists[0]?.id || `duelist_${controller}_0`
-      }
-      let finalCards = restoredCards
-      for (const extra of extras) {
-        finalCards = insertPileTop(
-          finalCards,
-          extra,
-          teamDuelistId(extra.controller),
-          homePileLocation(extra)
-        )
-      }
-
-      const firstPlayer = ((prev.state.steps || [])[0]?.turnPlayer ?? 0) as 0 | 1
+      const steps = prev.state.steps || []
+      const [lp0, lp1] = prev.state.initialLp ?? [
+        prev.state.players[0]?.lp ?? 8000,
+        prev.state.players[1]?.lp ?? 8000
+      ]
+      const players: [PlayerState, PlayerState] = [
+        { ...prev.state.players[0], lp: lp0 },
+        { ...prev.state.players[1], lp: lp1 }
+      ]
+      const duelists = applyLpToDuelists(
+        applyLpToDuelists(prev.state.duelists, 0, lp0, prev.state.matchConfig),
+        1,
+        lp1,
+        prev.state.matchConfig
+      )
+      const activeTurnPlayer = (steps[0]?.turnPlayer ?? prev.state.turnPlayer ?? 0) as 0 | 1
       return {
-        currentStepIndex: null,
+        currentStepIndex: SCENE_STEP_INDEX,
         currentTurn: 1,
         currentPhase: 'DP',
         currentChain: 0,
-        duelStarted: false,
-        sceneEditing: false,
-        activeTurnPlayer: firstPlayer,
-        state: { ...prev.state, steps: [], cards: finalCards, turnPlayer: firstPlayer }
+        activeTurnPlayer,
+        lpFlash: null,
+        state: { ...prev.state, cards: openingCards(prev.state), players, duelists }
       }
     })
+  }
 })

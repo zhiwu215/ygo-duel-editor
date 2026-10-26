@@ -1,16 +1,22 @@
 import type { StateCreator, StoreApi } from 'zustand'
 import type { TemporalState } from 'zundo'
-import { DuelPuzzleState } from '@shared/index'
+import { DuelPhase, DuelPuzzleState } from '@shared/index'
 import type { DuelStore } from './types'
 
 interface UndoSnapshot {
   state: DuelPuzzleState
   duelStarted: boolean
+  currentTurn: number
+  currentPhase: DuelPhase
+  currentChain: number
+  activeTurnPlayer: 0 | 1
+  currentStepIndex: number | null
 }
 
 export interface UndoSlice {
   pauseUndoTracking: () => void
   resumeUndoTracking: () => void
+  isUndoTracking: () => boolean
   withSingleUndoStep: (apply: () => void) => void
   clearUndoHistory: () => void
 }
@@ -27,6 +33,8 @@ export const createUndoSlice: StateCreator<DuelStore, [], [], UndoSlice> = (_set
 
   resumeUndoTracking: (): void => temporalOf(store).getState().resume(),
 
+  isUndoTracking: (): boolean => temporalOf(store).getState().isTracking,
+
   clearUndoHistory: (): void => temporalOf(store).getState().clear(),
 
   withSingleUndoStep: (apply: () => void): void => {
@@ -34,11 +42,15 @@ export const createUndoSlice: StateCreator<DuelStore, [], [], UndoSlice> = (_set
       apply()
       return
     }
-    const previousState = get().state
-    const previousStarted = get().duelStarted
+    const previous = get()
     const snapshot: UndoSnapshot = {
-      state: structuredClone(previousState),
-      duelStarted: previousStarted
+      state: structuredClone(previous.state),
+      duelStarted: previous.duelStarted,
+      currentTurn: previous.currentTurn,
+      currentPhase: previous.currentPhase,
+      currentChain: previous.currentChain,
+      activeTurnPlayer: previous.activeTurnPlayer,
+      currentStepIndex: previous.currentStepIndex
     }
     temporalOf(store).getState().pause()
     try {
@@ -46,10 +58,23 @@ export const createUndoSlice: StateCreator<DuelStore, [], [], UndoSlice> = (_set
     } finally {
       const temporal = temporalOf(store).getState()
       temporal.resume()
-      if (get().state !== previousState || get().duelStarted !== previousStarted) {
+      const current = get()
+      const changed =
+        current.state !== previous.state ||
+        current.duelStarted !== previous.duelStarted ||
+        current.currentTurn !== previous.currentTurn ||
+        current.currentPhase !== previous.currentPhase ||
+        current.currentChain !== previous.currentChain ||
+        current.activeTurnPlayer !== previous.activeTurnPlayer
+      if (changed) {
         ;(temporal as unknown as { _handleSet: HandleSet })._handleSet(snapshot, undefined, {
-          state: get().state,
-          duelStarted: get().duelStarted
+          state: current.state,
+          duelStarted: current.duelStarted,
+          currentTurn: current.currentTurn,
+          currentPhase: current.currentPhase,
+          currentChain: current.currentChain,
+          activeTurnPlayer: current.activeTurnPlayer,
+          currentStepIndex: current.currentStepIndex
         })
       }
     }

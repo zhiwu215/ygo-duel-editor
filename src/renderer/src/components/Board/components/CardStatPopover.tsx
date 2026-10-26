@@ -23,6 +23,7 @@ import {
 } from '../../ui/select'
 import { Plus, Minus, Trash2, X, Pencil, Swords, Shield, GripHorizontal } from 'lucide-react'
 import { useTokenStore } from '../../../stores/useTokenStore'
+import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { cn } from '../../../lib/utils'
 import { CalculatorInput } from './CalculatorInput'
 import { TokenSuggestSection } from './TokenSuggestSection'
@@ -106,16 +107,17 @@ export const CardStatPopover: React.FC = () => {
 
   const cancelPendingToken = useTokenStore((s) => s.cancelPending)
   const loadTokenCatalog = useTokenStore((s) => s.loadCatalog)
+  const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
 
   useEffect(() => {
-    void loadTokenCatalog()
-  }, [loadTokenCatalog])
+    if (!isEngineActive) void loadTokenCatalog()
+  }, [isEngineActive, loadTokenCatalog])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        if (useTokenStore.getState().pendingToken) cancelPendingToken()
+        if (useTokenStore.getState().pending) cancelPendingToken()
         else closeStatPopover()
       }
     }
@@ -190,13 +192,15 @@ export const CardStatPopover: React.FC = () => {
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <GripHorizontal className="w-3.5 h-3.5 text-muted-foreground/60 group-hover/header:text-primary transition-colors shrink-0" />
-          <Swords className="w-3.5 h-3.5 text-blue-500 shrink-0" />
           <span className="font-bold text-xs truncate">{cardName}</span>
         </div>
         <Button
           variant="ghost"
           size="icon-xs"
-          onClick={() => closeStatPopover()}
+          onClick={() => {
+            cancelPendingToken()
+            closeStatPopover()
+          }}
           className="h-5 w-5 text-muted-foreground hover:text-foreground shrink-0"
         >
           <X className="w-3.5 h-3.5" />
@@ -309,7 +313,7 @@ export const CardStatPopover: React.FC = () => {
               <SelectTrigger size="sm" className="h-6 text-xs flex-1 bg-background">
                 <SelectValue>{currentSelectedName}</SelectValue>
               </SelectTrigger>
-              <SelectContent className="max-h-[200px]">
+              <SelectContent positionerClassName="z-[60]" className="max-h-[200px]">
                 <SelectGroup>
                   <SelectLabel className="text-[10px] text-muted-foreground font-bold">
                     可选指示物
@@ -424,7 +428,7 @@ export const CardStatPopover: React.FC = () => {
         )}
       </div>
 
-      <TokenSuggestSection sourceCard={cdb} />
+      {!isEngineActive && <TokenSuggestSection sourceCard={cdb} />}
     </div>
   )
 }

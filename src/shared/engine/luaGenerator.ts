@@ -150,7 +150,8 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
     return randomDeck ? TEST_OPENING_HAND : 0
   }
 
-  const drawCountOf = (player: 0 | 1): number => (isFull ? 1 : state.players[player].maxHand)
+  const drawCountOf = (player: 0 | 1): number =>
+    forReplay || isFull ? 1 : state.players[player].maxHand
 
   lines.push(`-- 2. 双方生命值与手牌配置`)
   lines.push(`Debug.SetPlayerInfo(0, ${lp0}, ${startHandOf(0)}, ${drawCountOf(0)})`)

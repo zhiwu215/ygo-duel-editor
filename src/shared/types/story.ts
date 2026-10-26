@@ -45,6 +45,7 @@ export type DuelActionType =
   | 'TO_HAND'
   | 'TO_DECK'
   | 'CHANGE_POS'
+  | 'HAND_OPEN'
   | 'PLACE'
   | 'DAMAGE'
   | 'RECOVER'
@@ -80,6 +81,7 @@ export const ACTION_TYPE_NAMES: Record<DuelActionType, string> = {
   TO_HAND: '加入手牌',
   TO_DECK: '返回卡组',
   CHANGE_POS: '变更表示形式',
+  HAND_OPEN: '公开手牌',
   PLACE: '放置',
   DAMAGE: '受到伤害',
   RECOVER: '生命回复',
@@ -144,6 +146,7 @@ export const ACTION_TYPE_COLORS: Record<
   TO_HAND: { bg: 'bg-sky-500/15', text: 'text-sky-400', border: 'border-sky-500/30' },
   TO_DECK: { bg: 'bg-blue-600/15', text: 'text-blue-300', border: 'border-blue-600/30' },
   CHANGE_POS: { bg: 'bg-indigo-500/15', text: 'text-indigo-400', border: 'border-indigo-500/30' },
+  HAND_OPEN: { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
   DAMAGE: { bg: 'bg-rose-600/15', text: 'text-rose-400', border: 'border-rose-600/30' },
   RECOVER: { bg: 'bg-emerald-600/15', text: 'text-emerald-300', border: 'border-emerald-600/30' },
   EVENT: { bg: 'bg-muted', text: 'text-muted-foreground', border: 'border-border' },

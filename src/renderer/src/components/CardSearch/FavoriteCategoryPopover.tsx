@@ -72,7 +72,7 @@ export function FavoriteCategoryPopover({
     >
       <button type="button" onClick={selectUngrouped} className={rowClass}>
         <Check className={cn('h-3.5 w-3.5 shrink-0', ungrouped ? 'text-amber-400' : 'opacity-0')} />
-        <span className="truncate">未分组</span>
+        <span className="truncate">未分类</span>
       </button>
 
       {categories.map((category) => {

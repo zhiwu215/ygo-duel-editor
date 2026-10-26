@@ -29,6 +29,7 @@ interface ConfigStoreState {
   customSyncCdb: CustomSyncCdbInfo | null
   engineSupport: EngineSupportInfo | null
   loadConfig: () => Promise<void>
+  resetConfig: () => Promise<boolean>
   refreshCdbStatus: () => Promise<void>
   refreshEngineSupport: () => Promise<void>
   selectYgoDir: () => Promise<CdbSelectResult>
@@ -121,6 +122,17 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     } catch (err) {
       console.error('[useConfigStore] loadConfig error:', err)
       set({ isLoaded: true })
+    }
+  },
+
+  resetConfig: async () => {
+    try {
+      const ok = await window.api.resetConfig()
+      await get().loadConfig()
+      return ok
+    } catch (err) {
+      console.error('[useConfigStore] resetConfig error:', err)
+      return false
     }
   },
 

@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import { basename, dirname, join } from 'path'
-import { DuelPuzzleState, GameLanguageOption } from '@shared/index'
+import { CardType, DuelPuzzleState, GameLanguageOption } from '@shared/index'
 import { configService } from './configService'
 import { readZipEntryNames } from '../utils/zipEntryNames'
 
@@ -34,7 +34,6 @@ const ZIP_READ_LIMIT = 64 * 1024 * 1024
 const TYPE_MONSTER = 0x1
 const TYPE_NORMAL = 0x10
 const TYPE_EFFECT = 0x20
-const TYPE_TOKEN = 0x4000000
 const SCAN_SKIP_DIRS = new Set([
   'pics',
   'hdpics',
@@ -265,7 +264,7 @@ export async function checkGameContentCoverage(
 }
 
 function scriptRequired(type: number): boolean {
-  if ((type & TYPE_TOKEN) !== 0) return false
+  if ((type & CardType.TOKEN) !== 0) return false
   if ((type & TYPE_MONSTER) === 0) return true
   return (type & TYPE_NORMAL) === 0 || (type & TYPE_EFFECT) !== 0
 }

@@ -19,11 +19,14 @@ import { ChainModeToggle } from '../Board/ChainModeToggle'
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
 import { TurnPhaseIndicator } from './components/TurnPhaseIndicator'
+import { UpdateIndicator } from './components/UpdateIndicator'
+import { UpdateDialog } from './components/UpdateDialog'
 import { useProjectCommands } from '../../hooks/useProjectCommands'
 import { useGlobalShortcuts } from '../../hooks/useGlobalShortcuts'
 import { useSceneMode } from '../../hooks/useSceneMode'
 import { useStartEngine } from '../../hooks/useStartEngine'
 import { useConfigStore } from '../../stores/useConfigStore'
+import { useUpdateStore } from '../../stores/useUpdateStore'
 import { confirmDialog } from '../../stores/useDialogStore'
 
 export const Header: React.FC = () => {
@@ -121,6 +124,7 @@ export const Header: React.FC = () => {
               onOpenReplayInYgo={handleOpenReplayInYgo}
               canOpenReplay={Boolean(replayInfo?.filePath)}
               isReplay={replayInfo !== null}
+              onCheckUpdates={() => void useUpdateStore.getState().check()}
             />
           </div>
         </div>
@@ -135,6 +139,8 @@ export const Header: React.FC = () => {
             placeholder="未命名对局"
             className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
           />
+
+          <UpdateIndicator />
 
           <WindowControls className="-mr-3 ml-1" />
         </div>
@@ -274,6 +280,8 @@ export const Header: React.FC = () => {
           )}
         </div>
       </div>
+
+      <UpdateDialog />
 
       {importingReplay && (
         <div

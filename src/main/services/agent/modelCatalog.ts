@@ -2,6 +2,7 @@ import {
   AgentModelInfo,
   AgentModelInput,
   cleanAgentApiKey,
+  isLocalEndpoint,
   normalizeAgentModelInputs
 } from '@shared/index'
 
@@ -114,7 +115,11 @@ export async function fetchModels(
 
       const msg =
         res.status === 401
-          ? `身份验证失败 (HTTP 401): ${errorDetail}（请检查 API Key 是否有效）`
+          ? cleanKey
+            ? `身份验证失败 (HTTP 401): ${errorDetail}（请检查 API Key 是否有效）`
+            : isLocalEndpoint(trimmed)
+              ? `接口要求 API Key (HTTP 401): ${errorDetail}（该本地接口启用了鉴权，请填写它的 API Key）`
+              : `接口要求 API Key (HTTP 401): ${errorDetail}（请填写该接口的 API Key）`
           : `HTTP ${res.status}: ${errorDetail}`
       return { success: false, error: msg }
     }

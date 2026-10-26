@@ -11,10 +11,8 @@ import {
 } from '../../utils/cardFormat'
 import { LinkMarkerArrows } from '../CardDetail/LinkMarkerArrows'
 import { cn } from '../../lib/utils'
-import { useCustomCardStore } from '../../stores/useCustomCardStore'
-import { confirmDialog } from '../../stores/useDialogStore'
 
-import { Check, ZoomIn, Copy, Pencil, Trash2 } from 'lucide-react'
+import { Check, ZoomIn, Copy } from 'lucide-react'
 import { CardImageViewer } from '../CardDetail/CardImageViewer'
 
 interface DeckDetailCardProps {
@@ -24,7 +22,6 @@ interface DeckDetailCardProps {
 }
 
 export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, onToggleCover }) => {
-  const { openEdit, remove } = useCustomCardStore()
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
   const [copied, setCopied] = useState<boolean>(false)
   const imageUrl = card ? getCardImageUrl(card.id) : CARD_BACK_IMAGE
@@ -55,41 +52,11 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
     }
   }
 
-  const handleDelete = async (): Promise<void> => {
-    if (!card?.isCustom) return
-    const confirmed = await confirmDialog({
-      title: '删除自定义卡片',
-      description: `确定删除自定义卡片「${card.name}」吗？卡组中已加入的该卡会显示为未知卡片，且卡密不会被回收。`,
-      confirmText: '删除',
-      destructive: true
-    })
-    if (!confirmed) return
-    await remove(card.id)
-  }
-
   return (
     <>
       <div className="w-[240px] shrink-0 h-full bg-card/40 border-r border-border flex flex-col overflow-hidden">
         <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
           <span className="text-xs font-bold text-foreground">卡片详情</span>
-          {card?.isCustom && (
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => openEdit(card.id)}
-                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDelete()}
-                className="p-1.5 rounded text-muted-foreground hover:text-red-500 hover:bg-muted/70 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
         </div>
 
         {card ? (

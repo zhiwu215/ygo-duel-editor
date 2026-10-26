@@ -17,14 +17,13 @@ import { resolveDuelistName, resolveTeamLabel } from '../../utils/duelistNames'
 
 interface StepListProps {
   steps: DuelStep[]
-  onEditStep: (step: DuelStep) => void
 }
 
 function engineIdOf(step: DuelStep): string | undefined {
   return step.endActId ?? step.actId
 }
 
-export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
+export const StepList: React.FC<StepListProps> = ({ steps }) => {
   const currentStepIndex = useDuelStore((state) => state.currentStepIndex)
   const sceneEditing = useDuelStore((state) => state.sceneEditing)
   const previewReturn = useDuelStore((state) => state.previewReturn)
@@ -113,10 +112,7 @@ export const StepList: React.FC<StepListProps> = ({ steps, onEditStep }) => {
         stepsLength={steps.length}
         isCurrentPlaying={isCurrentPlaying}
         isFutureStep={isFutureStep}
-        stepEngineIndex={stepEngineIndex}
         showLpChange={showLpChange}
-        onEdit={onEditStep}
-        onRestart={handleRestartFromStep}
         onClick={handleStepClick}
       />
     )

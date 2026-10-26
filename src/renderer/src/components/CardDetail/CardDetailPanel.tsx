@@ -1,8 +1,6 @@
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useState, useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
-import { useCustomCardStore } from '../../stores/useCustomCardStore'
-import { confirmDialog } from '../../stores/useDialogStore'
 import {
   formatCardTypeLine,
   formatCardStatsLine,
@@ -12,12 +10,11 @@ import {
 import { LinkMarkerArrows } from './LinkMarkerArrows'
 import { CardImage } from '../ui/CardImage'
 import { useCopyFeedback } from '../../hooks/useCopyFeedback'
-import { HelpCircle, ZoomIn, Copy, Check, Pencil, Trash2 } from 'lucide-react'
+import { HelpCircle, ZoomIn, Copy, Check } from 'lucide-react'
 import { CardImageViewer } from './CardImageViewer'
 
 export const CardDetailPanel: React.FC = () => {
   const { hoveredCard, selectedCardId, state } = useDuelStore()
-  const { openEdit, remove } = useCustomCardStore()
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
   const { copiedField, copy } = useCopyFeedback('CardDetailPanel')
 
@@ -58,23 +55,6 @@ export const CardDetailPanel: React.FC = () => {
     void copy('code', String(currentCard.id))
   }
 
-  const handleEdit = (): void => {
-    if (!currentCard?.isCustom) return
-    openEdit(currentCard.id)
-  }
-
-  const handleDelete = async (): Promise<void> => {
-    if (!currentCard?.isCustom) return
-    const confirmed = await confirmDialog({
-      title: '删除自定义卡片',
-      description: `确定删除自定义卡片「${currentCard.name}」吗？已拖上场面的该卡不会受影响。`,
-      confirmText: '删除',
-      destructive: true
-    })
-    if (!confirmed) return
-    await remove(currentCard.id)
-  }
-
   if (!currentCard) {
     return (
       <div className="w-full h-full bg-card/30 flex flex-col select-none">
@@ -98,24 +78,6 @@ export const CardDetailPanel: React.FC = () => {
       <div className="w-full h-full bg-card/40 flex flex-col overflow-hidden">
         <div className="h-10 px-3 border-b border-border flex items-center justify-between shrink-0 bg-neutral-100/60 dark:bg-neutral-900/60">
           <span className="text-xs font-bold text-foreground">卡片详情</span>
-          {currentCard.isCustom && (
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={handleEdit}
-                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDelete()}
-                className="p-1.5 rounded text-muted-foreground hover:text-red-500 hover:bg-muted/70 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
         </div>
 
         <div className="pt-3 pb-2.5 px-4 flex flex-col items-center select-none shrink-0">

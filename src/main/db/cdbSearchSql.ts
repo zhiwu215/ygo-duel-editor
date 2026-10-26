@@ -68,7 +68,7 @@ export function buildSearchSql(
 
   let baseWhere =
     ` FROM datas d JOIN texts t ON d.id = t.id${overlayJoin} WHERE 1=1` +
-    ' AND (d.type & 16384) = 0' +
+    (params.includeTokens ? '' : ` AND (d.type & ${CardType.TOKEN}) = 0`) +
     ` AND (d.ot & ${AVAIL_HIDDEN}) = 0` +
     ` AND ${nameExpr} NOT LIKE '%占位符%'` +
     ' AND NOT (' +

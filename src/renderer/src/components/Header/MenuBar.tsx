@@ -24,6 +24,7 @@ interface MenuBarProps {
   onOpenReplayInYgo: () => void
   canOpenReplay: boolean
   isReplay: boolean
+  onCheckUpdates: () => void
 }
 
 export const MenuBar: React.FC<MenuBarProps> = ({
@@ -38,7 +39,8 @@ export const MenuBar: React.FC<MenuBarProps> = ({
   onImportReplay,
   onOpenReplayInYgo,
   canOpenReplay,
-  isReplay
+  isReplay,
+  onCheckUpdates
 }) => {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
@@ -55,10 +57,15 @@ export const MenuBar: React.FC<MenuBarProps> = ({
 
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const hasEngineActions = useDuelEngineStore((s) => s.timeline.length > 1)
+  const suspendedDoc = useDuelEngineStore((s) => s.suspendedDoc)
   const matchConfig = useDuelStore((s) => s.state.matchConfig)
   const canExportMatch = isExportableMatch(matchConfig)
   const canTestInYgo = isInGameTestSupported(matchConfig)
-  const canExportYrp = canExportMatch && isEngineActive && hasEngineActions && !isReplay
+  const canExportYrp =
+    canExportMatch &&
+    !isReplay &&
+    ((isEngineActive && hasEngineActions) ||
+      Boolean(suspendedDoc && suspendedDoc.timeline.length > 1))
 
   const { canUndo, canRedo, undo, redo } = useEngineAwareUndoRedo()
 
@@ -101,7 +108,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     onExportYrp,
     onImportReplay,
     onOpenReplayInYgo,
-    canOpenReplay,
+    canOpenReplay: canOpenReplay || canExportYrp,
     isReplay,
     canExportYrp,
     canExportLua: canExportMatch,
@@ -117,7 +124,8 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     onToggleTacticalView: () => toggleTacticalView(),
     onShowShortcutsDialog: () => setShowShortcutsDialog(true),
     onShowAboutDialog: () => setShowAboutDialog(true),
-    onShowSupportDialog: () => setShowSupportDialog(true)
+    onShowSupportDialog: () => setShowSupportDialog(true),
+    onCheckUpdates
   })
 
   return (

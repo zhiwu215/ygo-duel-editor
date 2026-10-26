@@ -312,7 +312,10 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
       | { kind: 'blank' }
   ): ContextMenuItem[] => {
     if (target.kind === 'blank') {
-      return [{ label: '新建分类', onSelect: () => void createFolder('') }]
+      return [
+        { label: '新建台本', onSelect: () => void createDocument('') },
+        { label: '新建分类', onSelect: () => void createFolder('') }
+      ]
     }
     if (target.kind === 'document') {
       return [
@@ -366,13 +369,36 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
             正在读取台本库…
           </div>
         ) : filtered.folders.length === 0 && filtered.documents.length === 0 ? (
-          <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-1 p-6 text-center text-[11px] text-muted-foreground">
+          <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-2 p-6 text-center text-[11px] text-muted-foreground">
             <Folder className="h-8 w-8 opacity-30" />
             <span>{query ? '没有匹配的台本' : '还没有台本'}</span>
+            {!query && (
+              <div className="mt-1 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void createDocument('')}
+                  className="rounded border border-border/60 bg-background/60 px-2 py-1 text-[11px] text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  新建台本
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void createFolder('')}
+                  className="rounded border border-border/60 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  新建分类
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <>
             {filtered.folders.map((folder) => renderFolder(folder, 0))}
+            {filtered.documents.length > 0 && (
+              <div className="px-2 pb-0.5 pt-2 text-[10px] font-medium text-muted-foreground/60">
+                未分类
+              </div>
+            )}
             {filtered.documents.map((entry) => renderDocument(entry, 0))}
           </>
         )}

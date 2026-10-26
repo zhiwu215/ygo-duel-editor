@@ -727,18 +727,26 @@ export class DuelSession {
     if (state.replay) {
       throw new Error('回放模式为只读，无法导出 MDPro3 回放。')
     }
-    const current = state.timeline.getCurrentStep()
-    if (!state.initParams || !current) {
+    const target = this.timelineTip()
+    if (!state.initParams || !target) {
       throw new Error('引擎尚未启动，无法导出 MDPro3 回放。')
     }
+    const previous = state.timeline.getCurrentStep()
 
     state.recordingMessages = []
     let messages: Uint8Array[]
     try {
-      await this.replayTo(current.node.id)
+      await this.replayTo(target.id)
       messages = state.recordingMessages ?? []
     } finally {
       state.recordingMessages = null
+      if (previous && previous.node.id !== target.id) {
+        try {
+          await this.replayTo(previous.node.id)
+        } catch (err) {
+          console.error('[duel-session] 导出后恢复原步骤失败:', err)
+        }
+      }
     }
     if (messages.length === 0) {
       throw new Error('没有录制到任何引擎消息，无法导出 MDPro3 回放。')
@@ -746,14 +754,21 @@ export class DuelSession {
     return { messages, responses: this.getAllTimelineResponses() }
   }
 
-  getAllTimelineResponses(): Uint8Array[] {
+  private timelineTip(): EngineTimelineNode | null {
+    const nodes = this.state.timeline.getAllNodes()
+    return nodes[nodes.length - 1] ?? null
+  }
+
+  getAllTimelineResponses(skipInitialSetup = false): Uint8Array[] {
     const state = this.state
     if (state.replay) {
       throw new Error('回放模式为只读，无法导出录像。')
     }
-    const lastOpIndex = state.timeline.getCurrentStep()?.node.opIndex ?? -1
+    const firstNode = state.timeline.getAllNodes()[0]
+    const startOpIndex = skipInitialSetup && firstNode ? firstNode.opIndex + 1 : 0
+    const lastOpIndex = this.timelineTip()?.opIndex ?? -1
     return state.ops
-      .slice(0, lastOpIndex + 1)
+      .slice(startOpIndex, lastOpIndex + 1)
       .flatMap((op) => (op.type === 'inject' ? [] : op.responses))
   }
 

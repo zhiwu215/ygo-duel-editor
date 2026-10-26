@@ -1,4 +1,5 @@
 import { type JSX } from 'react'
+import { RotateCcw } from 'lucide-react'
 import {
   CARD_NAME_WRAPPERS,
   FONT_SIZE_SPECS,
@@ -7,6 +8,8 @@ import {
   normalizeFontSizes
 } from '@shared/index'
 import { useConfigStore } from '../../../stores/useConfigStore'
+import { alertDialog, confirmDialog } from '../../../stores/useDialogStore'
+import { Button } from '../../ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select'
 import { FontSizeControl } from './FontSizeControl'
 import { ThemePreferenceCards } from './ThemePreferenceCards'
@@ -30,11 +33,22 @@ const FONT_SIZE_ROWS: { role: FontSizeRole; title: string; description: string }
 ]
 
 export function GeneralSettingsSection(): JSX.Element {
-  const { config, setTheme, setFontSize, setCardNameWrapper } = useConfigStore()
+  const { config, setTheme, setFontSize, setCardNameWrapper, resetConfig } = useConfigStore()
   const fontSizes = normalizeFontSizes(config.fontSizes)
   const cardNameWrapper = normalizeCardNameWrapper(config.cardNameWrapper)
   const wrapperOpen = cardNameWrapper.slice(0, 1)
   const wrapperClose = cardNameWrapper.slice(1)
+
+  const handleReset = async (): Promise<void> => {
+    const ok = await confirmDialog({
+      title: '恢复默认设置',
+      description: '数据目录（卡组、卡牌图鉴、文本库）保留，其余设置清空。',
+      confirmText: '恢复默认',
+      destructive: true
+    })
+    if (!ok) return
+    if (!(await resetConfig())) void alertDialog('恢复默认设置失败，请查看日志')
+  }
 
   return (
     <div className="text-sm">
@@ -110,6 +124,29 @@ export function GeneralSettingsSection(): JSX.Element {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      <section className="mt-5 border-t border-border/60 pt-4">
+        <h2 className="text-sm text-foreground">重置</h2>
+        <div className="mt-1">
+          <div className="flex items-center justify-between gap-6 py-4">
+            <div className="min-w-0 pr-8">
+              <div className="text-sm text-foreground">恢复默认设置</div>
+              <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                数据目录（卡组、卡牌图鉴、文本库）保留，其余设置清空。
+              </div>
+            </div>
+            <Button
+              size="xs"
+              variant="destructive"
+              onClick={() => void handleReset()}
+              className="gap-1"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>恢复默认</span>
+            </Button>
+          </div>
         </div>
       </section>
     </div>

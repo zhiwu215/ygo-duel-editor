@@ -68,7 +68,7 @@ export function FavoriteCategoryBar(): JSX.Element {
     setMenu(null)
     const ok = await confirmDialog({
       title: `删除分类「${category.name}」`,
-      description: '删除分类会移除其中的卡片，不会回到「未分组」；同时属于其他分类的卡片会保留。',
+      description: '删除分类会移除其中的卡片，不会回到「未分类」；同时属于其他分类的卡片会保留。',
       confirmText: '删除',
       destructive: true
     })
@@ -86,11 +86,11 @@ export function FavoriteCategoryBar(): JSX.Element {
       >
         <SelectTrigger size="sm" className="h-6 w-44 bg-background/60 text-[11px]">
           <span className="min-w-0 flex-1 truncate text-left">
-            {currentCategory?.name ?? '未分组'}
+            {currentCategory?.name ?? '未分类'}
           </span>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={UNGROUPED_VALUE}>未分组</SelectItem>
+          <SelectItem value={UNGROUPED_VALUE}>未分类</SelectItem>
           {categories.map((category) => (
             <SelectItem key={category.id} value={category.id}>
               {category.name}

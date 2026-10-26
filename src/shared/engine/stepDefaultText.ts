@@ -45,6 +45,7 @@ const ACTION_LABELS: Partial<Record<DuelActionType, string>> = {
   TO_HAND: '加入手牌',
   TO_DECK: '返回卡组',
   CHANGE_POS: '变更表示形式',
+  HAND_OPEN: '公开手牌',
   PLACE: '放置',
   DETACH_MATERIAL: '取除素材'
 }

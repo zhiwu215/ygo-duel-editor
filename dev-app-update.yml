@@ -1,3 +1,4 @@
-provider: generic
-url: https://example.com/auto-updates
+provider: github
+owner: zhiwu215
+repo: ygo-duel-editor
 updaterCacheDirName: ygo-duel-editor-updater

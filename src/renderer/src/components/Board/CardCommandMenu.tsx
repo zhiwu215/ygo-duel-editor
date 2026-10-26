@@ -11,9 +11,11 @@ import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useAttackTargetingStore } from '../../stores/useAttackTargetingStore'
+import { useEngineCardEditStore } from '../../stores/useEngineCardEditStore'
 import { executeEditorAttack } from '../../utils/editorBattle'
 import { deriveCardEngineActions } from '../../utils/engineActions'
 import { buildCardEngineActionMap, reposActionLabel } from '../../utils/cardMenuActions'
+import { resolveCardName } from '../../utils/cardNames'
 import { cn } from '../../lib/utils'
 
 export const CardCommandMenu: React.FC = () => {
@@ -117,6 +119,23 @@ export const CardCommandMenu: React.FC = () => {
     if (nextCard) useCardCommandMenuStore.getState().openMenu(nextCard, rect)
   }
 
+  const replacePlaceholder = (): void => {
+    if (!canSwitchPlaceholder) return
+    const ref = {
+      controller: card.controller,
+      location: card.location,
+      sequence: card.sequence,
+      instanceId: card.instanceId,
+      duelistId: card.duelistId
+    }
+    onClose()
+    useEngineCardEditStore.getState().openReplace({
+      ref,
+      name: card.card?.name ?? resolveCardName(card.code),
+      code: card.code
+    })
+  }
+
   const handleSummon = (): void => {
     if (actionMap?.summon) {
       submitAnswer(actionMap.summon.answer)
@@ -206,8 +225,10 @@ export const CardCommandMenu: React.FC = () => {
     : isEditorAttackable
       ? 1
       : 0
-  const placeholderButtonCount = showPlaceholderChoice ? 2 : canSwitchPlaceholder ? 1 : 0
-  const buttonCount = showPlaceholderChoice ? 2 : actionButtonCount + placeholderButtonCount
+  const placeholderButtonCount = canSwitchPlaceholder ? (showPlaceholderChoice ? 3 : 2) : 0
+  const buttonCount = showPlaceholderChoice
+    ? placeholderButtonCount
+    : actionButtonCount + placeholderButtonCount
 
   const activateOptionList: { id: string; label: string }[] =
     actionMap?.activate.map((spec, i) => ({
@@ -239,6 +260,12 @@ export const CardCommandMenu: React.FC = () => {
     'dark:from-neutral-700 dark:via-neutral-800 dark:to-neutral-900 dark:text-neutral-100 dark:border-neutral-700/80',
     'dark:hover:from-neutral-600 dark:hover:via-neutral-700 dark:hover:to-neutral-800'
   )
+
+  const replacePlaceholderButton = canSwitchPlaceholder ? (
+    <button type="button" onClick={replacePlaceholder} className={buttonClass}>
+      替换
+    </button>
+  ) : null
 
   return (
     <div
@@ -289,6 +316,7 @@ export const CardCommandMenu: React.FC = () => {
           >
             作为魔陷
           </button>
+          {replacePlaceholderButton}
         </>
       ) : (
         <>
@@ -355,6 +383,7 @@ export const CardCommandMenu: React.FC = () => {
               {placeholderKind === 'monster' ? '转为魔陷' : '转为怪兽'}
             </button>
           ) : null}
+          {replacePlaceholderButton}
         </>
       )}
     </div>

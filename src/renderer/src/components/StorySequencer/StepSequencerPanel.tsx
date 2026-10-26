@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { DuelStep, DuelPhase, PHASE_NAMES, PHASE_SHORT_NAMES } from '@shared/index'
 import type { Answer } from '@shared/engine/protocol'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -10,7 +10,6 @@ import { useReplayPlayback } from '../../hooks/useReplayPlayback'
 import { phaseJumpCommand, phaseAdvanceCommand, turnEndCommand } from '../../utils/phaseFlow'
 import { Button } from '../ui/button'
 import { StepList } from './StepList'
-import { StepEditDialog } from './StepEditDialog'
 import { ALL_PHASES } from './stepGrouping'
 import { SCENE_STEP_INDEX } from '../../utils/openingScene'
 import { formatReplayVersus } from '../../utils/replayMatch'
@@ -86,12 +85,6 @@ export const StepSequencerPanel: React.FC = () => {
   const goReset = (): void => {
     pause()
     handleResetPlayback()
-  }
-
-  const [editingStepId, setEditingStepId] = useState<string | null>(null)
-
-  const handleOpenEdit = (step: DuelStep): void => {
-    setEditingStepId(step.id)
   }
 
   const handleClearSteps = async (): Promise<void> => {
@@ -246,7 +239,7 @@ export const StepSequencerPanel: React.FC = () => {
         </div>
       </div>
 
-      <StepList steps={steps} onEditStep={handleOpenEdit} />
+      <StepList steps={steps} />
 
       <div className="p-2 border-t border-border/60 bg-muted/20 flex items-center justify-between select-none shrink-0">
         <div className="flex items-center gap-1">
@@ -286,7 +279,9 @@ export const StepSequencerPanel: React.FC = () => {
               steps.length === 0 ||
               (isReplay
                 ? (replayStepIndex ?? -1) <= 0
-                : currentStepIndex === SCENE_STEP_INDEX || currentStepIndex === 0)
+                : currentStepIndex === null ||
+                  currentStepIndex === SCENE_STEP_INDEX ||
+                  currentStepIndex === 0)
             }
             onClick={goPrev}
             className="h-7 w-7 text-muted-foreground"
@@ -337,11 +332,9 @@ export const StepSequencerPanel: React.FC = () => {
               ? (replayStepIndex ?? -1) >= 0
                 ? `第 ${(replayStepIndex ?? 0) + 1} / ${steps.length} 步`
                 : '初始局面'
-              : currentStepIndex === SCENE_STEP_INDEX
-                ? '布景'
-                : currentStepIndex !== null
-                  ? `第 ${currentStepIndex + 1} / ${steps.length} 步`
-                  : '初始局面'}
+              : currentStepIndex === SCENE_STEP_INDEX || currentStepIndex === null
+                ? '初始局面'
+                : `第 ${currentStepIndex + 1} / ${steps.length} 步`}
         </span>
       </div>
 
@@ -371,10 +364,6 @@ export const StepSequencerPanel: React.FC = () => {
             <span>编辑</span>
           </Button>
         </div>
-      )}
-
-      {!isEngine && editingStepId && (
-        <StepEditDialog stepId={editingStepId} onClose={() => setEditingStepId(null)} />
       )}
     </div>
   )

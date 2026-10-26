@@ -190,14 +190,21 @@ export class FieldReader {
           const key = this.cardKey(controller as 0 | 1, location, sequence, duelistId)
           const isHiddenPile = location === CardLocation.DECK || location === CardLocation.EXTRA
           const enginePosition = q.position
+          const handPublic =
+            location === CardLocation.HAND &&
+            (q.reveal === true ||
+              (typeof enginePosition === 'number' &&
+                (enginePosition & CardPosition.FACEUP) === CardPosition.FACEUP))
           const position =
-            typeof enginePosition === 'number' && enginePosition !== 0
-              ? enginePosition
-              : isHiddenPile
-                ? CardPosition.FACEDOWN
-                : location === CardLocation.GRAVE || location === CardLocation.REMOVED
-                  ? CardPosition.FACEUP
-                  : location === CardLocation.HAND && q.reveal
+            location === CardLocation.HAND
+              ? handPublic
+                ? CardPosition.FACEUP
+                : CardPosition.FACEDOWN
+              : typeof enginePosition === 'number' && enginePosition !== 0
+                ? enginePosition
+                : isHiddenPile
+                  ? CardPosition.FACEDOWN
+                  : location === CardLocation.GRAVE || location === CardLocation.REMOVED
                     ? CardPosition.FACEUP
                     : (enginePosition ?? 0)
           raws.push({

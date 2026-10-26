@@ -77,6 +77,8 @@ const entries = [
   'turn-progression-smoke',
   'editor-battle-smoke',
   'undo-opening-smoke',
+  'reset-duel-smoke',
+  'hand-open-smoke',
   'scene-opening-smoke',
   'autosave-smoke',
   'session-suspend-smoke',

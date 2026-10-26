@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { CardNoteKind } from '@shared/index'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -16,6 +16,7 @@ interface CardNoteEditorProps {
   existingTitlesForKind?: (kind: CardNoteKind) => string[]
   kindEditable?: boolean
   onSave: (title: string, text: string, kind: CardNoteKind, source?: string) => Promise<boolean>
+  onSuccess?: () => void
   onClose: () => void
 }
 
@@ -24,10 +25,23 @@ interface CardNoteOrigin {
   label: string
 }
 
+interface CardNoteDraft {
+  title: string
+  text: string
+}
+
 const NOTE_ORIGINS: CardNoteOrigin[] = [
   { id: 'original', label: '原创' },
   { id: 'borrowed', label: '借鉴' }
 ]
+
+function emptyDraft(): CardNoteDraft {
+  return { title: '', text: '' }
+}
+
+function titlePrefixOf(kind: CardNoteKind): string {
+  return kind === 'chant' ? '召唤词' : '备注'
+}
 
 export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   cardName,
@@ -37,6 +51,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   existingTitlesForKind,
   kindEditable,
   onSave,
+  onSuccess,
   onClose
 }) => {
   const isEdit = Boolean(initial.title)
@@ -44,24 +59,10 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   const kindSelectorVisible = Boolean(kindEditable) && !isEdit
   const effectiveKind = kindSelectorVisible ? activeKind : kind
   const isChant = effectiveKind === 'chant'
-  const existingTitleList =
-    kindSelectorVisible && existingTitlesForKind
-      ? existingTitlesForKind(effectiveKind)
-      : (existingTitles ?? [])
-  const titlePrefix = isChant ? '召唤词' : '备注'
-  const nextSeq = useMemo(() => {
-    const prefix = `${titlePrefix}-`
-    let max = 0
-    for (const t of existingTitleList) {
-      if (!t.startsWith(prefix)) continue
-      const n = Number(t.slice(prefix.length))
-      if (Number.isInteger(n) && n > max) max = n
-    }
-    return max + 1
-  }, [existingTitleList, titlePrefix])
-  const defaultTitle = `${titlePrefix}-${nextSeq}`
-  const [title, setTitle] = useState<string>(initial.title)
-  const [text, setText] = useState<string>(initial.text)
+  const [drafts, setDrafts] = useState<Record<CardNoteKind, CardNoteDraft>>(() => ({
+    chant: kind === 'chant' ? { title: initial.title, text: initial.text } : emptyDraft(),
+    note: kind === 'note' ? { title: initial.title, text: initial.text } : emptyDraft()
+  }))
   const [origin, setOrigin] = useState<CardNoteOrigin['id']>(
     initial.source && initial.source.length > 0 ? 'borrowed' : 'original'
   )
@@ -70,6 +71,7 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const titleRef = useRef<HTMLInputElement>(null)
   const textRef = useRef<HTMLTextAreaElement>(null)
+  const draft = drafts[effectiveKind]
 
   useEffect(() => {
     if (isEdit) textRef.current?.focus()
@@ -79,27 +81,90 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
     }
   }, [isEdit])
 
-  const handleConfirm = async (): Promise<void> => {
-    const trimmedText = text.trim()
-    const trimmedTitle = title.trim() || (!isEdit ? defaultTitle : '')
-    if (!trimmedTitle) {
-      setError('请填写标题')
-      return
+  const titlesFor = (target: CardNoteKind): string[] => {
+    if (kindSelectorVisible && existingTitlesForKind) return existingTitlesForKind(target)
+    return existingTitles ?? []
+  }
+
+  const defaultTitleFor = (target: CardNoteKind): string => {
+    const prefix = `${titlePrefixOf(target)}-`
+    let max = 0
+    for (const title of titlesFor(target)) {
+      if (!title.startsWith(prefix)) continue
+      const seq = Number(title.slice(prefix.length))
+      if (Number.isInteger(seq) && seq > max) max = seq
     }
-    if (!trimmedText) {
-      setError(isChant ? '召唤词内容不能为空' : '备注内容不能为空')
+    return `${prefix}${max + 1}`
+  }
+
+  const updateDraft = (target: CardNoteKind, patch: Partial<CardNoteDraft>): void => {
+    setDrafts((prev) => ({ ...prev, [target]: { ...prev[target], ...patch } }))
+  }
+
+  const finish = (): void => {
+    if (onSuccess) onSuccess()
+    else onClose()
+  }
+
+  const handleConfirm = async (): Promise<void> => {
+    const targets = kindSelectorVisible
+      ? (['chant', 'note'] as CardNoteKind[]).filter((k) => drafts[k].text.trim().length > 0)
+      : [effectiveKind]
+    if (targets.length === 0) {
+      setError(
+        kindSelectorVisible
+          ? '请填写召唤词或备注内容'
+          : isChant
+            ? '召唤词内容不能为空'
+            : '备注内容不能为空'
+      )
       return
     }
 
-    if (!isEdit && existingTitleList.includes(trimmedTitle)) {
-      setError(`已存在「${trimmedTitle}」，请换一个标题`)
+    const pending = targets.map((k) => ({
+      kind: k,
+      title: drafts[k].title.trim() || defaultTitleFor(k),
+      text: drafts[k].text.trim()
+    }))
+    for (const item of pending) {
+      if (!item.text) {
+        setError(item.kind === 'chant' ? '召唤词内容不能为空' : '备注内容不能为空')
+        return
+      }
+      if (!isEdit && titlesFor(item.kind).includes(item.title)) {
+        setError(`已存在「${item.title}」，请换一个标题`)
+        return
+      }
+    }
+
+    setIsSaving(true)
+    const saved: CardNoteKind[] = []
+    for (const item of pending) {
+      const ok = await onSave(
+        item.title,
+        item.text,
+        item.kind,
+        item.kind === 'chant' && origin === 'borrowed' ? source.trim() || undefined : undefined
+      )
+      if (!ok) break
+      saved.push(item.kind)
+    }
+    setIsSaving(false)
+
+    if (saved.length === pending.length) {
+      finish()
       return
     }
-    setIsSaving(true)
-    const borrowedSource = isChant && origin === 'borrowed' ? source.trim() : ''
-    const ok = await onSave(trimmedTitle, trimmedText, effectiveKind, borrowedSource || undefined)
-    setIsSaving(false)
-    if (ok) onClose()
+    if (saved.length === 0) {
+      setError('保存失败')
+      return
+    }
+    setDrafts((prev) => {
+      const next = { ...prev }
+      for (const savedKind of saved) next[savedKind] = emptyDraft()
+      return next
+    })
+    setError('部分内容已保存，请检查剩余内容后重试')
   }
 
   return (
@@ -110,7 +175,13 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
       >
         <DialogHeader className="border-b border-border/60 pb-2">
           <DialogTitle className="font-bold text-sm">
-            {isEdit ? '编辑' : isChant ? '录入召唤词' : '添加备注'}
+            {isEdit
+              ? '编辑'
+              : kindSelectorVisible
+                ? '录入召唤词 / 备注'
+                : isChant
+                  ? '录入召唤词'
+                  : '添加备注'}
           </DialogTitle>
           <div className="text-[10px] text-muted-foreground truncate">{cardName}</div>
         </DialogHeader>
@@ -137,9 +208,13 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
                   }`}
                 >
                   {opt.label}
+                  {drafts[opt.k].text.trim().length > 0 && (
+                    <span className="ml-1 inline-block h-1 w-1 rounded-full bg-emerald-500 align-middle" />
+                  )}
                 </button>
               ))}
             </div>
+            <span className="text-[10px] text-muted-foreground/70">两类都有内容时会一起保存</span>
           </div>
         )}
 
@@ -188,10 +263,10 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
           <Input
             ref={titleRef}
             type="text"
-            value={title}
-            placeholder={!isEdit ? `默认：${defaultTitle}` : undefined}
+            value={draft.title}
+            placeholder={!isEdit ? `默认：${defaultTitleFor(effectiveKind)}` : undefined}
             onChange={(e) => {
-              setTitle(e.target.value)
+              updateDraft(effectiveKind, { title: e.target.value })
               setError(null)
             }}
             onKeyDown={(e) => {
@@ -210,9 +285,9 @@ export const CardNoteEditor: React.FC<CardNoteEditorProps> = ({
           </span>
           <Textarea
             ref={textRef}
-            value={text}
+            value={draft.text}
             onChange={(e) => {
-              setText(e.target.value)
+              updateDraft(effectiveKind, { text: e.target.value })
               setError(null)
             }}
             rows={5}

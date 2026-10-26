@@ -1,4 +1,5 @@
 import {
+  CardLocation,
   EngineBoardState,
   EngineCard,
   EngineCardEditResult,
@@ -52,16 +53,24 @@ async function editCard(
   }
   const current = state.timeline.getCurrentStep()
   if (!current) return { error: '时间线为空，无法编辑。' }
-  const matchConfig = state.initParams?.puzzleState?.matchConfig
-  if (matchConfig && matchConfig.mode !== '1v1' && !isStandardTag(matchConfig)) {
-    return { error: '目前卡片编辑只支持 1v1 和标准 2v2。' }
-  }
 
   const resolved = deps.resolveCard(ref)
   if (!resolved) return { error: '无法定位该卡片，可能已离开当前场地。' }
   const record = resolveProvenanceRecord(state, resolved.card)
   if (!record?.origin) {
     return { error: '该卡无法溯源（可能由效果生成或移动），不能替换或移除。' }
+  }
+  const matchConfig = state.initParams?.puzzleState?.matchConfig
+  const handPlaceholder =
+    resolved.card.location === CardLocation.HAND && isPlaceholderCard(resolved.card.code)
+  if (
+    matchConfig &&
+    matchConfig.mode !== '1v1' &&
+    !isStandardTag(matchConfig) &&
+    record.origin.kind !== 'inject' &&
+    !handPlaceholder
+  ) {
+    return { error: '多人数对局只能编辑手牌占位卡或手动添加的卡片。' }
   }
   if (
     action.type === 'replace' &&

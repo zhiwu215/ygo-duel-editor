@@ -1,16 +1,30 @@
 import { create } from 'zustand'
 import { CdbCard, CardType } from '@shared/index'
+import { useDuelStore } from './useDuelStore'
 
 const TOKEN_NAME_BLOCKLIST = new Set(['不明', '衍生物', 'token'])
+
+export interface PendingTokenPlacement {
+  card: CdbCard
+  position: number
+  total: number | null
+  placed: number
+}
 
 interface TokenState {
   catalog: CdbCard[] | null
   isCatalogLoading: boolean
-  pendingToken: CdbCard | null
+  pending: PendingTokenPlacement | null
 
   loadCatalog: () => Promise<void>
-  armToken: (token: CdbCard) => void
+  armToken: (token: CdbCard, position: number, total: number | null) => void
   cancelPending: () => void
+  placePending: (zone: {
+    controller: 0 | 1
+    location: number
+    sequence: number
+    duelistId?: string
+  }) => void
 }
 
 let catalogPromise: Promise<CdbCard[]> | null = null
@@ -19,34 +33,21 @@ async function fetchCatalog(): Promise<CdbCard[]> {
   const res = await window.api.searchCards({
     type: 0,
     subType: CardType.TOKEN,
+    includeTokens: true,
     sortField: 'name',
     sortOrder: 'ASC',
     limit: 2000
   })
-  const byName = new Map<string, CdbCard>()
-  for (const card of res.cards) {
+  return res.cards.filter((card) => {
     const name = String(card.name ?? '').trim()
-    if (!name || TOKEN_NAME_BLOCKLIST.has(name)) continue
-    if (!byName.has(name)) byName.set(name, card)
-  }
-  return Array.from(byName.values())
-}
-
-export function matchTokensByDesc(catalog: CdbCard[], sourceCard: CdbCard): CdbCard[] {
-  const desc = String(sourceCard.desc ?? '')
-  if (!desc) return []
-  const hits: CdbCard[] = []
-  for (const token of catalog) {
-    const name = String(token.name ?? '')
-    if (name.length >= 2 && desc.includes(name)) hits.push(token)
-  }
-  return hits.sort((a, b) => a.id - b.id)
+    return name.length > 0 && !TOKEN_NAME_BLOCKLIST.has(name)
+  })
 }
 
 export const useTokenStore = create<TokenState>((set, get) => ({
   catalog: null,
   isCatalogLoading: false,
-  pendingToken: null,
+  pending: null,
 
   loadCatalog: async () => {
     if (get().catalog || get().isCatalogLoading) return
@@ -62,8 +63,31 @@ export const useTokenStore = create<TokenState>((set, get) => ({
     set({ catalog, isCatalogLoading: false })
   },
 
-  armToken: (token) => set({ pendingToken: token }),
-  cancelPending: () => set({ pendingToken: null })
+  armToken: (token, position, total) =>
+    set({ pending: { card: token, position, total, placed: 0 } }),
+
+  cancelPending: () => set({ pending: null }),
+
+  placePending: (zone) => {
+    const pending = get().pending
+    if (!pending) return
+    useDuelStore
+      .getState()
+      .summonToken(
+        pending.card,
+        zone.controller,
+        zone.location,
+        zone.sequence,
+        pending.position,
+        zone.duelistId
+      )
+    const placed = pending.placed + 1
+    if (pending.total !== null && placed >= pending.total) {
+      set({ pending: null })
+    } else {
+      set({ pending: { ...pending, placed } })
+    }
+  }
 }))
 
 if (typeof window !== 'undefined' && window.api?.onCdbUpdated) {

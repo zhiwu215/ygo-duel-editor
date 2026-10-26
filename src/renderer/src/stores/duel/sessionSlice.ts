@@ -75,7 +75,7 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
     }))
   },
 
-  resetDuel: () =>
+  resetDuel: () => {
     set((prev) => {
       const baseState = createInitialDuelState(prev.state.masterRule, prev.state.duelType || 'full')
       if (prev.state.matchConfig) {
@@ -90,6 +90,13 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
         currentProjectPath: null,
         sceneEditing: false,
         duelStarted: false,
+        currentTurn: 1,
+        currentPhase: 'DP',
+        currentChain: 0,
+        activeTurnPlayer: baseState.turnPlayer ?? 0,
+        currentStepIndex: null,
+        selectedStepId: null,
+        previewReturn: null,
         selectedCardId: null,
         activeStatPopoverCardId: null,
         statPopoverPosition: null,
@@ -97,7 +104,9 @@ export const createSessionSlice: StateCreator<DuelStore, [], [], SessionSlice> =
         expandedDuelistId: null,
         activeDuelistIds: [null, null]
       }
-    }),
+    })
+    get().clearUndoHistory()
+  },
 
   toggleViewSide: () => {
     get().pauseUndoTracking()

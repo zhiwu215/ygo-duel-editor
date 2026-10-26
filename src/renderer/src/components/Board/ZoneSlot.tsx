@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { FieldCard, CdbCard, CardLocation, CardPosition, CardUtils } from '@shared/index'
+import { FieldCard, CdbCard, CardLocation, CardUtils } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDropHintStore } from '../../stores/useDropHintStore'
 import { usePileListStore } from '../../stores/usePileListStore'
@@ -104,8 +104,8 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const openPileActionMenu = usePileActionMenuStore((s) => s.openMenu)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openZoneMenu = useContextMenuStore((s) => s.openZoneMenu)
-  const pendingToken = useTokenStore((s) => s.pendingToken)
-  const cancelPendingToken = useTokenStore((s) => s.cancelPending)
+  const pendingToken = useTokenStore((s) => s.pending)
+  const placePendingToken = useTokenStore((s) => s.placePending)
   const { hasHeldCard, placeHeldCard } = useHeldCardPlacement()
   const [isOver, setIsOver] = useState(false)
   const { cancelDeckDraw, scheduleDeckDraw } = useDeckZoneInteraction(controller)
@@ -122,11 +122,11 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
     hintZone.location === location &&
     hintZone.sequence === sequence
 
-  const isTokenDropTarget =
-    pendingToken !== null && location === CardLocation.MZONE && !card && sequence <= 4
+  const isTokenDropTarget = pendingToken !== null && location === CardLocation.MZONE && !card
 
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const canDropToken = !isEngineActive && isTokenDropTarget
   const canEditLocally = !isEngineActive
   const actionablePiles = useMemo(
     () => resolveActionablePiles(pendingRequest, controller),
@@ -150,16 +150,8 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   }
 
   const handleTokenDrop = (): boolean => {
-    if (!pendingToken || !isTokenDropTarget) return false
-    addCardToZone(
-      pendingToken,
-      controller,
-      location,
-      sequence,
-      CardPosition.FACEUP_ATTACK,
-      duelistId
-    )
-    cancelPendingToken()
+    if (!pendingToken || !canDropToken) return false
+    placePendingToken({ controller, location, sequence, duelistId })
     return true
   }
 
@@ -424,7 +416,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
       } rounded border ${config.border} ${config.bg} ${config.shadow} flex flex-col items-center justify-center transition-all duration-150 select-none shrink-0 ${
         isOver ? 'ring-2 ring-blue-400 bg-blue-500/15 scale-[1.03] border-transparent' : ''
       } ${
-        isTokenDropTarget
+        canDropToken
           ? 'ring-2 ring-emerald-400/80 bg-emerald-500/10 border-emerald-400/60 cursor-copy animate-pulse'
           : ''
       } ${

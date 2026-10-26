@@ -71,7 +71,9 @@ export function ProviderEditor({
       ? '已保存 API 密钥，留空则保持不变。'
       : keyMissing
         ? '未检测到 API 密钥。请填写 API 密钥后使用该供应商。'
-        : undefined
+        : !effectiveKey
+          ? '本地接口可以留空；如果接口启用了鉴权（例如反向代理配置了 API Key），请填写它的 API Key。'
+          : undefined
   const canSubmit =
     !baseUrlError && !modelError && !capacityInvalid && (mode === 'edit' || draft.models.length > 0)
 

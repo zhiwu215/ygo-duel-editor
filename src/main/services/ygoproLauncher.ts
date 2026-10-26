@@ -382,7 +382,8 @@ export class YgoproLauncher {
       return { success: false, errorCode: 'no-game-directory' }
     }
     const gameType = config.gameType ?? 'ygopro'
-    const responses = duelDirector.getAllTimelineResponses()
+    const isTag = isStandardTag(params.state.matchConfig)
+    const responses = duelDirector.getAllTimelineResponses(!isTag)
     const seed = duelDirector.getSeed()
     if (responses.length === 0) {
       return {
@@ -392,7 +393,6 @@ export class YgoproLauncher {
       }
     }
 
-    const isTag = isStandardTag(params.state.matchConfig)
     if (isTag && duelDirector.hasInjectOps()) {
       return {
         success: false,
@@ -471,7 +471,7 @@ export class YgoproLauncher {
             seed,
             startLp: Number(replayState.players[0]?.lp ?? 8000),
             startHand: Number(replayState.players[0]?.startHand ?? 0),
-            drawCount: Number(replayState.players[0]?.maxHand ?? 0),
+            drawCount: 1,
             opt: buildDuelFlag(
               Number(params.state.masterRule),
               params.state.firstTurnAttack,
@@ -554,7 +554,7 @@ export class YgoproLauncher {
           seed,
           startLp: Number(replayState.players[0]?.lp ?? 8000),
           startHand: Number(replayState.players[0]?.startHand ?? 0),
-          drawCount: Number(replayState.players[0]?.maxHand ?? 0),
+          drawCount: 1,
           opt: buildDuelFlag(Number(params.state.masterRule), params.state.firstTurnAttack, false),
           scriptFile: `./single/${name}.lua`,
           responses

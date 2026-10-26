@@ -142,6 +142,15 @@ export interface PlacementSlice {
     engineInstanceId?: string
   ) => void
 
+  summonToken: (
+    card: CdbCard,
+    controller: 0 | 1,
+    location: number,
+    sequence: number,
+    position: number,
+    duelistId?: string
+  ) => void
+
   moveCard: (
     instanceId: string,
     toLocation: number,
@@ -270,6 +279,39 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         selectedCardId: newCard.instanceId,
         hoveredCard: card
       }
+    })
+  },
+
+  summonToken: (card, controller, location, sequence, position, duelistId) => {
+    if (useDuelEngineStore.getState().isInitialized) return
+    get().withSingleUndoStep(() => {
+      const instanceId = `token_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+      const boardBefore = createLightweightSnapshot(get().state.cards)
+      get().addCardToZone(card, controller, location, sequence, position, duelistId, instanceId)
+      recordEditorStep({
+        actionType: 'SPECIAL_SUMMON',
+        controller,
+        duelistId,
+        instanceId,
+        cardCode: card.id,
+        cardName: card.name,
+        toLocation: location,
+        toSequence: sequence,
+        toController: controller,
+        toPosition: position,
+        boardBefore,
+        description: `特殊召唤【${card.name}】`,
+        op: {
+          type: 'add',
+          instanceId,
+          code: card.id,
+          controller,
+          location,
+          sequence,
+          position,
+          duelistId
+        }
+      })
     })
   },
 
@@ -458,6 +500,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         const card = get().state.cards.find((c) => c.instanceId === instanceId)
         if (card) {
           const name = card.card?.name
+          if (card.location === CardLocation.HAND) return
           const isSpellTrapZone =
             card.location === CardLocation.SZONE ||
             card.location === CardLocation.FZONE ||

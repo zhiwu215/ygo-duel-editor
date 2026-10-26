@@ -1,26 +1,8 @@
-import { DuelStep, DuelPhase, DuelActionType, CardLocation } from '@shared/index'
+import { DuelStep, DuelPhase, CardLocation } from '@shared/index'
 import { stepCardName } from '../../utils/cardNames'
 import type { StepGroupKind } from './StepGroupHeader'
 
 export const ALL_PHASES: DuelPhase[] = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP']
-
-export const ALL_ACTIONS: DuelActionType[] = [
-  'NORMAL_SUMMON',
-  'SPECIAL_SUMMON',
-  'ACTIVATE',
-  'SET_SPELL_TRAP',
-  'SET_MONSTER',
-  'DRAW',
-  'ATTACK',
-  'TO_GRAVE',
-  'BANISH',
-  'TO_HAND',
-  'CHANGE_POS',
-  'DAMAGE',
-  'EVENT',
-  'CHAIN',
-  'DIALOGUE'
-]
 
 export const COMMONLY_USED_LOCATIONS: { loc: number; name: string }[] = [
   { loc: CardLocation.HAND, name: '手牌' },

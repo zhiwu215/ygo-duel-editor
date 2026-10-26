@@ -16,8 +16,6 @@ import icon from '../../../resources/icon.png?asset'
 
 const LIBRARY_FILE = 'card_notes.json'
 
-const LEGACY_FILE = 'summon_chants.json'
-
 const DEFAULT_FILE = 'card_default.json'
 
 export class CardNoteService {
@@ -97,39 +95,17 @@ export class CardNoteService {
 
   private readLibrary(): CardNoteLibrary {
     const raw = this.readFile(this.filePath)
-    if (raw) {
-      const parsed = raw as Partial<CardNoteLibrary> & {
-        chants?: Record<string, Omit<CardNote, 'kind'>[]>
-      }
-      if (parsed.notes && typeof parsed.notes === 'object') {
-        const notes: Record<string, CardNote[]> = {}
-        for (const [key, list] of Object.entries(parsed.notes)) {
-          const entries = this.normalizeEntries(list)
-          if (entries.length > 0) notes[key] = entries
-        }
-        return { notes }
-      }
-
-      if (parsed.chants && typeof parsed.chants === 'object') {
-        return this.migrateLegacy({ chants: parsed.chants } as never)
-      }
+    if (!raw) return this.emptyLibrary()
+    const parsed = raw as Partial<CardNoteLibrary>
+    if (!parsed.notes || typeof parsed.notes !== 'object') return this.emptyLibrary()
+    const notes: Record<string, CardNote[]> = {}
+    for (const [key, list] of Object.entries(parsed.notes)) {
+      const code = Number(key)
+      if (!Number.isFinite(code) || code <= 0 || this.normalizeCode(code) !== code) continue
+      const entries = this.normalizeEntries(list)
+      if (entries.length > 0) notes[key] = entries
     }
-
-    const legacyRaw = this.readFile(dataDirService.resolve(LEGACY_FILE))
-    if (legacyRaw) {
-      const legacy = legacyRaw as {
-        chants?: Record<string, Omit<CardNote, 'kind'>[]>
-      }
-      if (legacy.chants && Object.keys(legacy.chants).length > 0) {
-        const migrated = this.migrateLegacy(legacy)
-        this.writeLibrary(migrated)
-        console.log(
-          `[CardNoteService] 已从 ${LEGACY_FILE} 迁移 ${Object.keys(migrated.notes).length} 张卡的召唤词`
-        )
-        return migrated
-      }
-    }
-    return this.emptyLibrary()
+    return { notes }
   }
 
   private readFile(path: string): Record<string, unknown> | null {
@@ -144,8 +120,8 @@ export class CardNoteService {
     }
   }
 
-  private normalizeEntry(c: Partial<CardNote> & { label?: string }): CardNote | null {
-    const title = (c.title ?? c.label ?? '').trim()
+  private normalizeEntry(c: Partial<CardNote>): CardNote | null {
+    const title = (c.title ?? '').trim()
     const text = (c.text ?? '').trim()
     if (!Number.isFinite(c.cardCode) || (c.cardCode as number) <= 0) return null
     if (!title || !text) return null
@@ -163,19 +139,8 @@ export class CardNoteService {
   private normalizeEntries(list: unknown): CardNote[] {
     if (!Array.isArray(list)) return []
     return list
-      .map((c) => this.normalizeEntry(c as Partial<CardNote> & { label?: string }))
+      .map((c) => this.normalizeEntry(c as Partial<CardNote>))
       .filter((c): c is CardNote => c !== null)
-  }
-
-  private migrateLegacy(legacy: {
-    chants?: Record<string, Omit<CardNote, 'kind'>[]>
-  }): CardNoteLibrary {
-    const notes: Record<string, CardNote[]> = {}
-    for (const [key, list] of Object.entries(legacy.chants ?? {})) {
-      const entries = this.normalizeEntries(list)
-      if (entries.length > 0) notes[key] = entries
-    }
-    return { notes }
   }
 
   private writeLibrary(lib: CardNoteLibrary): { success: boolean; error?: string } {
@@ -193,18 +158,11 @@ export class CardNoteService {
   public getNotes(cardCode: number, kind?: CardNoteKind | 'all'): CardNote[] {
     const lib = this.readLibrary()
     const root = this.normalizeCode(cardCode)
-    const keys = new Set<string>([String(root), String(cardCode)])
-    for (const v of this.variantCodesOf(root)) keys.add(String(v))
-
-    const legacyKeys = new Set<string>()
-    for (const key of keys) if (key !== String(root)) legacyKeys.add(key)
-    const orderedKeys = [...legacyKeys, String(root)]
-
     const byKey = new Map<string, CardNote>()
     const presetKeys = new Set<string>()
-    for (const key of orderedKeys) {
-      const list = lib.notes[key]
-      if (!Array.isArray(list)) continue
+
+    const list = lib.notes[String(root)]
+    if (Array.isArray(list)) {
       for (const c of list) {
         if (kind && kind !== 'all' && c.kind !== kind) continue
         const k = `${c.kind}::${c.title}`
@@ -237,26 +195,21 @@ export class CardNoteService {
 
   public listAll(): CardNoteEntry[] {
     const lib = this.readLibrary()
-
-    const legacy = new Map<number, CardNote[]>()
-    const normal = new Map<number, CardNote[]>()
+    const byCode = new Map<number, CardNote[]>()
     for (const [key, list] of Object.entries(lib.notes)) {
       if (!Array.isArray(list) || list.length === 0) continue
       const raw = Number(key)
-      if (!Number.isFinite(raw) || raw <= 0) continue
-      const root = this.normalizeCode(raw)
-      const bucket = raw === root ? normal : legacy
-      bucket.set(root, [...(bucket.get(root) ?? []), ...list])
+      if (!Number.isFinite(raw) || raw <= 0 || this.normalizeCode(raw) !== raw) continue
+      byCode.set(raw, [...(byCode.get(raw) ?? []), ...list])
     }
 
     for (const d of this.readDefaults()) {
-      normal.set(d.cardCode, [...(normal.get(d.cardCode) ?? []), d])
+      byCode.set(d.cardCode, [...(byCode.get(d.cardCode) ?? []), d])
     }
 
-    const roots = new Set([...normal.keys(), ...legacy.keys()])
-    if (roots.size === 0) return []
+    const codes = [...byCode.keys()]
+    if (codes.length === 0) return []
 
-    const codes = Array.from(roots)
     let nameMap: Record<number, CdbCard> = {}
     try {
       nameMap = cdbService.getCardsByIds(codes)
@@ -268,11 +221,7 @@ export class CardNoteService {
       .map((code) => {
         const byKey = new Map<string, CardNote>()
         const presetKeys = new Set<string>()
-        for (const c of legacy.get(code) ?? []) {
-          const k = `${c.kind}::${c.title}`
-          if (!byKey.has(k)) byKey.set(k, c)
-        }
-        for (const c of normal.get(code) ?? []) {
+        for (const c of byCode.get(code) ?? []) {
           if (c.readonly) presetKeys.add(`${c.kind}::${c.title}`)
           const k = `${c.kind}::${c.title}`
           if (!byKey.has(k)) byKey.set(k, c)
@@ -335,13 +284,6 @@ export class CardNoteService {
     return this.writeLibrary(lib)
   }
 
-  private aliasGroupKeys(lib: CardNoteLibrary, rootCode: number): string[] {
-    return Object.keys(lib.notes).filter((key) => {
-      const raw = Number(key)
-      return Number.isFinite(raw) && raw > 0 && this.normalizeCode(raw) === rootCode
-    })
-  }
-
   public reorderNotes(
     cardCode: number,
     kind: CardNoteKind,
@@ -352,39 +294,22 @@ export class CardNoteService {
     const k: CardNoteKind = kind === 'note' ? 'note' : 'chant'
 
     const lib = this.readLibrary()
-    const keys = this.aliasGroupKeys(lib, code)
-
-    const merged: CardNote[] = []
-    const seen = new Set<string>()
-    for (const key of keys) {
-      for (const c of lib.notes[key] ?? []) {
-        if (c.kind !== k) continue
-        const id = `${c.kind}::${c.title}`
-        if (seen.has(id)) continue
-        seen.add(id)
-        merged.push(c)
-      }
-    }
-    if (merged.length === 0) return { success: false, error: '没有可排序的条目' }
+    const key = String(code)
+    const list = lib.notes[key] ?? []
+    const target = list.filter((c) => c.kind === k)
+    if (target.length === 0) return { success: false, error: '没有可排序的条目' }
 
     const rank = new Map<string, number>()
     titles.forEach((title, i) => rank.set(`${k}::${title}`, i))
-    const known = merged.filter((c) => rank.has(`${c.kind}::${c.title}`))
-    const rest = merged.filter((c) => !rank.has(`${c.kind}::${c.title}`))
+    const known = target.filter((c) => rank.has(`${c.kind}::${c.title}`))
+    const rest = target.filter((c) => !rank.has(`${c.kind}::${c.title}`))
     if (known.length === 0) return { success: false, error: '没有可排序的条目' }
 
     known.sort(
       (a, b) => (rank.get(`${a.kind}::${a.title}`) ?? 0) - (rank.get(`${b.kind}::${b.title}`) ?? 0)
     )
 
-    const rootKey = String(code)
-    const ordered = [...known, ...rest]
-    for (const key of keys) {
-      const kept = (lib.notes[key] ?? []).filter((c) => c.kind !== k)
-      if (kept.length === 0) delete lib.notes[key]
-      else lib.notes[key] = kept
-    }
-    lib.notes[rootKey] = [...ordered, ...(lib.notes[rootKey] ?? [])]
+    lib.notes[key] = [...known, ...rest, ...list.filter((c) => c.kind !== k)]
     return this.writeLibrary(lib)
   }
 
@@ -393,27 +318,24 @@ export class CardNoteService {
     kind: CardNoteKind,
     title: string
   ): { success: boolean; error?: string } {
-    const root0 = this.normalizeCode(cardCode)
+    const root = this.normalizeCode(cardCode)
 
     if (
-      this.readDefaults().some((d) => d.cardCode === root0 && d.kind === kind && d.title === title)
+      this.readDefaults().some((d) => d.cardCode === root && d.kind === kind && d.title === title)
     ) {
       return { success: false, error: '这是内置的经典条目，不可删除' }
     }
 
     const lib = this.readLibrary()
-    const root = this.normalizeCode(cardCode)
-    const keys = this.aliasGroupKeys(lib, root)
+    const key = String(root)
+    const list = lib.notes[key]
+    if (!Array.isArray(list)) return { success: true }
 
-    for (const key of keys) {
-      const list = lib.notes[key]
-      if (!Array.isArray(list)) continue
-      const next = title
-        ? list.filter((c) => !(c.kind === kind && c.title === title))
-        : list.filter((c) => c.kind !== kind)
-      if (next.length === 0) delete lib.notes[key]
-      else lib.notes[key] = next
-    }
+    const next = title
+      ? list.filter((c) => !(c.kind === kind && c.title === title))
+      : list.filter((c) => c.kind !== kind)
+    if (next.length === 0) delete lib.notes[key]
+    else lib.notes[key] = next
     return this.writeLibrary(lib)
   }
 
@@ -456,19 +378,13 @@ export class CardNoteService {
       return { success: false, error: err instanceof Error ? err.message : '导入失败' }
     }
 
-    const parsed = raw as Partial<CardNoteLibrary> & {
-      chants?: Record<string, Omit<CardNote, 'kind'>[]>
+    const parsed = raw as Partial<CardNoteLibrary>
+    if (!parsed.notes || typeof parsed.notes !== 'object') {
+      return { success: false, error: '文件格式不正确' }
     }
     const incoming: CardNote[] = []
-    const collect = (list: unknown): void => {
+    for (const list of Object.values(parsed.notes)) {
       incoming.push(...this.normalizeEntries(list))
-    }
-    if (parsed.notes && typeof parsed.notes === 'object') {
-      for (const list of Object.values(parsed.notes)) collect(list)
-    } else if (parsed.chants && typeof parsed.chants === 'object') {
-      for (const list of Object.values(parsed.chants)) collect(list)
-    } else if (Array.isArray(raw)) {
-      collect(raw)
     }
 
     if (incoming.length === 0) {

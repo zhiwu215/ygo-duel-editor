@@ -1,6 +1,8 @@
 import React from 'react'
 import {
   ACTION_TYPE_COLORS,
+  CardLocation,
+  CardPosition,
   DuelLogCardRef,
   DuelStep,
   POSITION_NAMES,
@@ -10,15 +12,7 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { CardThumb } from '../ui/CardThumb'
 import { Button } from '../ui/button'
-import {
-  BookOpen,
-  ChevronDown,
-  ChevronUp,
-  MessageSquare,
-  PlayCircle,
-  Shuffle,
-  Trash2
-} from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronUp, Shuffle, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { resolveStepCardName } from './stepGrouping'
 import { duelActionLabel } from '../../utils/stepLabels'
@@ -26,7 +20,6 @@ import { StepLogRows } from './StepLogRows'
 import { MdLocationIcon } from './MdLocationIcon'
 import { MDLOG_ASSETS, MDLOG_COLORS, maskStyle } from './mdpro3LogAssets'
 import { sideName, summonLabel } from './stepLogFormat'
-import negatedIcon from '../../assets/card/negated.png'
 import targetedIcon from '../../assets/log/targeted.png'
 import { ChainGlyph } from '../common/ChainGlyph'
 
@@ -36,10 +29,7 @@ interface StepCardProps {
   stepsLength: number
   isCurrentPlaying: boolean
   isFutureStep: boolean
-  stepEngineIndex: number | undefined
   showLpChange?: boolean
-  onEdit: (step: DuelStep) => void
-  onRestart: (index: number, step: DuelStep) => void
   onClick: (index: number, step: DuelStep) => void
 }
 
@@ -59,6 +49,14 @@ function cardFromStep(
   }
 }
 
+function isLegacyHandVisibility(step: DuelStep): boolean {
+  return (
+    step.actionType === 'CHANGE_POS' &&
+    step.fromLocation === CardLocation.HAND &&
+    step.toLocation === CardLocation.HAND
+  )
+}
+
 function summaryActionLabel(step: DuelStep): string {
   const event = (step.logEvents ?? []).find(
     (item) =>
@@ -68,6 +66,9 @@ function summaryActionLabel(step: DuelStep): string {
   if (event?.kind === 'summon') return summonLabel(event.summonKind)
   if (event?.kind === 'set') return '盖放'
   if (event?.kind === 'activate') return '发动'
+  if (isLegacyHandVisibility(step)) {
+    return step.toPosition === CardPosition.FACEUP ? '公开手牌' : '取消公开'
+  }
   if (step.actionType === 'SET_MONSTER' || step.actionType === 'SET_SPELL_TRAP') return '盖放'
   if (step.actionType === 'ACTIVATE' || step.actionType === 'ACTIVATE_FIELD') return '发动'
   if (step.actionType === 'ATTACK') return '攻击'
@@ -80,10 +81,7 @@ export const StepCard: React.FC<StepCardProps> = ({
   stepsLength,
   isCurrentPlaying,
   isFutureStep,
-  stepEngineIndex,
   showLpChange = true,
-  onEdit,
-  onRestart,
   onClick
 }: StepCardProps) => {
   const setHoveredInstanceId = useDuelStore((state) => state.setHoveredInstanceId)
@@ -95,8 +93,6 @@ export const StepCard: React.FC<StepCardProps> = ({
   const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const colorTheme = ACTION_TYPE_COLORS[step.actionType] || ACTION_TYPE_COLORS.NORMAL_SUMMON
   const actionLabel = summaryActionLabel(step)
-  const hasBoardSnapshot = Boolean(step.boardAfter && step.boardAfter.length > 0)
-  const playableFromHere = hasBoardSnapshot && stepEngineIndex === undefined
   const displayCardName = resolveStepCardName(step)
   const isShuffleStep = isHandShuffleNote(step.description)
   const isNegatedStep = step.description?.includes('效果被无效') ?? false
@@ -146,6 +142,7 @@ export const StepCard: React.FC<StepCardProps> = ({
   )
   const hasPositionPair =
     (step.actionType === 'CHANGE_POS' || step.actionType === 'FLIP_SUMMON') &&
+    !isLegacyHandVisibility(step) &&
     step.fromPosition !== undefined &&
     step.toPosition !== undefined
   const hasZones = Boolean(displayFrom) || Boolean(displayTo)
@@ -296,7 +293,6 @@ export const StepCard: React.FC<StepCardProps> = ({
 
         {isNegatedStep && (
           <div className="flex items-center gap-1 bg-rose-500/10 px-3 py-0.5 text-[9px] font-medium text-rose-600">
-            <img src={negatedIcon} alt="" className="h-3.5 w-3.5 object-contain" />
             <span>效果被无效</span>
           </div>
         )}
@@ -318,19 +314,6 @@ export const StepCard: React.FC<StepCardProps> = ({
 
         {!isReplay && (
           <div className="absolute top-1.5 right-1.5 z-30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-background/95 backdrop-blur-sm p-0.5 rounded border border-border shadow-sm">
-            {hasBoardSnapshot && playableFromHere && (
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRestart(index, step)
-                }}
-                className="h-5 w-5 text-emerald-500 hover:text-emerald-400"
-              >
-                <PlayCircle className="w-3 h-3" />
-              </Button>
-            )}
             <Button
               size="icon-xs"
               variant="ghost"
@@ -367,17 +350,6 @@ export const StepCard: React.FC<StepCardProps> = ({
                   className="h-5 w-5 text-muted-foreground hover:text-foreground"
                 >
                   <ChevronDown className="w-3 h-3" />
-                </Button>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onEdit(step)
-                  }}
-                  className="h-5 w-5 text-blue-500 hover:text-blue-400"
-                >
-                  <MessageSquare className="w-3 h-3" />
                 </Button>
                 <Button
                   size="icon-xs"

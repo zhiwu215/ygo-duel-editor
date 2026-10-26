@@ -63,6 +63,7 @@ import {
   AgentStreamEvent
 } from './agent'
 import { AppConfig, DataDirectoryResult, DuelTestSettings, SettingsSectionId } from './appConfig'
+import type { UpdateState } from '../update'
 import {
   EngineExportReplayParams,
   EngineExportReplayResult,
@@ -243,6 +244,7 @@ export interface IpcApi {
 
   getConfig: () => Promise<AppConfig>
   saveConfig: (config: Partial<AppConfig>) => Promise<boolean>
+  resetConfig: () => Promise<boolean>
 
   setCardImageOverride: (code: number, variantCode: number | null) => Promise<boolean>
   onCardImageUpdated: (callback: () => void) => () => void
@@ -336,6 +338,12 @@ export interface IpcApi {
   onWindowMaximizedChange: (callback: (maximized: boolean) => void) => () => void
   onAppBeforeClose: (callback: () => void) => () => void
   confirmAppClose: () => void
+
+  getUpdateState: () => Promise<UpdateState>
+  checkForUpdates: () => Promise<UpdateState>
+  downloadUpdate: () => Promise<UpdateState>
+  installUpdate: () => Promise<void>
+  onUpdateState: (callback: (state: UpdateState) => void) => () => void
 
   onConfigUpdated: (callback: () => void) => () => void
   onCdbUpdated: (callback: () => void) => () => void

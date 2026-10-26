@@ -11,6 +11,8 @@ export interface CardSearchParams {
 
   subType?: number
 
+  includeTokens?: boolean
+
   effectCategoryMask?: number
 
   cardPool?: CardPoolFilter

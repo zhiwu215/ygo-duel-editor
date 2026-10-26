@@ -11,9 +11,10 @@ import {
   CardLocation,
   EngineProvenance,
   LOCATION_NAMES,
+  isEngineSupportedMatch,
   isPileLocation,
+  isPlaceholderCard,
   isSpellTrapLocation,
-  isStandardTag,
   PLACEHOLDER_CARD_CODE
 } from '@shared/index'
 import { ZoneContextMenu } from './components/ZoneContextMenu'
@@ -175,14 +176,15 @@ export const CardContextMenu: React.FC = () => {
   }
   const provenance = provenanceState?.instanceId === card.instanceId ? provenanceState.value : null
   const showEngineEdit = isEngine && !isReplay
-  const isEditableMatch = !matchConfig || matchConfig.mode === '1v1' || isStandardTag(matchConfig)
+  const editSupported = isEngineSupportedMatch(matchConfig)
+  const editableHandPlaceholder = isHand && isPlaceholderCard(card.code)
   const provenanceLoading = showEngineEdit && provenance === null
   const canEdit =
     showEngineEdit &&
-    isEditableMatch &&
     !engineLoading &&
     provenance !== null &&
-    provenance.kind !== 'unknown'
+    provenance.kind !== 'unknown' &&
+    (editSupported || provenance.kind === 'inject' || editableHandPlaceholder)
   const injectStep =
     provenance?.kind === 'inject'
       ? timeline.find((node) => node.id === provenance.nodeId)?.stepNumber
@@ -200,11 +202,11 @@ export const CardContextMenu: React.FC = () => {
           : '来源：无法溯源'
   const disabledReason = engineLoading
     ? '引擎正在处理，请稍候。'
-    : !isEditableMatch
-      ? '目前卡片编辑只支持 1v1 和标准 2v2。'
-      : !provenanceLoading && !canEdit
-        ? '该卡无法溯源，不能替换或移除。'
-        : null
+    : !provenanceLoading && !canEdit
+      ? !editSupported && !editableHandPlaceholder && provenance?.kind !== 'inject'
+        ? '多人数对局只能编辑手牌占位卡或手动添加的卡片。'
+        : '该卡无法溯源，不能替换或移除。'
+      : null
   const handleReplace = (): void => {
     if (!canEdit) return
     closeMenu()
@@ -297,7 +299,16 @@ export const CardContextMenu: React.FC = () => {
 
       {isPileZone && !isModalOpenForThisZone && (
         <>
-          {card.location === CardLocation.DECK ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={act(() => openPile(card.controller, card.location))}
+            className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
+          >
+            <ListOrdered className="w-3.5 h-3.5" />
+            <span>查看列表 ({pileCount})</span>
+          </Button>
+          {card.location === CardLocation.DECK && (
             <>
               <Button
                 variant="ghost"
@@ -323,16 +334,6 @@ export const CardContextMenu: React.FC = () => {
                 </Button>
               )}
             </>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={act(() => openPile(card.controller, card.location))}
-              className="w-full justify-start gap-2 h-7 px-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
-            >
-              <ListOrdered className="w-3.5 h-3.5" />
-              <span>查看列表 ({pileCount})</span>
-            </Button>
           )}
           <Separator className="my-1" />
         </>
@@ -386,7 +387,7 @@ export const CardContextMenu: React.FC = () => {
             })}
             className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal hover:bg-accent cursor-pointer"
           >
-            <span>攻守与指示物 (Shift+点击)</span>
+            <span>攻守与指示物 (Shift+左键)</span>
           </Button>
           <Separator className="my-1" />
         </>

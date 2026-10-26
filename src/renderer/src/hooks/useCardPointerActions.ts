@@ -120,7 +120,8 @@ export function useCardPointerActions({
       }
       const loc = card.location
       const canHint =
-        (loc === CardLocation.MZONE || loc === CardLocation.SZONE || loc === CardLocation.HAND) &&
+        e.detail < 2 &&
+        (loc === CardLocation.MZONE || loc === CardLocation.SZONE) &&
         canShowPositionHint(loc, currentPhase)
       if (!canHint) {
         closeHint()

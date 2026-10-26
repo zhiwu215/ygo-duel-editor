@@ -47,6 +47,7 @@ export interface MenuActions {
   onShowShortcutsDialog: () => void
   onShowAboutDialog: () => void
   onShowSupportDialog: () => void
+  onCheckUpdates: () => void
 }
 
 export function buildMenus(actions: MenuActions): MenuDef[] {
@@ -117,7 +118,7 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
         },
         { label: '', separator: true },
         {
-          label: '卡组编辑器',
+          label: '卡组库',
           action: () => window.api.openDeckEditor()
         },
         {
@@ -179,6 +180,11 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           label: '支持作者',
           action: actions.onShowSupportDialog
         },
+        {
+          label: '检查更新',
+          action: actions.onCheckUpdates
+        },
+        { label: '', separator: true },
         {
           label: '关于 YGO Duel Editor',
           action: actions.onShowAboutDialog

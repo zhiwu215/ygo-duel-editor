@@ -13,15 +13,12 @@ export const TurnPhaseIndicator: React.FC = () => {
   const currentPhase = useDuelStore((s) => s.currentPhase)
   const currentChain = useDuelStore((s) => s.currentChain)
   const activeTurnPlayer = useDuelStore((s) => s.activeTurnPlayer)
-  const duelStarted = useDuelStore((s) => s.duelStarted)
   const duelists = useDuelStore((s) => s.state.duelists)
   const viewTopSeat = useDuelStore((s) => viewTopSeatOf(s.state))
   const insertPhaseChange = useDuelStore((s) => s.insertPhaseChange)
   const resetChain = useDuelStore((s) => s.resetChain)
   const isSelfTurn = activeTurnPlayer !== viewTopSeat
   const turnLabel = resolveTeamLabel({ duelists }, activeTurnPlayer, currentTurn)
-
-  if (!duelStarted) return null
 
   return (
     <div className="flex items-center gap-2 select-none">

@@ -3,13 +3,9 @@ productName: ygo-duel-editor
 directories:
   buildResources: build
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!dist*/**'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - out/**
+  - resources/**
+  - '!**/*.map'
 asarUnpack:
   - resources/**
 win:
@@ -21,7 +17,8 @@ nsis:
   createDesktopShortcut: always
   oneClick: false
   perMachine: true
-  allowToChangeInstallationDirectory: true
+  packElevateHelper: true
+  allowToChangeInstallationDirectory: false
   deleteAppDataOnUninstall: false
   installerLanguages:
     - zh_CN
@@ -48,7 +45,8 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: zhiwu215
+  repo: ygo-duel-editor
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

@@ -28,9 +28,8 @@ export function useStepPlayback(): {
     if (useDuelEngineStore.getState().isInitialized) {
       void useDuelEngineStore.getState().undo()
     } else {
-      if (currentStepIndex === null) {
-        previewStepBoard(steps.length - 1)
-      } else if (currentStepIndex > 0) {
+      if (currentStepIndex === null) return
+      if (currentStepIndex > 0) {
         previewStepBoard(currentStepIndex - 1)
       }
     }
@@ -56,7 +55,7 @@ export function useStepPlayback(): {
       if (first) void useDuelEngineStore.getState().jumpToStep(first.id)
       return
     }
-    useDuelStore.getState().resetToOpeningBoard()
+    useDuelStore.getState().previewTimelineStart()
   }
 
   const handleStepClick = (index: number, step: DuelStep): void => {

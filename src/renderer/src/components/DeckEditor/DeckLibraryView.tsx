@@ -30,7 +30,6 @@ import {
   ChevronRight,
   Folder,
   Search,
-  BookOpen,
   FolderPlus,
   Inbox
 } from 'lucide-react'
@@ -304,9 +303,6 @@ export const DeckLibraryView: React.FC = () => {
               </div>
             ) : (
               <div className="py-16 flex flex-col items-center justify-center text-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground">
-                  <BookOpen className="w-6 h-6" />
-                </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">
                     {searchKeyword

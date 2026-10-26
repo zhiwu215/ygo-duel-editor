@@ -11,6 +11,7 @@ import {
   ContentCoverageDetail,
   DEFAULT_DUEL_TEST_SETTINGS,
   EngineExportReplayResult,
+  EngineSessionDoc,
   PLACEHOLDER_CARD_NAME,
   isExportableMatch,
   isInGameTestSupported,
@@ -198,7 +199,7 @@ export function useProjectCommands(): ProjectCommands {
         const detail =
           gameType === 'mdpro3'
             ? `回放: ${res.yrp3dPath ?? ''}\n\n之后在 MDPro3 的「回放」界面也可以随时观看。`
-            : `录像: ${res.yrpPath ?? ''}${res.luaPath ? `\n残局脚本: ${res.luaPath}` : ''}\n\n${
+            : `录像: ${res.yrpPath ?? ''}${res.luaPath ? `\n回放脚本: ${res.luaPath}` : ''}\n\n${
                 res.manualHint ??
                 (res.luaPath
                   ? '之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。'
@@ -234,109 +235,119 @@ export function useProjectCommands(): ProjectCommands {
     [resolveCoverageNames]
   )
 
-  const handleExportYrp = useCallback(async (): Promise<void> => {
-    if (useDuelEngineStore.getState().replayInfo) return
-    const isEngine = useDuelEngineStore.getState().isInitialized
-    const timeline = useDuelEngineStore.getState().timeline
-    if (!isEngine || timeline.length <= 1) return
-    const editorState = useDuelStore.getState().state
-    if (!isExportableMatch(editorState.matchConfig)) return
-    const engine = useDuelEngineStore.getState()
-    const initialBoard = engine.timeline[0]?.boardState
-    const engineState =
-      engine.isInitialized && initialBoard
+  const handleExportYrp = useCallback(
+    async (sessionDoc?: EngineSessionDoc, launch = false): Promise<void> => {
+      const engine = useDuelEngineStore.getState()
+      const active = engine.isInitialized && !engine.replayInfo
+      const sourceDoc = active ? undefined : (sessionDoc ?? engine.suspendedDoc)
+      const timeline = active ? engine.timeline : (sourceDoc?.timeline ?? [])
+      if (timeline.length <= 1) return
+      const editorState = useDuelStore.getState().state
+      if (!isExportableMatch(editorState.matchConfig)) return
+      if (!active) {
+        if (!sourceDoc) return
+        const restored = await window.api.restoreDuelEngineSession(sourceDoc)
+        if (!restored.success) {
+          void alertDialog(`恢复引擎会话失败，无法导出回放\n\n${restored.error ?? '未知错误'}`)
+          return
+        }
+      }
+      const initialBoard = timeline[0]?.boardState
+      const engineState = initialBoard
         ? buildPuzzleStateFromEngineBoard(initialBoard, {
             title: editorState.title,
             masterRule: editorState.masterRule
           })
         : null
-    const currentPuzzleState = engineState
-      ? {
-          ...engineState,
-          title: editorState.title,
-          hint: editorState.hint,
-          duelType: editorState.duelType,
-          series: editorState.series,
-          sourceRef: editorState.sourceRef,
-          matchConfig: editorState.matchConfig,
-          firstTurnAttack: editorState.firstTurnAttack,
-          duelists: editorState.duelists,
-          scenarios: editorState.scenarios
-        }
-      : editorState
+      const currentPuzzleState = engineState
+        ? {
+            ...engineState,
+            title: editorState.title,
+            hint: editorState.hint,
+            duelType: editorState.duelType,
+            series: editorState.series,
+            sourceRef: editorState.sourceRef,
+            matchConfig: editorState.matchConfig,
+            firstTurnAttack: editorState.firstTurnAttack,
+            duelists: editorState.duelists,
+            scenarios: editorState.scenarios
+          }
+        : editorState
 
-    const runExport = async (
-      force: boolean,
-      overwrite = false,
-      exportName?: string
-    ): Promise<void> => {
-      const res = await window.api.duelExportReplay({
-        state: currentPuzzleState,
-        name: exportName,
-        overwrite,
-        launch: true,
-        force
-      })
-      if (res.errorCode === 'replay-exists') {
-        const replaceText = isStandardTag(currentPuzzleState.matchConfig)
-          ? '覆盖会替换现有回放。'
-          : '覆盖会替换现有回放和残局脚本。'
-        const choice = await confirmDialog({
-          title: '存在同名回放',
-          description: `检测到同名文件：\n${res.existingPath}\n\n${replaceText}也可以改名后导出。`,
-          confirmText: '覆盖',
-          extraAction: { text: '改名', value: 'rename' },
-          destructive: true
+      const runExport = async (
+        force: boolean,
+        overwrite = false,
+        exportName?: string
+      ): Promise<void> => {
+        const res = await window.api.duelExportReplay({
+          state: currentPuzzleState,
+          name: exportName,
+          overwrite,
+          launch,
+          force
         })
-        if (choice === 'rename') {
-          const newName = await promptDialog({
-            title: '重命名回放',
-            placeholder: '输入新的回放名称',
-            initialValue: res.name ?? currentPuzzleState.title
+        if (res.errorCode === 'replay-exists') {
+          const replaceText = isStandardTag(currentPuzzleState.matchConfig)
+            ? '覆盖会替换现有回放。'
+            : '覆盖会替换现有回放和回放脚本。'
+          const choice = await confirmDialog({
+            title: '存在同名回放',
+            description: `检测到同名文件：\n${res.existingPath}\n\n${replaceText}也可以改名后导出。`,
+            confirmText: '覆盖',
+            extraAction: { text: '改名', value: 'rename' },
+            destructive: true
           })
-          if (newName?.trim()) {
-            await runExport(false, false, newName.trim())
-          }
-        } else if (choice === true) {
-          await runExport(false, true, exportName)
-        }
-        return
-      }
-      if (res.errorCode === 'content-missing' && res.coverage) {
-        const names = await resolveCoverageNames(res.coverage)
-        const detail = formatCoverageWarning(res.coverage, names)
-        const choice = await confirmDialog({
-          title: '当前游戏可能无法完整回放该对局',
-          description: `${detail}\n\n${coverageAdvice(res.coverage)}`,
-          confirmText: '同步并启动',
-          extraAction: { text: '去设置切换目录', value: 'settings' },
-          destructive: false
-        })
-        if (choice === 'settings') {
-          void window.api.openSettingsWindow('paths')
-        } else if (choice === true) {
-          const sync = await window.api.syncCustomCardsToGame()
-          if (!sync.success) {
-            void alertDialog(`同步自定义卡到游戏失败\n\n${sync.error ?? '未知错误'}`)
-            return
-          }
-          reportReplayResult(
-            await window.api.duelExportReplay({
-              state: currentPuzzleState,
-              name: exportName,
-              overwrite,
-              launch: true,
-              force: false
+          if (choice === 'rename') {
+            const newName = await promptDialog({
+              title: '重命名回放',
+              placeholder: '输入新的回放名称',
+              initialValue: res.name ?? currentPuzzleState.title
             })
-          )
+            if (newName?.trim()) {
+              await runExport(false, false, newName.trim())
+            }
+          } else if (choice === true) {
+            await runExport(false, true, exportName)
+          }
+          return
         }
-        return
+        if (res.errorCode === 'content-missing' && res.coverage) {
+          const names = await resolveCoverageNames(res.coverage)
+          const detail = formatCoverageWarning(res.coverage, names)
+          const choice = await confirmDialog({
+            title: '当前游戏可能无法完整回放该对局',
+            description: `${detail}\n\n${coverageAdvice(res.coverage)}`,
+            confirmText: '同步并启动',
+            extraAction: { text: '去设置切换目录', value: 'settings' },
+            destructive: false
+          })
+          if (choice === 'settings') {
+            void window.api.openSettingsWindow('paths')
+          } else if (choice === true) {
+            const sync = await window.api.syncCustomCardsToGame()
+            if (!sync.success) {
+              void alertDialog(`同步自定义卡到游戏失败\n\n${sync.error ?? '未知错误'}`)
+              return
+            }
+            reportReplayResult(
+              await window.api.duelExportReplay({
+                state: currentPuzzleState,
+                name: exportName,
+                overwrite,
+                launch,
+                force: false
+              })
+            )
+          }
+          return
+        }
+        reportReplayResult(res)
       }
-      reportReplayResult(res)
-    }
 
-    await runExport(false)
-  }, [resolveCoverageNames, reportReplayResult])
+      await runExport(false)
+    },
+    [resolveCoverageNames, reportReplayResult]
+  )
 
   const handleImportReplay = useCallback(async (): Promise<void> => {
     const ok = await useDuelEngineStore.getState().importReplay()
@@ -348,9 +359,18 @@ export function useProjectCommands(): ProjectCommands {
   }, [])
 
   const handleOpenReplayInYgo = useCallback(async (): Promise<void> => {
-    const filePath = useDuelEngineStore.getState().replayInfo?.filePath
+    const engine = useDuelEngineStore.getState()
+    const filePath = engine.replayInfo?.filePath
     if (!filePath) {
-      void alertDialog('当前回放没有可用的源文件路径，请重新导入回放后再试。')
+      if (engine.isInitialized && engine.timeline.length > 1) {
+        await handleExportYrp(undefined, true)
+        return
+      }
+      if (engine.suspendedDoc && engine.suspendedDoc.timeline.length > 1) {
+        await handleExportYrp(engine.suspendedDoc, true)
+        return
+      }
+      void alertDialog('当前没有可打开的回放。请先导入回放，或在引擎模式下打完一局后再试。')
       return
     }
     const res = await window.api.duelOpenReplay(filePath)
@@ -377,7 +397,7 @@ export function useProjectCommands(): ProjectCommands {
       return
     }
     void alertDialog(`打开回放失败\n\n${res.error ?? '未知错误'}`)
-  }, [])
+  }, [handleExportYrp])
 
   return {
     handleNew,

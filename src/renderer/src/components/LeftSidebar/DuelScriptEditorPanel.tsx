@@ -14,6 +14,7 @@ import { resolveDuelistName, resolveTeamLabel } from '../../utils/duelistNames'
 import { duelActionLabel } from '../../utils/stepLabels'
 import { stepCardName } from '../../utils/cardNames'
 import { saveDuelDocument } from '../../utils/duelDocumentActions'
+import { createDuelDocumentForCurrentDuel } from '../../utils/duelDocumentCreate'
 import { buildScreenplayText } from '../../utils/screenplayText'
 import { useDuelDocumentSaveStatus } from '../../hooks/useDuelDocumentSaveStatus'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
@@ -66,8 +67,23 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
   } | null>(null)
 
   const steps = state.steps || []
+  const stepCount = steps.length
+  const cardCount = state.cards.length
   const provenance = summarizeStepProvenance(steps)
   const activeStep = steps.find((step) => step.id === selectedStepId) || steps[0] || null
+
+  useEffect(() => {
+    if (currentProjectPath) return
+    if (stepCount === 0 && cardCount === 0) return
+    let cancelled = false
+    void createDuelDocumentForCurrentDuel().then((result) => {
+      if (cancelled || result.success) return
+      void alertDialog(`自动保存台本失败\n\n${result.error ?? '未知错误'}`)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [cardCount, currentProjectPath, stepCount])
 
   useEffect(() => {
     if (!selectedStepId || !scrollRef.current) return

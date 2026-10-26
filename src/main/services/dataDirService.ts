@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
-import { dirname, join } from 'path'
+import { dirname, isAbsolute, join, relative, resolve } from 'path'
 import {
   accessSync,
   constants,
@@ -8,13 +8,18 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync
 } from 'fs'
 import { DataDirectoryResult } from '@shared/index'
 import { configService } from './configService'
 import { broadcastToWindows } from './broadcast'
+import { isIsolatedProfile, profileRoot } from './userDataProfile'
 
+const DEFAULT_DIR_NAME = 'ygo-duel-editor-data'
+const INSTALLER_APP_DIR = 'ygo-duel-editor'
+const INSTALLER_MARKER = 'data-dir.txt'
 const DATA_FILES = [
   'ygo_duel_editor_decks.json',
   'card_notes.json',
@@ -23,64 +28,101 @@ const DATA_FILES = [
 ]
 const DATA_DIRS = ['projects', 'texts', 'text-library', 'custom']
 
-let installDataDirectory: string | null | undefined
-
-function readInstallerChoice(): string | null {
-  if (!app.isPackaged) return null
+function canonicalPath(target: string): string {
   try {
-    const marker = join(dirname(app.getPath('exe')), 'data-dir.txt')
-    if (!existsSync(marker)) return null
-    const value = readFileSync(marker, 'utf-8').trim()
-    if (!value) return null
-    mkdirSync(value, { recursive: true })
-    return value
+    return realpathSync.native(target)
   } catch {
-    return null
+    return resolve(target)
   }
 }
 
-function resolveInstallDataDirectory(): string | null {
-  if (!app.isPackaged) return null
-  const chosen = readInstallerChoice()
-  if (chosen) return chosen
-  const localAppData = process.env['LOCALAPPDATA']
-  if (!localAppData) return null
-  try {
-    const fallback = join(localAppData, 'ygo-duel-editor-data')
-    mkdirSync(fallback, { recursive: true })
-    return fallback
-  } catch {
-    return null
-  }
+function isWithin(parent: string, child: string): boolean {
+  const rel = relative(parent, child)
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
 
 export class DataDirService {
-  public get installDataDirectory(): string | null {
-    if (installDataDirectory === undefined) installDataDirectory = resolveInstallDataDirectory()
-    return installDataDirectory
+  private legacyMigrated = false
+  private installerChoiceAdopted = false
+
+  public isInsideInstallDir(target: string): boolean {
+    const installRoot = canonicalPath(dirname(app.getPath('exe')))
+    return isWithin(installRoot, canonicalPath(target))
+  }
+
+  private readInstallerChoice(): string | null {
+    if (!app.isPackaged) return null
+    try {
+      const marker = join(app.getPath('appData'), INSTALLER_APP_DIR, INSTALLER_MARKER)
+      if (!existsSync(marker)) return null
+      const value = readFileSync(marker, 'utf-8').trim()
+      if (!value) return null
+      if (this.isInsideInstallDir(value)) return null
+      mkdirSync(value, { recursive: true })
+      return value
+    } catch (err) {
+      console.error('[DataDirService] read installer choice failed:', err)
+      return null
+    }
+  }
+
+  private adoptInstallerChoice(): void {
+    if (this.installerChoiceAdopted) return
+    this.installerChoiceAdopted = true
+    if (isIsolatedProfile()) return
+    if (!configService.isFirstRun()) return
+    if (configService.get().dataDirectory) return
+    const chosen = this.readInstallerChoice()
+    if (!chosen) return
+    const localAppData = process.env['LOCALAPPDATA']
+    const fallback = localAppData ? join(localAppData, DEFAULT_DIR_NAME) : app.getPath('userData')
+    if (chosen === fallback) return
+    configService.save({ dataDirectory: chosen })
   }
 
   public get defaultDirectory(): string {
-    const target = this.installDataDirectory
-    if (target) {
-      this.migrateFromUserData(target)
-      return target
+    if (isIsolatedProfile()) return this.profileDataDirectory()
+    this.adoptInstallerChoice()
+    const localAppData = process.env['LOCALAPPDATA']
+    const legacy = app.getPath('userData')
+    const target = localAppData ? join(localAppData, DEFAULT_DIR_NAME) : legacy
+    try {
+      if (!existsSync(target)) mkdirSync(target, { recursive: true })
+    } catch (err) {
+      console.error('[DataDirService] create default directory failed:', target, err)
     }
-    return app.getPath('userData')
+    if (target !== legacy) this.migrateFromUserData(target)
+    return target
+  }
+
+  private profileDataDirectory(): string {
+    const target = join(profileRoot, 'data')
+    try {
+      if (!existsSync(target)) mkdirSync(target, { recursive: true })
+    } catch (err) {
+      console.error('[DataDirService] create profile data directory failed:', target, err)
+    }
+    return target
   }
 
   public getDataDirectory(): string {
+    this.adoptInstallerChoice()
     const custom = configService.get().dataDirectory
-    if (custom && existsSync(custom)) return custom
+    if (custom && existsSync(custom)) {
+      if (!this.isInsideInstallDir(custom)) return custom
+      const moved = this.copyData(custom, this.defaultDirectory)
+      configService.save({ dataDirectory: undefined })
+      console.warn('[DataDirService] moved data out of install directory:', moved.join(', '))
+    }
     return this.defaultDirectory
   }
 
-  public resolve(relative: string): string {
-    return join(this.getDataDirectory(), relative)
+  public resolve(relativePath: string): string {
+    return join(this.getDataDirectory(), relativePath)
   }
 
-  public ensureDirectory(relative: string): string {
-    const dir = this.resolve(relative)
+  public ensureDirectory(relativePath: string): string {
+    const dir = this.resolve(relativePath)
     try {
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     } catch (err) {
@@ -134,8 +176,6 @@ export class DataDirService {
     }
   }
 
-  private legacyMigrated = false
-
   private migrateFromUserData(target: string): void {
     if (this.legacyMigrated) return
     this.legacyMigrated = true
@@ -168,6 +208,13 @@ export class DataDirService {
     if (res.canceled || !res.filePaths[0]) return null
 
     const directory = res.filePaths[0]
+    if (this.isInsideInstallDir(directory)) {
+      return {
+        directory,
+        migrated: false,
+        error: '数据目录不能放在软件安装目录内，升级时会被清空，请选择其他位置'
+      }
+    }
     if (!this.isWritable(directory)) {
       return { directory, migrated: false, error: '该目录不可写入，请更换位置' }
     }
@@ -181,7 +228,7 @@ export class DataDirService {
   public resetToDefault(doMigrate = true): DataDirectoryResult {
     const directory = this.defaultDirectory
     const moved = doMigrate ? this.migrate(directory) : []
-    configService.save({ dataDirectory: undefined })
+    configService.save({ dataDirectory: directory })
     broadcastToWindows('data-dir:changed')
     return { directory, migrated: moved.length > 0 }
   }

@@ -48,12 +48,8 @@ export const CardNoteAdder: React.FC<CardNoteAdderProps> = ({
         initial={{ title: '', text: '' }}
         kindEditable
         existingTitlesForKind={(k) => existingTitlesFor(picked.id, k)}
-        onSave={(title, text, k, source) =>
-          onSave(picked.id, k, title, text, source).then((ok) => {
-            if (ok) onClose()
-            return ok
-          })
-        }
+        onSave={(title, text, k, source) => onSave(picked.id, k, title, text, source)}
+        onSuccess={onClose}
         onClose={() => setPicked(null)}
       />
     )

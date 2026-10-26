@@ -22,7 +22,8 @@ import {
   InjectCommand,
   TimingPolicy,
   FavoritesState,
-  EngineCardRef
+  EngineCardRef,
+  UpdateState
 } from '@shared/index'
 
 const api: IpcApi = {
@@ -211,6 +212,7 @@ const api: IpcApi = {
 
   getConfig: () => ipcRenderer.invoke('config:get'),
   saveConfig: (cfg: Partial<AppConfig>) => ipcRenderer.invoke('config:save', cfg),
+  resetConfig: () => ipcRenderer.invoke('config:reset'),
 
   setCardImageOverride: (code: number, variantCode: number | null) =>
     ipcRenderer.invoke('image:set-card-override', code, variantCode),
@@ -283,6 +285,17 @@ const api: IpcApi = {
     ipcRenderer.on('window:maximized-changed', handler)
     return () => {
       ipcRenderer.removeListener('window:maximized-changed', handler)
+    }
+  },
+  getUpdateState: () => ipcRenderer.invoke('update:get-state'),
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateState: (callback) => {
+    const handler = (_: unknown, state: UpdateState): void => callback(state)
+    ipcRenderer.on('update:state', handler)
+    return () => {
+      ipcRenderer.removeListener('update:state', handler)
     }
   },
   onAppBeforeClose: (callback) => {

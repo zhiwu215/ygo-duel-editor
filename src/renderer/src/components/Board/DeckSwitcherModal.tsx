@@ -230,11 +230,8 @@ const DeckSwitcherContent: React.FC<{ controller: 0 | 1 }> = ({ controller }) =>
               {isLoading ? (
                 <p className="text-xs text-muted-foreground py-12 text-center">正在读取卡组库...</p>
               ) : decks.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
-                  <Layers className="w-9 h-9 opacity-25 stroke-[1.5]" />
-                  <p className="text-xs">
-                    卡组库还是空的 —— 先在「卡组」窗口里创建并保存一副卡组吧
-                  </p>
+                <div className="flex flex-col items-center justify-center py-12">
+                  <p className="text-sm font-semibold text-foreground">还没有卡组</p>
                 </div>
               ) : (
                 <>

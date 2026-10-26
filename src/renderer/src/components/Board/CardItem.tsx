@@ -13,8 +13,8 @@ import { useDuelStore } from '../../stores/useDuelStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
 import { useOverlayListStore } from '../../stores/useOverlayListStore'
 import { usePileListStore } from '../../stores/usePileListStore'
+import { useDropHintStore } from '../../stores/useDropHintStore'
 import { CardHudOverlay } from './components/CardHudOverlay'
-import { CardAttackActionButton } from './components/CardAttackActionButton'
 import { CardFieldStats } from './components/CardFieldStats'
 import { OverlayMaterialStack } from './components/OverlayMaterialStack'
 import { useCardCommandMenuStore } from '../../stores/useCardCommandMenuStore'
@@ -104,7 +104,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         : null,
     [isEngineActive, boardState, card.instanceId, hoveredInstanceId]
   )
-  const fieldMark: CardFieldMark | null = role === 'target' ? 'target' : hoverRelationMark
+  const fieldMark: CardFieldMark | null = hoverRelationMark
 
   const handleCardClick = useCardPointerActions({
     card,
@@ -169,7 +169,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const isSetOnField = isFacedown && isFieldZone
   const isBanishedFacedown = isFacedown && card.location === CardLocation.REMOVED
   const showFacedownVeil = isSetOnField || isPileFacedown || isBanishedFacedown
-  const isNegated = isFieldZone && ((card.status ?? 0) & (0x1 | 0x4000000)) !== 0
+  const isNegated = isFieldZone && !isFacedown && ((card.status ?? 0) & (0x1 | 0x4000000)) !== 0
   const showCardBack = isFacedown && !isHand
   const isPublicHand = isHand && card.position === CardPosition.FACEUP
 
@@ -221,6 +221,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       onDoubleClick={(e) => {
         e.stopPropagation()
         closeCommandMenu()
+        useDropHintStore.getState().close()
         if (showOverlayBadge) {
           openOverlayList(card.instanceId)
         } else if (isPileZone) {
@@ -262,8 +263,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
       >
         <OverlayMaterialStack card={card} />
 
-        <CardAttackActionButton card={card} />
-
         <motion.div
           initial={false}
           animate={{
@@ -304,17 +303,20 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
             {showSummonRing && (
               <ActRing className="absolute inset-0 z-10 m-auto h-[88%] w-[88%] opacity-90" />
             )}
-            {isNegated && (
-              <img
-                src={negatedIcon}
-                alt=""
-                className="pointer-events-none absolute inset-0 z-20 m-auto h-[68%] w-[68%] object-contain drop-shadow-lg"
-              />
-            )}
           </div>
         </motion.div>
 
-        {fieldMark && <CardFieldMarks mark={fieldMark} />}
+        {fieldMark ? (
+          <CardFieldMarks mark={fieldMark} />
+        ) : (
+          isNegated && (
+            <img
+              src={negatedIcon}
+              alt=""
+              className="pointer-events-none absolute inset-0 z-20 m-auto h-[68%] w-[68%] object-contain drop-shadow-lg"
+            />
+          )
+        )}
       </div>
 
       {(isSetOnField || isPublicHand) && (

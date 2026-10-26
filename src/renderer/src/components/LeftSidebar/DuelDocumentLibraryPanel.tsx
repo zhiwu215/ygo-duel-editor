@@ -17,10 +17,16 @@ export const DuelDocumentLibraryPanel: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    if (mode !== 'library') return
+    let cancelled = false
     void window.api.getDuelDocumentTree().then((result) => {
+      if (cancelled) return
       setTree(result.success && result.tree ? result.tree : null)
     })
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [currentFilePath, mode])
 
   const handleOpen = async (filePath: string): Promise<void> => {
     const result = await openDuelDocument(filePath)

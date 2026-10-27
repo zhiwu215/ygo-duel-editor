@@ -130,11 +130,22 @@ export const StepCard: React.FC<StepCardProps> = ({
     (event): event is Extract<(typeof logEvents)[number], { kind: 'attack' }> =>
       event.kind === 'attack' && event.attacker.code === step.cardCode
   )
-  const displayFrom = attackEvent?.attacker ?? fromCard
-  const displayTo = attackEvent?.defender ?? toCard
+  const isDrawStep = step.actionType === 'DRAW'
+  const drawLocationCard: DuelLogCardRef | undefined = isDrawStep
+    ? {
+        code: step.cardCode ?? 0,
+        name: displayCardName,
+        controller: step.actionPlayer,
+        location: CardLocation.HAND,
+        sequence: step.toSequence ?? 0
+      }
+    : undefined
+  const displayFrom = isDrawStep ? undefined : (attackEvent?.attacker ?? fromCard)
+  const displayTo = isDrawStep ? (toCard ?? drawLocationCard) : (attackEvent?.defender ?? toCard)
   const showToLocation =
+    Boolean(displayFrom) &&
     Boolean(displayTo) &&
-    (displayTo!.location !== displayFrom?.location || displayTo!.sequence !== displayFrom?.sequence)
+    (displayTo!.location !== displayFrom!.location || displayTo!.sequence !== displayFrom!.sequence)
   const showMainRow = !(
     step.lpChange &&
     !step.cardCode &&
@@ -145,6 +156,7 @@ export const StepCard: React.FC<StepCardProps> = ({
     !isLegacyHandVisibility(step) &&
     step.fromPosition !== undefined &&
     step.toPosition !== undefined
+  const hasCard = Boolean(step.cardCode) || isDrawStep
   const hasZones = Boolean(displayFrom) || Boolean(displayTo)
   const arrowColor = step.actionPlayer === 0 ? MDLOG_COLORS.myArrow : MDLOG_COLORS.opArrow
   const playerAccent = step.actionPlayer === 0 ? 'text-blue-500' : 'text-rose-500'
@@ -169,34 +181,7 @@ export const StepCard: React.FC<StepCardProps> = ({
         )}
       >
         {showMainRow &&
-          (step.actionType === 'DRAW' ? (
-            <div className="flex h-[58px] items-center gap-2 px-2">
-              <div className="h-[46px] w-[31px] shrink-0 overflow-hidden rounded-[2px] border border-border bg-muted shadow-sm">
-                <CardThumb
-                  code={step.cardCode}
-                  name={displayCardName}
-                  imageClassName="block"
-                  className="h-full w-full"
-                />
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate text-[12px] font-bold leading-tight text-foreground">
-                  {displayCardName}
-                </span>
-                <span className="truncate text-[9px] text-muted-foreground">
-                  {step.description}
-                </span>
-              </div>
-              <span
-                className={cn('shrink-0 text-center text-[13px] font-bold', colorTheme.text)}
-              >
-                {actionLabel}
-              </span>
-              <span className={cn('shrink-0 text-[9px] font-semibold', playerAccent)}>
-                {playerLabel}
-              </span>
-            </div>
-          ) : step.cardCode ? (
+          (hasCard ? (
             <div className={cn('relative w-full', hasZones ? 'h-[120px]' : 'h-[86px]')}>
               <div
                 className={cn(
@@ -228,12 +213,20 @@ export const StepCard: React.FC<StepCardProps> = ({
 
               <div
                 className={cn(
-                  'absolute flex flex-col items-center justify-center gap-0.5',
-                  hasZones ? 'left-[126px] top-[34px] w-[68px]' : 'left-[62px] top-[26px] w-[100px]'
+                  'absolute flex flex-col gap-0.5',
+                  !hasZones
+                    ? 'left-[62px] top-[26px] w-[100px] items-center justify-center'
+                    : showToLocation
+                      ? 'left-[126px] top-[34px] w-[68px] items-center justify-center'
+                      : 'left-[82px] top-[38px] items-start'
                 )}
               >
                 <span
-                  className={cn('text-center text-[15px] font-bold leading-tight', colorTheme.text)}
+                  className={cn(
+                    'text-[15px] font-bold leading-tight',
+                    showToLocation || !hasZones ? 'text-center' : 'text-left',
+                    colorTheme.text
+                  )}
                 >
                   {actionLabel}
                 </span>
@@ -253,7 +246,7 @@ export const StepCard: React.FC<StepCardProps> = ({
               {hasZones && (
                 <>
                   <div className="absolute left-[82px] top-[75px]">
-                    <MdLocationIcon card={displayFrom} size={35} />
+                    <MdLocationIcon card={displayFrom ?? displayTo} size={35} />
                   </div>
                   {showToLocation && (
                     <>
@@ -299,7 +292,7 @@ export const StepCard: React.FC<StepCardProps> = ({
           </div>
         )}
 
-        {hasLogEvents && step.actionType !== 'DRAW' && (
+        {hasLogEvents && (
           <StepLogRows step={step} events={logEvents} />
         )}
 

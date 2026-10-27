@@ -503,6 +503,16 @@ export function recordOpeningStep(node: EngineTimelineNode, boardState: EngineBo
   const steps = useDuelStore.getState().state.steps || []
   if (steps.some((step) => step.actId === node.id)) return
   const first = draw.cards[0]
+  const cards = useDuelStore.getState().state.cards
+  const drawnCard = cards
+    .filter(
+      (card) =>
+        card.controller === draw.player &&
+        card.location === CardLocation.HAND &&
+        (!first?.code || card.code === first.code)
+    )
+    .sort((left, right) => left.sequence - right.sequence)
+    .at(-1)
   const step: DuelStep = {
     id: createStepId(),
     turn: boardState.turn,
@@ -511,13 +521,21 @@ export function recordOpeningStep(node: EngineTimelineNode, boardState: EngineBo
     actionPlayer: draw.player,
     actionDuelistId: boardState.activeDuelist?.[draw.player],
     actionType: 'DRAW',
+    instanceId: drawnCard?.instanceId,
     cardCode: first?.code || undefined,
     cardName: first?.code ? first.name || resolveCardName(first.code) : undefined,
+    fromLocation: CardLocation.DECK,
+    fromSequence: 0,
+    fromController: draw.player,
+    toLocation: CardLocation.HAND,
+    toSequence: drawnCard?.sequence,
+    toController: draw.player,
+    toPosition: drawnCard?.position,
     description: `抽卡 ×${draw.cards.length || 1}`,
     logEvents: [draw],
     origin: 'engine',
     actId: node.id,
-    boardAfter: createLightweightSnapshot(useDuelStore.getState().state.cards)
+    boardAfter: createLightweightSnapshot(cards)
   }
   useDuelStore.setState((prev) => ({
     ...prev,

@@ -2,6 +2,7 @@ import {
   CardLocation,
   DuelPhase,
   EngineBoardState,
+  FieldCard,
   duelPhaseFromMask,
   resolveEngineCardStats
 } from '@shared/index'
@@ -60,26 +61,26 @@ function syncJumpToStepToDuelStore(
   const engineByPos = new Map(boardState.allCards.map((card) => [positionKey(card), card] as const))
   const editorToEngineId = toEditorToEngineMap()
   const usedEngineIds = new Set<string>()
-  const syncStatus = (instanceId: string, status: number | undefined): void => {
-    if (status === undefined) return
-    const current = useDuelStore.getState().state.cards.find((c) => c.instanceId === instanceId)
-    if (!current || current.status === status) return
-    useDuelStore.setState((prev) => ({
-      ...prev,
-      state: {
-        ...prev.state,
-        cards: prev.state.cards.map((item) =>
-          item.instanceId === instanceId ? { ...item, status } : item
-        )
-      }
-    }))
+  const resolveSeatDuelistId = (controller: 0 | 1, duelistId?: string): string => {
+    if (duelistId) return duelistId
+    const teamDuelists = (duelStore.state.duelists || []).filter((d) => d.team === controller)
+    const activeId = duelStore.activeDuelistIds?.[controller]
+    return (
+      (activeId ? teamDuelists.find((d) => d.id === activeId)?.id : undefined) ||
+      teamDuelists[0]?.id ||
+      (controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
+    )
   }
+
   const countersKey = (counters: Record<number, number> | undefined): string =>
     Object.entries(counters ?? {})
       .filter(([, count]) => count > 0)
       .sort(([a], [b]) => Number(a) - Number(b))
       .map(([type, count]) => `${type}:${count}`)
       .join(',')
+
+  const removedIds = new Set<string>()
+  const cardUpdates = new Map<string, Partial<FieldCard>>()
 
   for (const card of currentCards) {
     if (isInactivePrivate(card)) continue
@@ -89,7 +90,7 @@ function syncJumpToStepToDuelStore(
       (mappedEngineId ? engineById.get(mappedEngineId) : undefined) ??
       engineByPos.get(positionKey(card))
     if (!ec) {
-      duelStore.removeCard(card.instanceId)
+      removedIds.add(card.instanceId)
       continue
     }
     usedEngineIds.add(ec.instanceId)
@@ -97,67 +98,46 @@ function syncJumpToStepToDuelStore(
       registerIdentity(ec.instanceId, card.instanceId)
     }
 
-    if (card.code !== ec.code) {
-      useDuelStore.setState((prev) => ({
-        ...prev,
-        state: {
-          ...prev.state,
-          cards: prev.state.cards.map((item) =>
-            item.instanceId === card.instanceId
-              ? { ...item, code: ec.code, card: ec.card ?? item.card }
-              : item
-          )
-        }
-      }))
-      card.code = ec.code
-      if (ec.card) card.card = ec.card
-    }
-
     const ecPosition = normalizeEngineCardPosition(masterRule, ec.location, ec.sequence)
+    const updates: Partial<FieldCard> = {}
+
+    if (card.code !== ec.code || (!card.card && ec.card)) {
+      updates.code = ec.code
+      if (ec.card) updates.card = ec.card
+    }
     if (
       card.location !== ecPosition.location ||
       card.sequence !== ecPosition.sequence ||
-      card.controller !== ec.controller
+      card.controller !== ec.controller ||
+      card.position !== ec.position
     ) {
-      duelStore.moveCard(
-        card.instanceId,
-        ecPosition.location,
-        ecPosition.sequence,
-        ec.controller,
-        ec.position
-      )
-      card.location = ecPosition.location
-      card.sequence = ecPosition.sequence
-      card.controller = ec.controller
-      card.position = ec.position
-    } else if (card.position !== ec.position) {
-      duelStore.updateCardPosition(card.instanceId, ec.position)
-      card.position = ec.position
+      updates.location = ecPosition.location
+      updates.sequence = ecPosition.sequence
+      updates.controller = ec.controller
+      updates.position = ec.position
     }
-
-    syncStatus(card.instanceId, ec.status)
-    if (ec.status !== undefined) card.status = ec.status
-
+    if (ec.status !== undefined && card.status !== ec.status) {
+      updates.status = ec.status
+    }
     if (countersKey(ec.counters) !== countersKey(card.counters)) {
-      duelStore.syncCardCounters(card.instanceId, ec.counters)
-      card.counters = ec.counters ? { ...ec.counters } : undefined
+      updates.counters = ec.counters ? { ...ec.counters } : undefined
+    }
+    const engineMats = ec.overlayMaterials ?? []
+    const editorMats = card.overlayMaterials ?? []
+    if (engineMats.join(',') !== editorMats.join(',')) {
+      updates.overlayMaterials = [...engineMats]
     }
 
-    if (ec.location === CardLocation.MZONE && ec.location === card.location) {
-      const engineMats = ec.overlayMaterials
-      const editorMats = card.overlayMaterials
-      if (engineMats.join(',') !== editorMats.join(',')) {
-        for (let i = editorMats.length - 1; i >= 0; i--) {
-          duelStore.removeOverlayMaterial(card.instanceId, i)
-        }
-        for (const mat of engineMats) {
-          duelStore.addOverlayMaterial(card.instanceId, mat)
-        }
-        card.overlayMaterials = [...engineMats]
-      }
+    if (!card.duelistId) {
+      updates.duelistId = resolveSeatDuelistId(ec.controller, ec.duelistId)
+    }
+
+    if (Object.keys(updates).length > 0) {
+      cardUpdates.set(card.instanceId, updates)
     }
   }
 
+  const addedCards: FieldCard[] = []
   for (const ec of boardState.allCards) {
     if (usedEngineIds.has(ec.instanceId)) continue
     if (currentCards.some((c) => c.instanceId === ec.instanceId)) continue
@@ -169,20 +149,8 @@ function syncJumpToStepToDuelStore(
       continue
     }
     const ecPosition = normalizeEngineCardPosition(masterRule, ec.location, ec.sequence)
-    duelStore.addCardToZone(
-      ec.card,
-      ec.controller,
-      ecPosition.location,
-      ecPosition.sequence,
-      ec.position,
-      ec.duelistId,
-      ec.instanceId
-    )
-    syncStatus(ec.instanceId, ec.status)
-    if (countersKey(ec.counters)) {
-      duelStore.syncCardCounters(ec.instanceId, ec.counters)
-    }
-    currentCards.push({
+    const duelistId = resolveSeatDuelistId(ec.controller, ec.duelistId)
+    addedCards.push({
       instanceId: ec.instanceId,
       code: ec.card.id,
       card: ec.card,
@@ -191,10 +159,41 @@ function syncJumpToStepToDuelStore(
       location: ecPosition.location,
       sequence: ecPosition.sequence,
       position: ec.position,
-      overlayMaterials: [...ec.overlayMaterials],
+      overlayMaterials: [...(ec.overlayMaterials ?? [])],
       counters: ec.counters ? { ...ec.counters } : undefined,
       status: ec.status,
-      duelistId: ec.duelistId
+      duelistId
+    })
+  }
+
+  if (removedIds.size > 0 || cardUpdates.size > 0 || addedCards.length > 0) {
+    useDuelStore.setState((prev) => {
+      let cards = prev.state.cards
+      if (removedIds.size > 0) {
+        cards = cards.filter((c) => !removedIds.has(c.instanceId))
+      }
+      if (cardUpdates.size > 0) {
+        cards = cards.map((c) => {
+          const update = cardUpdates.get(c.instanceId)
+          return update ? { ...c, ...update } : c
+        })
+      }
+      if (addedCards.length > 0) {
+        cards = [...cards, ...addedCards]
+      }
+      return {
+        ...prev,
+        state: {
+          ...prev.state,
+          cards
+        },
+        selectedCardId:
+          prev.selectedCardId && removedIds.has(prev.selectedCardId) ? null : prev.selectedCardId,
+        hoveredInstanceId:
+          prev.hoveredInstanceId && removedIds.has(prev.hoveredInstanceId)
+            ? null
+            : prev.hoveredInstanceId
+      }
     })
   }
 

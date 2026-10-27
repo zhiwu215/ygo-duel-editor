@@ -279,33 +279,20 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
     lines.push('-- 指示物在场地初始化完成后放置')
     lines.push(...counterLines)
   }
-  if (forReplay) {
-    lines.push(`local e1=Effect.GlobalEffect()`)
-    lines.push(`e1:SetType(EFFECT_TYPE_FIELD)`)
-    lines.push(`e1:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
-    lines.push(`e1:SetCode(EFFECT_SKIP_DP)`)
-    lines.push(`e1:SetTargetRange(1,0)`)
-    lines.push(`e1:SetReset(RESET_PHASE+PHASE_MAIN1)`)
-    lines.push(`Duel.RegisterEffect(e1,0)`)
-    lines.push(`local e2=Effect.GlobalEffect()`)
-    lines.push(`e2:SetType(EFFECT_TYPE_FIELD)`)
-    lines.push(`e2:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
-    lines.push(`e2:SetCode(EFFECT_SKIP_SP)`)
-    lines.push(`e2:SetTargetRange(1,0)`)
-    lines.push(`e2:SetReset(RESET_PHASE+PHASE_MAIN1)`)
-    lines.push(`Duel.RegisterEffect(e2,0)`)
-  } else if (isFull) {
-    if (Number(state.masterRule) >= 4) {
-      lines.push(`local firstDraw=Effect.GlobalEffect()`)
-      lines.push(`firstDraw:SetType(EFFECT_TYPE_FIELD)`)
-      lines.push(`firstDraw:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
-      lines.push(`firstDraw:SetCode(EFFECT_SKIP_DP)`)
-      lines.push(`firstDraw:SetTargetRange(1,0)`)
-      lines.push(`firstDraw:SetReset(RESET_PHASE+PHASE_DRAW)`)
-      lines.push(`Duel.RegisterEffect(firstDraw,0)`)
+  if (!forReplay) {
+    if (isFull) {
+      if (Number(state.masterRule) >= 4) {
+        lines.push(`local firstDraw=Effect.GlobalEffect()`)
+        lines.push(`firstDraw:SetType(EFFECT_TYPE_FIELD)`)
+        lines.push(`firstDraw:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
+        lines.push(`firstDraw:SetCode(EFFECT_SKIP_DP)`)
+        lines.push(`firstDraw:SetTargetRange(1,0)`)
+        lines.push(`firstDraw:SetReset(RESET_PHASE+PHASE_DRAW)`)
+        lines.push(`Duel.RegisterEffect(firstDraw,0)`)
+      }
+    } else {
+      lines.push(`aux.BeginPuzzle()`)
     }
-  } else {
-    lines.push(`aux.BeginPuzzle()`)
   }
   if (state.hint && state.hint.trim().length > 0) {
     lines.push(`Debug.ShowHint("${state.hint.replace(/"/g, '\\"')}")`)

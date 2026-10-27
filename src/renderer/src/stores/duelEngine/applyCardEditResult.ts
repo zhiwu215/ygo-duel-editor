@@ -1,6 +1,7 @@
 import { EngineCardEditResult } from '@shared/index'
 import { useDuelStore } from '../useDuelStore'
 import { syncJumpToStepWrapped } from './boardReconcile'
+import { syncCardEditToDuelStore } from './cardEditSync'
 import {
   appendDiscardNotice,
   discardFutureSteps,
@@ -21,16 +22,26 @@ export async function applyCardEditResult(
     return false
   }
 
+  if (res.editedCard) {
+    syncCardEditToDuelStore(res.editedCard)
+  }
+
+  if (res.puzzleState?.initialBoardSnapshot) {
+    useDuelStore.setState((prev) => ({
+      ...prev,
+      state: {
+        ...prev.state,
+        initialBoardSnapshot: res.puzzleState!.initialBoardSnapshot
+      }
+    }))
+  }
+
   const prevTimeline = get().timeline
   const currentId = get().currentStepId
   const splitId =
     res.currentStepId && prevTimeline.some((node) => node.id === res.currentStepId)
       ? res.currentStepId
       : currentId
-  const boundaryNode =
-    prevTimeline.find((node) => node.id === splitId) ??
-    prevTimeline.find((node) => node.id === currentId)
-  const fromOpIndex = boundaryNode?.opIndex ?? -1
   const previewExited = useDuelStore.getState().previewReturn !== null
   useDuelStore.getState().exitPreview()
   const { kept, dropped } = splitTimeline(prevTimeline, splitId)
@@ -57,13 +68,13 @@ export async function applyCardEditResult(
   })
   if (res.boardState) syncJumpToStepWrapped(res.boardState)
   restoreEngineSteps(timeline)
-  syncEngineStepsFromTimeline(timeline, fromOpIndex)
+  syncEngineStepsFromTimeline(timeline)
 
   const latestTimeline = await window.api.duelEngineGetTimeline().catch(() => null)
   if (latestTimeline) {
     set({ timeline: latestTimeline })
     restoreEngineSteps(latestTimeline)
-    syncEngineStepsFromTimeline(latestTimeline, fromOpIndex)
+    syncEngineStepsFromTimeline(latestTimeline)
   }
   return true
 }

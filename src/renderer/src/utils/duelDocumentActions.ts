@@ -16,6 +16,11 @@ import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { buildDuelDocument } from './duelDocumentBuild'
 import { clearDuelDocumentDraft } from './duelDocumentDraft'
 import {
+  commitDuelDocumentTitle,
+  documentTitleFromPath,
+  flushDuelDocumentTitle
+} from './duelDocumentTitle'
+import {
   flushDuelDocumentAutosave,
   getDuelDocumentRevision,
   hasUnsavedDuelDocument,
@@ -90,6 +95,11 @@ function syncHeaderToSuspendedSession(doc: EngineSessionDoc): void {
 export async function openDuelDocument(
   filePath: string
 ): Promise<{ success: boolean; error?: string }> {
+  const previousPath = useDuelStore.getState().currentProjectPath
+  await flushDuelDocumentTitle()
+  const currentPath = useDuelStore.getState().currentProjectPath
+  const targetPath =
+    previousPath && filePath === previousPath && currentPath ? currentPath : filePath
   if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode()
   const flushed = await flushDuelDocumentAutosave()
   if (!flushed && hasUnsavedDuelDocument()) {
@@ -100,9 +110,20 @@ export async function openDuelDocument(
   }
   suspendDuelDocumentAutosave()
   try {
-    const result = await window.api.readDuelDocument(filePath)
+    const result = await window.api.readDuelDocument(targetPath)
     if (!result.success || !result.document) {
       return { success: false, error: result.error ?? '读取对局文档失败' }
+    }
+    let resolvedPath = targetPath
+    const contentTitle = result.document.state.title?.trim()
+    if (contentTitle && contentTitle !== documentTitleFromPath(targetPath)) {
+      const renamed = await window.api
+        .renameDuelDocument(targetPath, contentTitle)
+        .catch(() => null)
+      if (renamed?.success && renamed.filePath) {
+        resolvedPath = renamed.filePath
+        result.document.state.title = documentTitleFromPath(resolvedPath)
+      }
     }
     const engineStore = useDuelEngineStore.getState()
     if (engineStore.isInitialized) {
@@ -111,7 +132,7 @@ export async function openDuelDocument(
     engineStore.setSuspendedDoc(null)
     const duelStore = useDuelStore.getState()
     duelStore.loadProjectAndStart(result.document.state)
-    duelStore.setCurrentProjectPath(filePath)
+    duelStore.setCurrentProjectPath(resolvedPath)
     let engineRestored = false
     let suspendedDoc: EngineSessionDoc | null = null
     const engineDoc = result.document.engine
@@ -148,6 +169,11 @@ export async function openDuelDocument(
 
 export async function saveDuelDocument(saveAs = false): Promise<DuelDocumentWriteResult> {
   if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode()
+  if (saveAs) {
+    await flushDuelDocumentTitle()
+  } else {
+    await commitDuelDocumentTitle(useDuelStore.getState().state.title)
+  }
   await flushDuelDocumentAutosave()
   const revision = getDuelDocumentRevision()
   const document = await buildDuelDocument()
@@ -165,7 +191,17 @@ export async function saveDuelDocument(saveAs = false): Promise<DuelDocumentWrit
   const result = await window.api.saveDuelDocumentDialog(document)
   if (result.success) {
     if (result.filePath) {
+      const fileName = result.filePath
+        .split(/[/\\]/)
+        .pop()
+        ?.replace(/\.ygoduel$/i, '')
       useDuelStore.getState().setCurrentProjectPath(result.filePath)
+      if (fileName) {
+        useDuelStore.setState((prev) => ({
+          ...prev,
+          state: { ...prev.state, title: fileName }
+        }))
+      }
     }
     notifyDuelDocumentSaved(revision)
   }

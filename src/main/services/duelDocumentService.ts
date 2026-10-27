@@ -91,10 +91,15 @@ export class DuelDocumentService {
   public readDocument(filePath: string): DuelDocumentReadResult {
     try {
       const content = readFileSync(filePath, 'utf-8')
+      const document = parseDuelDocumentJson(content)
+      const fileNameTitle = basename(filePath, extname(filePath))
+      if (document.state && !document.state.title?.trim() && fileNameTitle) {
+        document.state.title = fileNameTitle
+      }
       return {
         success: true,
         filePath,
-        document: parseDuelDocumentJson(content)
+        document
       }
     } catch (err) {
       return {
@@ -146,6 +151,8 @@ export class DuelDocumentService {
     const target = result.filePath.toLowerCase().endsWith(DOCUMENT_EXTENSION)
       ? result.filePath
       : `${result.filePath}${DOCUMENT_EXTENSION}`
+    const newTitle = basename(target, extname(target))
+    document.state.title = newTitle
     return this.saveDocument(target, document)
   }
 
@@ -313,12 +320,13 @@ export class DuelDocumentService {
   ): DuelDocumentEntry {
     const stat = statSync(filePath)
     const name = basename(filePath, extname(filePath))
+    const title = document.state.title?.trim() || name
     const provenance = summarizeStepProvenance(document.state.steps)
     return {
       filePath,
       fileName: basename(filePath),
       name,
-      title: document.state.title?.trim() || name,
+      title,
       categoryPath,
       updatedAt: stat.mtimeMs,
       ...provenance

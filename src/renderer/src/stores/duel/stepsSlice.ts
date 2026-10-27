@@ -1,14 +1,15 @@
 import type { StateCreator } from 'zustand'
 import {
-  CardLocation,
   DuelPhase,
   DuelStep,
   DuelPuzzleState,
-  FieldCard,
   LightweightCardSnapshot,
   PlayerState,
   createLightweightSnapshot,
   createStepId,
+  resolveOpeningCards,
+  resolveOpeningSnapshot,
+  restoreCardsFromSnapshot,
   replayManualSteps
 } from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
@@ -23,7 +24,17 @@ import { applyLpToDuelists, createLpFlash } from './lpSlice'
 import { pickNarrativeStepPatch } from './stepPatch'
 import type { DuelStore } from './types'
 
+interface SceneReturnSnapshot {
+  state: DuelPuzzleState
+  currentTurn: number
+  currentPhase: DuelPhase
+  currentChain: number
+  activeTurnPlayer: 0 | 1
+  currentStepIndex: number | null
+}
+
 let sceneEntrySignature: string | null = null
+let sceneReturnSnapshot: SceneReturnSnapshot | null = null
 
 export interface StepsSlice {
   activeRightTab: 'search' | 'steps'
@@ -66,30 +77,6 @@ export interface StepsSlice {
   isSceneDirty: () => boolean
 }
 
-function restoreCardsFromSnapshot(
-  currentCards: FieldCard[],
-  snapshot: LightweightCardSnapshot[]
-): FieldCard[] {
-  const cardMap = new Map(currentCards.map((c) => [c.instanceId, c]))
-  return snapshot.map((s) => {
-    const existing = cardMap.get(s.instanceId)
-    return {
-      instanceId: s.instanceId,
-      code: s.code,
-      card: existing?.card,
-      controller: s.controller,
-      owner: s.owner ?? s.controller,
-      location: s.location,
-      sequence: s.sequence,
-      position: s.position,
-      overlayMaterials: [...(s.overlayMaterials || [])],
-      duelistId: s.duelistId,
-      customAtk: s.customAtk,
-      customDef: s.customDef
-    }
-  })
-}
-
 function scenePatch(prev: DuelStore, scene: OpeningScene): Partial<DuelStore> {
   const cards = restoreCardsFromSnapshot(prev.state.cards, scene.cards)
   const players: [PlayerState, PlayerState] = [
@@ -121,60 +108,6 @@ function sceneOf(prev: DuelStore): OpeningScene {
     phase: prev.currentPhase,
     turnPlayer: prev.activeTurnPlayer
   }
-}
-
-function handKey(card: {
-  instanceId: string
-  code: number
-  controller: 0 | 1
-  location: number
-  sequence: number
-}): string {
-  return `${card.instanceId}:${card.code}:${card.controller}:${card.location}:${card.sequence}`
-}
-
-function stripInitialDraw(state: DuelPuzzleState, cards: FieldCard[]): FieldCard[] {
-  const first = state.steps?.[0]
-  if (!first || first.origin !== 'engine' || first.actionType !== 'DRAW') return cards
-  const draw = first.logEvents?.find(
-    (event): event is Extract<NonNullable<DuelStep['logEvents']>[number], { kind: 'draw' }> =>
-      event.kind === 'draw'
-  )
-  if (!draw || !first.boardAfter) return cards
-  const currentHand = cards
-    .filter((card) => card.location === CardLocation.HAND)
-    .map(handKey)
-    .sort()
-  const afterHand = first.boardAfter
-    .filter((card) => card.location === CardLocation.HAND)
-    .map(handKey)
-    .sort()
-  if (currentHand.length === 0 || currentHand.join('|') !== afterHand.join('|')) return cards
-
-  const next = cards.map((card) => ({ ...card }))
-  for (const drawn of draw.cards) {
-    if (!drawn.code) continue
-    for (let index = next.length - 1; index >= 0; index--) {
-      const card = next[index]
-      if (card.code === drawn.code && card.location === CardLocation.HAND) {
-        next.splice(index, 1)
-        break
-      }
-    }
-  }
-  const hand = next
-    .filter((card) => card.controller === draw.player && card.location === CardLocation.HAND)
-    .sort((a, b) => a.sequence - b.sequence)
-  const sequences = new Map(hand.map((card, index) => [card.instanceId, index]))
-  return next.map((card) =>
-    sequences.has(card.instanceId) ? { ...card, sequence: sequences.get(card.instanceId)! } : card
-  )
-}
-
-function openingCards(state: DuelPuzzleState): FieldCard[] {
-  const snapshot = state.initialBoardSnapshot ?? []
-  if (snapshot.length === 0) return state.cards
-  return stripInitialDraw(state, restoreCardsFromSnapshot(state.cards, snapshot))
 }
 
 export { createStepId } from '@shared/index'
@@ -608,10 +541,11 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         const steps = prev.state.steps || []
         const targetStep = stepIndex === null ? undefined : steps[stepIndex]
         const snapshot =
-          stepIndex === null ? prev.state.initialBoardSnapshot : targetStep?.boardAfter
+          stepIndex === null ? resolveOpeningSnapshot(prev.state) : targetStep?.boardAfter
 
         const previewReturn =
-          engineRunning && prev.previewReturn === null
+          (engineRunning || Boolean(useDuelEngineStore.getState().suspendedDoc)) &&
+          prev.previewReturn === null
             ? {
                 state: structuredClone(prev.state),
                 currentTurn: prev.currentTurn,
@@ -684,11 +618,24 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
   enterSceneMode: () => {
     if (get().sceneEditing) return true
     if (useDuelEngineStore.getState().isInitialized) return false
-    const scene = resolveOpeningScene(get().state)
-    const hasActionStep = (get().state.steps ?? []).some(
+    const current = get()
+    const baseState = current.previewReturn?.state ?? current.state
+    const scene = resolveOpeningScene(baseState)
+    const hasActionStep = (baseState.steps ?? []).some(
       (step) => step.actionType !== 'PHASE_CHANGE' && step.actionType !== 'TURN_CHANGE'
     )
     if (!scene && hasActionStep) return false
+    sceneReturnSnapshot = {
+      state: structuredClone(baseState),
+      currentTurn: current.previewReturn?.currentTurn ?? current.currentTurn,
+      currentPhase: current.previewReturn?.currentPhase ?? current.currentPhase,
+      currentChain: current.previewReturn?.currentChain ?? current.currentChain,
+      activeTurnPlayer: current.previewReturn?.activeTurnPlayer ?? current.activeTurnPlayer,
+      currentStepIndex: current.currentStepIndex
+    }
+    if (current.previewReturn) {
+      current.exitPreview()
+    }
     get().pauseUndoTracking()
     try {
       if (scene) {
@@ -709,29 +656,44 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     const scene = sceneOf(current)
     const changed = sceneEntrySignature !== null && sceneSignature(scene) !== sceneEntrySignature
     sceneEntrySignature = null
+    const snapshotToRestore = !changed ? sceneReturnSnapshot : null
+    sceneReturnSnapshot = null
     get().pauseUndoTracking()
     try {
-      set((prev) => {
-        const nextState = {
-          ...prev.state,
-          initialBoardSnapshot: scene.cards,
-          initialLp: scene.lp,
-          ...(changed ? { steps: [] } : {})
-        }
-        const derived = withDerivation({ ...prev, state: nextState })
-        const next = { ...prev, ...derived }
-        return {
-          ...derived,
-          ...scenePatch(next, scene),
+      if (snapshotToRestore) {
+        set((prev) => ({
+          ...prev,
           sceneEditing: false,
-          ...(changed
-            ? {
-                selectedStepId: null,
-                duelStarted: isDuelStarted({ cards: nextState.cards, steps: [] })
-              }
-            : {})
-        }
-      })
+          state: snapshotToRestore.state,
+          currentTurn: snapshotToRestore.currentTurn,
+          currentPhase: snapshotToRestore.currentPhase,
+          currentChain: snapshotToRestore.currentChain,
+          activeTurnPlayer: snapshotToRestore.activeTurnPlayer,
+          currentStepIndex: snapshotToRestore.currentStepIndex
+        }))
+      } else {
+        set((prev) => {
+          const nextState = {
+            ...prev.state,
+            initialBoardSnapshot: scene.cards,
+            initialLp: scene.lp,
+            ...(changed ? { steps: [] } : {})
+          }
+          const derived = withDerivation({ ...prev, state: nextState })
+          const next = { ...prev, ...derived }
+          return {
+            ...derived,
+            ...scenePatch(next, scene),
+            sceneEditing: false,
+            ...(changed
+              ? {
+                  selectedStepId: null,
+                  duelStarted: isDuelStarted({ cards: nextState.cards, steps: [] })
+                }
+              : {})
+          }
+        })
+      }
     } finally {
       get().resumeUndoTracking()
     }
@@ -765,14 +727,27 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
         prev.state.matchConfig
       )
       const activeTurnPlayer = (steps[0]?.turnPlayer ?? prev.state.turnPlayer ?? 0) as 0 | 1
+      const previewReturn =
+        (useDuelEngineStore.getState().isInitialized ||
+          Boolean(useDuelEngineStore.getState().suspendedDoc)) &&
+        prev.previewReturn === null
+          ? {
+              state: structuredClone(prev.state),
+              currentTurn: prev.currentTurn,
+              currentPhase: prev.currentPhase,
+              currentChain: prev.currentChain,
+              activeTurnPlayer: prev.activeTurnPlayer
+            }
+          : prev.previewReturn
       return {
         currentStepIndex: SCENE_STEP_INDEX,
         currentTurn: 1,
         currentPhase: 'DP',
         currentChain: 0,
         activeTurnPlayer,
+        previewReturn,
         lpFlash: null,
-        state: { ...prev.state, cards: openingCards(prev.state), players, duelists }
+        state: { ...prev.state, cards: resolveOpeningCards(prev.state), players, duelists }
       }
     })
   }

@@ -5,7 +5,6 @@ import { useEngineAwareUndoRedo } from './useEngineAwareUndoRedo'
 interface ShortcutCommands {
   handleNew: () => void
   handleSaveProject: () => Promise<void>
-  handleSaveProjectAs: () => void
   handleOpenProject: () => Promise<void>
   handleExportLua: () => Promise<void>
   handleTestInYgo: () => Promise<void>
@@ -16,7 +15,6 @@ export function useGlobalShortcuts(commands: ShortcutCommands): void {
   const {
     handleNew,
     handleSaveProject,
-    handleSaveProjectAs,
     handleOpenProject,
     handleExportLua,
     handleTestInYgo,
@@ -52,9 +50,6 @@ export function useGlobalShortcuts(commands: ShortcutCommands): void {
           e.preventDefault()
           redo()
         }
-      } else if (mod && e.altKey && e.key.toLowerCase() === 's') {
-        e.preventDefault()
-        handleSaveProjectAs()
       } else if (mod && !e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault()
         void handleSaveProject()
@@ -82,7 +77,6 @@ export function useGlobalShortcuts(commands: ShortcutCommands): void {
     redo,
     handleNew,
     handleSaveProject,
-    handleSaveProjectAs,
     handleOpenProject,
     handleExportLua,
     handleTestInYgo,

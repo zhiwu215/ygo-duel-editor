@@ -36,7 +36,8 @@ import {
   DuelLogCardRef,
   DuelLogEvent,
   DuelSummonKind,
-  LOCATION_NAMES
+  LOCATION_NAMES,
+  placeholderCardData
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
 import { getEffectDescText } from './strings-service'
@@ -99,7 +100,7 @@ function toPlayer(value: number): 0 | 1 {
 
 function nameOf(code: number): string | undefined {
   if (!code) return undefined
-  return cdbService.getCardById(code)?.name
+  return cdbService.getCardById(code)?.name ?? placeholderCardData(code)?.name
 }
 
 function typeOf(code: number): number {

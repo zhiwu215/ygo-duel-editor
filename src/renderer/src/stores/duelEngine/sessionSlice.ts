@@ -9,6 +9,7 @@ import {
   createLightweightSnapshot,
   isEngineSupportedMatch,
   normalizeTimingPolicy,
+  resolveOpeningSnapshot,
   reversePileSequences,
   reverseStepBoards
 } from '@shared/index'
@@ -27,6 +28,7 @@ import {
   restoreEngineSteps,
   splitTimeline
 } from './stepRecords'
+import { syncEngineStepsFromTimeline } from './stepRecordSync'
 import type { DuelEngineStore } from './types'
 
 type EngineMode = 'idle' | 'running' | 'paused'
@@ -150,14 +152,23 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       const currentDuelState = structuredClone(aligned)
       if ((currentDuelState.steps ?? []).length === 0) {
         const openingCards = createLightweightSnapshot(currentDuelState.cards)
+        const initialLp: [number, number] = [
+          currentDuelState.players[0]?.lp ?? 8000,
+          currentDuelState.players[1]?.lp ?? 8000
+        ]
         useDuelStore.setState((prev) => ({
           ...prev,
           state: {
             ...prev.state,
             initialBoardSnapshot: openingCards,
-            initialLp: [prev.state.players[0]?.lp ?? 8000, prev.state.players[1]?.lp ?? 8000]
+            initialLp
           }
         }))
+        currentDuelState.initialBoardSnapshot = openingCards
+        currentDuelState.initialLp = initialLp
+      } else {
+        const openingSnapshot = resolveOpeningSnapshot(currentDuelState)
+        if (openingSnapshot) currentDuelState.initialBoardSnapshot = openingSnapshot
       }
       duelStore.commitPreview()
       await window.api.duelEngineSetPolicy(get().timingPolicy)
@@ -373,6 +384,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       })
       syncJumpToStepWrapped(payload.boardState)
       restoreEngineSteps(payload.timeline)
+      syncEngineStepsFromTimeline(payload.timeline)
       useDuelStore.setState({ sceneEditing: false })
       if (doc.suspended) restoreStepPileOrder()
       useDuelStore.setState({ duelStarted: true })

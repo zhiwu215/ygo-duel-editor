@@ -260,14 +260,6 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
   const pzoneSeq = getPzoneSzoneSequence(puzzleState.masterRule)
 
   const fieldCards = puzzleState.cards.filter((c) => c.code > 0)
-  const handSequenceByInstance = new Map<string, number>()
-  for (const controller of [0, 1] as const) {
-    puzzleState.cards
-      .filter((c) => c.controller === controller && c.location === CardLocation.HAND)
-      .sort((a, b) => a.sequence - b.sequence)
-      .forEach((c, index) => handSequenceByInstance.set(c.instanceId, index))
-  }
-  const handFallback: [number, number] = [0, 0]
   let unsupportedPendulum = 0
 
   const takenSzone = new Set<number>()
@@ -304,7 +296,11 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
   }
 
   for (const card of fieldCards) {
-    if (card.location === CardLocation.DECK || card.location === CardLocation.EXTRA) {
+    if (
+      card.location === CardLocation.DECK ||
+      card.location === CardLocation.EXTRA ||
+      card.location === CardLocation.HAND
+    ) {
       continue
     }
     if (card.location === CardLocation.PZONE) {
@@ -318,18 +314,21 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
       continue
     }
     const isFieldZone = card.location === CardLocation.FZONE
-    const sequence =
-      card.location === CardLocation.HAND
-        ? (handSequenceByInstance.get(card.instanceId) ?? handFallback[card.controller]++)
-        : isFieldZone
-          ? FIELD_ZONE_SEQUENCE
-          : card.sequence
     createEngineCard(
       card,
       isFieldZone ? CardLocation.SZONE : card.location,
-      sequence,
+      isFieldZone ? FIELD_ZONE_SEQUENCE : card.sequence,
       card.position
     )
+  }
+
+  for (const controller of [0, 1] as const) {
+    const hand = fieldCards
+      .filter((c) => c.controller === controller && c.location === CardLocation.HAND)
+      .sort((a, b) => a.sequence - b.sequence)
+    hand.forEach((card, index) => {
+      createEngineCard(card, CardLocation.HAND, index, card.position)
+    })
   }
 
   for (const location of [CardLocation.DECK, CardLocation.EXTRA]) {
@@ -389,21 +388,10 @@ export function setupFromDeckParams(state: SessionState, params: EngineDuelInitP
   const p1Lp = params.p1Lp ?? 8000
   state.fieldReader.reset([p0Lp, p1Lp], 0)
 
-  const DEFAULT_DECK = [
-    89631139, 89631139, 89631139, 46986414, 46986414, 46986414, 70781052, 70781052, 70781052,
-    26082229, 26082229, 72302403, 72302403, 72302403, 53129443, 44095762, 44095762, 44095762,
-    83764718, 83764718, 83764718, 6368038, 6368038, 6368038, 12580477, 12580477, 12580477, 74677422,
-    74677422, 74677422, 4064256, 4064256, 4064256, 89943723, 89943723, 89943723, 10000000, 10000010,
-    10000020
-  ]
-
-  const p0Deck = params.p0Deck && params.p0Deck.length > 0 ? params.p0Deck : DEFAULT_DECK
-  const p1Deck = params.p1Deck && params.p1Deck.length > 0 ? params.p1Deck : DEFAULT_DECK
-  if (!params.p0Deck?.length || !params.p1Deck?.length) {
-    state.accumulatedLogs.push('未提供卡组，使用默认测试卡组')
-  }
-  const p0Extra = params.p0Extra || []
-  const p1Extra = params.p1Extra || []
+  const p0Deck = params.p0Deck ?? []
+  const p1Deck = params.p1Deck ?? []
+  const p0Extra = params.p0Extra ?? []
+  const p1Extra = params.p1Extra ?? []
 
   const p0StartHand = params.p0StartHand ?? (p0Deck.length > 0 ? 5 : 0)
   const p1StartHand = params.p1StartHand ?? (p1Deck.length > 0 ? 5 : 0)

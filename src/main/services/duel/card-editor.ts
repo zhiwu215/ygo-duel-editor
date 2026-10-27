@@ -4,6 +4,7 @@ import {
   EngineCard,
   EngineCardEditResult,
   EngineCardRef,
+  EngineEditedCardInfo,
   EngineTimelineNode,
   isStandardTag,
   isPlaceholderCard,
@@ -98,13 +99,7 @@ async function editCard(
         sequence: resolved.card.sequence
       }
     ]
-    remapRecordedAnswers(
-      state,
-      record.code,
-      action.code,
-      positions,
-      resolved.card.instanceId
-    )
+    remapRecordedAnswers(state, record.code, action.code, positions, resolved.card.instanceId)
   }
 
   deps.truncateToCurrentStep()
@@ -117,11 +112,27 @@ async function editCard(
     node.boardState = boardState
     node.pendingRequest = headPendingQuery(state)?.request ?? null
     updateEditedNodeTitle(state, record.origin, action)
+    const editedCard: EngineEditedCardInfo = {
+      action: action.type,
+      originKind: record.origin.kind,
+      instanceId:
+        record.origin.kind === 'initial' ? record.origin.puzzleCardId : resolved.card.instanceId,
+      oldCode: record.code,
+      newCode: action.type === 'replace' ? action.code : 0,
+      card:
+        action.type === 'replace'
+          ? (cdbService.getCardById(action.code) ?? placeholderCardData(action.code) ?? undefined)
+          : undefined
+    }
     return {
       boardState,
       pendingRequest: headPendingQuery(state)?.request ?? null,
       node,
-      currentStepId
+      currentStepId,
+      puzzleState: state.initParams?.puzzleState
+        ? structuredClone(state.initParams.puzzleState)
+        : undefined,
+      editedCard
     }
   } catch (err) {
     if (err instanceof ReplayDivergenceError && err.forkStepId) {
@@ -138,12 +149,32 @@ async function editCard(
           node.boardState = boardState
           node.pendingRequest = headPendingQuery(state)?.request ?? null
           updateEditedNodeTitle(state, record.origin, action)
+          const editedCard: EngineEditedCardInfo = {
+            action: action.type,
+            originKind: record.origin.kind,
+            instanceId:
+              record.origin.kind === 'initial'
+                ? record.origin.puzzleCardId
+                : resolved.card.instanceId,
+            oldCode: record.code,
+            newCode: action.type === 'replace' ? action.code : 0,
+            card:
+              action.type === 'replace'
+                ? (cdbService.getCardById(action.code) ??
+                  placeholderCardData(action.code) ??
+                  undefined)
+                : undefined
+          }
           return {
             boardState,
             pendingRequest: headPendingQuery(state)?.request ?? null,
             node,
             currentStepId: err.forkStepId,
-            warning: `${action.type === 'replace' ? '卡片已修改' : '卡片已移除'}，但对局在第 ${err.opIndex + 1} 条操作处无法与原历史对齐（原询问「${err.expectedTitle}」，重建后是「${err.actualTitle}」：${err.message}）。已回到该步之前，之后的操作需要重新进行。`
+            warning: `${action.type === 'replace' ? '卡片已修改' : '卡片已移除'}，但对局在第 ${err.opIndex + 1} 条操作处无法与原历史对齐（原询问「${err.expectedTitle}」，重建后是「${err.actualTitle}」：${err.message}）。已回到该步之前，之后的操作需要重新进行。`,
+            puzzleState: state.initParams?.puzzleState
+              ? structuredClone(state.initParams.puzzleState)
+              : undefined,
+            editedCard
           }
         } catch (forkErr) {
           console.error('[card-editor] 分叉重放失败:', forkErr)
@@ -182,10 +213,22 @@ function applySourceEdit(
   if (!target || target.code !== origin.code) return false
   if (action.type === 'remove') {
     puzzleState.cards = puzzleState.cards.filter((card) => card.instanceId !== origin.puzzleCardId)
+    if (puzzleState.initialBoardSnapshot) {
+      puzzleState.initialBoardSnapshot = puzzleState.initialBoardSnapshot.filter(
+        (snap) => snap.instanceId !== origin.puzzleCardId
+      )
+    }
   } else {
     target.code = action.code
     target.card =
       cdbService.getCardById(action.code) ?? placeholderCardData(action.code) ?? target.card
+    if (puzzleState.initialBoardSnapshot) {
+      for (const snap of puzzleState.initialBoardSnapshot) {
+        if (snap.instanceId === origin.puzzleCardId) {
+          snap.code = action.code
+        }
+      }
+    }
   }
   return true
 }

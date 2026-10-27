@@ -12,6 +12,7 @@ import {
   hasUnsavedDuelDocument,
   markDuelDocumentDirty
 } from '../utils/duelDocumentAutosave'
+import { flushDuelDocumentTitle } from '../utils/duelDocumentTitle'
 
 let draftPrompted = false
 
@@ -90,6 +91,7 @@ export function useDuelDocumentAutosave(): void {
         const duel = useDuelStore.getState()
         if (duel.sceneEditing) duel.exitSceneMode()
         if (duel.previewReturn) duel.exitPreview()
+        await flushDuelDocumentTitle()
         await flushDuelDocumentAutosave()
         const current = useDuelStore.getState()
         if (!current.currentProjectPath || hasUnsavedDuelDocument()) {

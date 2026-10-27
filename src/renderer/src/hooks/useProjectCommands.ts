@@ -6,11 +6,13 @@ import { alertDialog, confirmDialog, promptDialog } from '../stores/useDialogSto
 import { buildPuzzleStateFromEngineBoard } from '../utils/engineBoardToPuzzle'
 import { openDuelDocument, saveDuelDocument } from '../utils/duelDocumentActions'
 import { flushDuelDocumentAutosave } from '../utils/duelDocumentAutosave'
+import { flushDuelDocumentTitle } from '../utils/duelDocumentTitle'
 import { stripDetachedEngineSteps } from '../utils/stepHistory'
 import { coverageAdvice, formatCoverageWarning } from '../utils/coverageWarning'
 import {
   ContentCoverageDetail,
   DEFAULT_DUEL_TEST_SETTINGS,
+  DuelPuzzleState,
   EngineExportReplayResult,
   EngineSessionDoc,
   PLACEHOLDER_CARD_NAME,
@@ -18,7 +20,8 @@ import {
   isInGameTestSupported,
   isStandardTag,
   placeholderKindLabel,
-  placeholderKindOf
+  placeholderKindOf,
+  withEditorPileOrder
 } from '@shared/index'
 
 export interface ProjectCommands {
@@ -39,6 +42,12 @@ export function useProjectCommands(): ProjectCommands {
   const loadState = useDuelStore((s) => s.loadState)
   const resetDuel = useDuelStore((s) => s.resetDuel)
 
+  const resolveExportState = useCallback(
+    (source: DuelPuzzleState): DuelPuzzleState =>
+      useDuelEngineStore.getState().isInitialized ? withEditorPileOrder(source) : source,
+    []
+  )
+
   const handleNew = useCallback((): void => {
     void confirmDialog({
       title: '新建对局',
@@ -46,6 +55,7 @@ export function useProjectCommands(): ProjectCommands {
     }).then(async (ok) => {
       if (!ok) return
       if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode()
+      await flushDuelDocumentTitle()
       await flushDuelDocumentAutosave()
       const engine = useDuelEngineStore.getState()
       if (engine.isInitialized) engine.stopEngine()
@@ -91,13 +101,13 @@ export function useProjectCommands(): ProjectCommands {
     })
     if (choice !== true && choice !== 'full') return
     const duelType = choice === 'full' ? 'full' : 'puzzle'
-    const res = await window.api.exportLuaFile({ ...state, duelType })
+    const res = await window.api.exportLuaFile({ ...resolveExportState(state), duelType })
     if (res.success && res.filePath) {
       void alertDialog(`脚本导出成功！\n路径: ${res.filePath}`)
     } else if (res.error) {
       void alertDialog(`导出失败: ${res.error}`)
     }
-  }, [state])
+  }, [state, resolveExportState])
 
   const resolveCoverageNames = useCallback(
     async (coverage: ContentCoverageDetail): Promise<Record<number, string>> => {
@@ -124,7 +134,7 @@ export function useProjectCommands(): ProjectCommands {
     async (force = false): Promise<void> => {
       if (!isInGameTestSupported(state.matchConfig)) return
 
-      const testState = stripDetachedEngineSteps(state)
+      const testState = resolveExportState(stripDetachedEngineSteps(state))
       const testSettings =
         useConfigStore.getState().config.duelTestSettings ?? DEFAULT_DUEL_TEST_SETTINGS
 
@@ -178,12 +188,13 @@ export function useProjectCommands(): ProjectCommands {
         void alertDialog(`启动游戏测试失败: ${res.error}`)
       }
     },
-    [state, resolveCoverageNames]
+    [state, resolveCoverageNames, resolveExportState]
   )
 
   const handleImportLua = useCallback(async (): Promise<void> => {
     const res = await window.api.importLuaFile()
     if (res.success && res.state) {
+      await flushDuelDocumentTitle()
       await flushDuelDocumentAutosave()
       const engine = useDuelEngineStore.getState()
       if (engine.isInitialized) engine.stopEngine()
@@ -255,23 +266,6 @@ export function useProjectCommands(): ProjectCommands {
         )
         return
       }
-      const exportSteps = useDuelStore.getState().state.steps ?? []
-      const firstActionStep = exportSteps.find(
-        (step) =>
-          step.origin === 'engine' &&
-          Boolean(step.actId) &&
-          step.actionType !== 'DRAW' &&
-          step.actionType !== 'PHASE_CHANGE' &&
-          step.actionType !== 'TURN_CHANGE'
-      )
-      const firstActionNode = firstActionStep
-        ? (timeline.find(
-            (node) =>
-              node.id === (firstActionStep.startActId ?? firstActionStep.actId) ||
-              node.id === firstActionStep.endActId
-          ) ?? null)
-        : null
-      const startOpIndex = firstActionNode?.opIndex
       const editorState = useDuelStore.getState().state
       if (!isExportableMatch(editorState.matchConfig)) return
       if (!active) {
@@ -286,7 +280,9 @@ export function useProjectCommands(): ProjectCommands {
       const engineState = initialBoard
         ? buildPuzzleStateFromEngineBoard(initialBoard, {
             title: editorState.title,
-            masterRule: editorState.masterRule
+            masterRule: editorState.masterRule,
+            hostName: editorState.duelists?.[0]?.name,
+            clientName: editorState.duelists?.[1]?.name
           })
         : null
       const currentPuzzleState = engineState
@@ -299,7 +295,6 @@ export function useProjectCommands(): ProjectCommands {
             sourceRef: editorState.sourceRef,
             matchConfig: editorState.matchConfig,
             firstTurnAttack: editorState.firstTurnAttack,
-            duelists: editorState.duelists,
             scenarios: editorState.scenarios
           }
         : editorState
@@ -314,8 +309,7 @@ export function useProjectCommands(): ProjectCommands {
           name: exportName,
           overwrite,
           launch,
-          force,
-          startOpIndex
+          force
         })
         if (res.errorCode === 'replay-exists') {
           const replaceText = isStandardTag(currentPuzzleState.matchConfig)
@@ -366,8 +360,7 @@ export function useProjectCommands(): ProjectCommands {
                 name: exportName,
                 overwrite,
                 launch,
-                force: false,
-                startOpIndex
+                force: false
               })
             )
           }

@@ -25,6 +25,7 @@ import {
   HandResult
 } from 'ygopro-msg-encode'
 import { Answer } from '@shared/engine/protocol'
+import { placeholderCardData } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
 
 const IDLE_CMD_MAP: Record<string, IdleCmdType> = {
@@ -180,7 +181,9 @@ export function encodeAnswer(msg: unknown, answer: Answer): Uint8Array {
 
 export function describeAnswer(msg: unknown, answer: Answer): string {
   const cardName = (code?: number): string =>
-    code === undefined ? '' : cdbService.getCardById(code)?.name || String(code)
+    code === undefined
+      ? ''
+      : (cdbService.getCardById(code)?.name ?? placeholderCardData(code)?.name ?? String(code))
   const a = answer as Answer & {
     cmd?: string
     card?: { code: number }

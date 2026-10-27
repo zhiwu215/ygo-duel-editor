@@ -26,7 +26,6 @@ export interface EngineExportReplayParams {
   overwrite?: boolean
   launch?: boolean
   force?: boolean
-  startOpIndex?: number
 }
 
 export interface ContentCoverageDetail {

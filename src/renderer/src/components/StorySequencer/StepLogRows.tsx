@@ -1,6 +1,7 @@
 import React from 'react'
 import { Eye } from 'lucide-react'
 import {
+  CardLocation,
   DuelLogCardRef,
   DuelLogEvent,
   DuelStep,
@@ -14,7 +15,6 @@ import { resolveCardName } from '../../utils/cardNames'
 import { MdLocationIcon } from './MdLocationIcon'
 import { MDLOG_ASSETS, MDLOG_COLORS, maskStyle } from './mdpro3LogAssets'
 import { phaseName, sideName, summonLabel, zoneLabel } from './stepLogFormat'
-import drawIcon from '../../assets/log/draw.png'
 
 interface StepLogRowsProps {
   step: DuelStep
@@ -321,51 +321,59 @@ export const StepLogRows: React.FC<StepLogRowsProps> = ({ step, events }) => {
     }
 
     if (event.kind === 'draw') {
-      const names = event.cards
-        .map((card) => (card.code > 0 ? card.name || resolveCardName(card.code) : ''))
-        .filter(Boolean)
-      const first = event.cards.find((card) => card.code > 0)
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[52px] items-center gap-2 border-b border-border/20 bg-muted/20 px-2"
-        >
-          {first ? (
-            <LogCardThumb
-              card={{
-                code: first.code,
-                name: first.name,
-                controller: event.player,
-                location: 0,
-                sequence: 0
-              }}
-              width={25}
-              height={34}
-            />
-          ) : (
-            <div className="flex h-[34px] w-[25px] shrink-0 items-center justify-center rounded-[1px] border border-border bg-muted text-[7px] text-muted-foreground">
-              卡背
-            </div>
-          )}
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate text-[10px] font-semibold text-foreground/90">
-              {names.length > 0 ? names.join('、') : '未知卡片'}
+      const cards = event.cards.length > 0 ? event.cards : [{ code: 0 }]
+      const allUnknown = cards.every((c) => !c.code || c.code <= 0)
+      if (allUnknown && cards.length > 1) {
+        const dummyCard: DuelLogCardRef = {
+          code: 0,
+          name: '未知卡片',
+          controller: event.player,
+          location: CardLocation.HAND,
+          sequence: 0
+        }
+        rows.push(
+          <div
+            key={`log-${index}`}
+            className="flex h-[64px] items-center gap-2 border-b border-border/30 px-2"
+          >
+            <LogCardThumb card={dummyCard} />
+            <span className="shrink-0 text-[10px] font-bold text-foreground">
+              {`抽卡 ×${cards.length}`}
             </span>
-            <span className="truncate text-[9px] text-muted-foreground">
-              {sideName(event.player)} 抽卡 ×{event.cards.length || 1}
+            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground/90">
+              未知卡片
+            </span>
+            <span className="ml-auto flex shrink-0 items-center">
+              <MdLocationIcon card={dummyCard} size={30} />
             </span>
           </div>
-          <img src={drawIcon} alt="" className="h-3.5 w-3.5 shrink-0 opacity-80" />
-          <span
-            className={cn(
-              'shrink-0 text-[11px] font-bold',
-              event.player === 0 ? 'text-[#3b82f6]' : 'text-[#e11d48]'
-            )}
-          >
-            抽卡
-          </span>
-        </div>
-      )
+        )
+      } else {
+        cards.forEach((card, cardIndex) => {
+          const cardRef: DuelLogCardRef = {
+            code: card.code,
+            name: card.name || (card.code > 0 ? resolveCardName(card.code) : '未知卡片'),
+            controller: event.player,
+            location: CardLocation.HAND,
+            sequence: cardIndex
+          }
+          rows.push(
+            <div
+              key={`log-${index}-${cardIndex}`}
+              className="flex h-[64px] items-center gap-2 border-b border-border/30 px-2"
+            >
+              <LogCardThumb card={cardRef} />
+              <span className="shrink-0 text-[10px] font-bold text-foreground">抽卡</span>
+              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground/90">
+                {nameOf(cardRef)}
+              </span>
+              <span className="ml-auto flex shrink-0 items-center">
+                <MdLocationIcon card={cardRef} size={30} />
+              </span>
+            </div>
+          )
+        })
+      }
       return
     }
 

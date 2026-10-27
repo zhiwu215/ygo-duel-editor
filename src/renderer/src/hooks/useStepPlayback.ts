@@ -50,9 +50,18 @@ export function useStepPlayback(): {
 
   const handleResetPlayback = (): void => {
     if (useDuelStore.getState().sceneEditing) return
-    if (useDuelEngineStore.getState().isInitialized) {
-      const first = useDuelEngineStore.getState().timeline[0]
-      if (first) void useDuelEngineStore.getState().jumpToStep(first.id)
+    const engine = useDuelEngineStore.getState()
+    if (engine.loading) return
+    if (engine.isInitialized) {
+      if (engine.replayInfo) {
+        const first = engine.timeline[0]
+        if (first) void engine.jumpToStep(first.id)
+        return
+      }
+      void (async () => {
+        await engine.suspendEngine()
+        useDuelStore.getState().previewTimelineStart()
+      })()
       return
     }
     useDuelStore.getState().previewTimelineStart()

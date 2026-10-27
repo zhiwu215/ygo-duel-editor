@@ -1,4 +1,5 @@
 import { CardLocation } from '../constants/locations'
+import type { DuelPuzzleState } from '../types/duel'
 import type { DuelStep } from '../types/story'
 
 const REVERSED_PILE_LOCATIONS = new Set<number>([CardLocation.DECK, CardLocation.EXTRA])
@@ -44,4 +45,8 @@ export function reverseStepBoards(steps: DuelStep[]): DuelStep[] {
   return steps.map((step) =>
     step.boardAfter ? { ...step, boardAfter: reversePileSequences(step.boardAfter) } : step
   )
+}
+
+export function withEditorPileOrder(state: DuelPuzzleState): DuelPuzzleState {
+  return { ...state, cards: reversePileSequences(state.cards) }
 }

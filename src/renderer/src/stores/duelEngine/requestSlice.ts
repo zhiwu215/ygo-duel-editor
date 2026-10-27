@@ -13,6 +13,7 @@ import { applyChainEvents, chainStateAtNode } from './chainState'
 import { engineErrorMessage } from './engineErrorMessage'
 import { cancelLpSequence, lpSequenceSteps, playLpSequence } from './lpSequence'
 import { discardFutureSteps, hasEngineStep, restoreEngineSteps, splitTimeline } from './stepRecords'
+import { syncEngineStepsFromTimeline } from './stepRecordSync'
 import { appendEngineStepFromAnswer } from './stepRecording'
 import type { DuelEngineStore } from './types'
 
@@ -188,6 +189,7 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
       get().playStepEffects(node)
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(get().timeline)
+      syncEngineStepsFromTimeline(get().timeline)
       return true
     } catch (err) {
       console.error('[useDuelEngineStore] jumpToStep failed:', err)

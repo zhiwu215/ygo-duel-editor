@@ -159,6 +159,7 @@ export class DuelSession {
 
     try {
       this.createDuelFromInit()
+      this.recordInitialReplayNodeState()
 
       for (let index = 0; index <= target.node.opIndex; index++) {
         const op = state.ops[index]
@@ -175,6 +176,13 @@ export class DuelSession {
           if (state.lastAdvanceRetried) {
             throw new Error(`重放第 ${index + 1} 条操作（注入）时引擎拒绝了重放。`)
           }
+          if (!state.requestSnapshot && state.duel && !state.duel.ended) {
+            try {
+              state.requestSnapshot = state.duel.snapshot()
+            } catch {
+              state.requestSnapshot = null
+            }
+          }
           this.recordReplayNodeState(index)
           continue
         }
@@ -183,7 +191,8 @@ export class DuelSession {
           const recorded = answers?.[responseIndex]
           try {
             this.feedReplayResponse(
-              op.responses[responseIndex],
+              op,
+              responseIndex,
               recorded,
               op.type === 'auto' ? '自动应答' : '玩家应答'
             )
@@ -222,12 +231,21 @@ export class DuelSession {
     state.timeline.setCurrentStepId(stepId)
   }
 
+  private sendDuelResponse(response: Uint8Array): void {
+    if (this.state.recordingResponses) {
+      this.state.recordingResponses.push(new Uint8Array(response))
+    }
+    this.state.duel!.setResponse(response)
+  }
+
   private feedReplayResponse(
-    raw: Uint8Array,
+    op: DuelOperation,
+    responseIndex: number,
     recorded: RecordedAnswer | undefined,
     kind: string
   ): void {
     const state = this.state
+    const raw = op.type === 'inject' ? new Uint8Array(0) : op.responses[responseIndex]
     if (recorded) {
       let inserted = 0
       for (;;) {
@@ -246,7 +264,10 @@ export class DuelSession {
             }
             throw err
           }
-          state.duel!.setResponse(response)
+          if (op.type !== 'inject') {
+            op.responses[responseIndex] = response
+          }
+          this.sendDuelResponse(response)
           advanceEngine(state)
           if (state.lastAdvanceRetried) {
             throw new ReplayDivergenceError(`${kind}被引擎拒绝。`)
@@ -258,13 +279,15 @@ export class DuelSession {
           if (!answer) {
             throw new ReplayDivergenceError('新增询问不能默认不发动。')
           }
+          let optResp: Uint8Array
           try {
-            state.duel!.setResponse(encodeAnswer(head.msg, answer))
+            optResp = encodeAnswer(head.msg, answer)
           } catch (err) {
             throw new ReplayDivergenceError(
               err instanceof Error ? err.message : '新增询问无法编码默认应答。'
             )
           }
+          this.sendDuelResponse(optResp)
           advanceEngine(state)
           if (state.lastAdvanceRetried) {
             throw new ReplayDivergenceError('新增可选询问的默认应答被引擎拒绝。')
@@ -283,7 +306,7 @@ export class DuelSession {
     }
 
     const headBefore = headPendingQuery(state)
-    state.duel!.setResponse(raw)
+    this.sendDuelResponse(raw)
     advanceEngine(state)
     if (!state.lastAdvanceRetried) return
     if (headBefore && isNewOptionalPrompt(headBefore.request)) {
@@ -291,12 +314,12 @@ export class DuelSession {
       if (!answer) {
         throw new ReplayDivergenceError('新增询问不能默认不发动。')
       }
-      state.duel!.setResponse(encodeAnswer(headBefore.msg, answer))
+      this.sendDuelResponse(encodeAnswer(headBefore.msg, answer))
       advanceEngine(state)
       if (state.lastAdvanceRetried) {
         throw new ReplayDivergenceError('新增可选询问的默认应答被引擎拒绝。')
       }
-      state.duel!.setResponse(raw)
+      this.sendDuelResponse(raw)
       advanceEngine(state)
       if (!state.lastAdvanceRetried) return
     }
@@ -315,6 +338,32 @@ export class DuelSession {
     return fork
   }
 
+  private recordInitialReplayNodeState(): void {
+    const state = this.state
+    const firstNode = state.timeline.getHistoryPath()[0]
+    if (!firstNode) return
+    let board: EngineBoardState
+    try {
+      board = this.readBoard()
+    } catch {
+      return
+    }
+    firstNode.boardState = board
+    firstNode.pendingRequest = headPendingQuery(state)?.request ?? null
+    if (state.accumulatedLogEvents.length > 0) {
+      firstNode.logEvents = [...state.accumulatedLogEvents]
+    }
+    if (state.accumulatedEvents.length > 0) {
+      firstNode.events = [...state.accumulatedEvents]
+    }
+    if (state.accumulatedLogs.length > 0) {
+      firstNode.logs = [...state.accumulatedLogs]
+    }
+    state.accumulatedLogs = []
+    state.accumulatedEvents = []
+    state.accumulatedLogEvents = []
+  }
+
   private recordReplayNodeState(opIndex: number): void {
     const state = this.state
     const nodes = state.timeline.getHistoryPath().filter((node) => node.opIndex === opIndex)
@@ -326,10 +375,35 @@ export class DuelSession {
       return
     }
     const request = headPendingQuery(state)?.request ?? null
+    const op = state.ops[opIndex]
+    const recorded = op?.type === 'answer' ? op.answers?.[0] : undefined
+    const answerTitle =
+      recorded && op?.type === 'answer'
+        ? withHandShuffleNote(
+            describeAnswer({ player: recorded.prompt.player }, recorded.answer),
+            state.accumulatedEvents
+          )
+        : undefined
+
     for (const node of nodes) {
       node.boardState = board
       node.pendingRequest = request
+      if (state.accumulatedLogEvents.length > 0) {
+        node.logEvents = [...state.accumulatedLogEvents]
+      }
+      if (state.accumulatedEvents.length > 0) {
+        node.events = [...state.accumulatedEvents]
+      }
+      if (state.accumulatedLogs.length > 0) {
+        node.logs = [...state.accumulatedLogs]
+      }
+      if (answerTitle) {
+        node.title = answerTitle
+      }
     }
+    state.accumulatedLogs = []
+    state.accumulatedEvents = []
+    state.accumulatedLogEvents = []
   }
 
   private truncateToCurrentStep(): void {
@@ -682,6 +756,9 @@ export class DuelSession {
     const replaying = state.replaying
     const snapshot = state.requestSnapshot
     if (!snapshot) {
+      if (state.duel && !state.duel.ended) {
+        return
+      }
       throw new Error('当前请求没有可用的引擎快照，无法重新校验注入。')
     }
     const duel = await createDuelFromSnapshot(snapshot)
@@ -717,6 +794,13 @@ export class DuelSession {
     const outcome = executeInject(state.duel!, command, before)
     advanceEngine(state)
     state.autoAnswers = []
+    if (!state.requestSnapshot && state.duel && !state.duel.ended) {
+      try {
+        state.requestSnapshot = state.duel.snapshot()
+      } catch {
+        state.requestSnapshot = null
+      }
+    }
     const boardState = this.readBoard()
     const warning = outcome.warning ?? verifyInject(command, before, boardState)
 
@@ -896,12 +980,15 @@ export class DuelSession {
     const previous = state.timeline.getCurrentStep()
 
     state.recordingMessages = []
+    const recordedResponses: Uint8Array[] = []
+    state.recordingResponses = recordedResponses
     let messages: Uint8Array[]
     try {
       await this.replayTo(target.id)
       messages = state.recordingMessages ?? []
     } finally {
       state.recordingMessages = null
+      state.recordingResponses = null
       if (previous && previous.node.id !== target.id) {
         try {
           await this.replayTo(previous.node.id)
@@ -913,7 +1000,34 @@ export class DuelSession {
     if (messages.length === 0) {
       throw new Error('没有录制到任何引擎消息，无法导出 MDPro3 回放。')
     }
-    return { messages, responses: this.getAllTimelineResponses() }
+    return { messages, responses: recordedResponses }
+  }
+
+  async exportReplayResponses(): Promise<Uint8Array[]> {
+    const state = this.state
+    if (state.replay) {
+      throw new Error('回放模式为只读，无法导出录像。')
+    }
+    const target = this.timelineTip()
+    if (!state.initParams || !target) {
+      throw new Error('引擎尚未启动，无法导出录像。')
+    }
+    const previous = state.timeline.getCurrentStep()
+    const recordedResponses: Uint8Array[] = []
+    state.recordingResponses = recordedResponses
+    try {
+      await this.replayTo(target.id)
+    } finally {
+      state.recordingResponses = null
+      if (previous && previous.node.id !== target.id) {
+        try {
+          await this.replayTo(previous.node.id)
+        } catch (err) {
+          console.error('[duel-session] 导出后恢复原步骤失败:', err)
+        }
+      }
+    }
+    return recordedResponses
   }
 
   private timelineTip(): EngineTimelineNode | null {
@@ -921,17 +1035,14 @@ export class DuelSession {
     return nodes[nodes.length - 1] ?? null
   }
 
-  getAllTimelineResponses(skipInitialSetup = false, startOpIndex?: number): Uint8Array[] {
+  getAllTimelineResponses(): Uint8Array[] {
     const state = this.state
     if (state.replay) {
       throw new Error('回放模式为只读，无法导出录像。')
     }
-    const firstNode = state.timeline.getAllNodes()[0]
-    const firstOpIndex =
-      startOpIndex ?? (skipInitialSetup && firstNode ? firstNode.opIndex + 1 : 0)
     const lastOpIndex = this.timelineTip()?.opIndex ?? -1
     return state.ops
-      .slice(Math.max(0, firstOpIndex), lastOpIndex + 1)
+      .slice(0, lastOpIndex + 1)
       .flatMap((op) => (op.type === 'inject' ? [] : op.responses))
   }
 
@@ -944,7 +1055,7 @@ export class DuelSession {
   }
 
   hasInjectOps(): boolean {
-    return this.state.ops.some((op) => op.type === 'inject')
+    return this.state.ops.some((op) => op.type === 'inject' && !op.removed)
   }
 }
 

@@ -15,6 +15,7 @@ import { duelActionLabel } from '../../utils/stepLabels'
 import { stepCardName } from '../../utils/cardNames'
 import { saveDuelDocument } from '../../utils/duelDocumentActions'
 import { createDuelDocumentForCurrentDuel } from '../../utils/duelDocumentCreate'
+import { commitDuelDocumentTitle, flushDuelDocumentTitle } from '../../utils/duelDocumentTitle'
 import { buildScreenplayText } from '../../utils/screenplayText'
 import { useDuelDocumentSaveStatus } from '../../hooks/useDuelDocumentSaveStatus'
 import { AutoResizeTextarea } from '../ui/AutoResizeTextarea'
@@ -184,19 +185,8 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
     }
   }
 
-  const autoSaveTitle = async (): Promise<void> => {
-    if (!currentProjectPath) return
-    const stored = await window.api.readDuelDocument(currentProjectPath)
-    if (!stored.success || !stored.document) return
-    const currentState = useDuelStore.getState().state
-    if ((currentState.title || '') === (stored.document.state.title || '')) return
-    const onlyTitleChanged =
-      JSON.stringify({ ...currentState, title: stored.document.state.title }) ===
-      JSON.stringify(stored.document.state)
-    if (onlyTitleChanged) await handleSave()
-  }
-
   const handleBack = async (): Promise<void> => {
+    await flushDuelDocumentTitle()
     if (!currentProjectPath) {
       onBack()
       return
@@ -381,7 +371,10 @@ export const DuelScriptEditorPanel: React.FC<DuelScriptEditorPanelProps> = ({ on
           <input
             value={state.title || ''}
             onChange={(event) => setTitle(event.target.value)}
-            onBlur={() => void autoSaveTitle()}
+            onBlur={(event) => void commitDuelDocumentTitle(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur()
+            }}
             className="min-w-0 flex-1 rounded border border-border/60 bg-background/60 px-2 py-1 text-xs font-semibold text-foreground outline-none focus:border-foreground/30"
             placeholder="未命名台本"
           />

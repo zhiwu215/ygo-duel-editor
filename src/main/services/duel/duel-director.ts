@@ -93,8 +93,12 @@ export class DuelDirector {
     return duelSession.getPendingRequest()
   }
 
-  getAllTimelineResponses(skipInitialSetup = false, startOpIndex?: number): Uint8Array[] {
-    return duelSession.getAllTimelineResponses(skipInitialSetup, startOpIndex)
+  exportReplayResponses(): Promise<Uint8Array[]> {
+    return duelSession.exportReplayResponses()
+  }
+
+  getAllTimelineResponses(): Uint8Array[] {
+    return duelSession.getAllTimelineResponses()
   }
 
   getSeed(): number[] {

@@ -1,3 +1,5 @@
+import type { CdbCard } from '../types/card'
+import type { DuelPuzzleState } from '../types/duel'
 import { EngineBoardState, EngineDiffResult, EngineTimelineNode } from '../types/duelEngine'
 
 export type RequestKind =
@@ -241,6 +243,15 @@ export type EngineProvenance =
     }
   | { kind: 'unknown' }
 
+export interface EngineEditedCardInfo {
+  action: 'replace' | 'remove'
+  originKind: 'initial' | 'inject'
+  instanceId: string
+  oldCode: number
+  newCode: number
+  card?: CdbCard
+}
+
 export interface EngineCardEditResult {
   boardState?: EngineBoardState
   pendingRequest?: EngineRequest | null
@@ -248,4 +259,6 @@ export interface EngineCardEditResult {
   currentStepId?: string
   warning?: string
   error?: string
+  puzzleState?: DuelPuzzleState
+  editedCard?: EngineEditedCardInfo
 }

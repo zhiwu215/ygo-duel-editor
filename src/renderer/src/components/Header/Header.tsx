@@ -27,13 +27,12 @@ import { useSceneMode } from '../../hooks/useSceneMode'
 import { useStartEngine } from '../../hooks/useStartEngine'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useUpdateStore } from '../../stores/useUpdateStore'
+import { commitDuelDocumentTitle } from '../../utils/duelDocumentTitle'
 import { confirmDialog } from '../../stores/useDialogStore'
 
 export const Header: React.FC = () => {
   const engineMode = useDuelEngineStore((s) => s.engineMode)
   const isEngineLoading = useDuelEngineStore((s) => s.loading)
-  const engineTimeline = useDuelEngineStore((s) => s.timeline)
-  const engineCurrentStepId = useDuelEngineStore((s) => s.currentStepId)
   const mergedMatch = useDuelEngineStore((s) => s.mergedMatch)
   const suspendEngine = useDuelEngineStore((s) => s.suspendEngine)
   const resumeSuspended = useDuelEngineStore((s) => s.resumeSuspended)
@@ -44,16 +43,8 @@ export const Header: React.FC = () => {
   const engineUnsupported = engineSupport?.supported === false
   const { state, setMasterRule, setTitle, previewReturn, sceneEditing } = useDuelStore()
   const sceneDirty = useDuelStore((s) => (s.sceneEditing ? s.isSceneDirty() : false))
-  const { toggleSceneMode, sceneReturnStepId } = useSceneMode()
+  const { toggleSceneMode } = useSceneMode()
   const startEngine = useStartEngine()
-  const engineAtScene =
-    engineMode === 'running' &&
-    engineTimeline.length > 0 &&
-    engineCurrentStepId === engineTimeline[0]?.id
-  const canExitSceneView =
-    engineAtScene &&
-    Boolean(sceneReturnStepId) &&
-    engineTimeline.some((node) => node.id === sceneReturnStepId)
   const canResume = suspendedDoc
     ? boardFingerprintMatches(
         suspendedDoc.boardFingerprint,
@@ -89,7 +80,6 @@ export const Header: React.FC = () => {
   useGlobalShortcuts({
     handleNew,
     handleSaveProject,
-    handleSaveProjectAs,
     handleOpenProject,
     handleExportLua,
     handleTestInYgo,
@@ -136,6 +126,10 @@ export const Header: React.FC = () => {
             type="text"
             value={state.title}
             onChange={(e) => setTitle(e.target.value)}
+            onBlur={(e) => void commitDuelDocumentTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur()
+            }}
             placeholder="未命名对局"
             className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
           />
@@ -187,13 +181,11 @@ export const Header: React.FC = () => {
             variant="outline"
             size="xs"
             disabled={isEngineLoading}
-            onClick={toggleSceneMode}
+            onClick={() => void toggleSceneMode()}
             className={`h-7 px-2 text-[11px] font-bold gap-1 ${
               sceneEditing
                 ? 'bg-amber-500/15 text-amber-600 border-amber-500/40 hover:bg-amber-500/25 dark:text-amber-400'
-                : engineAtScene
-                  ? 'bg-primary/10 text-primary border-primary/40 hover:bg-primary/15'
-                  : 'bg-background/60 text-muted-foreground border-border hover:bg-muted'
+                : 'bg-background/60 text-muted-foreground border-border hover:bg-muted'
             }`}
           >
             {sceneEditing ? (
@@ -201,18 +193,7 @@ export const Header: React.FC = () => {
             ) : (
               <Clapperboard className="w-3.5 h-3.5" />
             )}
-            <span>
-              {sceneEditing
-                ? sceneDirty
-                  ? '完成布景'
-                  : '退出布景'
-                : canExitSceneView
-                  ? '退出布景'
-                  : '布景'}
-            </span>
-            {engineMode === 'running' && !sceneEditing && !canExitSceneView && (
-              <span className="text-[8px] font-semibold opacity-70">起点</span>
-            )}
+            <span>{sceneEditing ? (sceneDirty ? '完成布景' : '退出布景') : '布景'}</span>
           </Button>
 
           <Separator orientation="vertical" className="h-4" />

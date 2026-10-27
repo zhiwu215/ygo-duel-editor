@@ -27,6 +27,10 @@ function cardName(card: DuelLogCardRef, wrapper: string | undefined): string {
 }
 
 export function summaryEventIndex(step: DuelStep, events: DuelLogEvent[]): number {
+  if (step.actionType === 'DRAW') {
+    const drawIndex = events.findIndex((e) => e.kind === 'draw')
+    if (drawIndex >= 0) return drawIndex
+  }
   const cardCode = step.cardCode
   if (!cardCode) return -1
   const matches = (card: DuelLogCardRef): boolean => card.code === cardCode

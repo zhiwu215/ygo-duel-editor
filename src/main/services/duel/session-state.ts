@@ -51,6 +51,7 @@ export interface SessionState {
   replaying: boolean
   replay: ReplayPlayback | null
   recordingMessages: Uint8Array[] | null
+  recordingResponses: Uint8Array[] | null
   provenance: Map<string, ProvenanceRecord>
 }
 
@@ -80,6 +81,7 @@ export function createSessionState(): SessionState {
     replaying: false,
     replay: null,
     recordingMessages: null,
+    recordingResponses: null,
     provenance: new Map()
   }
 }

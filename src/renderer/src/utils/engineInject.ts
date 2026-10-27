@@ -31,7 +31,7 @@ export function buildInjectCommand(target: InjectDropTarget): InjectCommand | nu
     case CardLocation.REMOVED:
       return { ...base, to: 'removed' }
     case CardLocation.EXTRA:
-      return { ...base, to: 'extra' }
+      return { ...base, to: 'extra', position }
     case CardLocation.FZONE:
       return { ...base, to: 'fzone', position }
     case CardLocation.MZONE:

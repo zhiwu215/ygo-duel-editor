@@ -383,7 +383,15 @@ export class YgoproLauncher {
     }
     const gameType = config.gameType ?? 'ygopro'
     const isTag = isStandardTag(params.state.matchConfig)
-    const responses = duelDirector.getAllTimelineResponses(!isTag, params.startOpIndex)
+    if (duelDirector.hasInjectOps()) {
+      return {
+        success: false,
+        errorCode: 'replay-failed',
+        error:
+          '当前引擎会话包含注入操作（手动加卡、改卡、替换、置顶/置底等）。YRP 回放只记录开局盘面和之后的应答流，无法复现对局中途注入的卡（占位卡也一样）。\n\n如果这些卡原本就应在开局盘面/卡组里，请先摆好再启动引擎；中途注入只能改用「使用游戏测试该局」测试当前盘面，或从无注入的开局重新对局后导出回放。'
+      }
+    }
+    const responses = await duelDirector.exportReplayResponses()
     const seed = duelDirector.getSeed()
     if (responses.length === 0) {
       return {
@@ -403,16 +411,9 @@ export class YgoproLauncher {
       }
     }
 
-    if (isTag && duelDirector.hasInjectOps()) {
-      return {
-        success: false,
-        errorCode: 'replay-failed',
-        error: '2v2 回放不支持注入（inject）操作；请从无注入的开局重新导出。'
-      }
-    }
     const names = this.buildReplayNames(params.state, isTag)
     const initParams = duelDirector.getInitParams()
-    const rawReplayState = isTag && initParams?.puzzleState ? initParams.puzzleState : params.state
+    const rawReplayState = initParams?.puzzleState ?? params.state
     const replayState =
       gameType === 'mdpro3' ? rawReplayState : mapPlaceholderCodesForGame(rawReplayState)
     if (collectStateCardIds(replayState).some(isPlaceholderCard)) {

@@ -73,7 +73,6 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
         },
         {
           label: '另存为...',
-          shortcut: 'Ctrl+Alt+S',
           action: actions.onSaveProjectAs
         }
       ]

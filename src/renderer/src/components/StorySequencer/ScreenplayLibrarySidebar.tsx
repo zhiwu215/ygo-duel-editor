@@ -7,7 +7,8 @@ import { StepProvenanceBadge } from '../common/StepProvenanceBadge'
 import { alertDialog, confirmDialog, promptDialog } from '../../stores/useDialogStore'
 import { buildDuelDocument } from '../../utils/duelDocumentBuild'
 import { flushDuelDocumentAutosave } from '../../utils/duelDocumentAutosave'
-import { findDocumentTitleConflict } from '../../utils/duelDocumentTree'
+import { flushDuelDocumentTitle } from '../../utils/duelDocumentTitle'
+import { findDocumentTitleConflict, nextAvailableDocumentTitle } from '../../utils/duelDocumentTree'
 import { cn } from '../../lib/utils'
 
 interface ScreenplayLibrarySidebarProps {
@@ -94,14 +95,16 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
   }
 
   const createDocument = async (folderPath: string): Promise<void> => {
+    const defaultTitle = nextAvailableDocumentTitle(tree, folderPath, '未命名对局')
     const title = await promptDialog({
       title: '新建台本',
-      placeholder: '台本标题',
+      placeholder: defaultTitle,
+      initialValue: defaultTitle,
       confirmText: '创建',
-      validate: (value) => titleConflictMessage(tree, folderPath, value.trim() || '未命名对局')
+      validate: (value) => titleConflictMessage(tree, folderPath, value.trim() || defaultTitle)
     })
     if (title === null) return
-    const trimmed = title.trim() || '未命名对局'
+    const trimmed = title.trim() || defaultTitle
     const confirmed = await confirmDialog({
       title: '基于当前决斗盘创建台本',
       description: '当前盘面、步骤和台本文本会复制到新台本中。',
@@ -110,6 +113,7 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
       icon: 'info'
     })
     if (!confirmed) return
+    await flushDuelDocumentTitle()
     await flushDuelDocumentAutosave()
     const document = structuredClone(await buildDuelDocument())
     document.state.title = trimmed

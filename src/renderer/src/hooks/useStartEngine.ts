@@ -16,10 +16,8 @@ import { alertDialog, confirmDialog } from '../stores/useDialogStore'
 function canResumeSuspended(): boolean {
   const doc = useDuelEngineStore.getState().suspendedDoc
   if (!doc) return false
-  return boardFingerprintMatches(
-    doc.boardFingerprint,
-    computeBoardFingerprint(useDuelStore.getState().state)
-  )
+  const state = useDuelStore.getState().previewReturn?.state ?? useDuelStore.getState().state
+  return boardFingerprintMatches(doc.boardFingerprint, computeBoardFingerprint(state))
 }
 
 export function useStartEngine(): (options?: { skipResume?: boolean }) => Promise<void> {

@@ -4,7 +4,8 @@ import {
   DuelPuzzleState,
   DuelStep,
   LightweightCardSnapshot,
-  defaultPositionForLocation
+  defaultPositionForLocation,
+  resolveOpeningSnapshot
 } from '@shared/index'
 
 export const SCENE_STEP_INDEX = -1
@@ -209,7 +210,7 @@ export function resolveOpeningScene(state: DuelPuzzleState): OpeningScene | null
   )
   const boardSource = firstAction ?? first
   const derived = firstAction ? reverseStepBoard(firstAction) : null
-  const snapshot = state.initialBoardSnapshot ? cloneBoard(state.initialBoardSnapshot) : null
+  const snapshot = resolveOpeningSnapshot(state)
   const preferSnapshot = snapshot ? snapshotMatchesStep(snapshot, boardSource) : false
   const cards = snapshot && preferSnapshot ? snapshot : (derived ?? snapshot)
   if (!cards) return null

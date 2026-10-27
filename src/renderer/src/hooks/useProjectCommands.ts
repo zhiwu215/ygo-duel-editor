@@ -6,6 +6,7 @@ import { alertDialog, confirmDialog, promptDialog } from '../stores/useDialogSto
 import { buildPuzzleStateFromEngineBoard } from '../utils/engineBoardToPuzzle'
 import { openDuelDocument, saveDuelDocument } from '../utils/duelDocumentActions'
 import { flushDuelDocumentAutosave } from '../utils/duelDocumentAutosave'
+import { stripDetachedEngineSteps } from '../utils/stepHistory'
 import { coverageAdvice, formatCoverageWarning } from '../utils/coverageWarning'
 import {
   ContentCoverageDetail,
@@ -123,10 +124,11 @@ export function useProjectCommands(): ProjectCommands {
     async (force = false): Promise<void> => {
       if (!isInGameTestSupported(state.matchConfig)) return
 
+      const testState = stripDetachedEngineSteps(state)
       const testSettings =
         useConfigStore.getState().config.duelTestSettings ?? DEFAULT_DUEL_TEST_SETTINGS
 
-      const res = await window.api.testInYgo(state, force, testSettings)
+      const res = await window.api.testInYgo(testState, force, testSettings)
       if (res.success) return
       if (res.errorCode === 'content-missing' && res.coverage) {
         const names = await resolveCoverageNames(res.coverage)
@@ -146,7 +148,7 @@ export function useProjectCommands(): ProjectCommands {
             void alertDialog(`同步自定义卡到游戏失败\n\n${sync.error ?? '未知错误'}`)
             return
           }
-          const retry = await window.api.testInYgo(state, false, testSettings)
+          const retry = await window.api.testInYgo(testState, false, testSettings)
           if (retry.success) return
           if (retry.errorCode === 'content-missing' && retry.coverage) {
             const retryNames = await resolveCoverageNames(retry.coverage)
@@ -224,6 +226,8 @@ export function useProjectCommands(): ProjectCommands {
         }).then((ok) => {
           if (ok) void window.api.openSettingsWindow('paths')
         })
+      } else if (res.errorCode === 'replay-start') {
+        void alertDialog(res.error ?? '当前引擎会话无法从中间盘面导出 YRP 回放。')
       } else if (res.errorCode === 'game-not-found') {
         void alertDialog(
           `未在游戏目录中找到游戏主程序 (ygopro.exe / MDPro3.exe)\n\n当前游戏目录: ${res.error}\n请确认目录正确，或到 设置 → 路径 中重新选择。`
@@ -242,6 +246,32 @@ export function useProjectCommands(): ProjectCommands {
       const sourceDoc = active ? undefined : (sessionDoc ?? engine.suspendedDoc)
       const timeline = active ? engine.timeline : (sourceDoc?.timeline ?? [])
       if (timeline.length <= 1) return
+      const startBoard = timeline[0]?.boardState
+      if (startBoard && (startBoard.turn !== 1 || startBoard.turnPlayer !== 0)) {
+        void alertDialog(
+          `当前引擎会话从第 ${startBoard.turn} 回合、${
+            startBoard.turnPlayer === 0 ? '我方' : '对方'
+          }行动开始。\n\nYRP 回放固定从第 1 回合玩家 0 开始，从中间盘面导出的回放会在游戏里报 Error occurs.。\n\n请回到布景起点/第 1 回合我方先攻的开局重新启动引擎后再导出；当前盘面请用游戏测试验证。`
+        )
+        return
+      }
+      const exportSteps = useDuelStore.getState().state.steps ?? []
+      const firstActionStep = exportSteps.find(
+        (step) =>
+          step.origin === 'engine' &&
+          Boolean(step.actId) &&
+          step.actionType !== 'DRAW' &&
+          step.actionType !== 'PHASE_CHANGE' &&
+          step.actionType !== 'TURN_CHANGE'
+      )
+      const firstActionNode = firstActionStep
+        ? (timeline.find(
+            (node) =>
+              node.id === (firstActionStep.startActId ?? firstActionStep.actId) ||
+              node.id === firstActionStep.endActId
+          ) ?? null)
+        : null
+      const startOpIndex = firstActionNode?.opIndex
       const editorState = useDuelStore.getState().state
       if (!isExportableMatch(editorState.matchConfig)) return
       if (!active) {
@@ -284,7 +314,8 @@ export function useProjectCommands(): ProjectCommands {
           name: exportName,
           overwrite,
           launch,
-          force
+          force,
+          startOpIndex
         })
         if (res.errorCode === 'replay-exists') {
           const replaceText = isStandardTag(currentPuzzleState.matchConfig)
@@ -335,7 +366,8 @@ export function useProjectCommands(): ProjectCommands {
                 name: exportName,
                 overwrite,
                 launch,
-                force: false
+                force: false,
+                startOpIndex
               })
             )
           }

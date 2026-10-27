@@ -383,13 +383,23 @@ export class YgoproLauncher {
     }
     const gameType = config.gameType ?? 'ygopro'
     const isTag = isStandardTag(params.state.matchConfig)
-    const responses = duelDirector.getAllTimelineResponses(!isTag)
+    const responses = duelDirector.getAllTimelineResponses(!isTag, params.startOpIndex)
     const seed = duelDirector.getSeed()
     if (responses.length === 0) {
       return {
         success: false,
         errorCode: 'no-actions',
         error: '还没有任何经过引擎的操作记录，无法进行录像导出'
+      }
+    }
+    const startBoard = duelDirector.getTimeline()[0]?.boardState
+    if (startBoard && (startBoard.turn !== 1 || startBoard.turnPlayer !== 0)) {
+      return {
+        success: false,
+        errorCode: 'replay-start',
+        error: `当前引擎会话从第 ${startBoard.turn} 回合、${
+          startBoard.turnPlayer === 0 ? '我方' : '对方'
+        }行动开始；YRP 回放固定从第 1 回合玩家 0 开始，无法从中间盘面重演。请回到第 1 回合我方先攻的开局重新启动引擎后再导出。`
       }
     }
 

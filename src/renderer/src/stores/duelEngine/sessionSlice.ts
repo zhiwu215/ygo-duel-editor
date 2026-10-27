@@ -19,6 +19,7 @@ import { cancelLpSequence } from './lpSequence'
 import { chainStateAtNode } from './chainState'
 import { engineErrorMessage } from './engineErrorMessage'
 import { clearIdentities } from './identityMap'
+import { recordOpeningStep } from './stepRecording'
 import {
   appendDiscardNotice,
   clearEngineSteps,
@@ -53,6 +54,21 @@ function preserveStepsForNewSession(reverseBoards: boolean): void {
         ...prev.state,
         steps: reverseBoards ? reverseStepBoards(detached) : detached
       }
+    }
+  })
+}
+
+function dropStaleEngineSteps(): void {
+  useDuelStore.setState((prev) => {
+    const steps = prev.state.steps
+    if (!steps || steps.length === 0) return prev
+    const kept = steps.filter((step) => step.origin !== 'engine')
+    if (kept.length === steps.length) return prev
+    return {
+      ...prev,
+      currentStepIndex: null,
+      selectedStepId: null,
+      state: { ...prev.state, steps: kept }
     }
   })
 }
@@ -155,6 +171,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       if (!wasInitialized) {
         clearIdentities()
         enterEnginePileOrder()
+        dropStaleEngineSteps()
       }
       preserveStepsForNewSession(!wasInitialized)
       const timeline = [res.initialNode]
@@ -173,6 +190,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       })
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(get().timeline)
+      recordOpeningStep(res.initialNode, res.boardState)
       get().playStepEffects(res.initialNode)
       useDuelStore.setState({ duelStarted: true })
     } catch (err) {

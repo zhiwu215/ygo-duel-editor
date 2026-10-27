@@ -26,6 +26,7 @@ export interface RequestCard {
   sequence: number
   subsequence?: number
   duelistId?: string
+  instanceId?: string
   desc?: number
   directAttackable?: boolean
   opParam?: number
@@ -157,6 +158,19 @@ export type Answer =
   | { kind: 'unselect'; card?: RequestCard | null }
   | { kind: 'rps'; hand: 'rock' | 'scissors' | 'paper' }
   | { kind: 'announce'; value: number }
+
+export interface AnswerPrompt {
+  identifier: number
+  player: 0 | 1
+  kind: RequestKind
+  title: string
+}
+
+export interface RecordedAnswer {
+  prompt: AnswerPrompt
+  answer: Answer
+  option?: { code: number; text?: string }
+}
 
 export type InjectCommand =
   | {

@@ -15,6 +15,8 @@ import {
 import { cdbService } from '../../db/cdbService'
 import { headPendingQuery, type SessionState } from './session-state'
 import { resolveProvenanceRecord, type ProvenanceOrigin } from './provenance-tracker'
+import { ReplayDivergenceError } from './replay-policy'
+import { remapRecordedAnswers, type CardPosition } from './answer-remap'
 
 export type CardEditAction = { type: 'replace'; code: number } | { type: 'remove' }
 
@@ -88,6 +90,23 @@ async function editCard(
     return { error: '该卡的来源记录不存在，无法编辑。' }
   }
 
+  if (action.type === 'replace') {
+    const positions: CardPosition[] = [
+      {
+        controller: resolved.card.controller,
+        location: resolved.card.location,
+        sequence: resolved.card.sequence
+      }
+    ]
+    remapRecordedAnswers(
+      state,
+      record.code,
+      action.code,
+      positions,
+      resolved.card.instanceId
+    )
+  }
+
   deps.truncateToCurrentStep()
 
   try {
@@ -105,6 +124,32 @@ async function editCard(
       currentStepId
     }
   } catch (err) {
+    if (err instanceof ReplayDivergenceError && err.forkStepId) {
+      const forkRecord = state.timeline.getStep(err.forkStepId)
+      const sourceOpIndex = record.origin.kind === 'inject' ? record.origin.opIndex : -1
+      if (forkRecord && (sourceOpIndex < 0 || forkRecord.node.opIndex >= sourceOpIndex)) {
+        try {
+          state.timeline.retainHistory(err.forkStepId)
+          state.ops.length = forkRecord.node.opIndex + 1
+          await deps.replayTo(err.forkStepId, true)
+          const boardState = deps.readBoard()
+          const node = state.timeline.getStep(err.forkStepId)?.node
+          if (!node) throw new Error('分叉后找不到步骤。')
+          node.boardState = boardState
+          node.pendingRequest = headPendingQuery(state)?.request ?? null
+          updateEditedNodeTitle(state, record.origin, action)
+          return {
+            boardState,
+            pendingRequest: headPendingQuery(state)?.request ?? null,
+            node,
+            currentStepId: err.forkStepId,
+            warning: `${action.type === 'replace' ? '卡片已修改' : '卡片已移除'}，但对局在第 ${err.opIndex + 1} 条操作处无法与原历史对齐（原询问「${err.expectedTitle}」，重建后是「${err.actualTitle}」：${err.message}）。已回到该步之前，之后的操作需要重新进行。`
+          }
+        } catch (forkErr) {
+          console.error('[card-editor] 分叉重放失败:', forkErr)
+        }
+      }
+    }
     state.ops = previousOps
     state.initParams = previousInitParams
     try {

@@ -14,6 +14,7 @@ import { resolveCardName } from '../../utils/cardNames'
 import { MdLocationIcon } from './MdLocationIcon'
 import { MDLOG_ASSETS, MDLOG_COLORS, maskStyle } from './mdpro3LogAssets'
 import { phaseName, sideName, summonLabel, zoneLabel } from './stepLogFormat'
+import drawIcon from '../../assets/log/draw.png'
 
 interface StepLogRowsProps {
   step: DuelStep
@@ -323,16 +324,45 @@ export const StepLogRows: React.FC<StepLogRowsProps> = ({ step, events }) => {
       const names = event.cards
         .map((card) => (card.code > 0 ? card.name || resolveCardName(card.code) : ''))
         .filter(Boolean)
+      const first = event.cards.find((card) => card.code > 0)
       rows.push(
-        <div key={`log-${index}`} className="flex h-[26px] items-center gap-1.5 px-2 text-[10px]">
+        <div
+          key={`log-${index}`}
+          className="flex h-[52px] items-center gap-2 border-b border-border/20 bg-muted/20 px-2"
+        >
+          {first ? (
+            <LogCardThumb
+              card={{
+                code: first.code,
+                name: first.name,
+                controller: event.player,
+                location: 0,
+                sequence: 0
+              }}
+              width={25}
+              height={34}
+            />
+          ) : (
+            <div className="flex h-[34px] w-[25px] shrink-0 items-center justify-center rounded-[1px] border border-border bg-muted text-[7px] text-muted-foreground">
+              卡背
+            </div>
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="truncate text-[10px] font-semibold text-foreground/90">
+              {names.length > 0 ? names.join('、') : '未知卡片'}
+            </span>
+            <span className="truncate text-[9px] text-muted-foreground">
+              {sideName(event.player)} 抽卡 ×{event.cards.length || 1}
+            </span>
+          </div>
+          <img src={drawIcon} alt="" className="h-3.5 w-3.5 shrink-0 opacity-80" />
           <span
-            className={cn('font-bold', event.player === 0 ? 'text-[#63b3ff]' : 'text-[#ff7b7b]')}
+            className={cn(
+              'shrink-0 text-[11px] font-bold',
+              event.player === 0 ? 'text-[#3b82f6]' : 'text-[#e11d48]'
+            )}
           >
-            {sideName(event.player)}
-          </span>
-          <span className="font-bold text-foreground">抽卡 ×{event.cards.length || 1}</span>
-          <span className="min-w-0 truncate text-muted-foreground">
-            {names.length > 0 ? names.join('、') : '未知卡片'}
+            抽卡
           </span>
         </div>
       )

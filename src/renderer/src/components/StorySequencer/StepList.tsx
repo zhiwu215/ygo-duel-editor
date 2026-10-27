@@ -14,6 +14,7 @@ import { StepCard } from './StepCard'
 import { StepLpChange } from './StepLpChange'
 import { buildStepList, getAttackDamageText, resolveStepCardName } from './stepGrouping'
 import { resolveDuelistName, resolveTeamLabel } from '../../utils/duelistNames'
+import { SCENE_STEP_INDEX } from '../../utils/openingScene'
 
 interface StepListProps {
   steps: DuelStep[]
@@ -186,6 +187,14 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
               sceneEditing && 'pointer-events-none select-none opacity-55'
             )}
           >
+            {!engineActive &&
+              !isReplay &&
+              !sceneEditing &&
+              currentStepIndex === SCENE_STEP_INDEX && (
+                <div className="flex h-[30px] items-center justify-center border-t border-border/40 bg-muted/20 px-2 text-[11px] font-bold text-foreground/80">
+                  初始局面 · 所有操作之前
+                </div>
+              )}
             {stepList.map((item) => {
               if (item.kind === 'turn') {
                 return (

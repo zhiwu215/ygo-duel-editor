@@ -13,6 +13,7 @@ import {
   LOCATION_NAMES,
   RequestCard,
   createLightweightSnapshot,
+  createStepId,
   withHandShuffleNote
 } from '@shared/index'
 import { resolveCardName } from '../../utils/cardNames'
@@ -491,6 +492,42 @@ export interface StepActContext {
   turn: number
   turnPlayer: 0 | 1
   phase: number
+}
+
+export function recordOpeningStep(node: EngineTimelineNode, boardState: EngineBoardState): void {
+  const events = node.logEvents ?? []
+  const draw = events.find(
+    (event): event is Extract<DuelLogEvent, { kind: 'draw' }> => event.kind === 'draw'
+  )
+  if (!draw) return
+  const steps = useDuelStore.getState().state.steps || []
+  if (steps.some((step) => step.actId === node.id)) return
+  const first = draw.cards[0]
+  const step: DuelStep = {
+    id: createStepId(),
+    turn: boardState.turn,
+    turnPlayer: boardState.turnPlayer,
+    phase: 'DP',
+    actionPlayer: draw.player,
+    actionDuelistId: boardState.activeDuelist?.[draw.player],
+    actionType: 'DRAW',
+    cardCode: first?.code || undefined,
+    cardName: first?.code ? first.name || resolveCardName(first.code) : undefined,
+    description: `抽卡 ×${draw.cards.length || 1}`,
+    logEvents: [draw],
+    origin: 'engine',
+    actId: node.id,
+    boardAfter: createLightweightSnapshot(useDuelStore.getState().state.cards)
+  }
+  useDuelStore.setState((prev) => ({
+    ...prev,
+    currentStepIndex: null,
+    selectedStepId: null,
+    state: {
+      ...prev.state,
+      steps: [step, ...(prev.state.steps || [])]
+    }
+  }))
 }
 
 export function appendEngineStepFromAnswer(

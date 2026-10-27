@@ -285,12 +285,14 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
     lines.push(`e1:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
     lines.push(`e1:SetCode(EFFECT_SKIP_DP)`)
     lines.push(`e1:SetTargetRange(1,0)`)
+    lines.push(`e1:SetReset(RESET_PHASE+PHASE_MAIN1)`)
     lines.push(`Duel.RegisterEffect(e1,0)`)
     lines.push(`local e2=Effect.GlobalEffect()`)
     lines.push(`e2:SetType(EFFECT_TYPE_FIELD)`)
     lines.push(`e2:SetProperty(EFFECT_FLAG_PLAYER_TARGET)`)
     lines.push(`e2:SetCode(EFFECT_SKIP_SP)`)
     lines.push(`e2:SetTargetRange(1,0)`)
+    lines.push(`e2:SetReset(RESET_PHASE+PHASE_MAIN1)`)
     lines.push(`Duel.RegisterEffect(e2,0)`)
   } else if (isFull) {
     if (Number(state.masterRule) >= 4) {

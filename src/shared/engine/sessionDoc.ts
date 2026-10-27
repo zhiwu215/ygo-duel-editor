@@ -3,7 +3,7 @@ import type {
   EngineDuelInitParams,
   EngineTimelineNode
 } from '../types/duelEngine'
-import type { EngineRequest, InjectCommand, TimingPolicy } from './protocol'
+import type { EngineRequest, InjectCommand, RecordedAnswer, TimingPolicy } from './protocol'
 import { base64ToBytes, bytesToBase64 } from './base64'
 
 export const ENGINE_SESSION_DOC_VERSION = 1
@@ -12,11 +12,13 @@ interface SerializedAnswerOp {
   type: 'answer'
   nodeId: string
   responses: string[]
+  answers?: RecordedAnswer[]
 }
 
 interface SerializedAutoOp {
   type: 'auto'
   responses: string[]
+  answers?: RecordedAnswer[]
 }
 
 interface SerializedInjectOp {
@@ -48,8 +50,8 @@ export interface EngineSessionImportPayload {
 }
 
 export type DuelOperation =
-  | { type: 'answer'; nodeId: string; responses: Uint8Array[] }
-  | { type: 'auto'; responses: Uint8Array[] }
+  | { type: 'answer'; nodeId: string; responses: Uint8Array[]; answers?: RecordedAnswer[] }
+  | { type: 'auto'; responses: Uint8Array[]; answers?: RecordedAnswer[] }
   | { type: 'inject'; command: InjectCommand; removed?: boolean }
 
 export function encodeSessionOp(op: DuelOperation): SerializedOp {
@@ -58,10 +60,20 @@ export function encodeSessionOp(op: DuelOperation): SerializedOp {
       ? { type: 'inject', command: structuredClone(op.command), removed: true }
       : { type: 'inject', command: structuredClone(op.command) }
   }
+  const answers = op.answers ? structuredClone(op.answers) : undefined
   if (op.type === 'answer') {
-    return { type: 'answer', nodeId: op.nodeId, responses: op.responses.map(bytesToBase64) }
+    return {
+      type: 'answer',
+      nodeId: op.nodeId,
+      responses: op.responses.map(bytesToBase64),
+      ...(answers ? { answers } : {})
+    }
   }
-  return { type: 'auto', responses: op.responses.map(bytesToBase64) }
+  return {
+    type: 'auto',
+    responses: op.responses.map(bytesToBase64),
+    ...(answers ? { answers } : {})
+  }
 }
 
 export function decodeSessionOp(op: SerializedOp): DuelOperation {
@@ -69,8 +81,18 @@ export function decodeSessionOp(op: SerializedOp): DuelOperation {
     const command = structuredClone(op.command)
     return op.removed ? { type: 'inject', command, removed: true } : { type: 'inject', command }
   }
+  const answers = op.answers ? structuredClone(op.answers) : undefined
   if (op.type === 'answer') {
-    return { type: 'answer', nodeId: op.nodeId, responses: op.responses.map(base64ToBytes) }
+    return {
+      type: 'answer',
+      nodeId: op.nodeId,
+      responses: op.responses.map(base64ToBytes),
+      ...(answers ? { answers } : {})
+    }
   }
-  return { type: 'auto', responses: op.responses.map(base64ToBytes) }
+  return {
+    type: 'auto',
+    responses: op.responses.map(base64ToBytes),
+    ...(answers ? { answers } : {})
+  }
 }

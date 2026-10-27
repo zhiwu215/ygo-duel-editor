@@ -91,7 +91,7 @@ const ReplaceDialogBody: React.FC<{
     if (loading) return
     const ok = await confirmDialog({
       title: '替换这张卡？',
-      description: `「${target.name}」→「${card.name}」\n\n会修改来源并自动重演到当前步骤；当前步骤之后的操作会丢弃。`,
+      description: `「${target.name}」→「${card.name}」\n\n会修改来源并自动重演；新增的可选发动默认不发动。若无法与原历史对齐，会回到分歧点，之后的操作需要重新进行。`,
       confirmText: '替换并重演',
       destructive: false
     })

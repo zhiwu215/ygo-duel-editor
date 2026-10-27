@@ -18,11 +18,13 @@ import {
 } from 'ygopro-msg-encode'
 import { cdbService } from '../../db/cdbService'
 import { CardLocation, type EngineRequest } from '@shared/index'
+import type { Answer } from '@shared/engine/protocol'
 import type { PendingQuery, SessionState } from './session-state'
 import { shouldAutoPassChain } from './chain-policy'
 import { collectDuelLogMessages } from './duel-log'
 import { isInteractiveQuery } from './message-parser'
 import { routeRequest } from './request-router'
+import { createRecordedAnswer } from './replay-policy'
 
 const HINT_TYPE_SELECTMSG = 3
 
@@ -91,6 +93,12 @@ function resolveAutoResponse(state: SessionState, msg: unknown): Uint8Array | nu
     return msg.prepareResponse(false)
   }
 
+  return null
+}
+
+function autoAnswerOf(msg: unknown): Answer | null {
+  if (msg instanceof YGOProMsgSelectChain) return { kind: 'chain', card: null }
+  if (msg instanceof YGOProMsgSelectEffectYn) return { kind: 'yesno', yes: false }
   return null
 }
 
@@ -219,6 +227,14 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
           duel.setResponse(auto)
           autoResponses.push(auto)
           batchAutoCount++
+          const answer = autoAnswerOf(msg)
+          const request = routeRequest(msg, {
+            id: `auto-${state.requestSeq}`,
+            seq: state.requestSeq
+          })
+          if (answer && request) {
+            state.autoAnswers.push(createRecordedAnswer(request, answer))
+          }
         } else {
           const request = routeRequest(msg, {
             id: `req-${state.requestSeq}`,

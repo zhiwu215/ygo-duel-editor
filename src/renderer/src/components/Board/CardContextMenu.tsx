@@ -179,12 +179,12 @@ export const CardContextMenu: React.FC = () => {
   const editSupported = isEngineSupportedMatch(matchConfig)
   const editableHandPlaceholder = isHand && isPlaceholderCard(card.code)
   const provenanceLoading = showEngineEdit && provenance === null
+  const traceable = provenance?.kind === 'initial' || provenance?.kind === 'inject'
   const canEdit =
     showEngineEdit &&
     !engineLoading &&
-    provenance !== null &&
-    provenance.kind !== 'unknown' &&
-    (editSupported || provenance.kind === 'inject' || editableHandPlaceholder)
+    traceable &&
+    (editSupported || provenance?.kind === 'inject' || editableHandPlaceholder)
   const injectStep =
     provenance?.kind === 'inject'
       ? timeline.find((node) => node.id === provenance.nodeId)?.stepNumber
@@ -202,11 +202,13 @@ export const CardContextMenu: React.FC = () => {
           : '来源：无法溯源'
   const disabledReason = engineLoading
     ? '引擎正在处理，请稍候。'
-    : !provenanceLoading && !canEdit
-      ? !editSupported && !editableHandPlaceholder && provenance?.kind !== 'inject'
-        ? '多人数对局只能编辑手牌占位卡或手动添加的卡片。'
-        : '该卡无法溯源，不能替换或移除。'
-      : null
+    : provenance?.kind === 'drawn'
+      ? '抽到的卡没有可编辑的来源，不能替换或移除。'
+      : !provenanceLoading && !canEdit
+        ? !editSupported && !editableHandPlaceholder && provenance?.kind !== 'inject'
+          ? '多人数对局只能编辑手牌占位卡或手动添加的卡片。'
+          : '该卡无法溯源，不能替换或移除。'
+        : null
   const handleReplace = (): void => {
     if (!canEdit) return
     closeMenu()
@@ -221,7 +223,7 @@ export const CardContextMenu: React.FC = () => {
     closeMenu()
     const ok = await confirmDialog({
       title: '从对局中移除这张卡？',
-      description: `「${cardName}」\n${sourceLabel}\n\n会修改来源并自动重演到当前步骤；当前步骤之后的操作会丢弃。`,
+      description: `「${cardName}」\n${sourceLabel}\n\n会修改来源并自动重演；无法与原历史对齐时会回到分歧点，之后的操作需要重新进行。`,
       confirmText: '移除并重演',
       destructive: true
     })

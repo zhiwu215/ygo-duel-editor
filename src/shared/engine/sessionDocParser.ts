@@ -9,6 +9,8 @@ import {
   normalizeTimingPolicy,
   type EngineRequest,
   type InjectCommand,
+  type RecordedAnswer,
+  type RequestKind,
   type TimingPolicy
 } from './protocol'
 import { BASE64_PATTERN } from './base64'
@@ -25,6 +27,25 @@ const INJECT_CARD_TARGETS = new Set([
   'mzone',
   'szone',
   'fzone'
+])
+
+const REQUEST_KINDS = new Set<RequestKind>([
+  'idle',
+  'battle',
+  'card',
+  'tribute',
+  'chain',
+  'place',
+  'disfield',
+  'position',
+  'yesno',
+  'option',
+  'counter',
+  'sum',
+  'sort',
+  'unselect',
+  'rps',
+  'announce'
 ])
 
 function fail(message: string): never {
@@ -79,6 +100,30 @@ function parseResponses(value: unknown, field: string): string[] {
   return responses
 }
 
+function parseAnswers(value: unknown, field: string): RecordedAnswer[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) fail(`${field} 必须是数组。`)
+  return value.map((item, index) => {
+    const itemField = `${field}[${index}]`
+    assertRecord(item, itemField)
+    assertRecord(item.prompt, `${itemField}.prompt`)
+    readInteger(item.prompt.identifier, `${itemField}.prompt.identifier`, 0)
+    readPlayer(item.prompt.player, `${itemField}.prompt.player`)
+    const kind = readString(item.prompt.kind, `${itemField}.prompt.kind`) as RequestKind
+    if (!REQUEST_KINDS.has(kind)) fail(`${itemField}.prompt.kind 不是支持的询问类型。`)
+    readString(item.prompt.title, `${itemField}.prompt.title`)
+    assertRecord(item.answer, `${itemField}.answer`)
+    if (item.option !== undefined) {
+      assertRecord(item.option, `${itemField}.option`)
+      readInteger(item.option.code, `${itemField}.option.code`, 0)
+      if (item.option.text !== undefined) {
+        readString(item.option.text, `${itemField}.option.text`)
+      }
+    }
+    return structuredClone(item) as unknown as RecordedAnswer
+  })
+}
+
 function parseInjectCommand(value: unknown, field: string): InjectCommand {
   assertRecord(value, field)
   if (value.op === 'set-lp') {
@@ -119,14 +164,21 @@ function parseOp(value: unknown, index: number): SerializedOp {
     return value.removed ? { type: 'inject', command, removed: true } : { type: 'inject', command }
   }
   if (value.type === 'answer') {
+    const answers = parseAnswers(value.answers, `${field}.answers`)
     return {
       type: 'answer',
       nodeId: readString(value.nodeId, `${field}.nodeId`),
-      responses: parseResponses(value.responses, `${field}.responses`)
+      responses: parseResponses(value.responses, `${field}.responses`),
+      ...(answers ? { answers } : {})
     }
   }
   if (value.type === 'auto') {
-    return { type: 'auto', responses: parseResponses(value.responses, `${field}.responses`) }
+    const answers = parseAnswers(value.answers, `${field}.answers`)
+    return {
+      type: 'auto',
+      responses: parseResponses(value.responses, `${field}.responses`),
+      ...(answers ? { answers } : {})
+    }
   }
   return fail(`${field}.type 不是支持的操作类型。`)
 }

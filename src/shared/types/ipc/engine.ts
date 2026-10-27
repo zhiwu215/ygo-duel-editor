@@ -26,6 +26,7 @@ export interface EngineExportReplayParams {
   overwrite?: boolean
   launch?: boolean
   force?: boolean
+  startOpIndex?: number
 }
 
 export interface ContentCoverageDetail {
@@ -43,6 +44,7 @@ export interface EngineExportReplayResult {
     | 'no-actions'
     | 'content-missing'
     | 'replay-exists'
+    | 'replay-start'
   error?: string
   existingPath?: string
   name?: string

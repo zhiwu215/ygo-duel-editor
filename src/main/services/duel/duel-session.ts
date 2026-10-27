@@ -25,6 +25,7 @@ import {
   EngineRequest,
   EngineSubmitAnswerResult,
   InjectCommand,
+  RecordedAnswer,
   TimingPolicy,
   normalizeTimingPolicy
 } from '@shared/engine/protocol'
@@ -48,6 +49,15 @@ import {
   type EngineReplayStartPayload
 } from './replay-session'
 import { advanceEngine, isAutoFinishableUnselect } from './engine-pump'
+import {
+  ReplayDivergenceError,
+  createRecordedAnswer,
+  defaultOptionalAnswer,
+  encodeRecordedAnswer,
+  isNewOptionalPrompt,
+  samePrompt
+} from './replay-policy'
+import { attachAnswerInstanceIds } from './answer-remap'
 import {
   initializeProvenance,
   nodeIdForOp,
@@ -141,6 +151,7 @@ export class DuelSession {
     state.accumulatedLogs = []
     state.accumulatedEvents = []
     state.accumulatedLogEvents = []
+    state.autoAnswers = []
     resetDuelLogContext(state.duelLog)
     state.pendingQueries = []
     state.lastHintDesc = undefined
@@ -164,29 +175,39 @@ export class DuelSession {
           if (state.lastAdvanceRetried) {
             throw new Error(`重放第 ${index + 1} 条操作（注入）时引擎拒绝了重放。`)
           }
+          this.recordReplayNodeState(index)
           continue
         }
-        for (const response of op.responses) {
-          const headBefore = headPendingQuery(state)
-          state.duel!.setResponse(response)
-          advanceEngine(state)
-          if (state.lastAdvanceRetried) {
-            const kind = op.type === 'auto' ? '自动应答' : '玩家应答'
-            const ask = headBefore?.request.title ?? '未知询问'
-            const frameHex = [...response]
-              .map((value) => value.toString(16).padStart(2, '0'))
-              .join(' ')
-            console.error('[duel-session] 历史重放响应被拒绝:', {
-              opIndex: index,
-              opType: op.type,
-              ask,
-              frameHex
-            })
-            throw new Error(
-              `重放第 ${index + 1} 条操作（${kind}）时引擎拒绝了历史响应：该响应本应回答「${ask}」，但重建后的引擎给出了不同询问。`
+        const answers = op.answers
+        for (let responseIndex = 0; responseIndex < op.responses.length; responseIndex++) {
+          const recorded = answers?.[responseIndex]
+          try {
+            this.feedReplayResponse(
+              op.responses[responseIndex],
+              recorded,
+              op.type === 'auto' ? '自动应答' : '玩家应答'
             )
+          } catch (err) {
+            if (err instanceof ReplayDivergenceError) {
+              err.opIndex = index
+              err.responseIndex = responseIndex
+              const fork = this.lastConsistentStep(index)
+              err.forkStepId = fork?.id ?? null
+              if (!err.expectedTitle) {
+                err.expectedTitle = recorded?.prompt.title ?? '未知询问'
+              }
+              console.error('[duel-session] 历史重放响应被拒绝:', {
+                opIndex: index,
+                responseIndex,
+                opType: op.type,
+                expected: err.expectedTitle,
+                actual: err.actualTitle
+              })
+            }
+            throw err
           }
         }
+        this.recordReplayNodeState(index)
       }
     } finally {
       state.replaying = false
@@ -199,6 +220,116 @@ export class DuelSession {
       state.fieldReader.restoreIdentity(target.node.boardState)
     }
     state.timeline.setCurrentStepId(stepId)
+  }
+
+  private feedReplayResponse(
+    raw: Uint8Array,
+    recorded: RecordedAnswer | undefined,
+    kind: string
+  ): void {
+    const state = this.state
+    if (recorded) {
+      let inserted = 0
+      for (;;) {
+        const head = headPendingQuery(state)
+        if (!head) {
+          throw new ReplayDivergenceError('引擎没有等待响应。')
+        }
+        if (samePrompt(head.request, recorded.prompt)) {
+          let response: Uint8Array
+          try {
+            response = encodeRecordedAnswer(head.msg, head.request, recorded)
+          } catch (err) {
+            if (err instanceof ReplayDivergenceError) {
+              err.expectedTitle = recorded.prompt.title
+              err.actualTitle = head.request.title
+            }
+            throw err
+          }
+          state.duel!.setResponse(response)
+          advanceEngine(state)
+          if (state.lastAdvanceRetried) {
+            throw new ReplayDivergenceError(`${kind}被引擎拒绝。`)
+          }
+          return
+        }
+        if (isNewOptionalPrompt(head.request)) {
+          const answer = defaultOptionalAnswer(head.request)
+          if (!answer) {
+            throw new ReplayDivergenceError('新增询问不能默认不发动。')
+          }
+          try {
+            state.duel!.setResponse(encodeAnswer(head.msg, answer))
+          } catch (err) {
+            throw new ReplayDivergenceError(
+              err instanceof Error ? err.message : '新增询问无法编码默认应答。'
+            )
+          }
+          advanceEngine(state)
+          if (state.lastAdvanceRetried) {
+            throw new ReplayDivergenceError('新增可选询问的默认应答被引擎拒绝。')
+          }
+          inserted += 1
+          if (inserted > 32) {
+            throw new ReplayDivergenceError('新增可选询问过多。')
+          }
+          continue
+        }
+        const err = new ReplayDivergenceError(`当前询问与历史${kind}不一致。`)
+        err.expectedTitle = recorded.prompt.title
+        err.actualTitle = head.request.title || '未知询问'
+        throw err
+      }
+    }
+
+    const headBefore = headPendingQuery(state)
+    state.duel!.setResponse(raw)
+    advanceEngine(state)
+    if (!state.lastAdvanceRetried) return
+    if (headBefore && isNewOptionalPrompt(headBefore.request)) {
+      const answer = defaultOptionalAnswer(headBefore.request)
+      if (!answer) {
+        throw new ReplayDivergenceError('新增询问不能默认不发动。')
+      }
+      state.duel!.setResponse(encodeAnswer(headBefore.msg, answer))
+      advanceEngine(state)
+      if (state.lastAdvanceRetried) {
+        throw new ReplayDivergenceError('新增可选询问的默认应答被引擎拒绝。')
+      }
+      state.duel!.setResponse(raw)
+      advanceEngine(state)
+      if (!state.lastAdvanceRetried) return
+    }
+    const err = new ReplayDivergenceError(`${kind}被引擎拒绝。`)
+    err.expectedTitle = headBefore?.request.title ?? '未知询问'
+    err.actualTitle = headPendingQuery(state)?.request.title ?? '未知询问'
+    throw err
+  }
+
+  private lastConsistentStep(opIndex: number): EngineTimelineNode | null {
+    let fork: EngineTimelineNode | null = null
+    for (const node of this.state.timeline.getHistoryPath()) {
+      if (node.opIndex >= opIndex) break
+      fork = node
+    }
+    return fork
+  }
+
+  private recordReplayNodeState(opIndex: number): void {
+    const state = this.state
+    const nodes = state.timeline.getHistoryPath().filter((node) => node.opIndex === opIndex)
+    if (nodes.length === 0) return
+    let board: EngineBoardState
+    try {
+      board = this.readBoard()
+    } catch {
+      return
+    }
+    const request = headPendingQuery(state)?.request ?? null
+    for (const node of nodes) {
+      node.boardState = board
+      node.pendingRequest = request
+    }
   }
 
   private truncateToCurrentStep(): void {
@@ -225,6 +356,7 @@ export class DuelSession {
     state.lastParseError = null
     state.lastScriptError = null
     state.replaying = false
+    state.autoAnswers = []
     state.replay = null
     state.recordingMessages = null
     state.provenance.clear()
@@ -356,8 +488,17 @@ export class DuelSession {
 
     const initialAutoResponses = this.createDuelFromInit()
     if (initialAutoResponses.length > 0) {
-      state.ops.push({ type: 'auto', responses: initialAutoResponses })
+      const answers =
+        state.autoAnswers.length === initialAutoResponses.length
+          ? [...state.autoAnswers]
+          : undefined
+      state.ops.push({
+        type: 'auto',
+        responses: initialAutoResponses,
+        ...(answers ? { answers } : {})
+      })
     }
+    state.autoAnswers = []
 
     const initialBoard = this.readBoard()
     const pendingRequest = headPendingQuery(state)?.request ?? null
@@ -455,22 +596,29 @@ export class DuelSession {
     const requestMsg = head.msg
     const actingPlayer = head.request.player
     const response = encodeAnswer(requestMsg, answer)
+    const beforeBoard = this.readBoard()
+    const recorded = createRecordedAnswer(head.request, answer)
+    attachAnswerInstanceIds(recorded.answer, beforeBoard)
     const logText = describeAnswer(requestMsg, answer)
 
-    const beforeBoard = this.readBoard()
+    state.autoAnswers = []
     state.duel.setResponse(response)
     const autoResponses = advanceEngine(state)
 
     if (state.lastAdvanceRetried) {
       state.accumulatedLogs = []
       state.accumulatedEvents = []
+      state.autoAnswers = []
       return { retry: true, pendingRequest: headPendingQuery(state)?.request ?? null }
     }
 
     for (let loops = 0; loops < MAX_AUTO_FINISH_LOOPS; loops++) {
       if (!isAutoFinishableUnselect(state, requestMsg)) break
-      const autoMsg = headPendingQuery(state)!.msg
-      const autoResponse = encodeAnswer(autoMsg, { kind: 'unselect', card: null })
+      const autoHead = headPendingQuery(state)!
+      const autoResponse = encodeAnswer(autoHead.msg, { kind: 'unselect', card: null })
+      state.autoAnswers.push(
+        createRecordedAnswer(autoHead.request, { kind: 'unselect', card: null })
+      )
       state.duel.setResponse(autoResponse)
       autoResponses.push(autoResponse, ...advanceEngine(state))
       if (state.lastAdvanceRetried) break
@@ -482,10 +630,22 @@ export class DuelSession {
     const boardState = this.readBoard()
     const diff = computeDiff(beforeBoard, boardState)
     const answerOpIndex = state.ops.length
-    state.ops.push({ type: 'answer', nodeId: '', responses: [response] })
+    state.ops.push({
+      type: 'answer',
+      nodeId: '',
+      responses: [response],
+      answers: [recorded]
+    })
     if (autoResponses.length > 0) {
-      state.ops.push({ type: 'auto', responses: autoResponses })
+      const autoAnswers =
+        state.autoAnswers.length === autoResponses.length ? [...state.autoAnswers] : undefined
+      state.ops.push({
+        type: 'auto',
+        responses: autoResponses,
+        ...(autoAnswers ? { answers: autoAnswers } : {})
+      })
     }
+    state.autoAnswers = []
 
     const pendingRequest = headPendingQuery(state)?.request ?? null
     const node = state.timeline.addStep(
@@ -553,8 +713,10 @@ export class DuelSession {
     }
     await this.rebaseDuelFromRequestSnapshot()
     const before = this.readBoard()
+    state.autoAnswers = []
     const outcome = executeInject(state.duel!, command, before)
     advanceEngine(state)
+    state.autoAnswers = []
     const boardState = this.readBoard()
     const warning = outcome.warning ?? verifyInject(command, before, boardState)
 
@@ -759,16 +921,17 @@ export class DuelSession {
     return nodes[nodes.length - 1] ?? null
   }
 
-  getAllTimelineResponses(skipInitialSetup = false): Uint8Array[] {
+  getAllTimelineResponses(skipInitialSetup = false, startOpIndex?: number): Uint8Array[] {
     const state = this.state
     if (state.replay) {
       throw new Error('回放模式为只读，无法导出录像。')
     }
     const firstNode = state.timeline.getAllNodes()[0]
-    const startOpIndex = skipInitialSetup && firstNode ? firstNode.opIndex + 1 : 0
+    const firstOpIndex =
+      startOpIndex ?? (skipInitialSetup && firstNode ? firstNode.opIndex + 1 : 0)
     const lastOpIndex = this.timelineTip()?.opIndex ?? -1
     return state.ops
-      .slice(startOpIndex, lastOpIndex + 1)
+      .slice(Math.max(0, firstOpIndex), lastOpIndex + 1)
       .flatMap((op) => (op.type === 'inject' ? [] : op.responses))
   }
 

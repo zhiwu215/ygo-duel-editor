@@ -5,7 +5,11 @@ import type {
   EngineRequest,
   EngineStepEvent
 } from '@shared/index'
-import { DEFAULT_TIMING_POLICY, type TimingPolicy } from '@shared/engine/protocol'
+import {
+  DEFAULT_TIMING_POLICY,
+  type RecordedAnswer,
+  type TimingPolicy
+} from '@shared/engine/protocol'
 import type { DuelOperation } from '@shared/engine/session-doc'
 import type { ReplayPlayback } from './replay-session'
 import type { ProvenanceRecord } from './provenance-tracker'
@@ -39,6 +43,7 @@ export interface SessionState {
   accumulatedLogEvents: DuelLogEvent[]
   duelLog: DuelLogContext
   lastAdvanceRetried: boolean
+  autoAnswers: RecordedAnswer[]
   seed: number[]
   initParams: EngineDuelInitParams | null
   ops: DuelOperation[]
@@ -67,6 +72,7 @@ export function createSessionState(): SessionState {
     accumulatedLogEvents: [],
     duelLog: createDuelLogContext(),
     lastAdvanceRetried: false,
+    autoAnswers: [],
     seed: [],
     initParams: null,
     ops: [],

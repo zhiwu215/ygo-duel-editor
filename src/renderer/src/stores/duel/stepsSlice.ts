@@ -1,8 +1,6 @@
 import type { StateCreator } from 'zustand'
 import {
   CardLocation,
-  CardPosition,
-  CardUtils,
   DuelPhase,
   DuelStep,
   DuelPuzzleState,
@@ -125,55 +123,58 @@ function sceneOf(prev: DuelStore): OpeningScene {
   }
 }
 
-function insertPileTop(
-  cards: FieldCard[],
-  extra: FieldCard,
-  defaultDuelistId: string,
+function handKey(card: {
+  instanceId: string
+  code: number
+  controller: 0 | 1
   location: number
-): FieldCard[] {
-  const duelistId = extra.duelistId || defaultDuelistId
-  const shifted = cards.map((c) =>
-    c.controller === extra.controller &&
-    c.location === location &&
-    (c.duelistId || defaultDuelistId) === duelistId
-      ? { ...c, sequence: c.sequence + 1 }
-      : c
-  )
-  return [
-    ...shifted,
-    {
-      ...extra,
-      location,
-      sequence: 0,
-      position: CardPosition.FACEDOWN,
-      overlayMaterials: [],
-      duelistId
-    }
-  ]
+  sequence: number
+}): string {
+  return `${card.instanceId}:${card.code}:${card.controller}:${card.location}:${card.sequence}`
 }
 
-function homePileLocation(card: FieldCard): number {
-  const isExtraType = Boolean(card.card && CardUtils.isExtraDeck(card.card.type))
-  return isExtraType || card.location === CardLocation.EXTRA
-    ? CardLocation.EXTRA
-    : CardLocation.DECK
+function stripInitialDraw(state: DuelPuzzleState, cards: FieldCard[]): FieldCard[] {
+  const first = state.steps?.[0]
+  if (!first || first.origin !== 'engine' || first.actionType !== 'DRAW') return cards
+  const draw = first.logEvents?.find(
+    (event): event is Extract<NonNullable<DuelStep['logEvents']>[number], { kind: 'draw' }> =>
+      event.kind === 'draw'
+  )
+  if (!draw || !first.boardAfter) return cards
+  const currentHand = cards
+    .filter((card) => card.location === CardLocation.HAND)
+    .map(handKey)
+    .sort()
+  const afterHand = first.boardAfter
+    .filter((card) => card.location === CardLocation.HAND)
+    .map(handKey)
+    .sort()
+  if (currentHand.length === 0 || currentHand.join('|') !== afterHand.join('|')) return cards
+
+  const next = cards.map((card) => ({ ...card }))
+  for (const drawn of draw.cards) {
+    if (!drawn.code) continue
+    for (let index = next.length - 1; index >= 0; index--) {
+      const card = next[index]
+      if (card.code === drawn.code && card.location === CardLocation.HAND) {
+        next.splice(index, 1)
+        break
+      }
+    }
+  }
+  const hand = next
+    .filter((card) => card.controller === draw.player && card.location === CardLocation.HAND)
+    .sort((a, b) => a.sequence - b.sequence)
+  const sequences = new Map(hand.map((card, index) => [card.instanceId, index]))
+  return next.map((card) =>
+    sequences.has(card.instanceId) ? { ...card, sequence: sequences.get(card.instanceId)! } : card
+  )
 }
 
 function openingCards(state: DuelPuzzleState): FieldCard[] {
   const snapshot = state.initialBoardSnapshot ?? []
   if (snapshot.length === 0) return state.cards
-  const restored = restoreCardsFromSnapshot(state.cards, snapshot)
-  const restoredIds = new Set(restored.map((card) => card.instanceId))
-  const extras = state.cards.filter((card) => !restoredIds.has(card.instanceId))
-  const teamDuelistId = (controller: 0 | 1): string => {
-    const teamDuelists = (state.duelists || []).filter((duelist) => duelist.team === controller)
-    return teamDuelists[0]?.id || `duelist_${controller}_0`
-  }
-  let cards = restored
-  for (const extra of extras) {
-    cards = insertPileTop(cards, extra, teamDuelistId(extra.controller), homePileLocation(extra))
-  }
-  return cards
+  return stripInitialDraw(state, restoreCardsFromSnapshot(state.cards, snapshot))
 }
 
 export { createStepId } from '@shared/index'

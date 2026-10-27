@@ -7,6 +7,7 @@ import {
   restoreEngineSteps,
   splitTimeline
 } from './stepRecords'
+import { syncEngineStepsFromTimeline } from './stepRecordSync'
 import type { DuelEngineStore } from './types'
 
 export async function applyCardEditResult(
@@ -22,9 +23,17 @@ export async function applyCardEditResult(
 
   const prevTimeline = get().timeline
   const currentId = get().currentStepId
+  const splitId =
+    res.currentStepId && prevTimeline.some((node) => node.id === res.currentStepId)
+      ? res.currentStepId
+      : currentId
+  const boundaryNode =
+    prevTimeline.find((node) => node.id === splitId) ??
+    prevTimeline.find((node) => node.id === currentId)
+  const fromOpIndex = boundaryNode?.opIndex ?? -1
   const previewExited = useDuelStore.getState().previewReturn !== null
   useDuelStore.getState().exitPreview()
-  const { kept, dropped } = splitTimeline(prevTimeline, currentId)
+  const { kept, dropped } = splitTimeline(prevTimeline, splitId)
   const node = res.node
   const timeline = node
     ? kept.some((item) => item.id === node.id)
@@ -48,11 +57,13 @@ export async function applyCardEditResult(
   })
   if (res.boardState) syncJumpToStepWrapped(res.boardState)
   restoreEngineSteps(timeline)
+  syncEngineStepsFromTimeline(timeline, fromOpIndex)
 
   const latestTimeline = await window.api.duelEngineGetTimeline().catch(() => null)
   if (latestTimeline) {
     set({ timeline: latestTimeline })
     restoreEngineSteps(latestTimeline)
+    syncEngineStepsFromTimeline(latestTimeline, fromOpIndex)
   }
   return true
 }

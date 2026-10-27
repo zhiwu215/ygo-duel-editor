@@ -169,7 +169,34 @@ export const StepCard: React.FC<StepCardProps> = ({
         )}
       >
         {showMainRow &&
-          (step.cardCode ? (
+          (step.actionType === 'DRAW' ? (
+            <div className="flex h-[58px] items-center gap-2 px-2">
+              <div className="h-[46px] w-[31px] shrink-0 overflow-hidden rounded-[2px] border border-border bg-muted shadow-sm">
+                <CardThumb
+                  code={step.cardCode}
+                  name={displayCardName}
+                  imageClassName="block"
+                  className="h-full w-full"
+                />
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate text-[12px] font-bold leading-tight text-foreground">
+                  {displayCardName}
+                </span>
+                <span className="truncate text-[9px] text-muted-foreground">
+                  {step.description}
+                </span>
+              </div>
+              <span
+                className={cn('shrink-0 text-center text-[13px] font-bold', colorTheme.text)}
+              >
+                {actionLabel}
+              </span>
+              <span className={cn('shrink-0 text-[9px] font-semibold', playerAccent)}>
+                {playerLabel}
+              </span>
+            </div>
+          ) : step.cardCode ? (
             <div className={cn('relative w-full', hasZones ? 'h-[120px]' : 'h-[86px]')}>
               <div
                 className={cn(
@@ -272,7 +299,9 @@ export const StepCard: React.FC<StepCardProps> = ({
           </div>
         )}
 
-        {hasLogEvents && <StepLogRows step={step} events={logEvents} />}
+        {hasLogEvents && step.actionType !== 'DRAW' && (
+          <StepLogRows step={step} events={logEvents} />
+        )}
 
         {!hasLogEvents && step.targetCardName && (
           <div className="mx-[56px] mt-0.5 flex min-w-0 items-center gap-2 border-y border-orange-500/20 bg-orange-500/10 px-2 py-1">

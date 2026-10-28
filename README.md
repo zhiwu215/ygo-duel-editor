@@ -9,7 +9,7 @@
 
 1. [安装和基本界面](docs/使用教程/01安装和基本界面.md)
 2. [界面与核心概念](docs/使用教程/02界面与核心概念.md)
-3. [布置盘面](docs/使用教程/03布置盘面.md)
+3. [布置台面](docs/使用教程/03布置盘面.md)
 4. [台本文本与文本库](docs/使用教程/04台本文本与文本库.md)
 5. [卡片图鉴与自定义卡片](docs/使用教程/05卡片图鉴与自定义卡片.md)
 6. [游戏测试与回放](docs/使用教程/06游戏测试与回放.md)
@@ -17,33 +17,33 @@
 
 ## 技术栈
 
-| 技术              | 说明                                       | 官网                                                |
-| ----------------- | ------------------------------------------ | --------------------------------------------------- |
-| Electron 39       | 跨平台桌面应用框架                         | https://www.electronjs.org/                         |
-| electron-vite 5   | Electron 项目的 Vite 集成与构建工具        | https://electron-vite.org/                          |
-| React 19          | UI 框架                                    | https://react.dev/                                  |
-| TypeScript 5      | JavaScript 的类型化超集                    | https://www.typescriptlang.org/                     |
-| TailwindCSS 4     | 原子化 CSS 框架                            | https://tailwindcss.com/                            |
-| shadcn/ui         | 无样式可复制组件库                         | https://ui.shadcn.com/                              |
-| Base UI           | React 无头组件原语库（shadcn/ui 底层依赖） | https://base-ui.com/                                |
-| Radix UI          | React 无头组件原语库（shadcn/ui 的另一底层依赖） | https://www.radix-ui.com/                       |
-| Zustand 5         | 轻量级状态管理                             | https://zustand-demo.pmnd.rs/                       |
-| zundo             | Zustand 的撤销/重做中间件                  | https://github.com/charkour/zundo                   |
-| better-sqlite3    | 同步式 SQLite 客户端                       | https://github.com/WiseLibs/better-sqlite3          |
-| sql.js            | 纯 WASM 的 SQLite 实现（前端/只读场景）     | https://github.com/sql-js/sql.js                    |
-| koishipro-core.js | YGOPro 决斗核心（ocgcore）的 WASM 封装     | https://github.com/purerosefallen/koishipro-core.js |
-| ygopro-msg-encode | YGOPro 决斗协议编解码库                    | https://github.com/purerosefallen/ygopro-msg-encode |
-| ygopro-yrp-encode | YGOPro 对局录像（YRP）文件编解码库         | https://www.npmjs.com/package/ygopro-yrp-encode     |
-| ygopro-yrp3d-encode | YGOPro 3D 录像（YRP3D）文件编解码库       | https://www.npmjs.com/package/ygopro-yrp3d-encode   |
-| ygopro-cdb-encode | YGOPro 卡库（CDB）文件编解码库              | https://www.npmjs.com/package/ygopro-cdb-encode     |
-| @cjser/lzma1      | 纯 JS 的 LZMA 压缩/解压（YRP 文件体压缩）  | https://www.npmjs.com/package/@cjser/lzma1          |
-| framer-motion     | React 动画库                               | https://motion.dev/                                 |
-| @dnd-kit          | React 拖拽交互套件                         | https://dndkit.com/                                 |
-| react-markdown    | Markdown 渲染组件（配合 remark-gfm）       | https://github.com/remarkjs/react-markdown          |
-| remark-cjk-friendly | Markdown 的 CJK 友好分词插件              | https://www.npmjs.com/package/remark-cjk-friendly    |
-| Lucide React      | 简洁的开源图标库                           | https://lucide.dev/                                 |
-| electron-builder  | Electron 应用打包工具                      | https://www.electron.build/                         |
-| Pi Coding Agent   | Pi Agent 的 SDK                            | https://pi.dev/docs/latest/sdk                      |
+| 技术                | 说明                                             | 官网                                                |
+| ------------------- | ------------------------------------------------ | --------------------------------------------------- |
+| Electron 39         | 跨平台桌面应用框架                               | https://www.electronjs.org/                         |
+| electron-vite 5     | Electron 项目的 Vite 集成与构建工具              | https://electron-vite.org/                          |
+| React 19            | UI 框架                                          | https://react.dev/                                  |
+| TypeScript 5        | JavaScript 的类型化超集                          | https://www.typescriptlang.org/                     |
+| TailwindCSS 4       | 原子化 CSS 框架                                  | https://tailwindcss.com/                            |
+| shadcn/ui           | 无样式可复制组件库                               | https://ui.shadcn.com/                              |
+| Base UI             | React 无头组件原语库（shadcn/ui 底层依赖）       | https://base-ui.com/                                |
+| Radix UI            | React 无头组件原语库（shadcn/ui 的另一底层依赖） | https://www.radix-ui.com/                           |
+| Zustand 5           | 轻量级状态管理                                   | https://zustand-demo.pmnd.rs/                       |
+| zundo               | Zustand 的撤销/重做中间件                        | https://github.com/charkour/zundo                   |
+| better-sqlite3      | 同步式 SQLite 客户端                             | https://github.com/WiseLibs/better-sqlite3          |
+| sql.js              | 纯 WASM 的 SQLite 实现（前端/只读场景）          | https://github.com/sql-js/sql.js                    |
+| koishipro-core.js   | YGOPro 决斗核心（ocgcore）的 WASM 封装           | https://github.com/purerosefallen/koishipro-core.js |
+| ygopro-msg-encode   | YGOPro 决斗协议编解码库                          | https://github.com/purerosefallen/ygopro-msg-encode |
+| ygopro-yrp-encode   | YGOPro 对局录像（YRP）文件编解码库               | https://www.npmjs.com/package/ygopro-yrp-encode     |
+| ygopro-yrp3d-encode | YGOPro 3D 录像（YRP3D）文件编解码库              | https://www.npmjs.com/package/ygopro-yrp3d-encode   |
+| ygopro-cdb-encode   | YGOPro 卡库（CDB）文件编解码库                   | https://www.npmjs.com/package/ygopro-cdb-encode     |
+| @cjser/lzma1        | 纯 JS 的 LZMA 压缩/解压（YRP 文件体压缩）        | https://www.npmjs.com/package/@cjser/lzma1          |
+| framer-motion       | React 动画库                                     | https://motion.dev/                                 |
+| @dnd-kit            | React 拖拽交互套件                               | https://dndkit.com/                                 |
+| react-markdown      | Markdown 渲染组件（配合 remark-gfm）             | https://github.com/remarkjs/react-markdown          |
+| remark-cjk-friendly | Markdown 的 CJK 友好分词插件                     | https://www.npmjs.com/package/remark-cjk-friendly   |
+| Lucide React        | 简洁的开源图标库                                 | https://lucide.dev/                                 |
+| electron-builder    | Electron 应用打包工具                            | https://www.electron.build/                         |
+| Pi Coding Agent     | Pi Agent 的 SDK                                  | https://pi.dev/docs/latest/sdk                      |
 
 ## 开发
 

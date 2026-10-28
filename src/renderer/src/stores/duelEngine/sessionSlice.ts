@@ -97,6 +97,7 @@ export interface SessionSlice {
   stopEngine: () => void
   suspendEngine: () => Promise<void>
   resumeSuspended: () => Promise<boolean>
+  resumeSuspendedFromStart: () => Promise<boolean>
   setSuspendedDoc: (doc: EngineSessionDoc | null) => void
   inject: (command: InjectCommand) => Promise<boolean>
   clearInjectNotice: () => void
@@ -286,6 +287,16 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
     if (!doc) return false
     useDuelStore.getState().exitPreview()
     return get().restoreSessionDoc(doc)
+  },
+
+  resumeSuspendedFromStart: async () => {
+    const doc = get().suspendedDoc
+    if (!doc) return false
+    const start = doc.timeline.find((node) => node.parentId === null) ?? doc.timeline[0]
+    if (!start) return false
+    if (start.id === doc.currentStepId) return get().resumeSuspended()
+    useDuelStore.getState().exitPreview()
+    return get().restoreSessionDoc({ ...doc, currentStepId: start.id })
   },
 
   setSuspendedDoc: (doc) => set({ suspendedDoc: doc }),

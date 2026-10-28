@@ -14,7 +14,7 @@ import { Input } from '../ui/input'
 import { Separator } from '../ui/separator'
 import { WindowControls } from '../ui/window-controls'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Check, Clapperboard, ShieldCheck, Square, Play, Loader2 } from 'lucide-react'
+import { Check, Clapperboard, ShieldCheck, Square, Play, Loader2, RotateCcw } from 'lucide-react'
 import { ChainModeToggle } from '../Board/ChainModeToggle'
 import { MenuBar } from './MenuBar'
 import { MatchSelector } from './components/MatchSelector'
@@ -25,10 +25,11 @@ import { useProjectCommands } from '../../hooks/useProjectCommands'
 import { useGlobalShortcuts } from '../../hooks/useGlobalShortcuts'
 import { useSceneMode } from '../../hooks/useSceneMode'
 import { useStartEngine } from '../../hooks/useStartEngine'
+import { SCENE_STEP_INDEX } from '../../utils/openingScene'
 import { useConfigStore } from '../../stores/useConfigStore'
 import { useUpdateStore } from '../../stores/useUpdateStore'
 import { commitDuelDocumentTitle } from '../../utils/duelDocumentTitle'
-import { confirmDialog } from '../../stores/useDialogStore'
+import { alertDialog, confirmDialog } from '../../stores/useDialogStore'
 
 export const Header: React.FC = () => {
   const engineMode = useDuelEngineStore((s) => s.engineMode)
@@ -36,21 +37,30 @@ export const Header: React.FC = () => {
   const mergedMatch = useDuelEngineStore((s) => s.mergedMatch)
   const suspendEngine = useDuelEngineStore((s) => s.suspendEngine)
   const resumeSuspended = useDuelEngineStore((s) => s.resumeSuspended)
+  const resumeSuspendedFromStart = useDuelEngineStore((s) => s.resumeSuspendedFromStart)
   const suspendedDoc = useDuelEngineStore((s) => s.suspendedDoc)
   const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const importingReplay = useDuelEngineStore((s) => s.importingReplay)
   const engineSupport = useConfigStore((s) => s.engineSupport)
   const engineUnsupported = engineSupport?.supported === false
-  const { state, setMasterRule, setTitle, previewReturn, sceneEditing } = useDuelStore()
+  const { state, setMasterRule, setTitle, previewReturn, sceneEditing, currentStepIndex } =
+    useDuelStore()
   const sceneDirty = useDuelStore((s) => (s.sceneEditing ? s.isSceneDirty() : false))
   const { toggleSceneMode } = useSceneMode()
   const startEngine = useStartEngine()
   const canResume = suspendedDoc
-    ? boardFingerprintMatches(
-        suspendedDoc.boardFingerprint,
-        computeBoardFingerprint(previewReturn?.state ?? state)
-      )
+    ? sceneEditing
+      ? !sceneDirty
+      : boardFingerprintMatches(
+          suspendedDoc.boardFingerprint,
+          computeBoardFingerprint(previewReturn?.state ?? state)
+        )
     : false
+  const showStartOver =
+    suspendedDoc !== null &&
+    suspendedDoc.timeline.length > 1 &&
+    currentStepIndex === SCENE_STEP_INDEX &&
+    !sceneDirty
 
   const handleResume = async (): Promise<void> => {
     const restored = await resumeSuspended()
@@ -62,6 +72,14 @@ export const Header: React.FC = () => {
     })
     if (!ok) return
     await startEngine({ skipResume: true })
+  }
+
+  const handleStartOver = async (): Promise<void> => {
+    const restored = await resumeSuspendedFromStart()
+    if (restored) return
+    await alertDialog(
+      `从头开始失败\n${useDuelEngineStore.getState().error ?? '引擎无法从初始步骤恢复上次的会话。'}`
+    )
   }
 
   const {
@@ -226,38 +244,55 @@ export const Header: React.FC = () => {
                 <span>退出引擎</span>
               </Button>
             </div>
-          ) : suspendedDoc && canResume ? (
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => void handleResume()}
-              disabled={isEngineLoading || engineUnsupported}
-              className="h-7 px-2 text-[11px] font-bold gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
-            >
-              {isEngineLoading ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Play className="w-3 h-3 fill-current" />
-              )}
-              <span>{isEngineLoading ? '正在恢复...' : '继续上次会话'}</span>
-            </Button>
           ) : (
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={() => void startEngine()}
-              disabled={isEngineLoading || engineUnsupported}
-              className="h-7 px-2 text-[11px] font-bold gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
-            >
-              <Play className="w-3 h-3 fill-current" />
-              <span>
-                {isEngineLoading
-                  ? '正在启动...'
-                  : engineUnsupported
-                    ? 'KCG 不支持'
-                    : '启动规则校验'}
-              </span>
-            </Button>
+            <div className="flex items-center gap-1.5">
+              {suspendedDoc && canResume && (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => void handleResume()}
+                  disabled={isEngineLoading || engineUnsupported}
+                  className="h-7 px-2 text-[11px] font-bold gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                >
+                  {isEngineLoading ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Play className="w-3 h-3 fill-current" />
+                  )}
+                  <span>{isEngineLoading ? '正在恢复...' : '继续上次会话'}</span>
+                </Button>
+              )}
+              {showStartOver && (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => void handleStartOver()}
+                  disabled={isEngineLoading || engineUnsupported}
+                  className="h-7 px-2 text-[11px] font-bold gap-1 bg-background/60 text-muted-foreground border-border hover:bg-muted"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>从头开始</span>
+                </Button>
+              )}
+              {!canResume && (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => void startEngine()}
+                  disabled={isEngineLoading || engineUnsupported}
+                  className="h-7 px-2 text-[11px] font-bold gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+                >
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>
+                    {isEngineLoading
+                      ? '正在启动...'
+                      : engineUnsupported
+                        ? 'KCG 不支持'
+                        : '启动规则校验'}
+                  </span>
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </div>

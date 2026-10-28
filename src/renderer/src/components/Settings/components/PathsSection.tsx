@@ -10,12 +10,23 @@ import { ReplayCleanupDialog } from './ReplayCleanupDialog'
 
 export function PathsSection(): JSX.Element {
   const [replayDialogOpen, setReplayDialogOpen] = useState(false)
-  const { config } = useConfigStore()
+  const { config, gamePathStatus } = useConfigStore()
   const selectYgoDir = useYgoDirSelect()
   const selectCardImageDir = useConfigStore((state) => state.selectCardImageDir)
   const clearCardImageDir = useConfigStore((state) => state.clearCardImageDir)
   const currentLanguageId =
     config.gameType === 'mdpro3' ? mdpro3LocaleIdFromCdbPath(config.cdbPath) : config.gameLanguage
+  const gamePathMissing =
+    !!config.gameDirectory &&
+    !!gamePathStatus &&
+    gamePathStatus.gameDirectory === config.gameDirectory &&
+    !gamePathStatus.directoryExists
+  const cdbPathMissing =
+    !!config.gameDirectory &&
+    !!gamePathStatus &&
+    gamePathStatus.gameDirectory === config.gameDirectory &&
+    gamePathStatus.directoryExists &&
+    !gamePathStatus.cdbExists
 
   const openLanguages = async (): Promise<void> => {
     const options = await window.api.getGameLanguageOptions()
@@ -27,19 +38,24 @@ export function PathsSection(): JSX.Element {
       ? `自定义卡图目录：${config.cardImageDirectory}`
       : '未设置，读取 MDPro3 自带的插画 (Picture/Art)'
 
+  const pathDescription = (): string => {
+    if (gamePathMissing) return `路径不存在，请重新选择：${config.gameDirectory}`
+    if (cdbPathMissing) return `未找到 cards.cdb，请重新选择游戏主目录：${config.gameDirectory}`
+    if (!config.gameDirectory) return '未设置 (指定后自动识别游戏类型并读取卡库与本地卡图)'
+    const gameLabel = config.gameType === 'mdpro3' ? 'MDPro3' : 'YGOPro'
+    const language = currentLanguageId ? ` · ${languageLabel(currentLanguageId)}` : ''
+    return `(${gameLabel}${language}) ${config.gameDirectory}`
+  }
+
+  const ygoDirActionLabel = (): string => {
+    if (gamePathMissing || cdbPathMissing) return '重新选择...'
+    return config.gameDirectory ? '更换...' : '设置...'
+  }
+
   return (
     <>
       <section className="rounded-xl border border-border bg-card/60">
-        <SettingsRow
-          title="YGO 主程序目录"
-          description={
-            config.gameDirectory
-              ? `(${config.gameType === 'mdpro3' ? 'MDPro3' : 'YGOPro'}${
-                  currentLanguageId ? ` · ${languageLabel(currentLanguageId)}` : ''
-                }) ${config.gameDirectory}`
-              : '未设置 (指定后自动识别游戏类型并读取卡库与本地卡图)'
-          }
-        >
+        <SettingsRow title="YGO 主程序目录" description={pathDescription()}>
           <div className="flex shrink-0 items-center gap-1">
             {(config.gameType === 'mdpro3' || !!config.gameLanguage) && (
               <Button
@@ -59,7 +75,7 @@ export function PathsSection(): JSX.Element {
               className="gap-1"
             >
               <Folder className="w-3.5 h-3.5" />
-              <span>{config.gameDirectory ? '更换...' : '设置...'}</span>
+              <span>{ygoDirActionLabel()}</span>
             </Button>
           </div>
         </SettingsRow>

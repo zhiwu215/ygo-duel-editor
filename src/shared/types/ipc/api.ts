@@ -62,7 +62,13 @@ import {
   AgentSendMessageResult,
   AgentStreamEvent
 } from './agent'
-import { AppConfig, DataDirectoryResult, DuelTestSettings, SettingsSectionId } from './appConfig'
+import {
+  AppConfig,
+  DataDirectoryResult,
+  DuelTestSettings,
+  GamePathStatus,
+  SettingsSectionId
+} from './appConfig'
 import type { UpdateState } from '../update'
 import {
   EngineExportReplayParams,
@@ -244,7 +250,7 @@ export interface IpcApi {
 
   getConfig: () => Promise<AppConfig>
   saveConfig: (config: Partial<AppConfig>) => Promise<boolean>
-  resetConfig: () => Promise<boolean>
+  getGamePathStatus: () => Promise<GamePathStatus>
 
   setCardImageOverride: (code: number, variantCode: number | null) => Promise<boolean>
   onCardImageUpdated: (callback: () => void) => () => void

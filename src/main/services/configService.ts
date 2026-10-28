@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'fs'
 import {
   AppConfig,
   DEFAULT_FONT_SIZES,
@@ -21,7 +21,6 @@ function defaultConfig(): AppConfig {
 export class ConfigService {
   private config: AppConfig = defaultConfig()
   private loaded = false
-  private firstRun = false
 
   private get configPath(): string {
     return join(app.getPath('userData'), 'ygo-duel-editor-config.json')
@@ -30,8 +29,7 @@ export class ConfigService {
   private ensureLoaded(): void {
     if (this.loaded) return
     this.loaded = true
-    this.firstRun = !existsSync(this.configPath)
-    if (this.firstRun) return
+    if (!existsSync(this.configPath)) return
     try {
       const raw = readFileSync(this.configPath, 'utf-8')
       this.config = { ...this.config, ...JSON.parse(raw) }
@@ -42,14 +40,17 @@ export class ConfigService {
     }
   }
 
-  public isFirstRun(): boolean {
-    this.ensureLoaded()
-    return this.firstRun
-  }
-
   public get(): AppConfig {
     this.ensureLoaded()
     return { ...this.config }
+  }
+
+  public modifiedAt(): number {
+    try {
+      return statSync(this.configPath).mtimeMs
+    } catch {
+      return 0
+    }
   }
 
   public save(partial: Partial<AppConfig>): boolean {
@@ -63,20 +64,6 @@ export class ConfigService {
       console.error('[ConfigService] Failed to save config:', err)
       return false
     }
-  }
-
-  public reset(): boolean {
-    this.ensureLoaded()
-    this.config = { ...defaultConfig(), dataDirectory: this.config.dataDirectory }
-    try {
-      writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf-8')
-    } catch (err) {
-      console.error('[ConfigService] Failed to reset config:', err)
-      return false
-    }
-    this.firstRun = false
-    broadcastToWindows('config:updated')
-    return true
   }
 }
 

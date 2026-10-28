@@ -11,6 +11,7 @@ import {
   DuelTestSettings,
   EngineSupportInfo,
   FontSizeRole,
+  GamePathStatus,
   WebSearchConfig,
   clampFontSize,
   normalizeCardNameWrapper,
@@ -24,13 +25,14 @@ interface ConfigStoreState {
   config: AppConfig
   isLoaded: boolean
   dbReady: boolean | null
+  gamePathStatus: GamePathStatus | null
   customCdbPath: string
   libraries: CdbLibraryInfo[]
   customSyncCdb: CustomSyncCdbInfo | null
   engineSupport: EngineSupportInfo | null
   loadConfig: () => Promise<void>
-  resetConfig: () => Promise<boolean>
   refreshCdbStatus: () => Promise<void>
+  refreshGamePathStatus: () => Promise<void>
   refreshEngineSupport: () => Promise<void>
   selectYgoDir: () => Promise<CdbSelectResult>
 
@@ -65,6 +67,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   },
   isLoaded: false,
   dbReady: null,
+  gamePathStatus: null,
   customCdbPath: '',
   libraries: [],
   customSyncCdb: null,
@@ -78,6 +81,17 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     } catch (err) {
       console.error('[useConfigStore] refreshEngineSupport error:', err)
       set({ engineSupport: null })
+    }
+  },
+
+  refreshGamePathStatus: async () => {
+    try {
+      if (!window.api?.getGamePathStatus) return
+      const status = await window.api.getGamePathStatus()
+      set({ gamePathStatus: status })
+    } catch (err) {
+      console.error('[useConfigStore] refreshGamePathStatus error:', err)
+      set({ gamePathStatus: null })
     }
   },
 
@@ -117,22 +131,12 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       applyTheme(theme)
       applyFontSizes(fontSizes)
       set({ config: { ...cfg, theme, fontSizes }, isLoaded: true })
+      await get().refreshGamePathStatus()
       await get().refreshCdbStatus()
       await get().refreshEngineSupport()
     } catch (err) {
       console.error('[useConfigStore] loadConfig error:', err)
       set({ isLoaded: true })
-    }
-  },
-
-  resetConfig: async () => {
-    try {
-      const ok = await window.api.resetConfig()
-      await get().loadConfig()
-      return ok
-    } catch (err) {
-      console.error('[useConfigStore] resetConfig error:', err)
-      return false
     }
   },
 

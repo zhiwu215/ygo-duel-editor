@@ -1,11 +1,13 @@
 import { app, shell, BrowserWindow, protocol, net } from 'electron'
 import { join } from 'path'
+import { existsSync } from 'fs'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import './services/userDataProfile'
+import { isPortableProfile } from './services/userDataProfile'
 import { registerAllIpcHandlers } from './ipc/registerIpc'
 import { configService } from './services/configService'
+import { dataDirService } from './services/dataDirService'
 import { cdbService } from './db/cdbService'
 import {
   currentBundledCdbPaths,
@@ -80,6 +82,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.ygoduel.editor')
+  dataDirService.getDataDirectory()
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -94,7 +97,7 @@ app.whenReady().then(() => {
   })
 
   registerAllIpcHandlers()
-  updateService.startAutoCheck()
+  if (!isPortableProfile()) updateService.startAutoCheck()
 
   protocol.handle('ygopic', async (request) => {
     try {
@@ -119,14 +122,17 @@ app.whenReady().then(() => {
   })
 
   const cfg = configService.get()
+  const gameDirectory =
+    cfg.gameDirectory && existsSync(cfg.gameDirectory) ? cfg.gameDirectory : undefined
+  const cdbPath = cfg.cdbPath && existsSync(cfg.cdbPath) ? cfg.cdbPath : undefined
   const disabled = cfg.disabledCdbPaths || []
   const extraCdbPaths = (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
-  if (cfg.gameDirectory && cfg.gameType === 'ygopro') {
-    const packs = discoverGameLanguagePacks(cfg.gameDirectory)
+  if (gameDirectory && cfg.gameType === 'ygopro') {
+    const packs = discoverGameLanguagePacks(gameDirectory)
     if (packs.length > 0) {
       const pack = resolveGameLanguagePack(
         packs,
-        cfg.gameLanguage ?? readGameConfigLanguage(cfg.gameDirectory)
+        cfg.gameLanguage ?? readGameConfigLanguage(gameDirectory)
       )
       if (pack && pack.id !== cfg.gameLanguage) {
         configService.save({ gameLanguage: pack.id })
@@ -138,11 +144,11 @@ app.whenReady().then(() => {
   seedCurrentGameLanguage()
   const bundledCdbPaths = currentBundledCdbPaths()
   cdbService.setPreferredBanlist(cfg.banlistName)
-  if (cfg.cdbPath || extraCdbPaths.length > 0 || bundledCdbPaths.length > 0) {
-    cdbService.setGameDirectory(cfg.gameDirectory)
-    cdbService.reloadAll(cfg.cdbPath, bundledCdbPaths, extraCdbPaths, currentLanguagePack())
-    if (!cfg.gameDirectory && cfg.cdbPath) {
-      const detected = imageService.detectGameDirectory(cfg.cdbPath)
+  if (cdbPath || extraCdbPaths.length > 0 || bundledCdbPaths.length > 0) {
+    cdbService.setGameDirectory(gameDirectory)
+    cdbService.reloadAll(cdbPath, bundledCdbPaths, extraCdbPaths, currentLanguagePack())
+    if (!gameDirectory && cdbPath) {
+      const detected = imageService.detectGameDirectory(cdbPath)
       if (detected) {
         configService.save({ gameDirectory: detected })
         cdbService.setGameDirectory(detected)

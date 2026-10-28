@@ -4,7 +4,7 @@ import { dirname, join } from 'path'
 import { GameLanguageOption } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from '../services/configService'
-import { favoritesService } from '../services/favoritesService'
+import { checkGamePathStatus } from '../services/gamePathStatus'
 import {
   currentBundledCdbPaths,
   discoverGameCdbPaths,
@@ -49,17 +49,8 @@ export function registerConfigIpc(): void {
     return configService.save(partial)
   })
 
-  ipcMain.handle('config:reset', async () => {
-    if (!configService.reset()) return false
-    cdbService.setGameDirectory(undefined)
-    cdbService.setPreferredBanlist(undefined)
-    cdbService.reloadAll(undefined, currentBundledCdbPaths(), [], null)
-    imageService.invalidateCardImageCache()
-    invalidateScriptReaders()
-    broadcastToWindows('cdb:updated')
-    broadcastToWindows('image:updated')
-    broadcastToWindows('favorites:changed', favoritesService.getState())
-    return true
+  ipcMain.handle('config:game-path-status', () => {
+    return checkGamePathStatus(configService.get())
   })
 
   ipcMain.handle('config:select-ygo-dir', async () => {

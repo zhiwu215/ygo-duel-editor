@@ -212,7 +212,7 @@ const api: IpcApi = {
 
   getConfig: () => ipcRenderer.invoke('config:get'),
   saveConfig: (cfg: Partial<AppConfig>) => ipcRenderer.invoke('config:save', cfg),
-  resetConfig: () => ipcRenderer.invoke('config:reset'),
+  getGamePathStatus: () => ipcRenderer.invoke('config:game-path-status'),
 
   setCardImageOverride: (code: number, variantCode: number | null) =>
     ipcRenderer.invoke('image:set-card-override', code, variantCode),

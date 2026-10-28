@@ -10,12 +10,14 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync
 } from 'fs'
-import { DataDirectoryResult } from '@shared/index'
+import { AppConfig, DataDirectoryResult } from '@shared/index'
 import { configService } from './configService'
 import { broadcastToWindows } from './broadcast'
-import { isIsolatedProfile, profileRoot } from './userDataProfile'
+import { isIsolatedProfile, portableDataRoot, profileRoot } from './userDataProfile'
+import { remapWorkspaceSettings, resetWorkspaceSettings } from './workspaceSettings'
 
 const DEFAULT_DIR_NAME = 'ygo-duel-editor-data'
 const INSTALLER_APP_DIR = 'ygo-duel-editor'
@@ -41,6 +43,10 @@ function isWithin(parent: string, child: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
 
+function samePath(left: string, right: string): boolean {
+  return canonicalPath(left).toLowerCase() === canonicalPath(right).toLowerCase()
+}
+
 export class DataDirService {
   private legacyMigrated = false
   private installerChoiceAdopted = false
@@ -50,10 +56,14 @@ export class DataDirService {
     return isWithin(installRoot, canonicalPath(target))
   }
 
+  private get installerMarkerPath(): string {
+    return join(app.getPath('appData'), INSTALLER_APP_DIR, INSTALLER_MARKER)
+  }
+
   private readInstallerChoice(): string | null {
     if (!app.isPackaged) return null
     try {
-      const marker = join(app.getPath('appData'), INSTALLER_APP_DIR, INSTALLER_MARKER)
+      const marker = this.installerMarkerPath
       if (!existsSync(marker)) return null
       const value = readFileSync(marker, 'utf-8').trim()
       if (!value) return null
@@ -66,18 +76,71 @@ export class DataDirService {
     }
   }
 
+  private writeInstallerChoice(directory: string): void {
+    if (!app.isPackaged || isIsolatedProfile()) return
+    try {
+      mkdirSync(dirname(this.installerMarkerPath), { recursive: true })
+      writeFileSync(this.installerMarkerPath, directory, 'utf-8')
+    } catch (err) {
+      console.error('[DataDirService] write installer choice failed:', err)
+    }
+  }
+
+  private hasData(directory: string): boolean {
+    return (
+      DATA_FILES.some((name) => existsSync(join(directory, name))) ||
+      DATA_DIRS.some((rel) => existsSync(join(directory, rel)))
+    )
+  }
+
+  private installerMarkerTime(): number {
+    try {
+      return statSync(this.installerMarkerPath).mtimeMs
+    } catch {
+      return 0
+    }
+  }
+
+  private confirmAdoption(previous: string, next: string): boolean {
+    const choice = dialog.showMessageBoxSync({
+      type: 'question',
+      title: '数据保存目录已变更',
+      message: '安装时选择了新的数据保存目录',
+      detail: `新目录：${next}\n旧目录：${previous}\n\n「复制并沿用」会把旧目录里的卡组、图鉴、台本、文本、自定义卡复制到新目录，并保留游戏主程序目录等设置；「从新开始」会清空游戏主程序目录、附加卡库等设置，旧目录里的文件不会被删除。`,
+      buttons: ['复制并沿用', '从新开始'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    })
+    return choice === 0
+  }
+
   private adoptInstallerChoice(): void {
     if (this.installerChoiceAdopted) return
     this.installerChoiceAdopted = true
     if (isIsolatedProfile()) return
-    if (!configService.isFirstRun()) return
-    if (configService.get().dataDirectory) return
     const chosen = this.readInstallerChoice()
     if (!chosen) return
-    const localAppData = process.env['LOCALAPPDATA']
-    const fallback = localAppData ? join(localAppData, DEFAULT_DIR_NAME) : app.getPath('userData')
-    if (chosen === fallback) return
-    configService.save({ dataDirectory: chosen })
+    const previous = configService.get().dataDirectory
+    if (!previous) {
+      configService.save({ dataDirectory: chosen })
+      return
+    }
+    if (samePath(previous, chosen)) return
+    if (configService.modifiedAt() >= this.installerMarkerTime()) {
+      this.writeInstallerChoice(previous)
+      return
+    }
+    let patch: Partial<AppConfig> = {}
+    if (this.hasData(previous)) {
+      if (this.confirmAdoption(previous, chosen)) {
+        this.copyData(previous, chosen)
+        patch = remapWorkspaceSettings(configService.get(), previous, chosen)
+      } else {
+        patch = resetWorkspaceSettings()
+      }
+    }
+    configService.save({ dataDirectory: chosen, ...patch })
   }
 
   public get defaultDirectory(): string {
@@ -96,7 +159,7 @@ export class DataDirService {
   }
 
   private profileDataDirectory(): string {
-    const target = join(profileRoot, 'data')
+    const target = portableDataRoot ?? join(profileRoot, 'data')
     try {
       if (!existsSync(target)) mkdirSync(target, { recursive: true })
     } catch (err) {
@@ -182,10 +245,7 @@ export class DataDirService {
     if (configService.get().dataDirectory) return
     const legacy = app.getPath('userData')
     if (legacy === target) return
-    const hasData =
-      DATA_FILES.some((name) => existsSync(join(legacy, name))) ||
-      DATA_DIRS.some((rel) => existsSync(join(legacy, rel)))
-    if (!hasData) return
+    if (!this.hasData(legacy)) return
     try {
       mkdirSync(target, { recursive: true })
       const moved = this.copyData(legacy, target)
@@ -221,6 +281,7 @@ export class DataDirService {
 
     const moved = doMigrate ? this.migrate(directory) : []
     configService.save({ dataDirectory: directory })
+    this.writeInstallerChoice(directory)
     broadcastToWindows('data-dir:changed')
     return { directory, migrated: moved.length > 0 }
   }
@@ -229,6 +290,7 @@ export class DataDirService {
     const directory = this.defaultDirectory
     const moved = doMigrate ? this.migrate(directory) : []
     configService.save({ dataDirectory: directory })
+    this.writeInstallerChoice(directory)
     broadcastToWindows('data-dir:changed')
     return { directory, migrated: moved.length > 0 }
   }

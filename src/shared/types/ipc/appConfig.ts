@@ -10,6 +10,12 @@ export interface DataDirectoryResult {
   error?: string
 }
 
+export interface GamePathStatus {
+  gameDirectory?: string
+  directoryExists: boolean
+  cdbExists: boolean
+}
+
 export interface AppConfig {
   gameDirectory?: string
 

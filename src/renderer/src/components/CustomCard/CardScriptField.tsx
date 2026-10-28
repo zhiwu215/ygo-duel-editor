@@ -1,6 +1,6 @@
 import React from 'react'
 import { CustomCardScriptInfo } from '@shared/index'
-import { FileCode2, FolderOpen, Loader2, Trash2, Upload } from 'lucide-react'
+import { ArrowDownToLine, FileCode2, FolderOpen, Loader2, Trash2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { formatScriptSize } from '../../utils/customCardForm'
 import type { StagedScript } from '../../hooks/useCustomCardScript'
@@ -53,7 +53,11 @@ export const CardScriptField: React.FC<CardScriptFieldProps> = ({
             disabled={busy}
             onClick={onPick}
           >
-            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+            {busy ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <ArrowDownToLine className="h-3 w-3" />
+            )}
             <span>{hasScript ? '替换' : '导入 Lua'}</span>
           </Button>
           <Button

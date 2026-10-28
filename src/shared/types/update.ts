@@ -1,6 +1,8 @@
 export type UpdatePhase =
   'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'up-to-date' | 'error'
 
+export type UpdateFailureOperation = 'check' | 'download' | 'install'
+
 export interface UpdateProgress {
   percent: number
   transferred: number
@@ -16,4 +18,5 @@ export interface UpdateState {
   releaseNotes?: string
   progress?: UpdateProgress
   error?: string
+  failedOperation?: UpdateFailureOperation
 }

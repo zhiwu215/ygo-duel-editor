@@ -11,7 +11,6 @@ import { registerAgentIpc } from './agentIpc'
 import { registerConfigIpc } from './configIpc'
 import { registerDataDirIpc } from './dataDirIpc'
 import { registerWindowIpc } from './windowIpc'
-import { registerUpdateIpc } from './updateIpc'
 
 export function registerAllIpcHandlers(): void {
   registerDuelEngineIpc()
@@ -27,5 +26,4 @@ export function registerAllIpcHandlers(): void {
   registerConfigIpc()
   registerDataDirIpc()
   registerWindowIpc()
-  registerUpdateIpc()
 }

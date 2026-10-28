@@ -1,11 +1,12 @@
-import { app, shell, BrowserWindow, protocol, net } from 'electron'
+import { app, shell, BrowserWindow, protocol, net, powerMonitor } from 'electron'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { isPortableProfile } from './services/userDataProfile'
+import './services/userDataProfile'
 import { registerAllIpcHandlers } from './ipc/registerIpc'
+import { registerUpdateIpc } from './ipc/updateIpc'
 import { configService } from './services/configService'
 import { dataDirService } from './services/dataDirService'
 import { cdbService } from './db/cdbService'
@@ -22,6 +23,29 @@ import { textLibraryService } from './services/textLibraryService'
 import { seedCurrentGameLanguage } from './services/gameLanguagePreference'
 import { installWindowCloseGuard } from './services/windowCloseGuard'
 import { updateService } from './services/updateService'
+import {
+  DEFAULT_UPDATE_SCHEDULE_CONFIG,
+  resolveUpdateScheduleConfig,
+  UpdateSchedule
+} from './services/updateSchedule'
+
+function createUpdateSchedule(): UpdateSchedule {
+  try {
+    return new UpdateSchedule(updateService, resolveUpdateScheduleConfig(process.env))
+  } catch (error) {
+    console.warn('[update] invalid check schedule configuration, using defaults:', error)
+    return new UpdateSchedule(updateService, DEFAULT_UPDATE_SCHEDULE_CONFIG)
+  }
+}
+
+const updateSchedule = createUpdateSchedule()
+
+function checkForUpdatesInBackground(): void {
+  if (!app.isPackaged) return
+  void updateSchedule.check().catch((error: unknown) => {
+    console.error('[update] background check failed:', error)
+  })
+}
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -59,6 +83,7 @@ function createWindow(): void {
   installWindowCloseGuard(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
+    checkForUpdatesInBackground()
     mainWindow.show()
   })
 
@@ -83,6 +108,15 @@ function createWindow(): void {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.ygoduel.editor')
   dataDirService.getDataDirectory()
+  updateService.init()
+
+  app.on('browser-window-focus', checkForUpdatesInBackground)
+  powerMonitor.on('resume', checkForUpdatesInBackground)
+  app.on('will-quit', () => {
+    updateSchedule.dispose()
+    app.off('browser-window-focus', checkForUpdatesInBackground)
+    powerMonitor.off('resume', checkForUpdatesInBackground)
+  })
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -97,7 +131,7 @@ app.whenReady().then(() => {
   })
 
   registerAllIpcHandlers()
-  if (!isPortableProfile()) updateService.startAutoCheck()
+  registerUpdateIpc((manual) => updateSchedule.check(manual))
 
   protocol.handle('ygopic', async (request) => {
     try {

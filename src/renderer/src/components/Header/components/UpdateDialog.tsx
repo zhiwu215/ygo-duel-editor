@@ -10,6 +10,7 @@ import {
   DialogTitle
 } from '../../ui/dialog'
 import { Button } from '../../ui/button'
+import { ReleaseNotes } from './ReleaseNotes'
 
 function formatBytes(bytes: number): string {
   if (!bytes) return '0 B'
@@ -30,14 +31,22 @@ export function UpdateDialog(): JSX.Element {
   const check = useUpdateStore((s) => s.check)
   const download = useUpdateStore((s) => s.download)
   const install = useUpdateStore((s) => s.install)
-  const { phase, supported, currentVersion, availableVersion, releaseNotes, progress, error } =
-    state
+  const {
+    phase,
+    supported,
+    currentVersion,
+    availableVersion,
+    releaseNotes,
+    progress,
+    error,
+    failedOperation
+  } = state
   const percent = Math.round(progress?.percent ?? 0)
 
   const renderNotes = (): JSX.Element | null =>
     releaseNotes ? (
-      <div className="max-h-36 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-2.5 text-xs leading-relaxed text-muted-foreground">
-        {releaseNotes}
+      <div className="max-h-56 overflow-y-auto overscroll-contain break-words rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-[13px] leading-relaxed text-muted-foreground">
+        <ReleaseNotes notes={releaseNotes} />
       </div>
     ) : null
 
@@ -45,7 +54,7 @@ export function UpdateDialog(): JSX.Element {
     if (!supported) {
       return (
         <p className="text-muted-foreground">
-          开发运行模式不会检查更新。安装版会在启动后自动检查，发现新版本时标题栏会出现更新按钮。
+          开发运行模式不会检查更新。安装版会在启动时和运行期间自动检查，发现新版本时标题栏会出现更新提示。
         </p>
       )
     }
@@ -114,9 +123,15 @@ export function UpdateDialog(): JSX.Element {
       )
     }
     if (phase === 'error') {
+      const title =
+        failedOperation === 'download'
+          ? '下载更新失败'
+          : failedOperation === 'install'
+            ? '安装更新失败'
+            : '检查更新失败'
       return (
         <div className="space-y-2">
-          <div className="font-medium text-destructive">检查或下载更新失败</div>
+          <div className="font-medium text-destructive">{title}</div>
           <div className="break-words text-xs text-muted-foreground">{error}</div>
         </div>
       )
@@ -152,7 +167,27 @@ export function UpdateDialog(): JSX.Element {
         </Button>
       ]
     }
-    if (phase === 'up-to-date' || phase === 'error') {
+    if (phase === 'up-to-date') {
+      return [
+        <Button key="retry" variant="outline" size="sm" onClick={() => void check()}>
+          重新检查
+        </Button>,
+        <Button key="close" variant="ghost" size="sm" onClick={closeDialog}>
+          关闭
+        </Button>
+      ]
+    }
+    if (phase === 'error' && failedOperation === 'download' && availableVersion) {
+      return [
+        <Button key="later" variant="outline" size="sm" onClick={closeDialog}>
+          稍后
+        </Button>,
+        <Button key="download" size="sm" onClick={() => void download()}>
+          重新下载
+        </Button>
+      ]
+    }
+    if (phase === 'error') {
       return [
         <Button key="retry" variant="outline" size="sm" onClick={() => void check()}>
           重新检查
@@ -171,7 +206,7 @@ export function UpdateDialog(): JSX.Element {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && closeDialog()}>
-      <DialogContent className="max-w-md" showCloseButton={false}>
+      <DialogContent className="sm:max-w-md" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>软件更新</DialogTitle>
           <DialogDescription>

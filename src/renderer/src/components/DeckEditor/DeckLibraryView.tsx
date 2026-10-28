@@ -3,8 +3,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { DeckData, groupLeafName, groupParentPath, isGroupDescendant } from '@shared/index'
 import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { confirmDialog } from '../../stores/useDialogStore'
-import { Button } from '../ui/button'
+import { Button, buttonVariants } from '../ui/button'
 import { Input } from '../ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { WindowControls } from '../ui/window-controls'
 import { GroupNameModal } from './GroupNameModal'
 import { YdkPasteModal } from './YdkPasteModal'
@@ -78,11 +79,9 @@ export const DeckLibraryView: React.FC = () => {
 
   const closeContextMenu = useCallback((): void => setContextMenu(null), [])
   const closeGroupMenu = useCallback((): void => setGroupMenu(null), [])
-  const closeImportMenu = useCallback((): void => setImportMenuOpen(false), [])
 
   useDismissOnOutside(null, Boolean(contextMenu), closeContextMenu)
   useDismissOnOutside(null, Boolean(groupMenu), closeGroupMenu)
-  useDismissOnOutside(null, importMenuOpen, closeImportMenu)
 
   const ungroupedCount = useMemo(() => getUngroupedCount(deckList), [deckList])
 
@@ -176,52 +175,47 @@ export const DeckLibraryView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 [-webkit-app-region:no-drag]">
-          <div className="relative">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setImportMenuOpen((v) => !v)}
-              className="h-8 text-xs gap-1.5 font-medium"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
-              <span>导入 YDK</span>
-              <ChevronDown className="w-3 h-3 opacity-60" />
-            </Button>
-
-            {importMenuOpen && (
-              <div
-                onMouseDown={(e) => e.stopPropagation()}
-                className="absolute top-full right-0 mt-1 z-50"
+          <Popover open={importMenuOpen} onOpenChange={setImportMenuOpen}>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  className={cn(
+                    buttonVariants({ variant: 'outline', size: 'sm' }),
+                    'h-8 text-xs gap-1.5 font-medium'
+                  )}
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>导入 YDK</span>
+                  <ChevronDown className="w-3 h-3 opacity-60" />
+                </button>
+              }
+            />
+            <PopoverContent align="end" sideOffset={4} className="w-44 gap-0 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setImportMenuOpen(false)
+                  void importDeckFileToLibrary()
+                }}
+                className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
               >
-                <div className="w-44 bg-popover border border-border rounded-md overflow-hidden shadow-lg py-1">
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      setImportMenuOpen(false)
-                      void importDeckFileToLibrary()
-                    }}
-                    className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-                  >
-                    <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-                    <span className="font-medium">从 .ydk 文件导入</span>
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      setImportMenuOpen(false)
-                      setShowPasteModal(true)
-                    }}
-                    className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-                  >
-                    <ClipboardPaste className="w-3.5 h-3.5 shrink-0" />
-                    <span className="font-medium">粘贴 YDK 文本</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+                <FolderOpen className="w-3.5 h-3.5 shrink-0" />
+                <span className="font-medium">从 .ydk 文件导入</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setImportMenuOpen(false)
+                  setShowPasteModal(true)
+                }}
+                className="w-full px-2.5 py-1.5 flex items-center gap-2 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+              >
+                <ClipboardPaste className="w-3.5 h-3.5 shrink-0" />
+                <span className="font-medium">粘贴 YDK 文本</span>
+              </button>
+            </PopoverContent>
+          </Popover>
 
           <Button
             variant="default"

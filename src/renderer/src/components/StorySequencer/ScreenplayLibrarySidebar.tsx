@@ -376,24 +376,6 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
           <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-2 p-6 text-center text-[11px] text-muted-foreground">
             <Folder className="h-8 w-8 opacity-30" />
             <span>{query ? '没有匹配的台本' : '还没有台本'}</span>
-            {!query && (
-              <div className="mt-1 flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => void createDocument('')}
-                  className="rounded border border-border/60 bg-background/60 px-2 py-1 text-[11px] text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  新建台本
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void createFolder('')}
-                  className="rounded border border-border/60 bg-background/60 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  新建分类
-                </button>
-              </div>
-            )}
           </div>
         ) : (
           <>

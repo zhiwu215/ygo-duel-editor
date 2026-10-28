@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { CustomCardScriptInfo, CustomCardScriptPickResult } from '@shared/index'
 
 export interface StagedScript {
@@ -22,6 +22,7 @@ export function useCustomCardScript({ editingId }: UseCustomCardScriptParams): {
   usedStringIds: number[]
   pickScript: () => Promise<CustomCardScriptPickResult | null>
   reloadScript: () => Promise<void>
+  dropStaged: () => void
   removeScript: () => Promise<void>
 } {
   const [stagedScript, setStagedScript] = useState<StagedScript | null>(null)
@@ -80,10 +81,14 @@ export function useCustomCardScript({ editingId }: UseCustomCardScriptParams): {
     }
   }
 
-  const reloadScript = async (): Promise<void> => {
+  const reloadScript = useCallback(async (): Promise<void> => {
     if (editingId === null) return
     const info = await window.api.getCustomCardScript(editingId)
     setScriptInfo(info)
+  }, [editingId])
+
+  const dropStaged = (): void => {
+    setStagedScript(null)
   }
 
   const removeScript = async (): Promise<void> => {
@@ -117,6 +122,7 @@ export function useCustomCardScript({ editingId }: UseCustomCardScriptParams): {
     usedStringIds: scriptInfo?.stringIds ?? stagedScript?.stringIds ?? [],
     pickScript,
     reloadScript,
+    dropStaged,
     removeScript
   }
 }

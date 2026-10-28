@@ -5,6 +5,7 @@ import {
   linkMarkerCount,
   normalizeCardStrings
 } from '@shared/index'
+import type { CustomCardScriptGenerateResult } from '@shared/index'
 import { getCardKind, hasEffect, hasLink, hasPendulum, normalizeCardType } from './customCardType'
 
 const STAT_UNKNOWN = -2
@@ -196,6 +197,17 @@ export function buildCustomCardDraft(
     strings: input.strings,
     createdAt: 0,
     updatedAt: 0
+  }
+}
+
+export function formWithAiScriptResult(
+  form: CustomCardEditorForm,
+  result: CustomCardScriptGenerateResult
+): CustomCardEditorForm {
+  return {
+    ...form,
+    category: result.category ?? form.category,
+    strings: result.strings?.some((text) => text.trim()) === true ? result.strings : form.strings
   }
 }
 

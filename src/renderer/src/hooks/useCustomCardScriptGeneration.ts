@@ -24,7 +24,7 @@ export function useCustomCardScriptGeneration(): {
   applied: boolean
   trace: AiScriptTraceState | null
   generate: (options: GenerateOptions) => Promise<void>
-  apply: (card: CustomCard) => Promise<CustomCardScriptGenerateResult | null>
+  apply: (ensureCard: () => Promise<number>) => Promise<CustomCardScriptGenerateResult | null>
   abort: () => Promise<void>
   reset: () => void
 } {
@@ -89,16 +89,15 @@ export function useCustomCardScriptGeneration(): {
     }
   }
 
-  const apply = async (card: CustomCard): Promise<CustomCardScriptGenerateResult | null> => {
+  const apply = async (
+    ensureCard: () => Promise<number>
+  ): Promise<CustomCardScriptGenerateResult | null> => {
     if (!result?.script) return null
-    if (!card.id) {
-      setError('缺少卡密，无法写入脚本。')
-      return null
-    }
     setSaving(true)
     setError('')
     try {
-      const saved = await window.api.saveCustomCardScriptContent(card.id, result.script)
+      const id = await ensureCard()
+      const saved = await window.api.saveCustomCardScriptContent(id, result.script)
       if (!saved.success) {
         setError(saved.error ?? '脚本保存失败')
         return null

@@ -15,6 +15,7 @@ import {
   buildCustomCardDraft,
   buildCustomCardInput,
   formFromCard,
+  formWithAiScriptResult,
   validateCustomCardForm,
   type CustomCardEditorForm
 } from '../../utils/customCardForm'
@@ -59,14 +60,18 @@ const CustomCardEditorBody: React.FC = () => {
   )
   const [error, setError] = useState<string>('')
   const [saving, setSaving] = useState<boolean>(false)
+  const [createdId, setCreatedId] = useState<number | null>(null)
+  const [aiScriptApplyTick, setAiScriptApplyTick] = useState(0)
   const [imageFailed, setImageFailed] = useState<boolean>(false)
   const [setnames, setSetnames] = useState<Array<{ code: number; name: string }>>([])
   const [poolSchema, setPoolSchema] = useState<CardPoolSchema>('classic')
   const { copiedField, copy } = useCopyFeedback('CustomCardEditorDialog')
   const { stagedImage, pickingImage, pickImage } = useCustomCardImage(setError)
-  const script = useCustomCardScript({ editingId })
+  const cardId = editingId ?? createdId
+  const script = useCustomCardScript({ editingId: cardId })
+  const { reloadScript } = script
   const customSetcodes = useCustomSetcodeNames()
-  const [aiScriptApplied, setAiScriptApplied] = useState(false)
+  const aiScriptApplied = aiScriptApplyTick > 0
 
   useEffect(() => {
     let cancelled = false
@@ -85,16 +90,20 @@ const CustomCardEditorBody: React.FC = () => {
     }
   }, [])
 
+  useEffect(() => {
+    if (aiScriptApplied) void reloadScript()
+  }, [aiScriptApplied, reloadScript])
+
   const isMonster = getCardKind(form.type) === 'monster'
   const isLink = hasLink(form.type)
   const isPendulum = hasPendulum(form.type)
   const isFlavorText = isMonster && !hasEffect(form.type)
   const hasScript =
     aiScriptApplied ||
-    (editingId !== null ? Boolean(script.scriptInfo?.exists) : script.stagedScript !== null)
+    (cardId !== null ? Boolean(script.scriptInfo?.exists) : script.stagedScript !== null)
   const validation = useMemo(
-    () => validateCustomCardForm(editingId, form, hasScript),
-    [editingId, form, hasScript]
+    () => validateCustomCardForm(cardId, form, hasScript),
+    [cardId, form, hasScript]
   )
 
   const previewSrc = stagedImage?.preview
@@ -104,13 +113,17 @@ const CustomCardEditorBody: React.FC = () => {
       : UNKNOWN_CARD_IMAGE
 
   const scriptIdMismatch =
-    editingId === null &&
+    cardId === null &&
     script.stagedScript?.suggestedId !== undefined &&
     form.id.trim() !== '' &&
     Number(form.id) !== script.stagedScript.suggestedId
 
   const scriptNotice =
-    (aiScriptApplied ? 'AI 脚本已应用，保存卡片后生效。' : '') ||
+    (aiScriptApplied
+      ? createdId !== null
+        ? 'AI 脚本已应用，卡片已自动保存。'
+        : 'AI 脚本已应用，保存卡片后生效。'
+      : '') ||
     script.scriptNotice ||
     (scriptIdMismatch
       ? `脚本文件名建议卡密 ${script.stagedScript?.suggestedId}，当前卡密为 ${form.id}；保存后会关联为 c${form.id}.lua`
@@ -118,20 +131,40 @@ const CustomCardEditorBody: React.FC = () => {
 
   const handlePickScript = async (): Promise<void> => {
     const picked = await script.pickScript()
-    if (picked?.suggestedId !== undefined && editingId === null && !form.id.trim()) {
+    if (!picked) return
+    setAiScriptApplyTick(0)
+    if (picked.suggestedId !== undefined && cardId === null && !form.id.trim()) {
       setForm((current) => ({ ...current, id: String(picked.suggestedId) }))
     }
   }
 
+  const handleRemoveScript = async (): Promise<void> => {
+    await script.removeScript()
+    setAiScriptApplyTick(0)
+  }
+
   const handleAiApplied = (result: CustomCardScriptGenerateResult): void => {
-    setAiScriptApplied(true)
-    setForm((current) => ({
-      ...current,
-      category: result.category ?? current.category,
-      strings:
-        result.strings?.some((text) => text.trim()) === true ? result.strings : current.strings
-    }))
-    if (editingId !== null) void script.reloadScript()
+    setAiScriptApplyTick((tick) => tick + 1)
+    setForm((current) => formWithAiScriptResult(current, result))
+    script.dropStaged()
+  }
+
+  const handleEnsureCardSaved = async (result: CustomCardScriptGenerateResult): Promise<number> => {
+    if (cardId !== null) return cardId
+    const nextForm = formWithAiScriptResult(form, result)
+    const nextValidation = validateCustomCardForm(null, nextForm, true)
+    if (nextValidation.errors.length > 0) throw new Error(nextValidation.errors[0])
+    setSaving(true)
+    setError('')
+    try {
+      const saved = await save(buildCustomCardInput(null, nextForm, stagedImage?.path))
+      if (!saved.success || !saved.card) throw new Error(saved.error ?? '保存失败')
+      setForm((current) => formWithAiScriptResult(current, result))
+      setCreatedId(saved.card.id)
+      return saved.card.id
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleSave = async (): Promise<void> => {
@@ -142,7 +175,7 @@ const CustomCardEditorBody: React.FC = () => {
     setSaving(true)
     setError('')
     const result = await save(
-      buildCustomCardInput(editingId, form, stagedImage?.path, script.stagedScript?.filePath)
+      buildCustomCardInput(cardId, form, stagedImage?.path, script.stagedScript?.filePath)
     )
     setSaving(false)
     if (!result.success) {
@@ -169,7 +202,7 @@ const CustomCardEditorBody: React.FC = () => {
         <div className="flex h-full min-h-0 flex-col">
           <header className="flex h-14 shrink-0 items-center border-b border-border/70 px-6 pr-12">
             <DialogTitle className="text-base font-semibold">
-              {editingId !== null ? '编辑自定义卡片' : '新建自定义卡片'}
+              {cardId !== null ? '编辑自定义卡片' : '新建自定义卡片'}
             </DialogTitle>
           </header>
 
@@ -227,7 +260,7 @@ const CustomCardEditorBody: React.FC = () => {
                     <CardIdentityFields
                       form={form}
                       setForm={setForm}
-                      editingId={editingId}
+                      editingId={cardId}
                       copiedField={copiedField}
                       onCopy={(field, text) => void copy(field, text)}
                       suggestedId={script.stagedScript?.suggestedId}
@@ -257,21 +290,22 @@ const CustomCardEditorBody: React.FC = () => {
 
                   {!isFlavorText && (
                     <AiScriptPanel
-                      card={buildCustomCardDraft(editingId, form)}
+                      card={buildCustomCardDraft(cardId, form)}
                       onEnsureId={(id) => setForm((current) => ({ ...current, id: String(id) }))}
+                      onEnsureSaved={handleEnsureCardSaved}
                       onApplied={handleAiApplied}
                     />
                   )}
 
                   <CardScriptField
-                    editingId={editingId}
+                    editingId={cardId}
                     scriptInfo={script.scriptInfo}
                     stagedScript={script.stagedScript}
                     busy={script.scriptBusy}
                     error={script.scriptError}
                     notice={scriptNotice}
                     onPick={() => void handlePickScript()}
-                    onRemove={() => void script.removeScript()}
+                    onRemove={() => void handleRemoveScript()}
                   />
 
                   <CardAdvancedFields
@@ -298,12 +332,14 @@ const CustomCardEditorBody: React.FC = () => {
                       </ul>
                     ) : (
                       <p className="text-[11px] text-muted-foreground">
-                        保存后可在卡片列表中同步到游戏。
+                        {createdId !== null
+                          ? '卡片已自动保存，可继续编辑。'
+                          : '保存后可在卡片列表中同步到游戏。'}
                       </p>
                     )}
                   </div>
                   <Button type="button" variant="outline" size="sm" onClick={closeEditor}>
-                    取消
+                    {createdId !== null ? '关闭' : '取消'}
                   </Button>
                   <Button
                     type="button"

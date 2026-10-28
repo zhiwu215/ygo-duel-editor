@@ -8,10 +8,16 @@ import { AiScriptTrace } from './AiScriptTrace'
 interface AiScriptPanelProps {
   card: CustomCard
   onEnsureId: (id: number) => void
+  onEnsureSaved: (result: CustomCardScriptGenerateResult) => Promise<number>
   onApplied: (result: CustomCardScriptGenerateResult) => void
 }
 
-export const AiScriptPanel: React.FC<AiScriptPanelProps> = ({ card, onEnsureId, onApplied }) => {
+export const AiScriptPanel: React.FC<AiScriptPanelProps> = ({
+  card,
+  onEnsureId,
+  onEnsureSaved,
+  onApplied
+}) => {
   const { generating, saving, cancelled, error, result, applied, trace, generate, apply, abort } =
     useCustomCardScriptGeneration()
 
@@ -20,7 +26,9 @@ export const AiScriptPanel: React.FC<AiScriptPanelProps> = ({ card, onEnsureId, 
   }
 
   const handleApply = async (): Promise<void> => {
-    const appliedResult = await apply(card)
+    const current = result
+    if (!current) return
+    const appliedResult = await apply(() => onEnsureSaved(current))
     if (appliedResult) onApplied(appliedResult)
   }
 
@@ -58,7 +66,7 @@ export const AiScriptPanel: React.FC<AiScriptPanelProps> = ({ card, onEnsureId, 
         )}
       </div>
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        结合相似卡官方脚本生成完整脚本；生成后请在游戏中验证实际效果。
+        结合相似卡官方脚本生成完整脚本，新建卡片应用脚本时会自动保存；生成后请在游戏中验证实际效果。
       </p>
       {showTrace && trace && <AiScriptTrace trace={trace} />}
       {cancelled && !generating && (

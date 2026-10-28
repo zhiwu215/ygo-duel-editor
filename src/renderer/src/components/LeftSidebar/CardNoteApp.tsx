@@ -4,7 +4,6 @@ import { useCardNoteStore } from '../../stores/useCardNoteStore'
 import { CardNoteList, type CardNoteEditorState } from './CardNoteList'
 import { CardNoteEditor } from './CardNoteEditor'
 import { CardNoteAdder } from './CardNoteAdder'
-import { CustomCardEditorDialog } from '../CustomCard/CustomCardEditorDialog'
 import { CardImageViewer } from '../CardDetail/CardImageViewer'
 import { CardImageVariantMenu, type CardImageMenuState } from './CardImageVariantMenu'
 import type { DisplayEntry } from '../../utils/cardNoteSort'
@@ -87,7 +86,6 @@ export const CardNoteApp: React.FC = () => {
       )}
 
       {cardMenu && <CardImageVariantMenu menu={cardMenu} onClose={() => setCardMenu(null)} />}
-      <CustomCardEditorDialog />
     </div>
   )
 }

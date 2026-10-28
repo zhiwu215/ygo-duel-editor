@@ -6,9 +6,11 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
-  X
+  X,
+  Plus
 } from 'lucide-react'
 import { countActiveFilters, useCardSearchStore } from '../../stores/useCardSearchStore'
+import { useCustomCardStore } from '../../stores/useCustomCardStore'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
@@ -42,6 +44,7 @@ export const CardSearchPanel: React.FC = () => {
     resetFilters
   } = useCardSearchStore()
   const activeFilterCount = useCardSearchStore(countActiveFilters)
+  const openCreate = useCustomCardStore((state) => state.openCreate)
 
   const { setHoveredCard } = useDuelStore()
   const { isFavorite, toggleFavorite, loadFavorites } = useFavoritesStore()
@@ -192,6 +195,18 @@ export const CardSearchPanel: React.FC = () => {
         {results.length === 0 && !isLoading && hasSearched ? (
           <div className="h-48 flex flex-col items-center justify-center gap-3 text-muted-foreground text-xs p-4 text-center">
             {onlyFavorites ? <p>未找到收藏的卡片</p> : <p>未找到符合条件的卡片</p>}
+            {!onlyFavorites && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => openCreate(localKw.trim())}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>新建自定义卡片</span>
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-1.5">

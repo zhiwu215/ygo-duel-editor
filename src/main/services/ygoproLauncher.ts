@@ -388,7 +388,7 @@ export class YgoproLauncher {
         success: false,
         errorCode: 'replay-failed',
         error:
-          '当前引擎会话包含注入操作（手动加卡、改卡、替换、置顶/置底等）。YRP 回放只记录开局盘面和之后的应答流，无法复现对局中途注入的卡（占位卡也一样）。\n\n如果这些卡原本就应在开局盘面/卡组里，请先摆好再启动引擎；中途注入只能改用「使用游戏测试该局」测试当前盘面，或从无注入的开局重新对局后导出回放。'
+          '当前引擎会话包含注入操作（加卡、替换等）\n\n如果这些卡原本就应在开局盘面/卡组里，请先摆好再启动引擎。\n中途注入只能改用「使用游戏测试该局」测试当前盘面。\n或从无注入的开局重新对局后导出回放。'
       }
     }
     const responses = await duelDirector.exportReplayResponses()

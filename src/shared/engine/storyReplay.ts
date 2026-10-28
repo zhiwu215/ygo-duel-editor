@@ -161,7 +161,7 @@ function applyManualOpToState(state: ManualReplayState, op: ManualOp): void {
   }
   if (op.type === 'add') {
     if (op.instanceId && board.some((c) => c.instanceId === op.instanceId)) return
-    board.push({
+    const card: LightweightCardSnapshot = {
       instanceId: op.instanceId ?? `replay_${op.code}_${board.length}`,
       code: op.code,
       controller: op.controller,
@@ -171,7 +171,32 @@ function applyManualOpToState(state: ManualReplayState, op: ManualOp): void {
       position: op.position ?? defaultPositionForLocation(op.location),
       overlayMaterials: [],
       duelistId: op.duelistId
-    })
+    }
+    if (isPileZone(op.location)) {
+      const pile = board
+        .filter(
+          (c) =>
+            c.controller === op.controller &&
+            c.location === op.location &&
+            (c.duelistId ?? null) === (op.duelistId ?? null)
+        )
+        .sort((a, b) => a.sequence - b.sequence)
+      const index = Math.min(Math.max(op.sequence, 0), pile.length)
+      for (const item of pile.slice(index)) item.sequence += 1
+      card.sequence = index
+    } else {
+      for (let i = board.length - 1; i >= 0; i--) {
+        const occupant = board[i]
+        if (
+          occupant.controller === op.controller &&
+          occupant.location === op.location &&
+          occupant.sequence === op.sequence
+        ) {
+          board.splice(i, 1)
+        }
+      }
+    }
+    board.push(card)
     return
   }
   const index = board.findIndex((c) => c.instanceId === op.instanceId)
@@ -187,7 +212,13 @@ function applyManualOpToState(state: ManualReplayState, op: ManualOp): void {
   }
   const rest = board.filter((_, i) => i !== index)
   const toController = op.toController ?? card.controller
-  if (isPileZone(op.toLocation)) {
+  const toPile = isPileZone(op.toLocation)
+  if (op.duelistId) {
+    card.duelistId = op.duelistId
+  } else if (toPile && !card.duelistId) {
+    card.duelistId = `duelist_${toController}_0`
+  }
+  if (toPile) {
     const pileCards = rest
       .filter(
         (c) =>

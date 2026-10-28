@@ -1,9 +1,22 @@
 import type { StateCreator } from 'zustand'
-import { CdbCard, CardLocation, CardPosition, FieldCard } from '@shared/index'
+import {
+  CdbCard,
+  CardLocation,
+  CardPosition,
+  DuelPuzzleState,
+  FieldCard,
+  createLightweightSnapshot
+} from '@shared/index'
+import { useDuelEngineStore } from '../useDuelEngineStore'
+import { insertCardAtPlayhead, rederiveBoardSteps } from './stepsSlice'
 import type { DuelStore } from './types'
 
 export interface OverlaySlice {
-  addOverlayMaterial: (targetInstanceId: string, matCode: number) => void
+  addOverlayMaterial: (
+    targetInstanceId: string,
+    matCode: number,
+    consumedInstanceId?: string
+  ) => void
   removeOverlayMaterial: (targetInstanceId: string, matIndex: number) => void
   reorderOverlayMaterials: (targetInstanceId: string, fromIndex: number, toIndex: number) => void
 
@@ -23,12 +36,53 @@ export interface OverlaySlice {
   ) => void
 }
 
+interface OverlayBoardChanges {
+  consumedInstanceId?: string
+  insertedCard?: FieldCard
+}
+
+function withOverlayBoard(
+  prev: DuelStore,
+  cards: FieldCard[],
+  changes?: OverlayBoardChanges
+): DuelPuzzleState {
+  const initialBoardSnapshot = prev.state.initialBoardSnapshot
+  const canSync =
+    Boolean(initialBoardSnapshot && initialBoardSnapshot.length > 0) &&
+    !prev.sceneEditing &&
+    !useDuelEngineStore.getState().isInitialized
+
+  let state: DuelPuzzleState = { ...prev.state, cards }
+  if (initialBoardSnapshot && canSync) {
+    const live = new Map(cards.map((card) => [card.instanceId, card]))
+    state = {
+      ...state,
+      initialBoardSnapshot: initialBoardSnapshot
+        .filter((entry) => entry.instanceId !== changes?.consumedInstanceId)
+        .map((entry) => {
+          const card = live.get(entry.instanceId)
+          if (!card) return entry
+          return { ...entry, code: card.code, overlayMaterials: [...card.overlayMaterials] }
+        })
+    }
+  }
+
+  if (changes?.insertedCard && !prev.sceneEditing && !useDuelEngineStore.getState().isInitialized) {
+    state = insertCardAtPlayhead(
+      state,
+      createLightweightSnapshot([changes.insertedCard])[0],
+      prev.currentStepIndex
+    )
+  }
+  return rederiveBoardSteps(prev, state)
+}
+
 export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> = (set, get) => ({
-  addOverlayMaterial: (targetInstanceId, matCode) =>
+  addOverlayMaterial: (targetInstanceId, matCode, consumedInstanceId) =>
     set((prev) => ({
-      state: {
-        ...prev.state,
-        cards: prev.state.cards.map((c) => {
+      state: withOverlayBoard(
+        prev,
+        prev.state.cards.map((c) => {
           if (c.instanceId === targetInstanceId) {
             return {
               ...c,
@@ -36,15 +90,16 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
             }
           }
           return c
-        })
-      }
+        }),
+        { consumedInstanceId }
+      )
     })),
 
   removeOverlayMaterial: (targetInstanceId, matIndex) =>
     set((prev) => ({
-      state: {
-        ...prev.state,
-        cards: prev.state.cards.map((c) => {
+      state: withOverlayBoard(
+        prev,
+        prev.state.cards.map((c) => {
           if (c.instanceId === targetInstanceId) {
             const newMats = [...c.overlayMaterials]
             newMats.splice(matIndex, 1)
@@ -52,14 +107,14 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
           }
           return c
         })
-      }
+      )
     })),
 
   reorderOverlayMaterials: (targetInstanceId, fromIndex, toIndex) =>
     set((prev) => ({
-      state: {
-        ...prev.state,
-        cards: prev.state.cards.map((c) => {
+      state: withOverlayBoard(
+        prev,
+        prev.state.cards.map((c) => {
           if (c.instanceId !== targetInstanceId) return c
           const total = c.overlayMaterials.length
           if (
@@ -76,7 +131,7 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
           mats.splice(toIndex, 0, moved)
           return { ...c, overlayMaterials: mats }
         })
-      }
+      )
     })),
 
   overlayOnTop: (targetInstanceId, newCardData, sourceCardInstanceId) =>
@@ -98,11 +153,8 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
         if (c.instanceId === targetInstanceId) {
           return {
             ...c,
-
             code: newCardData.id,
-
             card: newCardData,
-
             overlayMaterials: [...c.overlayMaterials, c.code, ...sourceMats]
           }
         }
@@ -110,11 +162,9 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
       })
 
       return {
-        state: {
-          ...prev.state,
-          cards: finalCards
-        },
-
+        state: withOverlayBoard(prev, finalCards, {
+          consumedInstanceId: sourceCardInstanceId
+        }),
         selectedCardId:
           prev.selectedCardId === sourceCardInstanceId ? targetInstanceId : prev.selectedCardId
       }
@@ -179,10 +229,7 @@ export const createOverlaySlice: StateCreator<DuelStore, [], [], OverlaySlice> =
       ]
 
       return {
-        state: {
-          ...prev.state,
-          cards: finalResultCards
-        }
+        state: withOverlayBoard(prev, finalResultCards, { insertedCard: newCard })
       }
     })
 })

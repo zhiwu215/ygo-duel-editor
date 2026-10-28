@@ -10,6 +10,8 @@ import {
 } from '@shared/index'
 import { useDuelEngineStore } from '../useDuelEngineStore'
 import { useDuelStore } from './index'
+import { insertCardAtPlayhead } from './stepsSlice'
+import type { DuelStore } from './types'
 
 export interface EditorStepInput {
   actionType: DuelActionType
@@ -42,10 +44,33 @@ export interface StepLabel {
   description?: string
 }
 
+function trackUntrackedBoardCards(duel: DuelStore, boardBefore?: LightweightCardSnapshot[]): void {
+  const steps = duel.state.steps || []
+  const initial = duel.state.initialBoardSnapshot
+  if (!boardBefore || boardBefore.length === 0 || steps.length === 0) return
+  if (!initial || initial.length === 0) return
+
+  const tracked = new Set(initial.map((card) => card.instanceId))
+  for (const step of steps) {
+    for (const op of step.manualOps ?? []) {
+      if (op.type === 'add' && op.instanceId) tracked.add(op.instanceId)
+    }
+  }
+  const untracked = boardBefore.filter((card) => !tracked.has(card.instanceId))
+  if (untracked.length === 0) return
+
+  let state = duel.state
+  for (const card of untracked) {
+    state = insertCardAtPlayhead(state, card, duel.currentStepIndex)
+  }
+  useDuelStore.setState((prev) => ({ ...prev, state }))
+}
+
 export function recordEditorStep(input: EditorStepInput): void {
   if (useDuelEngineStore.getState().isInitialized) return
   const duel = useDuelStore.getState()
   if (duel.sceneEditing) return
+  trackUntrackedBoardCards(duel, input.boardBefore)
   const actionPlayer = input.controller ?? duel.activeTurnPlayer
   const viewerDuelistId = duel.activeDuelistIds[actionPlayer]
   const teamDuelists = (duel.state.duelists || []).filter((d) => d.team === actionPlayer)

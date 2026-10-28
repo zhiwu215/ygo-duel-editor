@@ -183,6 +183,7 @@ export type ManualOp =
       toSequence: number
       toController?: 0 | 1
       customPos?: number
+      duelistId?: string
     }
   | { type: 'position'; instanceId: string; position: number }
   | { type: 'remove'; instanceId: string }

@@ -4,6 +4,7 @@ import {
   DuelStep,
   DuelPuzzleState,
   LightweightCardSnapshot,
+  ManualOp,
   PlayerState,
   createLightweightSnapshot,
   createStepId,
@@ -21,6 +22,7 @@ import {
 } from '../../utils/openingScene'
 import { isDuelStarted } from '../../utils/duelStart'
 import { applyLpToDuelists, createLpFlash } from './lpSlice'
+import { insertCardIntoInitialBoard } from './initialBoardInsertion'
 import { pickNarrativeStepPatch } from './stepPatch'
 import type { DuelStore } from './types'
 
@@ -279,6 +281,49 @@ function withDerivation(nextState: DerivationSource): Partial<DuelStore> {
     return { state: nextState.state }
   }
   return patch
+}
+
+export function insertCardAtPlayhead(
+  state: DuelPuzzleState,
+  card: LightweightCardSnapshot,
+  playhead: number | null
+): DuelPuzzleState {
+  const steps = state.steps || []
+  const initial = state.initialBoardSnapshot
+  if (steps.length === 0 || playhead === SCENE_STEP_INDEX) {
+    if (!initial || initial.length === 0) return state
+    return { ...state, initialBoardSnapshot: insertCardIntoInitialBoard(initial, card) }
+  }
+
+  const index = Math.min(Math.max(playhead ?? steps.length - 1, 0), steps.length - 1)
+  const op: ManualOp = {
+    type: 'add',
+    instanceId: card.instanceId,
+    code: card.code,
+    controller: card.controller,
+    location: card.location,
+    sequence: card.sequence,
+    position: card.position,
+    duelistId: card.duelistId
+  }
+  const nextSteps = steps.map((step, stepIndex) => {
+    if (stepIndex !== index) return step
+    if (step.origin === 'replay' || step.origin === 'engine') {
+      return { ...step, boardAfter: [...(step.boardAfter ?? []), card] }
+    }
+    return { ...step, manualOps: [...(step.manualOps ?? []), op] }
+  })
+  return { ...state, steps: nextSteps }
+}
+
+export function rederiveBoardSteps(prev: DuelStore, state: DuelPuzzleState): DuelPuzzleState {
+  const next = withDerivation({ ...prev, state })
+  if (!next.state) return state
+  return {
+    ...state,
+    initialBoardSnapshot: next.state.initialBoardSnapshot,
+    steps: next.state.steps
+  }
 }
 
 function refreshPreviewIfActive(get: () => DuelStore): void {

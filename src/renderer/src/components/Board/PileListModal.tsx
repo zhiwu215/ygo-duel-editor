@@ -89,7 +89,7 @@ const PileListContent: React.FC = () => {
         (c) =>
           c.controller === target.controller &&
           c.location === target.location &&
-          (ownerScope ? c.duelistId === ownerScope : true)
+          (ownerScope ? !c.duelistId || c.duelistId === ownerScope : true)
       )
       .sort((a, b) => (isEngineActive ? b.sequence - a.sequence : a.sequence - b.sequence))
   }, [state.cards, scopedDuelistId, target, isEngineActive])

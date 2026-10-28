@@ -11,12 +11,11 @@ export function getPileTopCard(
     (c) =>
       c.controller === controller &&
       c.location === location &&
-      (ownerScope ? c.duelistId === ownerScope : true)
+      (ownerScope ? !c.duelistId || c.duelistId === ownerScope : true)
   )
   return pile.reduce<FieldCard | undefined>(
     (top, c) =>
-      top === undefined ||
-      (isEngineActive ? c.sequence > top.sequence : c.sequence < top.sequence)
+      top === undefined || (isEngineActive ? c.sequence > top.sequence : c.sequence < top.sequence)
         ? c
         : top,
     undefined
@@ -33,6 +32,6 @@ export function getPileCount(
     (c) =>
       c.controller === controller &&
       c.location === location &&
-      (ownerScope ? c.duelistId === ownerScope : true)
+      (ownerScope ? !c.duelistId || c.duelistId === ownerScope : true)
   ).length
 }

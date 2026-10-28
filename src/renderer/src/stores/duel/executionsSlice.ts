@@ -34,7 +34,7 @@ export const createExecutionsSlice: StateCreator<DuelStore, [], [], ExecutionsSl
         (c) =>
           c.controller === controller &&
           c.location === CardLocation.DECK &&
-          (ownerScope ? c.duelistId === ownerScope : true)
+          (ownerScope ? !c.duelistId || c.duelistId === ownerScope : true)
       )
       .sort((a, b) => a.sequence - b.sequence)
     if (deckCards.length === 0) return
@@ -44,7 +44,7 @@ export const createExecutionsSlice: StateCreator<DuelStore, [], [], ExecutionsSl
       (c) =>
         c.controller === controller &&
         c.location === CardLocation.HAND &&
-        (ownerScope ? c.duelistId === ownerScope : true)
+        (ownerScope ? !c.duelistId || c.duelistId === ownerScope : true)
     ).length
     moveCard(
       topCard.instanceId,

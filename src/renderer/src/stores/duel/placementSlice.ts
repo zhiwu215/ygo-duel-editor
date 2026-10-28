@@ -3,6 +3,7 @@ import {
   CdbCard,
   CardLocation,
   CardPosition,
+  DuelPuzzleState,
   FieldCard,
   LOCATION_NAMES,
   createLightweightSnapshot,
@@ -16,6 +17,7 @@ import {
   resolveMoveStepLabel,
   StepLabel
 } from './editorStepRecorder'
+import { insertCardAtPlayhead, rederiveBoardSteps } from './stepsSlice'
 import type { DuelStore } from './types'
 
 export interface MoveCardParams {
@@ -75,7 +77,7 @@ function applyMoveCard(prev: DuelStore, params: MoveCardParams): Partial<DuelSto
           c.controller === ctrl &&
           c.location === toLocation &&
           c.instanceId !== instanceId &&
-          c.duelistId === pileDuelistId
+          (!c.duelistId || c.duelistId === pileDuelistId)
       )
       .sort((a, b) => a.sequence - b.sequence)
 
@@ -108,7 +110,15 @@ function applyMoveCard(prev: DuelStore, params: MoveCardParams): Partial<DuelSto
     targetCard.position
   )
 
-  const finalCards = updatedCards.map((c) => {
+  const displaced = isPileZone
+    ? updatedCards
+    : updatedCards.filter(
+        (c) =>
+          c.instanceId === instanceId ||
+          !(c.controller === ctrl && c.location === toLocation && c.sequence === seq)
+      )
+
+  const finalCards = displaced.map((c) => {
     if (c.instanceId === instanceId) {
       return {
         ...c,
@@ -183,100 +193,139 @@ export interface PlacementSlice {
   ) => void
 }
 
+interface PlaceCardParams {
+  card: CdbCard
+  controller: 0 | 1
+  location: number
+  sequence: number
+  customPos?: number
+  duelistId?: string
+  instanceId: string
+}
+
+function placeCard(
+  prev: DuelStore,
+  params: PlaceCardParams
+): { cards: FieldCard[]; newCard: FieldCard } {
+  const { card, controller, location, sequence, customPos, duelistId, instanceId } = params
+  const pos = resolveTargetPosition(location, customPos)
+  const isPileZone =
+    location === CardLocation.HAND ||
+    location === CardLocation.GRAVE ||
+    location === CardLocation.DECK ||
+    location === CardLocation.EXTRA ||
+    location === CardLocation.REMOVED
+
+  const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
+  const isOwnerScopedZone =
+    location === CardLocation.HAND ||
+    location === CardLocation.DECK ||
+    location === CardLocation.EXTRA ||
+    location === CardLocation.GRAVE ||
+    location === CardLocation.REMOVED
+  let assignedDuelistId = duelistId
+  if (isOwnerScopedZone && !assignedDuelistId) {
+    assignedDuelistId =
+      teamDuelists.find((d) => d.id === prev.activeDuelistIds[controller])?.id ||
+      teamDuelists[0]?.id ||
+      (controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
+  }
+
+  const existingPile = prev.state.cards
+    .filter((c) => {
+      if (c.controller !== controller || c.location !== location) return false
+
+      if (isOwnerScopedZone && assignedDuelistId) {
+        return !c.duelistId || c.duelistId === assignedDuelistId
+      }
+      return true
+    })
+    .sort((a, b) => a.sequence - b.sequence)
+
+  let targetSeq = isPileZone ? existingPile.length : sequence
+  let updatedCards = prev.state.cards
+
+  if (isPileZone) {
+    const insertIdx =
+      sequence !== undefined && sequence >= 0 && sequence <= existingPile.length
+        ? sequence
+        : existingPile.length
+    targetSeq = insertIdx
+
+    if (insertIdx < existingPile.length) {
+      const seqShiftMap = new Map<string, number>()
+      existingPile.forEach((c, idx) => {
+        if (idx >= insertIdx) {
+          seqShiftMap.set(c.instanceId, idx + 1)
+        }
+      })
+      updatedCards = prev.state.cards.map((c) => {
+        if (seqShiftMap.has(c.instanceId)) {
+          return { ...c, sequence: seqShiftMap.get(c.instanceId)! }
+        }
+        return c
+      })
+    }
+  }
+
+  const filteredCards = isPileZone
+    ? updatedCards
+    : updatedCards.filter(
+        (c) => !(c.controller === controller && c.location === location && c.sequence === sequence)
+      )
+
+  const newCard: FieldCard = {
+    instanceId,
+    code: card.id,
+    card,
+    controller,
+    owner: controller,
+    location,
+    sequence: targetSeq,
+    position: pos,
+    overlayMaterials: [],
+    duelistId: isOwnerScopedZone ? assignedDuelistId : undefined
+  }
+
+  return { cards: [...filteredCards, newCard], newCard }
+}
+
+function applyPlacedCard(
+  prev: DuelStore,
+  placed: { cards: FieldCard[]; newCard: FieldCard }
+): DuelPuzzleState {
+  const state: DuelPuzzleState = { ...prev.state, cards: placed.cards }
+  if (prev.sceneEditing || useDuelEngineStore.getState().isInitialized) return state
+
+  const inserted = insertCardAtPlayhead(
+    state,
+    createLightweightSnapshot([placed.newCard])[0],
+    prev.currentStepIndex
+  )
+  if (inserted === state) return state
+  return rederiveBoardSteps(prev, inserted)
+}
+
 export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlice> = (
   set,
   get
 ) => ({
   addCardToZone: (card, controller, location, sequence, customPos, duelistId, engineInstanceId) => {
-    const placedInstanceId =
-      engineInstanceId ?? `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-    const pos = resolveTargetPosition(location, customPos)
     set((prev) => {
-      const isPileZone =
-        location === CardLocation.HAND ||
-        location === CardLocation.GRAVE ||
-        location === CardLocation.DECK ||
-        location === CardLocation.EXTRA ||
-        location === CardLocation.REMOVED
-
-      const teamDuelists = (prev.state.duelists || []).filter((d) => d.team === controller)
-      const isOwnerScopedZone =
-        location === CardLocation.HAND ||
-        location === CardLocation.DECK ||
-        location === CardLocation.EXTRA ||
-        location === CardLocation.GRAVE ||
-        location === CardLocation.REMOVED
-      let assignedDuelistId = duelistId
-      if (isOwnerScopedZone && !assignedDuelistId) {
-        assignedDuelistId =
-          teamDuelists.find((d) => d.id === prev.activeDuelistIds[controller])?.id ||
-          teamDuelists[0]?.id ||
-          (controller === 0 ? 'duelist_0_0' : 'duelist_1_0')
-      }
-
-      const existingPile = prev.state.cards
-        .filter((c) => {
-          if (c.controller !== controller || c.location !== location) return false
-
-          if (isOwnerScopedZone && assignedDuelistId) {
-            return c.duelistId === assignedDuelistId
-          }
-          return true
-        })
-        .sort((a, b) => a.sequence - b.sequence)
-
-      let targetSeq = isPileZone ? existingPile.length : sequence
-      let updatedCards = prev.state.cards
-
-      if (isPileZone) {
-        const insertIdx =
-          sequence !== undefined && sequence >= 0 && sequence <= existingPile.length
-            ? sequence
-            : existingPile.length
-        targetSeq = insertIdx
-
-        if (insertIdx < existingPile.length) {
-          const seqShiftMap = new Map<string, number>()
-          existingPile.forEach((c, idx) => {
-            if (idx >= insertIdx) {
-              seqShiftMap.set(c.instanceId, idx + 1)
-            }
-          })
-          updatedCards = prev.state.cards.map((c) => {
-            if (seqShiftMap.has(c.instanceId)) {
-              return { ...c, sequence: seqShiftMap.get(c.instanceId)! }
-            }
-            return c
-          })
-        }
-      }
-
-      const filteredCards = isPileZone
-        ? updatedCards
-        : updatedCards.filter(
-            (c) =>
-              !(c.controller === controller && c.location === location && c.sequence === sequence)
-          )
-
-      const newCard: FieldCard = {
-        instanceId: placedInstanceId,
-        code: card.id,
+      const placed = placeCard(prev, {
         card,
         controller,
-        owner: controller,
         location,
-        sequence: targetSeq,
-        position: pos,
-        overlayMaterials: [],
-        duelistId: isOwnerScopedZone ? assignedDuelistId : undefined
-      }
+        sequence,
+        customPos,
+        duelistId,
+        instanceId:
+          engineInstanceId ?? `card_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+      })
 
       return {
-        state: {
-          ...prev.state,
-          cards: [...filteredCards, newCard]
-        },
-        selectedCardId: newCard.instanceId,
+        state: applyPlacedCard(prev, placed),
+        selectedCardId: placed.newCard.instanceId,
         hoveredCard: card
       }
     })
@@ -287,7 +336,22 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
     get().withSingleUndoStep(() => {
       const instanceId = `token_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
       const boardBefore = createLightweightSnapshot(get().state.cards)
-      get().addCardToZone(card, controller, location, sequence, position, duelistId, instanceId)
+      set((prev) => {
+        const placed = placeCard(prev, {
+          card,
+          controller,
+          location,
+          sequence,
+          customPos: position,
+          duelistId,
+          instanceId
+        })
+        return {
+          state: { ...prev.state, cards: placed.cards },
+          selectedCardId: placed.newCard.instanceId,
+          hoveredCard: card
+        }
+      })
       recordEditorStep({
         actionType: 'SPECIAL_SUMMON',
         controller,
@@ -348,6 +412,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         const resolvedLabel =
           stepLabel ??
           resolveMoveStepLabel(fromCard.location, toLocation, effectivePos, fromCard.card?.name)
+        const movedCard = get().state.cards.find((c) => c.instanceId === instanceId)
         recordEditorStep({
           actionType: resolvedLabel?.actionType ?? moveActionType(toLocation),
           controller: toController ?? fromCard.controller,
@@ -374,7 +439,8 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
             toLocation,
             toSequence,
             toController,
-            customPos: effectivePos
+            customPos: effectivePos,
+            duelistId: movedCard?.duelistId
           }
         })
       }
@@ -412,6 +478,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
         const fromCard = fromCards.get(m.instanceId)
         if (!fromCard) continue
         const name = fromCard.card?.name
+        const movedCard = get().state.cards.find((c) => c.instanceId === m.instanceId)
         recordEditorStep({
           actionType: moveActionType(m.toLocation),
           controller: m.toController ?? fromCard.controller,
@@ -430,7 +497,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
           description: name
             ? `将【${name}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
             : `移动卡片至${LOCATION_NAMES[m.toLocation] ?? '区域'}`,
-          op: { type: 'move', ...m }
+          op: { type: 'move', ...m, duelistId: movedCard?.duelistId }
         })
       }
     })
@@ -601,7 +668,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
           (card) =>
             card.controller === controller &&
             card.location === location &&
-            (!duelistId || card.duelistId === duelistId)
+            (!duelistId || !card.duelistId || card.duelistId === duelistId)
         )
         .sort((a, b) => a.sequence - b.sequence)
 

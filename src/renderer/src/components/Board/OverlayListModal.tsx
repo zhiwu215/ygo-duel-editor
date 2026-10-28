@@ -110,7 +110,9 @@ export const OverlayListModal: React.FC = () => {
         const movedCard = state.cards.find((c) => c.instanceId === movedInstanceId)
         if (movedCard) {
           useDuelStore.getState().removeCard(movedInstanceId)
-          useDuelStore.getState().addOverlayMaterial(hostCard.instanceId, movedCard.code)
+          useDuelStore
+            .getState()
+            .addOverlayMaterial(hostCard.instanceId, movedCard.code, movedInstanceId)
         }
       } else {
         const dataStr = e.dataTransfer.getData('application/json')

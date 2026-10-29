@@ -9,3 +9,4 @@ scripts/smoke/*.bundle.*
 AGENTS.local.md
 .pnpm-store
 .tmp-diag
+/release-notes.md

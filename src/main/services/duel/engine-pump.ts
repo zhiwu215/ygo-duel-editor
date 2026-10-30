@@ -259,9 +259,12 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
         break
       }
 
-      if (res.status === 1 && res.raw.length > 0) {
-        if (batchAutoCount > 0 && batchQueries.length === 0) continue
+      if (res.status === 1 && res.raw.length > 0 && batchQueries.length > 0) {
         break
+      }
+      if (res.status === 1 || batchAutoCount > 0) {
+        state.pendingQueries = []
+        continue
       }
     }
 

@@ -2,6 +2,7 @@ import {
   CardLocation,
   DuelPhase,
   EngineBoardState,
+  EngineCard,
   FieldCard,
   duelPhaseFromMask,
   resolveEngineCardStats
@@ -60,7 +61,6 @@ function syncJumpToStepToDuelStore(
   }
   const engineByPos = new Map(boardState.allCards.map((card) => [positionKey(card), card] as const))
   const editorToEngineId = toEditorToEngineMap()
-  const usedEngineIds = new Set<string>()
   const resolveSeatDuelistId = (controller: 0 | 1, duelistId?: string): string => {
     if (duelistId) return duelistId
     const teamDuelists = (duelStore.state.duelists || []).filter((d) => d.team === controller)
@@ -81,21 +81,41 @@ function syncJumpToStepToDuelStore(
 
   const removedIds = new Set<string>()
   const cardUpdates = new Map<string, Partial<FieldCard>>()
+  const claimedEngineIds = new Set<string>()
+  const identityMatches = new Map<string, EngineCard>()
+  const positionMatches = new Map<string, EngineCard>()
+
+  const claimMatch = (matches: Map<string, EngineCard>, editorId: string, ec: EngineCard): void => {
+    claimedEngineIds.add(ec.instanceId)
+    matches.set(editorId, ec)
+    if (ec.instanceId !== editorId) {
+      registerIdentity(ec.instanceId, editorId)
+    }
+  }
 
   for (const card of currentCards) {
     if (isInactivePrivate(card)) continue
     const mappedEngineId = editorToEngineId.get(card.instanceId)
     const ec =
       engineById.get(card.instanceId) ??
-      (mappedEngineId ? engineById.get(mappedEngineId) : undefined) ??
-      engineByPos.get(positionKey(card))
+      (mappedEngineId ? engineById.get(mappedEngineId) : undefined)
+    if (!ec || claimedEngineIds.has(ec.instanceId)) continue
+    claimMatch(identityMatches, card.instanceId, ec)
+  }
+
+  for (const card of currentCards) {
+    if (isInactivePrivate(card) || identityMatches.has(card.instanceId)) continue
+    const ec = engineByPos.get(positionKey(card))
+    if (!ec || claimedEngineIds.has(ec.instanceId)) continue
+    claimMatch(positionMatches, card.instanceId, ec)
+  }
+
+  for (const card of currentCards) {
+    if (isInactivePrivate(card)) continue
+    const ec = identityMatches.get(card.instanceId) ?? positionMatches.get(card.instanceId)
     if (!ec) {
       removedIds.add(card.instanceId)
       continue
-    }
-    usedEngineIds.add(ec.instanceId)
-    if (ec.instanceId !== card.instanceId) {
-      registerIdentity(ec.instanceId, card.instanceId)
     }
 
     const ecPosition = normalizeEngineCardPosition(masterRule, ec.location, ec.sequence)
@@ -139,7 +159,7 @@ function syncJumpToStepToDuelStore(
 
   const addedCards: FieldCard[] = []
   for (const ec of boardState.allCards) {
-    if (usedEngineIds.has(ec.instanceId)) continue
+    if (claimedEngineIds.has(ec.instanceId)) continue
     if (currentCards.some((c) => c.instanceId === ec.instanceId)) continue
     if (isInactivePrivate(ec)) continue
     if (!ec.card) {

@@ -1,10 +1,55 @@
 import { DuelPuzzleState, FieldCard } from '../types/duel'
 import { alignFirstPlayerSeat } from './seatAlignment'
-import { CardLocation } from '../constants/locations'
+import { CardLocation, FIELD_ZONE_SEQUENCE } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
+import { buildInitialPlacements } from './initialPlacements'
+import { orderPrivatePilePlacements } from './privatePilePlacements'
 import type { DuelTestSettings } from '../types/ipc/appConfig'
 
 import { resolveCounterName } from '../constants/counters'
+
+const LOCATION_TITLES: Record<number, string> = {
+  [CardLocation.MZONE]: '怪兽区 (MZONE)',
+  [CardLocation.SZONE]: '魔陷区 (SZONE)',
+  [CardLocation.FZONE]: '场地魔法区 (FZONE)',
+  [CardLocation.PZONE]: '独立灵摆区 (PZONE)',
+  [CardLocation.HAND]: '手牌 (HAND)',
+  [CardLocation.GRAVE]: '墓地 (GRAVE)',
+  [CardLocation.REMOVED]: '除外区 (REMOVED)',
+  [CardLocation.EXTRA]: '额外卡组 (EXTRA)',
+  [CardLocation.DECK]: '主卡组 (DECK)'
+}
+
+const TAG_LOCATION_ORDER = [
+  CardLocation.MZONE,
+  CardLocation.SZONE,
+  CardLocation.FZONE,
+  CardLocation.PZONE,
+  CardLocation.HAND,
+  CardLocation.GRAVE,
+  CardLocation.REMOVED,
+  CardLocation.EXTRA,
+  CardLocation.DECK
+]
+
+function mergeHandIntoDeck(state: DuelPuzzleState): {
+  state: DuelPuzzleState
+  mergedCount: number
+} {
+  const handCards = state.cards.filter((card) => card.location === CardLocation.HAND)
+  if (handCards.length === 0) return { state, mergedCount: 0 }
+  const deckCards = state.cards.filter((card) => card.location === CardLocation.DECK)
+  const shuffled = shuffleCards([...deckCards, ...handCards]).map((card, index) => ({
+    ...card,
+    location: CardLocation.DECK,
+    sequence: index
+  }))
+  const others = state.cards.filter(
+    (card) => card.location !== CardLocation.DECK && card.location !== CardLocation.HAND
+  )
+  return { state: { ...state, cards: [...others, ...shuffled] }, mergedCount: handCards.length }
+}
+
 function getLocationConstName(loc: number): string {
   switch (loc) {
     case CardLocation.DECK:
@@ -160,16 +205,10 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
   lines.push(`-- 3. 卡片摆放`)
 
   const players: (0 | 1)[] = [0, 1]
-  const locationOrder = [
-    { loc: CardLocation.MZONE, name: '怪兽区 (MZONE)' },
-    { loc: CardLocation.SZONE, name: '魔陷区 (SZONE)' },
-    { loc: CardLocation.PZONE, name: '独立灵摆区 (PZONE)' },
-    { loc: CardLocation.HAND, name: '手牌 (HAND)' },
-    { loc: CardLocation.GRAVE, name: '墓地 (GRAVE)' },
-    { loc: CardLocation.REMOVED, name: '除外区 (REMOVED)' },
-    { loc: CardLocation.EXTRA, name: '额外卡组 (EXTRA)' },
-    { loc: CardLocation.DECK, name: '主卡组 (DECK)' }
-  ]
+  const locationOrder = TAG_LOCATION_ORDER.map((loc) => ({
+    loc,
+    name: LOCATION_TITLES[loc] ?? '其他'
+  }))
 
   const counterLines: string[] = []
   let counterSeq = 0
@@ -214,62 +253,91 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
         `Debug.AddCard(${card.code}, ${owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
       )
     }
-    if (card.overlayMaterials && card.overlayMaterials.length > 0) {
-      for (const matCode of card.overlayMaterials) {
-        lines.push(
-          `Debug.AddCard(${matCode}, ${card.owner}, ${targetController}, LOCATION_OVERLAY, ${sequence}, POS_FACEUP) -- 超量素材`
-        )
-      }
-    }
   }
 
-  for (const p of players) {
-    const pName = p === 0 ? '我方阵营 (Team 0)' : '对方阵营 (Team 1)'
-    lines.push(`-- -------------------------------------------------------------`)
-    lines.push(`-- >>> ${pName} <<<`)
-    lines.push(`-- -------------------------------------------------------------`)
-
-    const playerCards = state.cards.filter((c) => c.controller === p)
-    const handCards = playerCards
-      .filter((c) => c.location === CardLocation.HAND)
-      .sort((a, b) => a.sequence - b.sequence)
-    const deckCards = playerCards
-      .filter((c) => c.location === CardLocation.DECK)
-      .sort((a, b) => a.sequence - b.sequence)
-
-    const deckForOutput = randomDeck ? shuffleCards([...deckCards, ...handCards]) : deckCards
-
-    for (const group of locationOrder) {
-      if (group.loc === CardLocation.HAND) {
-        if (randomDeck || handCards.length === 0) continue
-        lines.push(`-- [手牌 (HAND)]`)
-        handCards.forEach((card, index) => emitCard(card, CardLocation.HAND, index))
+  if (!isTag) {
+    const render = randomDeck ? mergeHandIntoDeck(state) : { state, mergedCount: 0 }
+    if (render.mergedCount > 0) {
+      lines.push(
+        `-- 卡组测试：手牌区 ${render.mergedCount} 张并入主卡组并洗牌，开局抽 ${TEST_OPENING_HAND} 张`
+      )
+    }
+    let segment = ''
+    for (const entry of buildInitialPlacements(render.state).placements) {
+      const key = `${entry.card.controller}:${entry.card.location}`
+      if (key !== segment) {
         lines.push('')
-        continue
-      }
-
-      if (group.loc === CardLocation.DECK) {
-        if (deckForOutput.length === 0) continue
         lines.push(
-          randomDeck && handCards.length > 0
-            ? `-- [主卡组 (DECK)]（含手牌区并入的 ${handCards.length} 张，洗牌后开局抽 ${TEST_OPENING_HAND} 张）`
-            : `-- [主卡组 (DECK)]`
+          `-- [${entry.card.controller === 0 ? '我方阵营 (Team 0)' : '对方阵营 (Team 1)'} · ${LOCATION_TITLES[entry.card.location] ?? '其他'}]`
         )
-        deckForOutput.forEach((card, index) => emitCard(card, CardLocation.DECK, index))
-        lines.push('')
-        continue
+        segment = key
       }
+      emitCard(entry.card, entry.placement.location, entry.placement.sequence)
+    }
+    lines.push('')
+  }
 
-      const cardsInLoc = playerCards.filter((c) => c.location === group.loc)
-      if (cardsInLoc.length === 0) continue
+  if (isTag) {
+    for (const p of players) {
+      const pName = p === 0 ? '我方阵营 (Team 0)' : '对方阵营 (Team 1)'
+      lines.push(`-- -------------------------------------------------------------`)
+      lines.push(`-- >>> ${pName} <<<`)
+      lines.push(`-- -------------------------------------------------------------`)
 
-      lines.push(`-- [${group.name}]`)
-      cardsInLoc
-        .sort((a, b) => a.sequence - b.sequence)
-        .forEach((card) => {
-          emitCard(card, card.location, card.sequence)
-        })
-      lines.push('')
+      const playerCards = state.cards.filter((c) => c.controller === p)
+      const handCards = playerCards.filter((c) => c.location === CardLocation.HAND)
+      const deckCards = playerCards.filter((c) => c.location === CardLocation.DECK)
+
+      const deckForOutput = randomDeck
+        ? shuffleCards([...deckCards, ...handCards])
+        : orderPrivatePilePlacements(CardLocation.DECK, deckCards).map(
+            (placement) => placement.card
+          )
+
+      for (const group of locationOrder) {
+        if (group.loc === CardLocation.HAND) {
+          if (randomDeck || handCards.length === 0) continue
+          lines.push(`-- [手牌 (HAND)]`)
+          for (const placement of orderPrivatePilePlacements(CardLocation.HAND, handCards)) {
+            emitCard(placement.card, CardLocation.HAND, placement.sequence)
+          }
+          lines.push('')
+          continue
+        }
+
+        if (group.loc === CardLocation.DECK) {
+          if (deckForOutput.length === 0) continue
+          lines.push(
+            randomDeck && handCards.length > 0
+              ? `-- [主卡组 (DECK)]（含手牌区并入的 ${handCards.length} 张，洗牌后开局抽 ${TEST_OPENING_HAND} 张）`
+              : `-- [主卡组 (DECK)]`
+          )
+          deckForOutput.forEach((card, index) => emitCard(card, CardLocation.DECK, index))
+          lines.push('')
+          continue
+        }
+
+        const cardsInLoc = playerCards.filter((c) => c.location === group.loc)
+        if (cardsInLoc.length === 0) continue
+
+        lines.push(`-- [${group.name}]`)
+        if (group.loc === CardLocation.EXTRA) {
+          for (const placement of orderPrivatePilePlacements(CardLocation.EXTRA, cardsInLoc)) {
+            emitCard(placement.card, CardLocation.EXTRA, placement.card.sequence)
+          }
+        } else if (group.loc === CardLocation.FZONE) {
+          for (const card of cardsInLoc) {
+            emitCard(card, CardLocation.SZONE, FIELD_ZONE_SEQUENCE)
+          }
+        } else {
+          cardsInLoc
+            .sort((a, b) => a.sequence - b.sequence)
+            .forEach((card) => {
+              emitCard(card, card.location, card.sequence)
+            })
+        }
+        lines.push('')
+      }
     }
   }
   lines.push(`-- 4. 结束初始化`)

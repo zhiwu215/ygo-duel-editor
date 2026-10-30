@@ -1,11 +1,13 @@
 import { OcgcoreDuelOptionFlag, OcgcoreDuelRule, _OcgcoreConstants } from 'koishipro-core.js'
 import {
+  buildInitialPlacements,
   CardLocation,
-  FIELD_ZONE_SEQUENCE,
   createStandardTagDuelists,
+  FIELD_ZONE_SEQUENCE,
   findTagHandMismatches,
   formatTagHandMismatches,
   getPzoneSzoneSequence,
+  initialStateOwnerOf,
   isStandardTag
 } from '@shared/index'
 import type { DuelPuzzleState, EngineDuelInitParams, FieldCard } from '@shared/index'
@@ -257,111 +259,25 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
   state.duel!.setPlayerInfo({ player: 0, lp: p0Lp, startHand: 0, drawCount: 1 })
   state.duel!.setPlayerInfo({ player: 1, lp: p1Lp, startHand: 0, drawCount: 1 })
 
-  const pzoneSeq = getPzoneSzoneSequence(puzzleState.masterRule)
-
-  const fieldCards = puzzleState.cards.filter((c) => c.code > 0)
-  let unsupportedPendulum = 0
-
-  const takenSzone = new Set<number>()
-  for (const card of fieldCards) {
-    if (card.location === CardLocation.SZONE) takenSzone.add(card.sequence)
-    if (card.location === CardLocation.FZONE) takenSzone.add(FIELD_ZONE_SEQUENCE)
-  }
+  const { placements, unsupportedPendulum, unsupportedOverlay } =
+    buildInitialPlacements(puzzleState)
 
   const seeds: { key: string; code: number; instanceId: string }[] = []
-  const createEngineCard = (
-    puzzleCard: (typeof fieldCards)[number],
-    location: number,
-    sequence: number,
-    position: number,
-    seedSequence = sequence
-  ): void => {
-    const isPrivatePile =
-      location === CardLocation.HAND ||
-      location === CardLocation.DECK ||
-      location === CardLocation.EXTRA
+  for (const entry of placements) {
+    const { card } = entry
     state.duel!.newCard({
-      code: puzzleCard.code,
-      owner: isPrivatePile ? puzzleCard.controller : (puzzleCard.owner ?? puzzleCard.controller),
-      player: puzzleCard.controller,
-      location,
-      sequence,
-      position
+      code: card.code,
+      owner: initialStateOwnerOf(card, entry.placement.location),
+      player: card.controller,
+      location: entry.placement.location,
+      sequence: entry.placement.sequence,
+      position: entry.placement.position
     })
     seeds.push({
-      key: `${puzzleCard.controller}:${location}:${seedSequence}`,
-      code: puzzleCard.code,
-      instanceId: puzzleCard.instanceId
+      key: `${card.controller}:${entry.placement.location}:${entry.identitySequence}`,
+      code: card.code,
+      instanceId: card.instanceId
     })
-  }
-
-  for (const card of fieldCards) {
-    if (
-      card.location === CardLocation.DECK ||
-      card.location === CardLocation.EXTRA ||
-      card.location === CardLocation.HAND
-    ) {
-      continue
-    }
-    if (card.location === CardLocation.PZONE) {
-      const seq = pzoneSeq[card.sequence]
-      if (seq === undefined || takenSzone.has(seq)) {
-        unsupportedPendulum++
-        continue
-      }
-      takenSzone.add(seq)
-      createEngineCard(card, CardLocation.SZONE, seq, OcgcoreScriptConstants.POS_FACEUP)
-      continue
-    }
-    const isFieldZone = card.location === CardLocation.FZONE
-    createEngineCard(
-      card,
-      isFieldZone ? CardLocation.SZONE : card.location,
-      isFieldZone ? FIELD_ZONE_SEQUENCE : card.sequence,
-      card.position
-    )
-  }
-
-  for (const controller of [0, 1] as const) {
-    const hand = fieldCards
-      .filter((c) => c.controller === controller && c.location === CardLocation.HAND)
-      .sort((a, b) => a.sequence - b.sequence)
-    hand.forEach((card, index) => {
-      createEngineCard(card, CardLocation.HAND, index, card.position)
-    })
-  }
-
-  for (const location of [CardLocation.DECK, CardLocation.EXTRA]) {
-    const pile = fieldCards
-      .filter((c) => c.location === location)
-      .sort((a, b) => a.controller - b.controller || a.sequence - b.sequence)
-    const byController: [FieldCard[], FieldCard[]] = [[], []]
-    for (const card of pile) byController[card.controller].push(card)
-    for (const controller of [0, 1] as const) {
-      const cards = byController[controller]
-      if (location === CardLocation.DECK) {
-        cards.forEach((card, index) => {
-          createEngineCard(
-            card,
-            location,
-            index,
-            OcgcoreScriptConstants.POS_FACEDOWN_DEFENSE,
-            cards.length - 1 - index
-          )
-        })
-        continue
-      }
-      const reversed = [...cards].reverse()
-      reversed.forEach((card, index) => {
-        createEngineCard(card, location, 0, OcgcoreScriptConstants.POS_FACEDOWN_DEFENSE, index)
-      })
-    }
-  }
-
-  let unsupportedOverlay = 0
-  for (const card of fieldCards) {
-    if (card.location !== CardLocation.MZONE || !card.overlayMaterials?.length) continue
-    unsupportedOverlay += card.overlayMaterials.filter((matCode) => matCode > 0).length
   }
 
   const { rule, flags } = buildStartDuelOptions(

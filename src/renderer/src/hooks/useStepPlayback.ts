@@ -113,7 +113,9 @@ export function useStepPlayback(): {
       if (!ok) return
       previewStepBoard(index)
       clearEditorSteps()
-      void useDuelEngineStore.getState().startEngine({ allowMergedMatch: mergedMatch })
+      void useDuelEngineStore
+        .getState()
+        .startEngine({ allowMergedMatch: mergedMatch, resetOpening: true })
     })
   }
 

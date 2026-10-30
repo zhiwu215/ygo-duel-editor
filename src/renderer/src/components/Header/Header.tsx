@@ -58,11 +58,9 @@ export const Header: React.FC = () => {
         )
     : false
   const suspendedHasInjections = suspendedDoc ? hasSessionInjections(suspendedDoc) : false
+  const suspendedHasHistory = (suspendedDoc?.timeline.length ?? 0) > 1
   const showStartOver =
-    suspendedDoc !== null &&
-    suspendedDoc.timeline.length > 1 &&
-    currentStepIndex === SCENE_STEP_INDEX &&
-    !sceneDirty
+    suspendedDoc !== null && currentStepIndex === SCENE_STEP_INDEX && !sceneDirty
 
   const handleResume = async (): Promise<void> => {
     const restored = await resumeSuspended()
@@ -77,11 +75,12 @@ export const Header: React.FC = () => {
   }
 
   const handleStartOver = async (): Promise<void> => {
-    if (suspendedHasInjections) {
+    if (suspendedHasInjections || suspendedHasHistory) {
       const ok = await confirmDialog({
-        title: '从头开始并并入注入卡',
-        description:
-          '注入过的卡片会按注入时的区域与顺序写入初始场面，旧会话的引擎操作流会被丢弃。继续吗？',
+        title: suspendedHasInjections ? '从头开始并并入注入卡' : '从头开始',
+        description: suspendedHasInjections
+          ? '注入过的卡片会按注入时的区域与顺序写入初始场面，旧会话的引擎操作流会被丢弃。继续吗？'
+          : '会从布景的初始场面重新开始，旧会话的引擎操作流会被丢弃。继续吗？',
         confirmText: '开始'
       })
       if (!ok) return
@@ -93,7 +92,7 @@ export const Header: React.FC = () => {
         useDuelEngineStore.getState().error ??
         (suspendedHasInjections
           ? '引擎无法用并入注入后的初始场面重新开始。'
-          : '引擎无法从初始步骤恢复上次的会话。')
+          : '引擎无法从初始场面重新开始。')
       }`
     )
   }
@@ -287,7 +286,7 @@ export const Header: React.FC = () => {
                   className="h-7 px-2 text-[11px] font-bold gap-1 bg-background/60 text-muted-foreground border-border hover:bg-muted"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>{suspendedHasInjections ? '从头开始（并入注入）' : '从头开始'}</span>
+                  <span>{suspendedHasInjections ? '从头开始' : '从头开始'}</span>
                 </Button>
               )}
               {!canResume && (

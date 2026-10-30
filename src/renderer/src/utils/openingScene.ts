@@ -202,7 +202,19 @@ export function sceneSignature(scene: OpeningScene): string {
 export function resolveOpeningScene(state: DuelPuzzleState): OpeningScene | null {
   const steps = state.steps ?? []
   const first = steps[0]
-  if (!first) return null
+  if (!first) {
+    const snapshot = resolveOpeningSnapshot(state)
+    if (!snapshot || snapshot.length === 0) return null
+    return {
+      cards: snapshot,
+      lp: state.initialLp
+        ? [state.initialLp[0], state.initialLp[1]]
+        : [state.players[0]?.lp ?? 8000, state.players[1]?.lp ?? 8000],
+      turn: 1,
+      phase: 'DP',
+      turnPlayer: state.turnPlayer
+    }
+  }
 
   const isMarker = first.actionType === 'PHASE_CHANGE' || first.actionType === 'TURN_CHANGE'
   const firstAction = steps.find(

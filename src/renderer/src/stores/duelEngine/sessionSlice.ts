@@ -8,7 +8,6 @@ import {
   computeBoardFingerprint,
   createLightweightSnapshot,
   hasSessionCardInjections,
-  hasSessionInjections,
   isEngineSupportedMatch,
   normalizeTimingPolicy,
   resolveOpeningSnapshot,
@@ -96,7 +95,11 @@ export interface SessionSlice {
   mergedMatch: boolean
   suspendedDoc: EngineSessionDoc | null
 
-  startEngine: (options?: { allowMergedMatch?: boolean; seed?: number[] }) => Promise<void>
+  startEngine: (options?: {
+    allowMergedMatch?: boolean
+    seed?: number[]
+    resetOpening?: boolean
+  }) => Promise<void>
   stopEngine: () => void
   suspendEngine: () => Promise<void>
   resumeSuspended: () => Promise<boolean>
@@ -155,21 +158,35 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       }
       const currentDuelState = structuredClone(aligned)
       if ((currentDuelState.steps ?? []).length === 0) {
-        const openingCards = createLightweightSnapshot(currentDuelState.cards)
-        const initialLp: [number, number] = [
-          currentDuelState.players[0]?.lp ?? 8000,
-          currentDuelState.players[1]?.lp ?? 8000
-        ]
-        useDuelStore.setState((prev) => ({
-          ...prev,
-          state: {
-            ...prev.state,
-            initialBoardSnapshot: openingCards,
-            initialLp
-          }
-        }))
-        currentDuelState.initialBoardSnapshot = openingCards
-        currentDuelState.initialLp = initialLp
+        const preserveOpening =
+          !options?.resetOpening && Boolean(currentDuelState.initialBoardSnapshot?.length)
+        if (!preserveOpening) {
+          const openingCards = createLightweightSnapshot(currentDuelState.cards)
+          const initialLp: [number, number] = [
+            currentDuelState.players[0]?.lp ?? 8000,
+            currentDuelState.players[1]?.lp ?? 8000
+          ]
+          useDuelStore.setState((prev) => ({
+            ...prev,
+            state: {
+              ...prev.state,
+              initialBoardSnapshot: openingCards,
+              initialLp
+            }
+          }))
+          currentDuelState.initialBoardSnapshot = openingCards
+          currentDuelState.initialLp = initialLp
+        } else if (!currentDuelState.initialLp) {
+          const initialLp: [number, number] = [
+            currentDuelState.players[0]?.lp ?? 8000,
+            currentDuelState.players[1]?.lp ?? 8000
+          ]
+          useDuelStore.setState((prev) => ({
+            ...prev,
+            state: { ...prev.state, initialLp }
+          }))
+          currentDuelState.initialLp = initialLp
+        }
       } else {
         const openingSnapshot = resolveOpeningSnapshot(currentDuelState)
         if (openingSnapshot) currentDuelState.initialBoardSnapshot = openingSnapshot
@@ -296,19 +313,26 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   resumeSuspendedFromStart: async () => {
     const doc = get().suspendedDoc
     if (!doc) return false
-    if (hasSessionInjections(doc)) {
+    const opening = useDuelStore.getState().state.initialBoardSnapshot
+    if (opening && opening.length > 0) {
       const hasInjectedCards = hasSessionCardInjections(doc)
-      if (!useDuelStore.getState().previewReturn) {
-        useDuelStore.getState().previewTimelineStart()
+      const duel = useDuelStore.getState()
+      if (duel.sceneEditing) {
+        duel.exitSceneMode()
+        useDuelStore.setState((prev) => ({
+          ...prev,
+          state: { ...prev.state, initialBoardSnapshot: opening }
+        }))
       }
+      useDuelStore.getState().previewTimelineStart()
       await get().startEngine({ allowMergedMatch: true, seed: doc.seed })
       if (!get().isInitialized) return false
       set({
         injectNotice: {
           kind: 'success',
           message: hasInjectedCards
-            ? '已将注入的卡片并入初始场面，并以新的开局重新启动引擎。'
-            : '已清除注入操作，并以新的开局重新启动引擎。'
+            ? '已将注入的卡片并入初始场面，并从初始场面重新开始。'
+            : '已从初始场面重新开始。'
         }
       })
       return true

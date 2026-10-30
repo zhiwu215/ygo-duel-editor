@@ -21,6 +21,7 @@ import {
   type LightweightCardSnapshot
 } from '@shared/index'
 import { applyInjectionToOpening } from '../../src/renderer/src/stores/duelEngine/openingInjection'
+import { clearEditorSteps } from '../../src/renderer/src/stores/duelEngine/stepRecords'
 import { useDuelEngineStore } from '../../src/renderer/src/stores/useDuelEngineStore'
 import { useDuelStore } from '../../src/renderer/src/stores/useDuelStore'
 import { cdbService } from './cdb-shim'
@@ -591,6 +592,39 @@ async function main(): Promise<void> {
     duelSession.getBoardState().players[0].hand.some((card) => card.code === BLUE_EYES),
     '新开局应在原抽卡顺序的同一位置抽到注入卡'
   )
+
+  await useDuelEngineStore.getState().suspendEngine()
+  clearEditorSteps()
+  assert(useDuelStore.getState().state.steps?.length === 0, '应清空步骤以模拟 0 步会话')
+  await useDuelEngineStore.getState().startEngine()
+  assert(useDuelEngineStore.getState().isInitialized, '从最终盘面开始的新会话应启动')
+  assert(
+    deckCodes(useDuelStore.getState().state.initialBoardSnapshot!).join(',') ===
+      [HAND_0, BLUE_EYES, DECK_1, DECK_2, DECK_3, DECK_4, DECK_5].join(','),
+    '从最终盘面开新会话不应覆盖初始场面'
+  )
+  await useDuelEngineStore.getState().suspendEngine()
+
+  assert(useDuelStore.getState().enterSceneMode(), '0 步会话应能进入布景')
+  const sceneHand = cardsAt(useDuelStore.getState().state.cards, 0, CardLocation.HAND)
+  assert(sceneHand.length === 4, `布景应显示初始手牌 4 张，实际 ${sceneHand.length}`)
+  assert(
+    deckCodes(useDuelStore.getState().state.initialBoardSnapshot!).join(',') ===
+      [HAND_0, BLUE_EYES, DECK_1, DECK_2, DECK_3, DECK_4, DECK_5].join(','),
+    '布景不应改变初始场面'
+  )
+
+  const fromScene = await useDuelEngineStore.getState().resumeSuspendedFromStart()
+  assert(fromScene, `布景中从头开始应成功: ${useDuelEngineStore.getState().error}`)
+  const sceneRestartHand = duelSession.getBoardState().players[0].hand
+  const sceneRestartDeck = duelSession.getBoardState().players[0].deck ?? []
+  assert(sceneRestartHand.length === 4, '布景中从头开始应回到初始手牌')
+  assert(
+    sceneRestartHand.some((card) => card.code === POT_OF_GREED),
+    '初始手牌应保留并入并替换后的卡'
+  )
+  assert(sceneRestartDeck.at(-1)?.code === HAND_0, '布景中从头开始应回到初始卡组顶')
+  assert(sceneRestartDeck.at(-2)?.code === BLUE_EYES, '布景中从头开始应保留注入卡的位置')
 
   console.log('[opening-inject] ALL PASSED')
   process.exit(0)

@@ -31,6 +31,7 @@ import {
 } from './stepRecords'
 import { syncEngineStepsFromTimeline } from './stepRecordSync'
 import { applyInjectionToOpening } from './openingInjection'
+import { rebuildSessionWithoutInjections } from './replayWithoutInjections'
 import type { DuelEngineStore } from './types'
 
 type EngineMode = 'idle' | 'running' | 'paused'
@@ -85,6 +86,21 @@ function restoreStepPileOrder(): void {
   })
 }
 
+function openInitialScene(): boolean {
+  const live = useDuelStore.getState()
+  const opening = live.state.initialBoardSnapshot
+  if (!opening || opening.length === 0) return false
+  if (live.sceneEditing) {
+    live.exitSceneMode()
+    useDuelStore.setState((prev) => ({
+      ...prev,
+      state: { ...prev.state, initialBoardSnapshot: opening }
+    }))
+  }
+  useDuelStore.getState().previewTimelineStart()
+  return true
+}
+
 export interface SessionSlice {
   engineMode: EngineMode
   isInitialized: boolean
@@ -104,6 +120,7 @@ export interface SessionSlice {
   suspendEngine: () => Promise<void>
   resumeSuspended: () => Promise<boolean>
   resumeSuspendedFromStart: () => Promise<boolean>
+  replaySuspendedToClean: () => Promise<boolean>
   setSuspendedDoc: (doc: EngineSessionDoc | null) => void
   inject: (command: InjectCommand) => Promise<boolean>
   clearInjectNotice: () => void
@@ -312,19 +329,9 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
 
   resumeSuspendedFromStart: async () => {
     const doc = get().suspendedDoc
-    if (!doc) return false
-    const opening = useDuelStore.getState().state.initialBoardSnapshot
-    if (opening && opening.length > 0) {
+    if (!doc || get().isInitialized) return false
+    if (openInitialScene()) {
       const hasInjectedCards = hasSessionCardInjections(doc)
-      const duel = useDuelStore.getState()
-      if (duel.sceneEditing) {
-        duel.exitSceneMode()
-        useDuelStore.setState((prev) => ({
-          ...prev,
-          state: { ...prev.state, initialBoardSnapshot: opening }
-        }))
-      }
-      useDuelStore.getState().previewTimelineStart()
       await get().startEngine({ allowMergedMatch: true, seed: doc.seed })
       if (!get().isInitialized) return false
       set({
@@ -342,6 +349,34 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
     if (start.id === doc.currentStepId) return get().resumeSuspended()
     useDuelStore.getState().exitPreview()
     return get().restoreSessionDoc({ ...doc, currentStepId: start.id })
+  },
+
+  replaySuspendedToClean: async () => {
+    const doc = get().suspendedDoc
+    if (!doc || get().isInitialized) return false
+    if (!openInitialScene()) {
+      set({ error: '没有可用的初始场面快照，无法自动重打。' })
+      return false
+    }
+    const puzzleState = {
+      ...structuredClone(useDuelStore.getState().state),
+      steps: []
+    }
+    const rebuilt = rebuildSessionWithoutInjections(doc, puzzleState)
+    if (!rebuilt) {
+      set({ error: '当前会话没有可自动重打的注入操作。' })
+      return false
+    }
+    useDuelStore.getState().commitPreview()
+    const restored = await get().restoreSessionDoc(rebuilt.doc)
+    if (!restored) return false
+    set({
+      injectNotice: {
+        kind: 'success',
+        message: `自动重打完成，已清除 ${rebuilt.droppedInjections} 条注入操作，可以直接导出回放。`
+      }
+    })
+    return true
   },
 
   setSuspendedDoc: (doc) => set({ suspendedDoc: doc }),

@@ -49,6 +49,7 @@ interface ConfigStoreState {
 
   selectCardImageDir: () => Promise<CardImageDirResult>
   clearCardImageDir: () => Promise<void>
+  selectMdpro3Dir: () => Promise<boolean>
 
   setDuelTestSettings: (patch: Partial<DuelTestSettings>) => Promise<void>
   setWebSearchConfig: (config: WebSearchConfig) => Promise<void>
@@ -233,6 +234,21 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       await get().loadConfig()
     } catch (err) {
       console.error('[useConfigStore] clearCardImageDir error:', err)
+    }
+  },
+
+  selectMdpro3Dir: async () => {
+    try {
+      const res = await window.api.selectMdpro3Directory()
+      if (res.success) {
+        await get().loadConfig()
+        return true
+      }
+      if (res.error) void alertDialog(`设置 MDPro3 目录失败：${res.error}`)
+      return false
+    } catch (err) {
+      console.error('[useConfigStore] selectMdpro3Dir error:', err)
+      return false
     }
   },
 

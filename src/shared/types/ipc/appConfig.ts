@@ -16,10 +16,19 @@ export interface GamePathStatus {
   cdbExists: boolean
 }
 
+export interface Mdpro3DirectoryResult {
+  success: boolean
+  canceled?: boolean
+  directory?: string
+  error?: string
+}
+
 export interface AppConfig {
   gameDirectory?: string
 
   gameType?: 'ygopro' | 'mdpro3'
+
+  mdpro3Directory?: string
 
   gameLanguage?: string
 

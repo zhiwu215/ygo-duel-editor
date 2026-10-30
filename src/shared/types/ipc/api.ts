@@ -67,6 +67,7 @@ import {
   DataDirectoryResult,
   DuelTestSettings,
   GamePathStatus,
+  Mdpro3DirectoryResult,
   SettingsSectionId
 } from './appConfig'
 import type { UpdateState } from '../update'
@@ -94,6 +95,7 @@ export interface IpcApi {
 
   selectYgoDirectory: () => Promise<CdbSelectResult>
   selectCardImageDirectory: () => Promise<CardImageDirResult>
+  selectMdpro3Directory: () => Promise<Mdpro3DirectoryResult>
   setCardImageDirectory: (dir: string | null) => Promise<boolean>
   getGameLanguageOptions: () => Promise<GameLanguageOption[]>
   setGameLanguage: (languageId: string) => Promise<{ success: boolean; error?: string }>
@@ -138,7 +140,7 @@ export interface IpcApi {
   openCustomCardSyncDir: (target: CustomCardSyncTarget) => Promise<CustomCardOpenDirResult>
   getCustomSetcodeNames: () => Promise<Record<string, string>>
   renameCustomSetcode: (codeHex: string, name: string) => Promise<CustomSetcodeNamesResult>
-  syncCustomCardsToGame: () => Promise<CustomCardSyncResult>
+  syncCustomCardsToGame: (target?: 'mdpro3') => Promise<CustomCardSyncResult>
   cleanCustomCardsFromGame: () => Promise<CustomCardSyncResult>
   onCustomCardsUpdated: (callback: () => void) => () => void
 

@@ -31,6 +31,7 @@ const api: IpcApi = {
 
   selectYgoDirectory: () => ipcRenderer.invoke('config:select-ygo-dir'),
   selectCardImageDirectory: () => ipcRenderer.invoke('config:select-card-image-dir'),
+  selectMdpro3Directory: () => ipcRenderer.invoke('config:select-mdpro3-dir'),
   setCardImageDirectory: (dir: string | null) =>
     ipcRenderer.invoke('config:set-card-image-dir', dir),
   getGameLanguageOptions: () => ipcRenderer.invoke('config:game-language-options'),
@@ -76,7 +77,8 @@ const api: IpcApi = {
   getCustomSetcodeNames: () => ipcRenderer.invoke('customcard:list-setcodes'),
   renameCustomSetcode: (codeHex, name) =>
     ipcRenderer.invoke('customcard:rename-setcode', codeHex, name),
-  syncCustomCardsToGame: () => ipcRenderer.invoke('customcard:sync-to-game'),
+  syncCustomCardsToGame: (target?: 'mdpro3') =>
+    ipcRenderer.invoke('customcard:sync-to-game', target),
   cleanCustomCardsFromGame: () => ipcRenderer.invoke('customcard:clean-from-game'),
   onCustomCardsUpdated: (callback) => {
     const handler = (): void => callback()

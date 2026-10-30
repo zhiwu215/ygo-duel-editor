@@ -85,7 +85,8 @@ const entries = [
   'autosave-smoke',
   'session-suspend-smoke',
   'card-relations-smoke',
-  'start-over-dup-smoke'
+  'start-over-dup-smoke',
+  'opening-inject-smoke'
 ]
 
 let failed = 0

@@ -7,6 +7,8 @@ import {
   alignFirstPlayerSeat,
   computeBoardFingerprint,
   createLightweightSnapshot,
+  hasSessionCardInjections,
+  hasSessionInjections,
   isEngineSupportedMatch,
   normalizeTimingPolicy,
   resolveOpeningSnapshot,
@@ -29,6 +31,7 @@ import {
   splitTimeline
 } from './stepRecords'
 import { syncEngineStepsFromTimeline } from './stepRecordSync'
+import { applyInjectionToOpening } from './openingInjection'
 import type { DuelEngineStore } from './types'
 
 type EngineMode = 'idle' | 'running' | 'paused'
@@ -93,7 +96,7 @@ export interface SessionSlice {
   mergedMatch: boolean
   suspendedDoc: EngineSessionDoc | null
 
-  startEngine: (options?: { allowMergedMatch?: boolean }) => Promise<void>
+  startEngine: (options?: { allowMergedMatch?: boolean; seed?: number[] }) => Promise<void>
   stopEngine: () => void
   suspendEngine: () => Promise<void>
   resumeSuspended: () => Promise<boolean>
@@ -175,7 +178,8 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       await window.api.duelEngineSetPolicy(get().timingPolicy)
 
       const initParams: EngineDuelInitParams = {
-        puzzleState: currentDuelState
+        puzzleState: currentDuelState,
+        ...(options?.seed ? { seed: [...options.seed] } : {})
       }
 
       const res = await window.api.duelEngineInit(initParams)
@@ -292,6 +296,23 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   resumeSuspendedFromStart: async () => {
     const doc = get().suspendedDoc
     if (!doc) return false
+    if (hasSessionInjections(doc)) {
+      const hasInjectedCards = hasSessionCardInjections(doc)
+      if (!useDuelStore.getState().previewReturn) {
+        useDuelStore.getState().previewTimelineStart()
+      }
+      await get().startEngine({ allowMergedMatch: true, seed: doc.seed })
+      if (!get().isInitialized) return false
+      set({
+        injectNotice: {
+          kind: 'success',
+          message: hasInjectedCards
+            ? '已将注入的卡片并入初始场面，并以新的开局重新启动引擎。'
+            : '已清除注入操作，并以新的开局重新启动引擎。'
+        }
+      })
+      return true
+    }
     const start = doc.timeline.find((node) => node.parentId === null) ?? doc.timeline[0]
     if (!start) return false
     if (start.id === doc.currentStepId) return get().resumeSuspended()
@@ -307,6 +328,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       return false
     }
     cancelLpSequence()
+    const beforeBoard = get().boardState
     set({ loading: true, error: null })
     try {
       const res = await window.api.duelEngineInject(command)
@@ -316,12 +338,50 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       const { kept, dropped } = splitTimeline(prevTimeline, get().currentStepId)
       const discarded = discardFutureSteps(kept, dropped)
       const nextTimeline = [...kept, res.node]
+      syncJumpToStepWrapped(res.boardState)
+      const opening = useDuelStore.getState().state.initialBoardSnapshot
+      const baked =
+        command.op === 'add-card' && beforeBoard && opening
+          ? applyInjectionToOpening({
+              opening,
+              before: beforeBoard,
+              after: res.boardState,
+              command,
+              masterRule: useDuelStore.getState().state.masterRule,
+              resolvePlacement: (engineInstanceId) => {
+                const card = useDuelStore
+                  .getState()
+                  .state.cards.find((item) => item.instanceId === engineInstanceId)
+                return card
+                  ? {
+                      location: card.location,
+                      sequence: card.sequence,
+                      position: card.position,
+                      duelistId: card.duelistId
+                    }
+                  : undefined
+              },
+              duelistIdOf: (controller) =>
+                useDuelStore
+                  .getState()
+                  .state.duelists?.find((duelist) => duelist.team === controller)?.id
+            })
+          : null
+      if (baked && baked.baked > 0) {
+        useDuelStore.setState((prev) => ({
+          ...prev,
+          state: { ...prev.state, initialBoardSnapshot: baked.opening }
+        }))
+      }
+      const skipped = baked?.skipped ?? 0
       const notice = {
-        kind: res.warning ? ('warning' as const) : ('success' as const),
+        kind: res.warning || skipped > 0 ? ('warning' as const) : ('success' as const),
         message: `${appendDiscardNotice(
           res.warning ? `${res.node.title}：${res.warning}` : res.node.title,
           discarded
-        )}${previewExited ? '（已退出步骤预览）' : ''}`
+        )}${baked && baked.baked > 0 ? '（已并入初始场面）' : ''}${
+          skipped > 0 ? `（${skipped} 张因初始场面没有空位未并入）` : ''
+        }${previewExited ? '（已退出步骤预览）' : ''}`
       }
       set({
         loading: false,
@@ -333,7 +393,6 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
         currentStepId: res.node.id,
         injectNotice: notice
       })
-      syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(get().timeline)
       get().playStepEffects(res.node)
       return true

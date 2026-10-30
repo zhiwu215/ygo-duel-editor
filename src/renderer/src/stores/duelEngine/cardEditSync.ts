@@ -25,19 +25,16 @@ export function syncCardEditToDuelStore(editedCard: EngineEditedCardInfo): void 
             return c
           })
 
-    const nextSnapshot =
-      prev.state.initialBoardSnapshot && editedCard.originKind === 'initial'
-        ? editedCard.action === 'remove'
-          ? prev.state.initialBoardSnapshot.filter(
-              (s) => !isSameCardInstance(s.instanceId, targetId)
-            )
-          : prev.state.initialBoardSnapshot.map((s) => {
-              if (isSameCardInstance(s.instanceId, targetId)) {
-                return { ...s, code: newCode }
-              }
-              return s
-            })
-        : prev.state.initialBoardSnapshot
+    const nextSnapshot = prev.state.initialBoardSnapshot
+      ? editedCard.action === 'remove'
+        ? prev.state.initialBoardSnapshot.filter((s) => !isSameCardInstance(s.instanceId, targetId))
+        : prev.state.initialBoardSnapshot.map((s) => {
+            if (isSameCardInstance(s.instanceId, targetId)) {
+              return { ...s, code: newCode }
+            }
+            return s
+          })
+      : prev.state.initialBoardSnapshot
 
     const nextSteps = (prev.state.steps || []).map((step) => {
       let stepChanged = false

@@ -26,16 +26,6 @@ export async function applyCardEditResult(
     syncCardEditToDuelStore(res.editedCard)
   }
 
-  if (res.puzzleState?.initialBoardSnapshot) {
-    useDuelStore.setState((prev) => ({
-      ...prev,
-      state: {
-        ...prev.state,
-        initialBoardSnapshot: res.puzzleState!.initialBoardSnapshot
-      }
-    }))
-  }
-
   const prevTimeline = get().timeline
   const currentId = get().currentStepId
   const splitId =

@@ -1,12 +1,8 @@
-import { CardLocation, LightweightCardSnapshot } from '@shared/index'
+import { CardLocation, PILE_LOCATIONS, LightweightCardSnapshot } from '@shared/index'
 
-const PILE_LOCATIONS = new Set<number>([
-  CardLocation.HAND,
-  CardLocation.GRAVE,
-  CardLocation.DECK,
-  CardLocation.EXTRA,
-  CardLocation.REMOVED
-])
+function isInitialPile(location: number): boolean {
+  return location === CardLocation.HAND || PILE_LOCATIONS.has(location)
+}
 
 function samePile(card: LightweightCardSnapshot, other: LightweightCardSnapshot): boolean {
   return (
@@ -20,7 +16,7 @@ export function insertCardIntoInitialBoard(
   snapshot: LightweightCardSnapshot[],
   card: LightweightCardSnapshot
 ): LightweightCardSnapshot[] {
-  if (!PILE_LOCATIONS.has(card.location)) {
+  if (!isInitialPile(card.location)) {
     return [...snapshot, card]
   }
 

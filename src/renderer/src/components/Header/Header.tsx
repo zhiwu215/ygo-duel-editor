@@ -5,6 +5,7 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import {
   boardFingerprintMatches,
   computeBoardFingerprint,
+  hasSessionInjections,
   MASTER_RULES,
   MasterRule,
   SELECTABLE_MASTER_RULES
@@ -56,6 +57,7 @@ export const Header: React.FC = () => {
           computeBoardFingerprint(previewReturn?.state ?? state)
         )
     : false
+  const suspendedHasInjections = suspendedDoc ? hasSessionInjections(suspendedDoc) : false
   const showStartOver =
     suspendedDoc !== null &&
     suspendedDoc.timeline.length > 1 &&
@@ -75,10 +77,24 @@ export const Header: React.FC = () => {
   }
 
   const handleStartOver = async (): Promise<void> => {
+    if (suspendedHasInjections) {
+      const ok = await confirmDialog({
+        title: '从头开始并并入注入卡',
+        description:
+          '注入过的卡片会按注入时的区域与顺序写入初始场面，旧会话的引擎操作流会被丢弃。继续吗？',
+        confirmText: '开始'
+      })
+      if (!ok) return
+    }
     const restored = await resumeSuspendedFromStart()
     if (restored) return
     await alertDialog(
-      `从头开始失败\n${useDuelEngineStore.getState().error ?? '引擎无法从初始步骤恢复上次的会话。'}`
+      `从头开始失败\n${
+        useDuelEngineStore.getState().error ??
+        (suspendedHasInjections
+          ? '引擎无法用并入注入后的初始场面重新开始。'
+          : '引擎无法从初始步骤恢复上次的会话。')
+      }`
     )
   }
 
@@ -271,7 +287,7 @@ export const Header: React.FC = () => {
                   className="h-7 px-2 text-[11px] font-bold gap-1 bg-background/60 text-muted-foreground border-border hover:bg-muted"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>从头开始</span>
+                  <span>{suspendedHasInjections ? '从头开始（并入注入）' : '从头开始'}</span>
                 </Button>
               )}
               {!canResume && (

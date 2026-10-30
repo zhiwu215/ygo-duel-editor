@@ -428,7 +428,7 @@ export class YgoproLauncher {
         success: false,
         errorCode: 'replay-failed',
         error:
-          '当前引擎会话包含注入操作（加卡、替换等）\n\n如果这些卡原本就应在开局盘面/卡组里，请先摆好再启动引擎。\n中途注入只能改用「使用游戏测试该局」测试当前盘面。\n或从无注入的开局重新对局后导出回放。'
+          '当前引擎会话包含注入操作（加卡、替换等）\n\n注入的卡会写入初始场面：请先回到初始局面并点「从头开始」，用无注入的新会话重新对局后再导出回放。\n只想测试当前盘面请用「使用游戏测试该局」。'
       }
     }
     const responses = await duelDirector.exportReplayResponses()

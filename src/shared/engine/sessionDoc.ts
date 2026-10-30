@@ -41,6 +41,14 @@ export interface EngineSessionDoc {
   boardFingerprint?: string
 }
 
+export function hasSessionInjections(doc: Pick<EngineSessionDoc, 'ops'>): boolean {
+  return doc.ops.some((op) => op.type === 'inject' && !op.removed)
+}
+
+export function hasSessionCardInjections(doc: Pick<EngineSessionDoc, 'ops'>): boolean {
+  return doc.ops.some((op) => op.type === 'inject' && !op.removed && op.command.op === 'add-card')
+}
+
 export interface EngineSessionImportPayload {
   initParams: EngineDuelInitParams
   boardState: EngineBoardState

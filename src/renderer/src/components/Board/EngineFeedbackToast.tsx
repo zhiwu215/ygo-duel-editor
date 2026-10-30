@@ -34,7 +34,7 @@ export const EngineFeedbackToast: React.FC = () => {
     return (
       <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 px-4 py-2 rounded-lg text-xs shadow-2xl animate-in fade-in zoom-in-95 duration-100 select-none max-w-[82vw] bg-amber-500/95 text-neutral-950">
         <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-        <span className="truncate">{injectNotice.message}</span>
+        <span className="break-words leading-relaxed">{injectNotice.message}</span>
       </div>
     )
   }

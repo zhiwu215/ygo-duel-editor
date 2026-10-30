@@ -2,7 +2,10 @@ import { CardLocation } from '../constants/locations'
 import type { DuelPuzzleState } from '../types/duel'
 import type { DuelStep } from '../types/story'
 
-const REVERSED_PILE_LOCATIONS = new Set<number>([CardLocation.DECK, CardLocation.EXTRA])
+export const REVERSED_PILE_LOCATIONS: ReadonlySet<number> = new Set<number>([
+  CardLocation.DECK,
+  CardLocation.EXTRA
+])
 
 interface PileSequenceCard {
   controller: 0 | 1

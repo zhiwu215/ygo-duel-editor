@@ -115,6 +115,17 @@ function undoAppliedOpeningDraw(cards: LightweightCardSnapshot[], step: DuelStep
     (card) => card.controller === draw.player && card.location === CardLocation.HAND
   )
   if (snapshotHand.length < afterHand.length) return
+  if (step.instanceId) {
+    const exact = cards.find(
+      (card) =>
+        card.instanceId === step.instanceId &&
+        card.controller === draw.player &&
+        card.location === CardLocation.HAND
+    )
+    if (!exact) return
+    moveCardToDeck(cards, exact, draw.player, exact.duelistId)
+    return
+  }
   for (let index = drawnCodes.length - 1; index >= 0; index--) {
     const target = drawnCardOf(cards, step, draw.player, drawnCodes[index])
     if (!target) return

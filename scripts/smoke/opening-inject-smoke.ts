@@ -140,8 +140,8 @@ function pureChecks(): void {
   })
   assert(
     deckCodes(emptyDeckResult.opening).join(',') ===
-      [BLUE_EYES, HAND_0, HAND_1, HAND_2, DECK_1].join(','),
-    `空卡组顶注入应落到初始卡组最前: ${deckCodes(emptyDeckResult.opening).join(',')}`
+      [HAND_0, HAND_1, HAND_2, DECK_1, BLUE_EYES].join(','),
+    `空卡组时置顶注入应追加到末尾，保持已抽走卡顺序: ${deckCodes(emptyDeckResult.opening).join(',')}`
   )
 
   const bottomInject = engineCard('card-9', DARK_MAGICIAN, CardLocation.DECK, 0)

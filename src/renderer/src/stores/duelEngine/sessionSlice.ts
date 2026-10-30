@@ -31,6 +31,7 @@ import {
 } from './stepRecords'
 import { syncEngineStepsFromTimeline } from './stepRecordSync'
 import { applyInjectionToOpening } from './openingInjection'
+import { reconstructOpeningFromSession } from './openingFromSession'
 import { rebuildSessionWithoutInjections } from './replayWithoutInjections'
 import type { DuelEngineStore } from './types'
 
@@ -357,11 +358,12 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   replaySuspendedToClean: async () => {
     const doc = get().suspendedDoc
     if (!doc || get().isInitialized) return false
-    if (!openInitialScene()) {
+    const reconstructed = reconstructOpeningFromSession(doc)
+    if (!openInitialScene() && !reconstructed) {
       set({ error: '没有可用的初始场面快照，无法自动重打。' })
       return false
     }
-    const puzzleState = {
+    const puzzleState = reconstructed ?? {
       ...structuredClone(useDuelStore.getState().state),
       steps: []
     }
@@ -373,6 +375,16 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
     useDuelStore.getState().commitPreview()
     const restored = await get().restoreSessionDoc(rebuilt.doc)
     if (!restored) return false
+    if (reconstructed) {
+      useDuelStore.setState((prev) => ({
+        ...prev,
+        state: {
+          ...prev.state,
+          initialBoardSnapshot: reconstructed.initialBoardSnapshot,
+          initialLp: reconstructed.initialLp
+        }
+      }))
+    }
     set({
       injectNotice: {
         kind: 'success',

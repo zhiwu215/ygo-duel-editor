@@ -177,18 +177,13 @@ function insertIntoPile(
   after: EngineBoardState,
   location: number,
   position: number,
-  preferFront: boolean,
   duelistId?: string
 ): LightweightCardSnapshot[] | null {
   const anchor = findOpeningAnchor(card, opening, after, location, duelistId)
   const pile = opening
     .filter((entry) => isSamePile(entry, location, card.controller, duelistId))
     .sort((left, right) => left.sequence - right.sequence)
-  const sequence = anchor
-    ? anchor.sequence
-    : preferFront && location === CardLocation.DECK
-      ? 0
-      : (pile.at(-1)?.sequence ?? -1) + 1
+  const sequence = anchor ? anchor.sequence : (pile.at(-1)?.sequence ?? -1) + 1
   const shifted = new Set(
     pile.filter((entry) => entry.sequence >= sequence).map((entry) => entry.instanceId)
   )
@@ -258,7 +253,6 @@ function insertInjectedCard(
   after: EngineBoardState,
   masterRule: number,
   placement: OpeningInjectionPlacement | undefined,
-  preferFront: boolean,
   duelistId?: string
 ): LightweightCardSnapshot[] | null {
   const normalized = normalizeEngineCardPosition(masterRule, card.location, card.sequence)
@@ -267,7 +261,7 @@ function insertInjectedCard(
   const position = placement?.position ?? card.position
 
   if (isOpeningPile(location)) {
-    return insertIntoPile(opening, card, after, location, position, preferFront, duelistId)
+    return insertIntoPile(opening, card, after, location, position, duelistId)
   }
   if (isFieldSlot({ location, sequence })) {
     return insertIntoSingleFieldSlot(opening, card, position, duelistId)
@@ -299,7 +293,6 @@ export function applyInjectionToOpening(input: OpeningInjectionInput): OpeningIn
       input.after,
       input.masterRule,
       placement,
-      command.to === 'deck-top',
       duelistId
     )
     if (!next) {

@@ -38,13 +38,17 @@ function buildStartMessage(reload: YGOProMsgReloadField): YGOProMsgStart {
   return start
 }
 
-export function buildYrp3dMessages(payloads: Uint8Array[]): YGOProMsgBase[] {
+export function buildYrp3dMessages(
+  payloads: Uint8Array[],
+  bootstrap: Uint8Array[] = []
+): YGOProMsgBase[] {
   const messages: YGOProMsgBase[] = []
-  const hasStart = payloads.some((payload) => payload[0] === YGOProMsgStart.identifier)
+  const all = [...bootstrap, ...payloads]
+  const hasStart = all.some((payload) => payload[0] === YGOProMsgStart.identifier)
   if (!hasStart) {
     const reload = findReloadField(payloads)
     if (reload) messages.push(buildStartMessage(reload))
   }
-  for (const payload of payloads) messages.push(new RawGameMessage(payload))
+  for (const payload of all) messages.push(new RawGameMessage(payload))
   return messages
 }

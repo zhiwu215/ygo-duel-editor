@@ -1,11 +1,17 @@
 import { create } from 'zustand'
 
-type DialogKind = 'confirm' | 'alert' | 'prompt'
+type DialogKind = 'confirm' | 'alert' | 'prompt' | 'choice'
 type DialogValue = boolean | string | null
 
 export interface DialogExtraAction {
   text: string
   value: string
+}
+
+export interface DialogChoice {
+  label: string
+  value: string
+  description?: string
 }
 
 interface DialogRequest {
@@ -18,6 +24,7 @@ interface DialogRequest {
   destructive?: boolean
   icon?: 'warning' | 'info'
   extraAction?: DialogExtraAction
+  choices?: DialogChoice[]
   initialValue?: string
   validate?: (value: string) => string | null
   resolve: (value: DialogValue) => void
@@ -90,6 +97,23 @@ export function promptDialog(options: PromptDialogOptions): Promise<string | nul
     useDialogStore.getState().push({
       id: nextDialogId++,
       kind: 'prompt',
+      ...options,
+      resolve: resolve as (value: DialogValue) => void
+    })
+  })
+}
+
+interface ChoiceDialogOptions {
+  title: string
+  description?: string
+  choices: DialogChoice[]
+}
+
+export function choiceDialog(options: ChoiceDialogOptions): Promise<string | null> {
+  return new Promise((resolve) => {
+    useDialogStore.getState().push({
+      id: nextDialogId++,
+      kind: 'choice',
       ...options,
       resolve: resolve as (value: DialogValue) => void
     })

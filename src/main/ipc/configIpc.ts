@@ -53,6 +53,18 @@ export function registerConfigIpc(): void {
     return checkGamePathStatus(configService.get())
   })
 
+  ipcMain.handle('config:select-mdpro3-dir', async () => {
+    const dir = await ygoproLauncher.selectMdpro3Directory()
+    if (!dir) {
+      return { success: false, canceled: true }
+    }
+    if (ygoproLauncher.detectGameType(dir) !== 'mdpro3') {
+      return { success: false, error: '未在该目录下找到 MDPro3.exe，请选择 MDPro3 主目录' }
+    }
+    configService.save({ mdpro3Directory: dir })
+    return { success: true, directory: dir }
+  })
+
   ipcMain.handle('config:select-ygo-dir', async () => {
     const dir = await ygoproLauncher.selectGameDirectory()
     if (!dir) {

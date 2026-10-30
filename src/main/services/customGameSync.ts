@@ -81,10 +81,16 @@ interface SyncLayout {
   picsDir: string
 }
 
-function resolveSyncLayout(): SyncLayout | null {
-  const gameDirectory = configService.get().gameDirectory
+export interface CustomSyncTarget {
+  gameDirectory: string
+  gameType: 'ygopro' | 'mdpro3'
+}
+
+function resolveSyncLayout(target?: CustomSyncTarget): SyncLayout | null {
+  const config = configService.get()
+  const gameDirectory = target?.gameDirectory ?? config.gameDirectory
   if (!gameDirectory) return null
-  const mdpro3 = configService.get().gameType === 'mdpro3'
+  const mdpro3 = (target?.gameType ?? config.gameType) === 'mdpro3'
   const expansionsDir = join(gameDirectory, 'expansions')
   return {
     gameDirectory,
@@ -157,8 +163,10 @@ export async function openCustomCardSyncDirectory(
   return error ? { success: false, error } : { success: true }
 }
 
-export async function syncCustomCardsToGame(): Promise<CustomCardSyncResult> {
-  const layout = resolveSyncLayout()
+export async function syncCustomCardsToGame(
+  target?: CustomSyncTarget
+): Promise<CustomCardSyncResult> {
+  const layout = resolveSyncLayout(target)
   if (!layout) {
     return { success: false, error: '未配置游戏目录', cdb: false, scripts: 0, pics: 0, removed: 0 }
   }

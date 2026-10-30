@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { CustomCard, CustomCardInput, CustomCardSyncTarget } from '@shared/index'
+import { configService } from '../services/configService'
 import { customCardService } from '../services/customCardService'
 import { customSetcodeService } from '../services/customSetcodeService'
 import { imageService } from '../services/imageService'
@@ -124,7 +125,21 @@ export function registerCustomCardIpc(): void {
     }
   })
 
-  ipcMain.handle('customcard:sync-to-game', () => {
+  ipcMain.handle('customcard:sync-to-game', (_, target?: 'mdpro3') => {
+    if (target === 'mdpro3') {
+      const directory = configService.get().mdpro3Directory
+      if (!directory) {
+        return {
+          success: false,
+          error: '未配置 MDPro3 目录',
+          cdb: false,
+          scripts: 0,
+          pics: 0,
+          removed: 0
+        }
+      }
+      return syncCustomCardsToGame({ gameDirectory: directory, gameType: 'mdpro3' })
+    }
     return syncCustomCardsToGame()
   })
 

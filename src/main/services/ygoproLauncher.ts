@@ -14,6 +14,7 @@ import { YGOProYrp } from 'ygopro-yrp-encode'
 import { YGOProYrp3d } from 'ygopro-yrp3d-encode'
 import { YGOProStocReplay } from 'ygopro-msg-encode'
 import {
+  AppConfig,
   DuelPuzzleState,
   DuelTestSettings,
   generateLuaScript,
@@ -21,6 +22,7 @@ import {
   EngineExportReplayResult,
   EngineOpenReplayResult,
   ReplayDeleteResult,
+  ReplayExportFormat,
   ReplayFileEntry,
   ReplayFileListResult,
   TestInGameResult,
@@ -29,6 +31,10 @@ import {
 } from '@shared/index'
 import { configService } from './configService'
 import { duelDirector } from './duel/duel-director'
+import { getOcgcoreEngine } from './duel/ocgcore-engine'
+import { verifyYrpReplay } from './duel/replay-verifier'
+import { buildReplayBootstrapPayloads } from './duel/replay-bootstrap'
+import { applyReplayViewToPayloads } from './duel/replay-view'
 import { checkGameContentCoverage, collectStateCardIds, isGameProgramName } from './gameContent'
 import { buildDuelFlag, buildYrpSingleFile, buildYrpTagFile } from './yrpWriter'
 import { buildTagReplayData, type TagReplayData } from './duel/tagReplayDecks'
@@ -59,6 +65,20 @@ export class YgoproLauncher {
     return null
   }
 
+  private resolveReplayTarget(
+    config: AppConfig,
+    format: ReplayExportFormat
+  ): { directory: string | null; type: 'ygopro' | 'mdpro3' } {
+    const currentDir = config.gameDirectory ?? null
+    const currentType =
+      config.gameType ?? (currentDir ? this.detectGameType(currentDir) : null) ?? 'ygopro'
+    if (format === 'yrp3d') {
+      const directory = currentType === 'mdpro3' ? currentDir : (config.mdpro3Directory ?? null)
+      return { directory, type: 'mdpro3' }
+    }
+    return { directory: currentDir, type: currentType }
+  }
+
   public async selectExtraPack(window?: BrowserWindow): Promise<string | null> {
     const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
       title: '选择内容包文件夹 (自动读取其中的卡库 .cdb，并跟随其卡图与脚本)',
@@ -75,6 +95,19 @@ export class YgoproLauncher {
   public async selectCardImageDirectory(window?: BrowserWindow): Promise<string | null> {
     const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
       title: '选择卡图目录 (YGOPro 的 pics 文件夹，或包含 pics / Picture\\Art 的游戏目录)',
+      properties: ['openDirectory']
+    })
+
+    if (res.canceled || res.filePaths.length === 0) {
+      return null
+    }
+
+    return res.filePaths[0]
+  }
+
+  public async selectMdpro3Directory(window?: BrowserWindow): Promise<string | null> {
+    const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
+      title: '选择 MDPro3 主目录 (用于导出和打开 .yrp3d 回放)',
       properties: ['openDirectory']
     })
 
@@ -377,11 +410,18 @@ export class YgoproLauncher {
 
   public async exportReplay(params: EngineExportReplayParams): Promise<EngineExportReplayResult> {
     const config = configService.get()
-    const gameDir = config.gameDirectory
-    if (!gameDir) {
-      return { success: false, errorCode: 'no-game-directory' }
+    const format: ReplayExportFormat =
+      params.format ?? (config.gameType === 'mdpro3' ? 'yrp3d' : 'yrp')
+    const view = params.view ?? 'player'
+    const target = this.resolveReplayTarget(config, format)
+    if (!target.directory) {
+      return {
+        success: false,
+        errorCode: format === 'yrp3d' ? 'no-mdpro3-directory' : 'no-game-directory'
+      }
     }
-    const gameType = config.gameType ?? 'ygopro'
+    const gameDir = target.directory
+    const gameType = target.type
     const isTag = isStandardTag(params.state.matchConfig)
     if (duelDirector.hasInjectOps()) {
       return {
@@ -417,7 +457,7 @@ export class YgoproLauncher {
     const replayState =
       gameType === 'mdpro3' ? rawReplayState : mapPlaceholderCodesForGame(rawReplayState)
     if (collectStateCardIds(replayState).some(isPlaceholderCard)) {
-      await syncCustomCardsToGame()
+      await syncCustomCardsToGame({ gameDirectory: gameDir, gameType })
     }
     let tagReplay: TagReplayData | null = null
     let tagYrpBytes: Uint8Array | null = null
@@ -441,7 +481,7 @@ export class YgoproLauncher {
     const name = sanitizeProjectFileName(params.name?.trim() || params.state.title || '未命名对局')
     const safeName = name.replace(/\s+/g, '_')
     const conflictPaths =
-      gameType === 'mdpro3'
+      format === 'yrp3d'
         ? [
             join(gameDir, 'replay', `${safeName}.yrp3d`),
             ...(tagReplay ? [] : [join(gameDir, 'single', `${safeName}.lua`)])
@@ -465,7 +505,7 @@ export class YgoproLauncher {
       return { success: false, errorCode: 'content-missing', coverage: coverage.coverage }
     }
 
-    if (gameType === 'mdpro3') {
+    if (format === 'yrp3d') {
       const exePath = join(gameDir, 'MDPro3.exe')
       if (!existsSync(exePath)) {
         return { success: false, errorCode: 'game-not-found', error: gameDir }
@@ -503,7 +543,11 @@ export class YgoproLauncher {
           yrp3d.name1Tag = names[2]
         }
         yrp3d.masterRule = Number(params.state.masterRule)
-        yrp3d.messages.push(...buildYrp3dMessages(messages))
+        const bootstrap = tagReplay
+          ? []
+          : applyReplayViewToPayloads(buildReplayBootstrapPayloads(replayState), view)
+        const viewedMessages = applyReplayViewToPayloads(messages, view)
+        yrp3d.messages.push(...buildYrp3dMessages(viewedMessages, bootstrap))
         const stocReplay = new YGOProStocReplay()
         stocReplay.replay = embeddedYrp
         yrp3d.messages.push(stocReplay)
@@ -529,6 +573,7 @@ export class YgoproLauncher {
         }
         return {
           success: true,
+          format,
           yrp3dPath,
           luaPath: luaContent ? luaPath : undefined,
           launched
@@ -542,13 +587,15 @@ export class YgoproLauncher {
       }
     }
 
-    const exePath = this.locateYgoproExe(gameDir)
-    if (!exePath) {
+    const exePath =
+      gameType === 'mdpro3' ? join(gameDir, 'MDPro3.exe') : this.locateYgoproExe(gameDir)
+    if (!exePath || !existsSync(exePath)) {
       return { success: false, errorCode: 'game-not-found', error: gameDir }
     }
     try {
       if (!tagReplay) completeCardDetails(replayState)
       const luaContent = tagReplay ? null : generateLuaScript(replayState, { forReplay: true })
+      const warnings: string[] = []
 
       const singleDir = join(gameDir, 'single')
       const replayDir = join(gameDir, 'replay')
@@ -570,12 +617,23 @@ export class YgoproLauncher {
           scriptFile: `./single/${name}.lua`,
           responses
         })
+      if (luaContent) {
+        const verification = verifyYrpReplay(await getOcgcoreEngine(), yrpBytes)
+        if (!verification.ok) {
+          warnings.push(
+            `生成的回放无法被引擎复现：第 ${verification.step} 步的应答与引擎询问不匹配。\n` +
+              `这通常意味着 single/${name}.lua 还原出的开局盘面与编辑器内的盘面不一致，在游戏中播放可能中途报错。`
+          )
+        }
+      }
       writeFileSync(yrpPath, Buffer.from(yrpBytes))
 
-      const isEdopro = this.isEdoproExe(exePath)
+      const mdpro3Target = gameType === 'mdpro3'
+      const isEdopro = mdpro3Target ? false : this.isEdoproExe(exePath)
       let launched = false
       if (params.launch !== false) {
-        const child = spawn(exePath, isEdopro ? [] : ['-r', yrpPath], {
+        const args = mdpro3Target ? ['-r', name] : isEdopro ? [] : ['-r', yrpPath]
+        const child = spawn(exePath, args, {
           cwd: gameDir,
           detached: true,
           stdio: 'ignore'
@@ -585,9 +643,11 @@ export class YgoproLauncher {
       }
       return {
         success: true,
+        format,
         luaPath: luaContent ? luaPath : undefined,
         yrpPath,
         launched,
+        ...(warnings.length > 0 ? { warnings } : {}),
         manualHint: isEdopro
           ? `EDOPro 内核不支持通过命令行直接打开回放，录像已保存到游戏目录 replay 下，请在游戏的「观看回放」菜单中选择「${name}」。`
           : undefined

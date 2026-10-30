@@ -1,5 +1,6 @@
 import React from 'react'
 import { useDialogStore } from '../../stores/useDialogStore'
+import { ChoiceDialog } from './ChoiceDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PromptDialog } from './PromptDialog'
 
@@ -11,7 +12,17 @@ export const ConfirmDialogHost: React.FC<{ children: React.ReactNode }> = ({ chi
     <>
       {children}
       {requests.map((request) =>
-        request.kind === 'prompt' ? (
+        request.kind === 'choice' ? (
+          <ChoiceDialog
+            key={request.id}
+            open
+            title={request.title}
+            description={request.description}
+            choices={request.choices ?? []}
+            onChoose={(value) => settle(request.id, value)}
+            onCancel={() => settle(request.id, null)}
+          />
+        ) : request.kind === 'prompt' ? (
           <PromptDialog
             key={request.id}
             open

@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { useConfigStore } from '../stores/useConfigStore'
-import { alertDialog, confirmDialog, promptDialog } from '../stores/useDialogStore'
+import { alertDialog, choiceDialog, confirmDialog, promptDialog } from '../stores/useDialogStore'
 import { buildPuzzleStateFromEngineBoard } from '../utils/engineBoardToPuzzle'
 import { openDuelDocument, saveDuelDocument } from '../utils/duelDocumentActions'
 import { flushDuelDocumentAutosave } from '../utils/duelDocumentAutosave'
@@ -16,6 +16,8 @@ import {
   EngineExportReplayResult,
   EngineSessionDoc,
   PLACEHOLDER_CARD_NAME,
+  ReplayExportFormat,
+  ReplayExportView,
   isExportableMatch,
   isInGameTestSupported,
   isStandardTag,
@@ -35,6 +37,39 @@ export interface ProjectCommands {
   handleExportYrp: () => Promise<void>
   handleImportReplay: () => Promise<void>
   handleOpenReplayInYgo: () => Promise<void>
+}
+
+interface ReplayExportSelection {
+  format: ReplayExportFormat
+  view?: ReplayExportView
+}
+
+async function chooseReplayExport(): Promise<ReplayExportSelection | null> {
+  const value = await choiceDialog({
+    title: '导出对局回放',
+    description: '选择导出格式与手牌视角。YRP3D 只能在 MDPro3 中观看。',
+    choices: [
+      {
+        label: 'YRP（ygopro / EDOPro）',
+        value: 'yrp',
+        description: '普通回放：双方手牌可见'
+      },
+      {
+        label: 'YRP3D · 回放（我方视角）',
+        value: 'yrp3d-player',
+        description: 'MDPro3 打开：我方手牌可见，对方手牌显示为卡背'
+      },
+      {
+        label: 'YRP3D · 观战',
+        value: 'yrp3d-observer',
+        description: 'MDPro3 打开：双方手牌都显示为卡背'
+      }
+    ]
+  })
+  if (!value) return null
+  if (value === 'yrp') return { format: 'yrp' }
+  if (value === 'yrp3d-observer') return { format: 'yrp3d', view: 'observer' }
+  return { format: 'yrp3d', view: 'player' }
 }
 
 export function useProjectCommands(): ProjectCommands {
@@ -208,22 +243,31 @@ export function useProjectCommands(): ProjectCommands {
   const reportReplayResult = useCallback(
     (res: EngineExportReplayResult): void => {
       if (res.success) {
-        const gameType = useConfigStore.getState().config.gameType
-        const detail =
-          gameType === 'mdpro3'
-            ? `回放: ${res.yrp3dPath ?? ''}\n\n之后在 MDPro3 的「回放」界面也可以随时观看。`
-            : `录像: ${res.yrpPath ?? ''}${res.luaPath ? `\n回放脚本: ${res.luaPath}` : ''}\n\n${
-                res.manualHint ??
-                (res.luaPath
-                  ? '之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。'
-                  : '之后在 ygopro 的「录像回放」中也可以随时观看。')
-              }`
+        const detail = res.yrp3dPath
+          ? `YRP3D 回放: ${res.yrp3dPath}\n回放脚本: ${res.luaPath ?? ''}\n\n之后在 MDPro3 的「回放」界面也可以随时观看。`
+          : `录像: ${res.yrpPath ?? ''}${res.luaPath ? `\n回放脚本: ${res.luaPath}` : ''}\n\n${
+              res.manualHint ??
+              (res.luaPath
+                ? '之后在 ygopro 的「录像回放」中也可以随时观看（需保留 single 目录下的同名 lua）。'
+                : '之后在 ygopro 的「录像回放」中也可以随时观看。')
+            }`
         void alertDialog(
-          `对局回放导出成功${res.launched && !res.manualHint ? '，已在游戏中打开回放' : ''}\n\n${detail}`
+          `对局回放导出成功${res.launched && !res.manualHint ? '，已在游戏中打开回放' : ''}\n\n${detail}${
+            res.warnings?.length ? `\n\n注意:\n${res.warnings.join('\n\n')}` : ''
+          }`
         )
         return
       }
-      if (res.errorCode === 'content-missing' && res.coverage) {
+      if (res.errorCode === 'no-mdpro3-directory') {
+        void confirmDialog({
+          title: '尚未设置 MDPro3 目录',
+          description:
+            '导出 YRP3D 回放需要指定 MDPro3 主目录（回放写入其 replay 目录，脚本写入 single 目录）。可以在 设置 → 路径 中设置。',
+          confirmText: '打开设置'
+        }).then((ok) => {
+          if (ok) void window.api.openSettingsWindow('paths')
+        })
+      } else if (res.errorCode === 'content-missing' && res.coverage) {
         void (async () => {
           const names = await resolveCoverageNames(res.coverage!)
           const detail = formatCoverageWarning(res.coverage!, names)
@@ -251,7 +295,11 @@ export function useProjectCommands(): ProjectCommands {
   )
 
   const handleExportYrp = useCallback(
-    async (sessionDoc?: EngineSessionDoc, launch = false): Promise<void> => {
+    async (
+      sessionDoc?: EngineSessionDoc,
+      launch = false,
+      selection?: ReplayExportSelection
+    ): Promise<void> => {
       const engine = useDuelEngineStore.getState()
       const active = engine.isInitialized && !engine.replayInfo
       const sourceDoc = active ? undefined : (sessionDoc ?? engine.suspendedDoc)
@@ -268,6 +316,8 @@ export function useProjectCommands(): ProjectCommands {
       }
       const editorState = useDuelStore.getState().state
       if (!isExportableMatch(editorState.matchConfig)) return
+      const exportSelection = selection ?? (await chooseReplayExport())
+      if (!exportSelection) return
       if (!active) {
         if (!sourceDoc) return
         const restored = await window.api.restoreDuelEngineSession(sourceDoc)
@@ -309,8 +359,24 @@ export function useProjectCommands(): ProjectCommands {
           name: exportName,
           overwrite,
           launch,
-          force
+          force,
+          format: exportSelection.format,
+          view: exportSelection.view
         })
+        if (res.errorCode === 'no-mdpro3-directory') {
+          const choice = await confirmDialog({
+            title: '尚未设置 MDPro3 目录',
+            description:
+              '导出 YRP3D 回放需要指定 MDPro3 主目录（回放写入其 replay 目录，脚本写入 single 目录）。现在选择吗？',
+            confirmText: '选择目录',
+            destructive: false
+          })
+          if (choice === true) {
+            const picked = await useConfigStore.getState().selectMdpro3Dir()
+            if (picked) await runExport(force, overwrite, exportName)
+          }
+          return
+        }
         if (res.errorCode === 'replay-exists') {
           const replaceText = isStandardTag(currentPuzzleState.matchConfig)
             ? '覆盖会替换现有回放。'
@@ -349,7 +415,9 @@ export function useProjectCommands(): ProjectCommands {
           if (choice === 'settings') {
             void window.api.openSettingsWindow('paths')
           } else if (choice === true) {
-            const sync = await window.api.syncCustomCardsToGame()
+            const sync = await window.api.syncCustomCardsToGame(
+              exportSelection.format === 'yrp3d' ? 'mdpro3' : undefined
+            )
             if (!sync.success) {
               void alertDialog(`同步自定义卡到游戏失败\n\n${sync.error ?? '未知错误'}`)
               return
@@ -360,7 +428,9 @@ export function useProjectCommands(): ProjectCommands {
                 name: exportName,
                 overwrite,
                 launch,
-                force: false
+                force: false,
+                format: exportSelection.format,
+                view: exportSelection.view
               })
             )
           }
@@ -387,15 +457,21 @@ export function useProjectCommands(): ProjectCommands {
     const engine = useDuelEngineStore.getState()
     const filePath = engine.replayInfo?.filePath
     if (!filePath) {
-      if (engine.isInitialized && engine.timeline.length > 1) {
-        await handleExportYrp(undefined, true)
+      const activeSession = engine.isInitialized && engine.timeline.length > 1
+      const suspendedSession = !!engine.suspendedDoc && engine.suspendedDoc.timeline.length > 1
+      if (!activeSession && !suspendedSession) {
+        void alertDialog('当前没有可打开的回放。请先导入回放，或在引擎模式下打完一局后再试。')
         return
       }
-      if (engine.suspendedDoc && engine.suspendedDoc.timeline.length > 1) {
-        await handleExportYrp(engine.suspendedDoc, true)
+      const selection: ReplayExportSelection =
+        useConfigStore.getState().config.gameType === 'mdpro3'
+          ? { format: 'yrp3d', view: 'player' }
+          : { format: 'yrp' }
+      if (activeSession) {
+        await handleExportYrp(undefined, true, selection)
         return
       }
-      void alertDialog('当前没有可打开的回放。请先导入回放，或在引擎模式下打完一局后再试。')
+      await handleExportYrp(engine.suspendedDoc ?? undefined, true, selection)
       return
     }
     const res = await window.api.duelOpenReplay(filePath)

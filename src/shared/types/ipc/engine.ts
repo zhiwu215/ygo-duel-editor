@@ -20,12 +20,18 @@ export interface EngineSupportInfo {
   reason?: string
 }
 
+export type ReplayExportFormat = 'yrp' | 'yrp3d'
+
+export type ReplayExportView = 'player' | 'observer'
+
 export interface EngineExportReplayParams {
   state: DuelPuzzleState
   name?: string
   overwrite?: boolean
   launch?: boolean
   force?: boolean
+  format?: ReplayExportFormat
+  view?: ReplayExportView
 }
 
 export interface ContentCoverageDetail {
@@ -44,7 +50,9 @@ export interface EngineExportReplayResult {
     | 'content-missing'
     | 'replay-exists'
     | 'replay-start'
+    | 'no-mdpro3-directory'
   error?: string
+  format?: ReplayExportFormat
   existingPath?: string
   name?: string
   luaPath?: string

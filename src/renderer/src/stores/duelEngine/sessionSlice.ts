@@ -91,11 +91,14 @@ function openInitialScene(): boolean {
   const opening = live.state.initialBoardSnapshot
   if (!opening || opening.length === 0) return false
   if (live.sceneEditing) {
+    const sceneDirty = live.isSceneDirty()
     live.exitSceneMode()
-    useDuelStore.setState((prev) => ({
-      ...prev,
-      state: { ...prev.state, initialBoardSnapshot: opening }
-    }))
+    if (!sceneDirty) {
+      useDuelStore.setState((prev) => ({
+        ...prev,
+        state: { ...prev.state, initialBoardSnapshot: opening }
+      }))
+    }
   }
   useDuelStore.getState().previewTimelineStart()
   return true

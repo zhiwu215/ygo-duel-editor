@@ -18,6 +18,7 @@ import {
   PLACEHOLDER_CARD_NAME,
   ReplayExportFormat,
   ReplayExportView,
+  hasSessionInjections,
   isExportableMatch,
   isInGameTestSupported,
   isStandardTag,
@@ -300,9 +301,34 @@ export function useProjectCommands(): ProjectCommands {
       launch = false,
       selection?: ReplayExportSelection
     ): Promise<void> => {
-      const engine = useDuelEngineStore.getState()
-      const active = engine.isInitialized && !engine.replayInfo
-      const sourceDoc = active ? undefined : (sessionDoc ?? engine.suspendedDoc)
+      let engine = useDuelEngineStore.getState()
+      let active = engine.isInitialized && !engine.replayInfo
+      let sourceDoc = active ? undefined : (sessionDoc ?? engine.suspendedDoc)
+      if ((active ? engine.timeline : (sourceDoc?.timeline ?? [])).length <= 1) return
+      const sessionWithInjections = active ? await engine.getSessionDoc() : sourceDoc
+      if (sessionWithInjections && hasSessionInjections(sessionWithInjections)) {
+        if (active) {
+          await engine.suspendEngine()
+          if (useDuelEngineStore.getState().isInitialized) {
+            void alertDialog(`自动重打前无法挂起当前引擎会话\n${engine.error ?? '未知错误'}`)
+            return
+          }
+        } else if (useDuelEngineStore.getState().suspendedDoc !== sourceDoc) {
+          useDuelEngineStore.getState().setSuspendedDoc(sourceDoc ?? null)
+        }
+        const replayed = await useDuelEngineStore.getState().replaySuspendedToClean()
+        if (!replayed) {
+          void alertDialog(
+            `自动重打失败，无法生成回放\n\n${
+              useDuelEngineStore.getState().error ?? '现有操作无法在新的初始场面上重演。'
+            }\n\n已停在初始场面，可以手动重打后再导出。`
+          )
+          return
+        }
+        engine = useDuelEngineStore.getState()
+        active = engine.isInitialized && !engine.replayInfo
+        sourceDoc = undefined
+      }
       const timeline = active ? engine.timeline : (sourceDoc?.timeline ?? [])
       if (timeline.length <= 1) return
       const startBoard = timeline[0]?.boardState

@@ -39,7 +39,6 @@ export const Header: React.FC = () => {
   const suspendEngine = useDuelEngineStore((s) => s.suspendEngine)
   const resumeSuspended = useDuelEngineStore((s) => s.resumeSuspended)
   const resumeSuspendedFromStart = useDuelEngineStore((s) => s.resumeSuspendedFromStart)
-  const replaySuspendedToClean = useDuelEngineStore((s) => s.replaySuspendedToClean)
   const suspendedDoc = useDuelEngineStore((s) => s.suspendedDoc)
   const replayInfo = useDuelEngineStore((s) => s.replayInfo)
   const importingReplay = useDuelEngineStore((s) => s.importingReplay)
@@ -77,27 +76,14 @@ export const Header: React.FC = () => {
 
   const handleStartOver = async (): Promise<void> => {
     if (suspendedHasInjections || suspendedHasHistory) {
-      const choice = await confirmDialog({
+      const ok = await confirmDialog({
         title: suspendedHasInjections ? '从头开始并并入注入卡' : '从头开始',
         description: suspendedHasInjections
-          ? '注入过的卡片会按注入时的区域与顺序写入初始场面，旧会话的引擎操作流会被丢弃。\n\n也可以尝试「自动重打旧操作」：用现有操作在新的初始场面上重演；对不上时会取消并停在初始场面。'
+          ? '注入过的卡片会按注入时的区域与顺序写入初始场面，旧会话的引擎操作流会被丢弃。继续吗？'
           : '会从布景的初始场面重新开始，旧会话的引擎操作流会被丢弃。继续吗？',
-        confirmText: suspendedHasInjections ? '回到初始场面' : '开始',
-        ...(suspendedHasInjections
-          ? { extraAction: { text: '自动重打旧操作', value: 'replay' } }
-          : {})
+        confirmText: '开始'
       })
-      if (choice === 'replay') {
-        const replayed = await replaySuspendedToClean()
-        if (replayed) return
-        await alertDialog(
-          `自动重打失败\n${
-            useDuelEngineStore.getState().error ?? '现有操作无法在新的初始场面上重演。'
-          }\n\n已停在初始场面，可以手动重打。`
-        )
-        return
-      }
-      if (choice !== true) return
+      if (!ok) return
     }
     const restored = await resumeSuspendedFromStart()
     if (restored) return

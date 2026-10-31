@@ -76,17 +76,17 @@ async function chooseReplayExport(): Promise<ReplayExportSelection | null> {
     description: '选择导出格式与手牌视角。YRP3D 只能在 MDPro3 中观看。',
     choices: [
       {
-        label: 'YRP（ygopro / EDOPro）',
+        label: 'YRP（上帝视角）',
         value: 'yrp',
         description: '普通回放：双方手牌可见'
       },
       {
-        label: 'YRP3D · 回放（我方视角）',
+        label: 'YRP3D（我方视角）',
         value: 'yrp3d-player',
         description: 'MDPro3 打开：我方手牌可见，对方手牌显示为卡背'
       },
       {
-        label: 'YRP3D · 观战',
+        label: 'YRP3D（观战视角）',
         value: 'yrp3d-observer',
         description: 'MDPro3 打开：双方手牌都显示为卡背'
       }

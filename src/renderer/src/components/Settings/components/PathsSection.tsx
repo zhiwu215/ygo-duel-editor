@@ -87,7 +87,7 @@ export function PathsSection(): JSX.Element {
         </SettingsRow>
 
         {config.gameType !== 'mdpro3' && (
-          <SettingsRow title="MDPro3 目录" description={mdpro3DirDescription()}>
+          <SettingsRow title="MDPro3 目录（导出回放使用）" description={mdpro3DirDescription()}>
             <Button
               size="xs"
               variant="outline"

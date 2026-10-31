@@ -34,11 +34,12 @@ import { duelDirector } from './duel/duel-director'
 import { getOcgcoreEngine } from './duel/ocgcore-engine'
 import { verifyYrpReplay } from './duel/replay-verifier'
 import { buildReplayBootstrapPayloads } from './duel/replay-bootstrap'
-import { applyReplayViewToPayloads } from './duel/replay-view'
+import { applyReplayViewToPayloads, replayViewerOf } from './duel/replay-view'
 import { checkGameContentCoverage, collectStateCardIds, isGameProgramName } from './gameContent'
 import { buildDuelFlag, buildYrpSingleFile, buildYrpTagFile } from './yrpWriter'
 import { buildTagReplayData, type TagReplayData } from './duel/tagReplayDecks'
 import { buildYrp3dMessages } from './yrp3dMessages'
+import { insertYrp3dHandRefresh } from './yrp3dHandRefresh'
 import { sanitizeFileName, sanitizeProjectFileName } from '../utils/fileName'
 import { toErrorMessage } from '../utils/errors'
 import { completeCardDetails } from './completeCardDetails'
@@ -547,7 +548,8 @@ export class YgoproLauncher {
           ? []
           : applyReplayViewToPayloads(buildReplayBootstrapPayloads(replayState), view)
         const viewedMessages = applyReplayViewToPayloads(messages, view)
-        yrp3d.messages.push(...buildYrp3dMessages(viewedMessages, bootstrap))
+        const refreshedMessages = insertYrp3dHandRefresh(viewedMessages, replayViewerOf(view))
+        yrp3d.messages.push(...buildYrp3dMessages(refreshedMessages, bootstrap))
         const stocReplay = new YGOProStocReplay()
         stocReplay.replay = embeddedYrp
         yrp3d.messages.push(stocReplay)

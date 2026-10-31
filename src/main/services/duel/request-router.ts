@@ -21,14 +21,48 @@ import {
   YGOProMsgAnnounceCard
 } from 'ygopro-msg-encode'
 import { EngineRequest, RequestCard, RequestData, RequestPlace } from '@shared/engine/protocol'
-import { LOCATION_NAMES } from '@shared/index'
-import { cdbService } from '../../db/cdbService'
-import { getEffectDescText, getSystemDescText } from './strings-service'
+import {
+  cardName,
+  counterText,
+  descText,
+  locationText,
+  systemText,
+  type TextArg
+} from './engine-text'
 
 export interface RouteContext {
   id: string
   seq: number
   descHint?: number
+}
+
+const DESC_SELECT_CARD = 560
+const DESC_SELECT_UNSELECT = 560
+const DESC_SELECT_TRIBUTE = 531
+const DESC_SELECT_PLACE = 560
+const DESC_SELECT_DISFIELD = 570
+const DESC_SELECT_SUM = 560
+const DESC_SELECT_OPTION = 550
+const DESC_SELECT_POSITION = 561
+const DESC_SELECT_COUNTER = 204
+const DESC_SORT_CARD = 205
+const DESC_CHAIN = 203
+const DESC_CHAIN_TRIGGER = 222
+const EFFECTYN_CARD_NAME_DESCS = new Set([95, 96, 97, 218, 219, 220])
+
+function selectHintText(hint: number | undefined, fallback: number, args: TextArg[] = []): string {
+  return (hint ? descText(hint, args) : undefined) ?? systemText(fallback, args) ?? '请选择'
+}
+
+function effectYnTitle(msg: YGOProMsgSelectEffectYn, card: RequestCard): string {
+  const name = cardName(card.code) ?? ''
+  if (msg.desc === 0)
+    return systemText(200, [locationText(card.location, card.sequence) ?? '', name]) ?? '请确认'
+  if (msg.desc === 221) {
+    return systemText(221, [locationText(card.location, card.sequence) ?? '', name]) ?? '请确认'
+  }
+  if (EFFECTYN_CARD_NAME_DESCS.has(msg.desc)) return systemText(msg.desc, [name]) ?? '请确认'
+  return descText(msg.desc) ?? '请确认'
 }
 
 function normalizePlayer(v: number | undefined, fallback: 0 | 1): 0 | 1 {
@@ -100,10 +134,7 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
     player = normalizePlayer(msg.player, 0)
     kind = 'card'
     identifier = YGOProMsgSelectCard.identifier
-    title =
-      ctx.descHint !== undefined
-        ? (getSystemDescText(ctx.descHint) ?? `Player ${player} 请选择卡片`)
-        : `Player ${player} 请选择卡片`
+    title = selectHintText(ctx.descHint, DESC_SELECT_CARD)
     subtitle = msg.min === msg.max ? `请选择 ${msg.min} 张` : `请选择 ${msg.min}~${msg.max} 张`
     data = {
       kind: 'card',
@@ -116,7 +147,7 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
     player = normalizePlayer(msg.player, 0)
     kind = 'tribute'
     identifier = YGOProMsgSelectTribute.identifier
-    title = `Player ${player} 请选择解放`
+    title = selectHintText(ctx.descHint, DESC_SELECT_TRIBUTE)
     subtitle = msg.min === msg.max ? `请选择 ${msg.min} 只` : `请选择 ${msg.min}~${msg.max} 只`
     data = {
       kind: 'tribute',
@@ -129,29 +160,39 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
     player = normalizePlayer(msg.player, 0)
     kind = 'chain'
     identifier = YGOProMsgSelectChain.identifier
-    title = `Player ${player} 是否连锁？`
+    const forced = msg.chains.some((c) => c.forced === 1)
+    const chainDesc = forced
+      ? DESC_SELECT_OPTION
+      : msg.specialCount === 0x7f
+        ? DESC_CHAIN_TRIGGER
+        : DESC_CHAIN
+    title = systemText(chainDesc) ?? '是否进行连锁？'
     data = {
       kind: 'chain',
       chains: msg.chains.map(toRequestCard),
-      forced: msg.chains.some((c) => c.forced === 1)
+      forced
     }
   } else if (msg instanceof YGOProMsgSelectDisField) {
     player = normalizePlayer(msg.player, 0)
     kind = 'disfield'
     identifier = YGOProMsgSelectDisField.identifier
-    title = `Player ${player} 选择禁用区域`
+    title = selectHintText(ctx.descHint, DESC_SELECT_DISFIELD)
     data = { kind: 'disfield', places: toPlaces(msg), count: msg.count }
   } else if (msg instanceof YGOProMsgSelectPlace) {
     player = normalizePlayer(msg.player, 0)
     kind = 'place'
     identifier = YGOProMsgSelectPlace.identifier
-    title = `Player ${player} 选择放置区域`
+    const placedCard = ctx.descHint ? cardName(ctx.descHint) : undefined
+    title =
+      (placedCard ? systemText(569, [placedCard]) : undefined) ??
+      systemText(DESC_SELECT_PLACE) ??
+      '请选择'
     data = { kind: 'place', places: toPlaces(msg), count: msg.count }
   } else if (msg instanceof YGOProMsgSelectPosition) {
     player = normalizePlayer(msg.player, 0)
     kind = 'position'
     identifier = YGOProMsgSelectPosition.identifier
-    title = `Player ${player} 请选择表示形式`
+    title = systemText(DESC_SELECT_POSITION) ?? '请选择表示形式'
     data = {
       kind: 'position',
       positions: decodePositions(msg.positions),
@@ -173,28 +214,30 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
             sequence: msg.sequence
           })
         : undefined
-    const placeName = card ? (LOCATION_NAMES[card.location] ?? '') : ''
-    const cardName = card ? (cdbService.getCardById(card.code)?.name ?? '') : ''
-    const descText = getEffectDescText(msg.desc, [placeName, cardName])
-    title = descText ?? getSystemDescText(msg.desc, [placeName, cardName]) ?? '请确认'
+    title =
+      msg instanceof YGOProMsgSelectEffectYn && card
+        ? effectYnTitle(msg, card)
+        : (descText(msg.desc) ?? '请确认')
     data = { kind: 'yesno', desc: msg.desc, card }
   } else if (msg instanceof YGOProMsgSelectOption) {
     player = normalizePlayer(msg.player, 0)
     kind = 'option'
     identifier = YGOProMsgSelectOption.identifier
-    title = `Player ${player} 请选择选项`
+    title = selectHintText(ctx.descHint, DESC_SELECT_OPTION)
     data = {
       kind: 'option',
       options: msg.options.map((code) => ({
         code,
-        text: getEffectDescText(code) ?? getSystemDescText(code)
+        text: descText(code)
       }))
     }
   } else if (msg instanceof YGOProMsgSelectCounter) {
     player = normalizePlayer(msg.player, 0)
     kind = 'counter'
     identifier = YGOProMsgSelectCounter.identifier
-    title = `Player ${player} 请取除指示物`
+    title =
+      systemText(DESC_SELECT_COUNTER, [msg.counterCount, counterText(msg.counterType)]) ??
+      '请取除指示物'
     data = {
       kind: 'counter',
       counterType: msg.counterType,
@@ -206,7 +249,7 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
     player = normalizePlayer(msg.player, 0)
     kind = 'sum'
     identifier = YGOProMsgSelectSum.identifier
-    title = `Player ${player} 请选择合计数值匹配的卡`
+    title = selectHintText(ctx.descHint, DESC_SELECT_SUM)
     data = {
       kind: 'sum',
       mode: msg.mode,
@@ -221,13 +264,13 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
     player = normalizePlayer(msg.player, 0)
     kind = 'sort'
     identifier = YGOProMsgSortCard.identifier
-    title = `Player ${player} 请对卡片排序`
+    title = systemText(DESC_SORT_CARD) ?? '请对卡片排序'
     data = { kind: 'sort', cards: msg.cards.map(toRequestCard) }
   } else if (msg instanceof YGOProMsgSelectUnselectCard) {
     player = normalizePlayer(msg.player, 0)
     kind = 'unselect'
     identifier = YGOProMsgSelectUnselectCard.identifier
-    title = `Player ${player} 请选择/取消选择卡片`
+    title = selectHintText(ctx.descHint, DESC_SELECT_UNSELECT)
     data = {
       kind: 'unselect',
       finishable: msg.finishable === 1,
@@ -267,14 +310,15 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
           : msg instanceof YGOProMsgAnnounceNumber
             ? ('number' as const)
             : ('card' as const)
-    title =
+    const announceDesc =
       announceType === 'attrib'
-        ? `Player ${player} 宣言属性`
+        ? 562
         : announceType === 'race'
-          ? `Player ${player} 宣言种族`
+          ? 563
           : announceType === 'number'
-            ? `Player ${player} 宣言数字`
-            : `Player ${player} 宣言卡片`
+            ? 565
+            : 564
+    title = selectHintText(ctx.descHint, announceDesc)
     subtitle = msg.count > 1 ? `请选择 ${msg.count} 种` : undefined
     data = {
       kind: 'announce',

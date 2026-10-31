@@ -1,13 +1,15 @@
 import {
   CardLocation,
+  DuelActionType,
   DuelLogCardRef,
+  DuelPhase,
+  DuelStep,
   DuelSummonKind,
-  PHASE_SHORT_NAMES,
-  duelPhaseFromMask
+  PHASE_SHORT_NAMES
 } from '@shared/index'
 
 const SUMMON_LABELS: Record<DuelSummonKind, string> = {
-  normal: '通常召唤',
+  normal: '召唤',
   special: '特殊召唤',
   flip: '反转召唤',
   fusion: '融合召唤',
@@ -18,36 +20,83 @@ const SUMMON_LABELS: Record<DuelSummonKind, string> = {
   pendulum: '灵摆召唤'
 }
 
-const ZONE_NAMES: Record<number, string> = {
-  [CardLocation.HAND]: '手牌',
-  [CardLocation.GRAVE]: '墓地',
-  [CardLocation.DECK]: '主卡组',
-  [CardLocation.EXTRA]: '额外卡组',
-  [CardLocation.REMOVED]: '除外区',
-  [CardLocation.FZONE]: '场地魔法区',
-  [CardLocation.OVERLAY]: '超量素材',
-  [CardLocation.PZONE]: '灵摆区'
+const MOVE_REASON_LABELS: Record<string, string> = {
+  加入手牌: '加入',
+  回到手牌: '回到',
+  回到场上: '回到',
+  送入: '送至'
 }
 
-export function phaseName(mask: number): string {
-  return PHASE_SHORT_NAMES[duelPhaseFromMask(mask)]
+const ACTION_LABELS: Partial<Record<DuelActionType, string>> = {
+  DRAW: '抽卡',
+  SEARCH: '加入',
+  SALVAGE: '回收',
+  NORMAL_SUMMON: '召唤',
+  SPECIAL_SUMMON: '特殊召唤',
+  FLIP_SUMMON: '反转召唤',
+  XYZ_SUMMON: '超量召唤',
+  FUSION_SUMMON: '融合召唤',
+  SYNCHRO_SUMMON: '同调召唤',
+  LINK_SUMMON: '连接召唤',
+  RITUAL_SUMMON: '仪式召唤',
+  DETACH_MATERIAL: '送至',
+  SET_MONSTER: '盖放',
+  SET_SPELL_TRAP: '盖放',
+  ACTIVATE: '发动',
+  ACTIVATE_FIELD: '发动',
+  SET_PENDULUM: '放置',
+  ATTACK: '攻击',
+  TO_GRAVE: '送至',
+  TO_DECK: '送至',
+  BANISH: '送至',
+  PLACE: '放置',
+  CHANGE_POS: '更改表示形式',
+  HAND_OPEN: '公开手卡',
+  SEND_TO_GRAVE: '送至'
 }
 
-export function summonLabel(kind: DuelSummonKind): string {
+export function phaseLabel(phase: DuelPhase): string {
+  return PHASE_SHORT_NAMES[phase]
+}
+
+export function summonLogLabel(kind: DuelSummonKind): string {
   return SUMMON_LABELS[kind] ?? '特殊召唤'
 }
 
-export function zoneName(location: number, sequence: number): string {
-  if (location === CardLocation.MZONE) {
-    if (sequence >= 5) return `EX怪兽区${sequence === 5 ? '1' : '2'}`
-    return '怪兽区'
-  }
-  if (location === CardLocation.SZONE) {
-    if (sequence >= 6) return '灵摆区'
-    if (sequence === 5) return '场地魔法区'
-    return '魔陷区'
-  }
-  return ZONE_NAMES[location] ?? '未知区域'
+export function moveLogLabel(reasonText: string): string {
+  return MOVE_REASON_LABELS[reasonText] ?? reasonText
+}
+
+export function revealLogLabel(source: 'deck' | 'hand' | 'field'): string {
+  if (source === 'hand') return '公开手卡'
+  if (source === 'field') return '公开盖卡'
+  return '公开卡组'
+}
+
+export function handMoveLogLabel(fromLocation: number | undefined): string {
+  if (fromLocation === CardLocation.DECK || fromLocation === CardLocation.EXTRA) return '加入'
+  if (fromLocation === CardLocation.GRAVE || fromLocation === CardLocation.REMOVED) return '回收'
+  return '回到'
+}
+
+export function isPendulumZone(card: DuelLogCardRef): boolean {
+  return (
+    card.location === CardLocation.PZONE ||
+    (card.location === CardLocation.SZONE && card.sequence >= 6)
+  )
+}
+
+export function stepActionLogLabel(step: DuelStep): string | undefined {
+  if (step.actionType === 'TO_HAND') return handMoveLogLabel(step.fromLocation)
+  return ACTION_LABELS[step.actionType]
+}
+
+export function positionChangeLabel(card: DuelLogCardRef): string {
+  return card.location === CardLocation.SZONE ||
+    card.location === CardLocation.FZONE ||
+    card.location === CardLocation.PZONE
+    ? '盖放'
+    : '更改表示形式'
 }
 
 export function sideName(controller: 0 | 1): string {
@@ -56,18 +105,4 @@ export function sideName(controller: 0 | 1): string {
 
 export function cardLabel(card: DuelLogCardRef, fallback = '卡片'): string {
   return card.name || (card.code > 0 ? String(card.code) : fallback)
-}
-
-export function zoneLabel(
-  card: Pick<DuelLogCardRef, 'controller' | 'location' | 'sequence'>
-): string {
-  return `${sideName(card.controller)}${zoneName(card.location, card.sequence)}`
-}
-
-export function cardWithZone(card: DuelLogCardRef): string {
-  return `「${cardLabel(card)}」${zoneLabel(card)}`
-}
-
-export function moveSummary(from: DuelLogCardRef | undefined, to: DuelLogCardRef): string {
-  return from ? `${zoneLabel(from)} → ${zoneLabel(to)}` : zoneLabel(to)
 }

@@ -1,5 +1,6 @@
 import { OcgcoreDuel } from 'koishipro-core.js'
 import {
+  OcgcoreScriptConstants,
   YGOProMsgDamage,
   YGOProMsgDraw,
   YGOProMsgHint,
@@ -25,8 +26,6 @@ import { collectDuelLogMessages } from './duel-log'
 import { isInteractiveQuery } from './message-parser'
 import { routeRequest } from './request-router'
 import { createRecordedAnswer } from './replay-policy'
-
-const HINT_TYPE_SELECTMSG = 3
 
 const PRIVATE_CARD_LOCATIONS = new Set<number>([
   CardLocation.HAND,
@@ -180,7 +179,7 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
       }
       for (const msg of msgs) {
         state.fieldReader.applyMetaMessage(msg)
-        if (msg instanceof YGOProMsgHint && msg.type === HINT_TYPE_SELECTMSG) {
+        if (msg instanceof YGOProMsgHint && msg.type === OcgcoreScriptConstants.HINT_SELECTMSG) {
           state.lastHintDesc = msg.desc
         }
         if (msg instanceof YGOProMsgShuffleHand) {

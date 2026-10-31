@@ -28,7 +28,9 @@ export const DuelSelectionBar: React.FC = () => {
 
   if (derived.mode === 'modal') {
     if (derived.kind !== 'unselect') return null
-    return <UnselectCardModal derived={derived} loading={loading} cards={cards} />
+    return (
+      <UnselectCardModal title={request.title} derived={derived} loading={loading} cards={cards} />
+    )
   }
 
   const isUnselect = derived.kind === 'unselect'
@@ -56,10 +58,15 @@ export const DuelSelectionBar: React.FC = () => {
     hint = `请点击场上 / 手牌中的卡片进行选择（需要 ${range} 张）`
   }
 
+  const prompt = request.title?.trim()
+  const hasPrompt = Boolean(prompt) && prompt !== '请选择'
+  const primary = isAttackTarget ? attackTargetHint : hasPrompt && prompt ? prompt : hint
+
   return (
     <div className="fixed bottom-[172px] left-1/2 z-[60] flex max-w-[720px] -translate-x-1/2 items-center gap-3 rounded-xl border border-border bg-card/95 px-4 py-2 shadow-2xl backdrop-blur select-none">
       <div className="flex min-w-0 flex-col">
-        <span className="text-xs font-semibold text-foreground">{hint}</span>
+        <span className="text-xs font-semibold text-foreground">{primary}</span>
+        {primary !== hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
         {mergedMatch && (
           <span className="text-[10px] text-amber-500">
             近似校验：同队角色已合并，候选范围可能包含队友的卡

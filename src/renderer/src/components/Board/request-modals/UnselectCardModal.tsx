@@ -13,12 +13,13 @@ import {
 } from '../../../utils/duelSelection'
 
 export const UnselectCardModal: React.FC<{
+  title?: string
   derived: DerivedSelection
   loading: boolean
   cards: FieldCard[]
-}> = ({ derived, loading, cards }) => (
+}> = ({ title, derived, loading, cards }) => (
   <RequestModalShell
-    title="请选择"
+    title={title ?? '请选择'}
     subtitle={derived.canFinish ? '逐张点击选择，完成后点「完成」' : '请选择一张卡'}
     width="max-w-sm"
     footer={

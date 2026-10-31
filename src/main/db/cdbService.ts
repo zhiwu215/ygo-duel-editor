@@ -46,6 +46,7 @@ export class CdbService {
   )
   private setnameMap: Map<number, string> = new Map()
   private systemStringMap: Map<number, string> = new Map()
+  private counterStringMap: Map<number, string> = new Map()
   private limitMap: Map<number, 1 | 2 | 3> = new Map()
   private gameDirectory: string | undefined
   private poolSchema: CardPoolSchema | null = null
@@ -139,6 +140,7 @@ export class CdbService {
     const conf = loadCdbStringsConf(searchDirs)
     this.setnameMap = conf.setnameMap
     this.systemStringMap = conf.systemStringMap
+    this.counterStringMap = conf.counterStringMap
     this.poolSchema = null
     this.invalidateSearchCache()
   }
@@ -159,6 +161,35 @@ export class CdbService {
       }
     }
     return names
+  }
+
+  public getSystemString(id: number): string | undefined {
+    return this.systemStringMap.get(id)
+  }
+
+  public getCounterName(id: number): string | undefined {
+    return this.counterStringMap.get(id)
+  }
+
+  public getCardDescText(desc: number): string | undefined {
+    const code = (desc >>> 4) & 0x0fffffff
+    const column = `str${(desc & 0xf) + 1}`
+    const connections = [...this.connections.list()].sort(
+      (left, right) => Number(right.source === 'language') - Number(left.source === 'language')
+    )
+    for (const conn of connections) {
+      let text: string | null | undefined
+      try {
+        const row = conn.db
+          .prepare(`SELECT ${column} AS text FROM texts WHERE id = ?`)
+          .get(code) as { text: string | null } | undefined
+        text = row?.text
+      } catch {
+        continue
+      }
+      if (text) return text
+    }
+    return undefined
   }
 
   public open(

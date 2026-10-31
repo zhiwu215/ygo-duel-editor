@@ -25,7 +25,7 @@ export const DuelRequestModals: React.FC = () => {
     case 'option':
       return <OptionModal key={key} request={request} data={data} />
     case 'position':
-      return <PositionModal key={key} data={data} />
+      return <PositionModal key={key} request={request} data={data} />
     case 'announce':
       return <AnnounceModal key={key} request={request} data={data} />
     case 'counter':

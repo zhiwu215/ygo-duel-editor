@@ -10,7 +10,6 @@ import { useReplayPlayback } from '../../hooks/useReplayPlayback'
 import { phaseJumpCommand, phaseAdvanceCommand, turnEndCommand } from '../../utils/phaseFlow'
 import { Button } from '../ui/button'
 import { StepList } from './StepList'
-import { ALL_PHASES } from './stepGrouping'
 import { SCENE_STEP_INDEX } from '../../utils/openingScene'
 import { formatReplayVersus } from '../../utils/replayMatch'
 import { cn } from '../../lib/utils'
@@ -26,6 +25,7 @@ import {
 } from 'lucide-react'
 
 const EMPTY_STEPS: DuelStep[] = []
+const ALL_PHASES: DuelPhase[] = ['DP', 'SP', 'M1', 'BP', 'M2', 'EP']
 
 export const StepSequencerPanel: React.FC = () => {
   const steps = useDuelStore((state) => state.state.steps) ?? EMPTY_STEPS

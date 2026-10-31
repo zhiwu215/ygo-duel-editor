@@ -21,11 +21,13 @@ export function collectConfigDirs(
 export interface CdbStringsConf {
   setnameMap: Map<number, string>
   systemStringMap: Map<number, string>
+  counterStringMap: Map<number, string>
 }
 
 export function loadCdbStringsConf(searchDirs: string[]): CdbStringsConf {
   const setnameMap = new Map<number, string>()
   const systemStringMap = new Map<number, string>()
+  const counterStringMap = new Map<number, string>()
   const candidatePaths = [
     ...new Set(
       searchDirs.flatMap((searchDir) => [
@@ -54,9 +56,16 @@ export function loadCdbStringsConf(searchDirs: string[]): CdbStringsConf {
             const label = systemMatch[2].trim()
             if (!isNaN(id) && label) systemStringMap.set(id, label)
           }
+
+          const counterMatch = line.match(/^!counter\s+(0x[0-9a-fA-F]+|\d+)\s+([^\t\r\n]+)/)
+          if (counterMatch) {
+            const code = parseInt(counterMatch[1].replace(/^0x/i, ''), 16)
+            const name = counterMatch[2].trim()
+            if (!isNaN(code) && name) counterStringMap.set(code, name)
+          }
         }
         console.log(
-          `[CdbService] Loaded ${setnameMap.size} setnames and ${systemStringMap.size} system strings from ${p}`
+          `[CdbService] Loaded ${setnameMap.size} setnames, ${systemStringMap.size} system strings and ${counterStringMap.size} counters from ${p}`
         )
       } catch (err) {
         console.error(`[CdbService] Failed to parse ${p}:`, err)
@@ -64,24 +73,5 @@ export function loadCdbStringsConf(searchDirs: string[]): CdbStringsConf {
     }
   }
 
-  return { setnameMap, systemStringMap }
-}
-
-export interface StringsConfRecord {
-  section: '!effect' | '!system' | string
-  id: number
-  text: string
-}
-
-export function parseEffectSystemLine(line: string): StringsConfRecord | null {
-  const trimmed = line.trim()
-  if (!trimmed.startsWith('!')) return null
-  const section = trimmed.split(/\s+/)[0]
-  const rest = trimmed.slice(section.length).trim()
-  const spaceIdx = rest.indexOf(' ')
-  if (spaceIdx === -1) return null
-  const id = Number(rest.slice(0, spaceIdx))
-  if (!Number.isFinite(id)) return null
-  const text = rest.slice(spaceIdx + 1).trim()
-  return { section, id, text }
+  return { setnameMap, systemStringMap, counterStringMap }
 }

@@ -1,5 +1,6 @@
 import React from 'react'
 import { CardPosition } from '@shared/index'
+import type { EngineRequest } from '@shared/engine/protocol'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { CARD_BACK_IMAGE, getCardImageUrl, UNKNOWN_CARD_IMAGE } from '../../../utils/cardImage'
 import { cn } from '../../../lib/utils'
@@ -24,11 +25,14 @@ const POSITION_FACEDOWN = new Set<number>([
   CardPosition.FACEDOWN_DEFENSE
 ])
 
-export const PositionModal: React.FC<{ data: DataOf<'position'> }> = ({ data }) => {
+export const PositionModal: React.FC<{ request: EngineRequest; data: DataOf<'position'> }> = ({
+  request,
+  data
+}) => {
   const loading = useDuelEngineStore((s) => s.loading)
   const faceImage = data.code && data.code > 0 ? getCardImageUrl(data.code) : UNKNOWN_CARD_IMAGE
   return (
-    <RequestModalShell title="请选择表示形式" width="max-w-2xl">
+    <RequestModalShell title={request.title} width="max-w-2xl">
       <div className="flex flex-wrap items-center justify-center gap-3 py-1">
         {data.positions.map((position) => {
           const label = POSITION_LABELS[position] ?? `表示形式 #${position}`

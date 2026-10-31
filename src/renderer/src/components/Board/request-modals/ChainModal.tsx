@@ -51,12 +51,9 @@ export const ChainModal: React.FC<{ request: EngineRequest; data: DataOf<'chain'
           </>
         }
       >
-        <div className="flex flex-col gap-1.5">
-          <p className="text-xs leading-relaxed text-foreground">是否进行连锁？</p>
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
-            可连锁：{data.chains.map((card) => cardNameOf(meta, card.code)).join('、')}
-          </p>
-        </div>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          可连锁：{data.chains.map((card) => cardNameOf(meta, card.code)).join('、')}
+        </p>
       </RequestModalShell>
     )
   }

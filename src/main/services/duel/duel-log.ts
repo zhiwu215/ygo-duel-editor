@@ -36,11 +36,10 @@ import {
   DuelLogCardRef,
   DuelLogEvent,
   DuelSummonKind,
-  LOCATION_NAMES,
   placeholderCardData
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
-import { getEffectDescText } from './strings-service'
+import { descText } from './engine-text'
 import type { SessionState } from './session-state'
 
 const C = OcgcoreCommonConstants
@@ -246,10 +245,8 @@ function summonKindFromReason(context: DuelLogContext): DuelSummonKind {
   return 'special'
 }
 
-function effectTextOf(desc: number, card: DuelLogCardRef): string | undefined {
-  if (!desc) return undefined
-  const placeName = LOCATION_NAMES[card.location] ?? ''
-  return getEffectDescText(desc, [placeName, card.name ?? ''])
+function effectTextOf(desc: number): string | undefined {
+  return desc > 0 ? descText(desc) : undefined
 }
 
 function boardOf(state: SessionState): ReturnType<SessionState['fieldReader']['getState']> | null {
@@ -357,7 +354,7 @@ function recordChaining(state: SessionState, msg: YGOProMsgChaining): void {
   if (context.chainCards.length < msg.chainCount) {
     context.chainCards[msg.chainCount - 1] = card
   }
-  const effectText = effectTextOf(msg.desc, card)
+  const effectText = effectTextOf(msg.desc)
   if (effectText) context.chainEffects.set(msg.chainCount, effectText)
   if (msg.chainCount > 1) {
     push(state, { kind: 'chain', chainCount: msg.chainCount })

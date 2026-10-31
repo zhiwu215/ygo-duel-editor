@@ -1,34 +1,39 @@
 import React from 'react'
-import { Eye } from 'lucide-react'
-import {
-  CardLocation,
-  DuelLogCardRef,
-  DuelLogEvent,
-  DuelStep,
-  POSITION_NAMES,
-  resolveCounterName,
-  summaryEventIndex
-} from '@shared/index'
+import { Ban, Shuffle } from 'lucide-react'
+import { CardLocation, DuelLogCardRef, Duelist, resolveCounterName } from '@shared/index'
 import { CardThumb } from '../ui/CardThumb'
 import { cn } from '../../lib/utils'
-import { resolveCardName } from '../../utils/cardNames'
+import { CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { resolveTeamLabel } from '../../utils/duelistNames'
 import { MdLocationIcon } from './MdLocationIcon'
 import { MDLOG_ASSETS, MDLOG_COLORS, maskStyle } from './mdpro3LogAssets'
-import { phaseName, sideName, summonLabel, zoneLabel } from './stepLogFormat'
+import { cardLabel, sideName } from './stepLogFormat'
+import type {
+  StepLogAttackRow,
+  StepLogBandRow,
+  StepLogCounterRow,
+  StepLogLpRow,
+  StepLogOpeningDrawRow,
+  StepLogRow,
+  StepLogSingleRow,
+  StepLogTargetRow,
+  StepLogTextRow
+} from './stepLogItems'
+import targetedIcon from '../../assets/log/targeted.png'
 
 interface StepLogRowsProps {
-  step: DuelStep
-  events: DuelLogEvent[]
+  rows: StepLogRow[]
+  duelists: Duelist[] | undefined
 }
 
-function nameOf(card: DuelLogCardRef, fallback = '卡片'): string {
-  return card.name || resolveCardName(card.code) || fallback
+function sameSlot(a: DuelLogCardRef, b: DuelLogCardRef): boolean {
+  return a.controller === b.controller && a.location === b.location && a.sequence === b.sequence
 }
 
 function LogCardThumb({
   card,
-  width = 40,
-  height = 58
+  width = 34,
+  height = 50
 }: {
   card: DuelLogCardRef
   width?: number
@@ -36,13 +41,14 @@ function LogCardThumb({
 }): React.JSX.Element {
   return (
     <div
-      className="relative shrink-0 overflow-hidden rounded-[1px] border border-border bg-muted shadow-sm"
+      className="relative shrink-0 overflow-hidden rounded-[2px] border border-border/80 bg-muted shadow-xs"
       style={{ width, height }}
     >
       <CardThumb
-        code={card.code}
-        name={nameOf(card)}
-        nameClassName="text-[8px] leading-[9px]"
+        code={card.code > 0 ? card.code : undefined}
+        name={cardLabel(card)}
+        fallback={card.code > 0 ? undefined : CARD_BACK_IMAGE}
+        nameClassName="text-[7px] leading-[8px]"
         className="h-full w-full"
       />
     </div>
@@ -57,445 +63,316 @@ function ZonePair({
   to?: DuelLogCardRef
 }): React.JSX.Element | null {
   if (!from && !to) return null
-  const color =
-    (to?.controller ?? from?.controller) === 0 ? MDLOG_COLORS.myArrow : MDLOG_COLORS.opArrow
+  const arrowOwner = to ?? from
+  if (!arrowOwner) return null
+  const showFrom = from !== undefined && (to === undefined || !sameSlot(from, to))
+  const color = arrowOwner.controller === 0 ? MDLOG_COLORS.myArrow : MDLOG_COLORS.opArrow
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1">
-      {from && <MdLocationIcon card={from} size={30} />}
-      {from && to && (
-        <span className="h-[18px] w-[48px]" style={maskStyle(MDLOG_ASSETS.arrow, color)} />
+      {showFrom && from && <MdLocationIcon card={from} size={24} />}
+      {showFrom && to && (
+        <span className="h-[17px] w-[34px]" style={maskStyle(MDLOG_ASSETS.arrow, color)} />
       )}
-      {to && <MdLocationIcon card={to} size={30} />}
+      {to && <MdLocationIcon card={to} size={24} />}
     </span>
   )
 }
 
-function Band({
-  children,
-  tone,
-  chainCount,
-  card
-}: {
-  children: React.ReactNode
-  tone: 'chain' | 'solve' | 'end' | 'header' | 'danger'
-  chainCount?: number
-  card?: DuelLogCardRef
-}): React.JSX.Element {
-  const background =
-    tone === 'header'
-      ? 'rgb(241 245 249)'
-      : tone === 'end'
-        ? 'rgb(248 250 252)'
-        : tone === 'danger'
-          ? 'rgb(255 241 242)'
-          : 'rgb(226 232 240)'
+function SideBar({ player }: { player: 0 | 1 }): React.JSX.Element {
+  return (
+    <span
+      className={cn(
+        'pointer-events-none absolute inset-y-0 left-0 w-[3px]',
+        player === 0 ? 'bg-blue-500/80' : 'bg-rose-500/80'
+      )}
+    />
+  )
+}
+
+function CardRow({ row }: { row: StepLogSingleRow }): React.JSX.Element {
+  const name = cardLabel(row.card)
+  const showName = row.card.code > 0 || Boolean(row.card.name)
+  const cost = row.variant === 'cost'
+  const target = row.variant === 'target'
   return (
     <div
-      className="flex h-[30px] items-center gap-2 px-2 text-[11px] font-semibold"
-      style={{ backgroundColor: background }}
+      className={cn(
+        'relative flex flex-col gap-1 border-b border-border/40 px-2 py-1.5 transition-colors hover:bg-muted/30',
+        row.indented && 'pl-7',
+        cost && 'bg-muted/40'
+      )}
     >
-      {(tone === 'chain' || tone === 'solve') && (
-        <span className="relative h-[24px] w-[24px] shrink-0">
-          <img src={MDLOG_ASSETS.chain} alt="" className="h-full w-full opacity-80 invert" />
-          {chainCount !== undefined && chainCount > 0 && (
-            <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-foreground">
-              {chainCount}
-            </span>
+      {!row.indented && !cost && <SideBar player={row.player} />}
+      {showName && (
+        <span
+          className={cn(
+            'truncate leading-tight text-foreground',
+            target ? 'text-[10px] font-semibold' : 'text-[11px] font-bold'
           )}
+        >
+          {name}
         </span>
       )}
-      {tone !== 'chain' && tone !== 'solve' && chainCount !== undefined && chainCount > 0 && (
-        <span className="shrink-0 text-[13px] font-bold text-foreground">{chainCount}</span>
-      )}
-      <span
-        className={cn(
-          'min-w-0 flex-1 truncate',
-          tone === 'danger'
-            ? 'text-rose-600'
-            : tone === 'end'
-              ? 'text-muted-foreground'
-              : 'text-foreground'
-        )}
-      >
-        {children}
-      </span>
-      {card && <LogCardThumb card={card} width={25} height={32} />}
+      <div className="flex min-w-0 items-end gap-2">
+        <LogCardThumb card={row.card} width={target ? 28 : 34} height={target ? 41 : 50} />
+        <div className="ml-auto flex min-w-0 flex-col items-end justify-end gap-0.5 pb-0.5">
+          {row.label && (
+            <span
+              className={cn(
+                'max-w-full truncate text-right text-[12px] font-bold leading-tight',
+                cost ? 'text-muted-foreground' : 'text-foreground'
+              )}
+            >
+              {row.label}
+            </span>
+          )}
+          <ZonePair from={row.from} to={row.to} />
+        </div>
+      </div>
     </div>
   )
 }
 
-export const StepLogRows: React.FC<StepLogRowsProps> = ({ step, events }) => {
-  if (events.length === 0) return null
-  const summaryIndex = summaryEventIndex(step, events)
-  const rows: React.JSX.Element[] = []
-  let started = false
-
-  events.forEach((event, index) => {
-    if (index === summaryIndex) return
-    if (event.kind === 'chain' && step.chainIndex === event.chainCount) return
-    if (event.kind === 'phase' && !started) return
-    started = true
-
-    if (event.kind === 'turn-start') {
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex items-center gap-2 px-2 py-1 text-[10px] text-muted-foreground"
-        >
-          <span className="h-px flex-1 bg-border" />
-          <span className="font-semibold">{sideName(event.player)}回合开始</span>
-          <span className="h-px flex-1 bg-border" />
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'phase') {
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex items-center gap-2 px-2 py-1 text-[10px] text-muted-foreground"
-        >
-          <span className="h-px flex-1 bg-border" />
-          <span className="font-semibold">{phaseName(event.phase)}</span>
-          <span className="h-px flex-1 bg-border" />
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'summon' || event.kind === 'set' || event.kind === 'activate') {
-      const action =
-        event.kind === 'summon'
-          ? summonLabel(event.summonKind)
-          : event.kind === 'set'
-            ? '盖放'
-            : '发动'
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[64px] items-center gap-2 border-b border-border/30 px-2"
-        >
-          <LogCardThumb card={event.card} />
-          <span className="shrink-0 text-[10px] font-bold text-foreground">{action}</span>
-          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground/90">
-            {nameOf(event.card)}
+function AttackRow({
+  row,
+  duelists
+}: {
+  row: StepLogAttackRow
+  duelists: Duelist[] | undefined
+}): React.JSX.Element {
+  const defenderName = row.defender
+    ? cardLabel(row.defender)
+    : (row.targetName ?? resolveTeamLabel({ duelists }, row.targetPlayer, row.turn))
+  return (
+    <div
+      className={cn(
+        'relative flex flex-col gap-1 border-b border-border/40 px-2 py-1.5 transition-colors hover:bg-muted/30',
+        row.indented && 'pl-7'
+      )}
+    >
+      {!row.indented && <SideBar player={row.player} />}
+      <span className="truncate text-[11px] font-bold leading-tight text-foreground">
+        {cardLabel(row.attacker)}
+      </span>
+      <div className="flex min-w-0 items-end gap-2">
+        <LogCardThumb card={row.attacker} />
+        <div className="ml-auto flex min-w-0 flex-col items-end justify-end gap-0.5 pb-1">
+          <span className="text-[12px] font-bold leading-tight text-foreground">攻击</span>
+          <span className="max-w-full truncate text-right text-[10px] text-muted-foreground">
+            {row.direct ? `直接攻击 · ${defenderName}` : `→ ${defenderName}`}
           </span>
-          <ZonePair from={event.from} to={event.card} />
+          <ZonePair from={row.attacker} to={row.defender} />
         </div>
-      )
-      if (event.kind === 'activate' && event.effectText) {
-        rows.push(
-          <div
-            key={`log-${index}-effect`}
-            className="truncate px-2 pb-1 pl-[38px] text-[9px] text-muted-foreground"
-          >
-            {event.effectText}
-          </div>
-        )
-      }
-      return
-    }
-
-    if (event.kind === 'chain') {
-      rows.push(
-        <Band key={`log-${index}`} tone="chain" chainCount={event.chainCount}>
-          连锁
-        </Band>
-      )
-      return
-    }
-
-    if (event.kind === 'chain-solving') {
-      rows.push(
-        <Band key={`log-${index}`} tone="solve" chainCount={event.chainCount} card={event.card}>
-          {event.card ? `效果处理 · ${nameOf(event.card)}` : '效果处理'}
-        </Band>
-      )
-      if (event.effectText) {
-        rows.push(
-          <div
-            key={`log-${index}-effect`}
-            className="truncate bg-muted/30 px-2 py-1 pl-[38px] text-[9px] text-muted-foreground"
-          >
-            {event.effectText}
-          </div>
-        )
-      }
-      return
-    }
-
-    if (event.kind === 'chain-end') {
-      rows.push(
-        <Band key={`log-${index}`} tone="end">
-          {event.chainCount > 1 ? '连锁结束' : '处理结束'}
-        </Band>
-      )
-      return
-    }
-
-    if (event.kind === 'chain-negated') {
-      rows.push(
-        <Band key={`log-${index}`} tone="danger" card={event.card}>
-          {event.disabled ? '效果无效' : '发动无效'}
-          {event.card ? ` · ${nameOf(event.card)}` : ''}
-        </Band>
-      )
-      return
-    }
-
-    if (event.kind === 'move') {
-      const move = event.move
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[64px] items-center gap-2 border-b border-border/30 px-2"
-        >
-          <LogCardThumb card={move.card} />
-          <span className="shrink-0 text-[10px] font-bold text-foreground">{move.reasonText}</span>
-          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground/90">
-            {nameOf(move.card)}
-          </span>
-          <ZonePair from={move.from} to={move.to} />
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'target') {
-      rows.push(
-        <div
-          key={`log-${index}-head`}
-          className="ml-[56px] mr-2 flex h-[26px] items-center border-y border-border/60 bg-slate-100 px-2 text-[11px] font-bold text-foreground"
-        >
-          对象
-        </div>,
-        <div
-          key={`log-${index}-body`}
-          className="ml-[56px] mr-2 flex flex-col gap-1 border-b border-border/60 bg-slate-50 py-1"
-        >
-          {event.cards.map((card, cardIndex) => (
-            <div key={cardIndex} className="flex min-w-0 items-center gap-2 px-2">
-              <LogCardThumb card={card} width={40} height={58} />
-              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground/90">
-                {nameOf(card)}
-              </span>
-              <MdLocationIcon card={card} size={30} />
-            </div>
-          ))}
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'attack') {
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[64px] items-center gap-2 border-b border-border/30 px-2"
-        >
-          <LogCardThumb card={event.attacker} />
-          <span className="shrink-0 text-[10px] font-bold text-foreground">攻击</span>
-          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground/90">
-            {nameOf(event.attacker)} → {event.defender ? nameOf(event.defender) : '直接攻击'}
-          </span>
-          {event.defender ? (
-            <ZonePair from={event.attacker} to={event.defender} />
-          ) : (
-            <span className="ml-auto shrink-0 text-[9px] text-muted-foreground">
-              {zoneLabel(event.attacker)}
-            </span>
-          )}
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'attack-disabled') {
-      rows.push(
-        <Band key={`log-${index}`} tone="danger" card={event.card}>
-          攻击被无效{event.card ? ` · ${nameOf(event.card)}` : ''}
-        </Band>
-      )
-      return
-    }
-
-    if (event.kind === 'draw') {
-      const cards = event.cards.length > 0 ? event.cards : [{ code: 0 }]
-      const allUnknown = cards.every((c) => !c.code || c.code <= 0)
-      if (allUnknown && cards.length > 1) {
-        const dummyCard: DuelLogCardRef = {
-          code: 0,
-          name: '未知卡片',
-          controller: event.player,
-          location: CardLocation.HAND,
-          sequence: 0
-        }
-        rows.push(
-          <div
-            key={`log-${index}`}
-            className="flex h-[64px] items-center gap-2 border-b border-border/30 px-2"
-          >
-            <LogCardThumb card={dummyCard} />
-            <span className="shrink-0 text-[10px] font-bold text-foreground">
-              {`抽卡 ×${cards.length}`}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground/90">
-              未知卡片
-            </span>
-            <span className="ml-auto flex shrink-0 items-center">
-              <MdLocationIcon card={dummyCard} size={30} />
-            </span>
-          </div>
-        )
-      } else {
-        cards.forEach((card, cardIndex) => {
-          const cardRef: DuelLogCardRef = {
-            code: card.code,
-            name: card.name || (card.code > 0 ? resolveCardName(card.code) : '未知卡片'),
-            controller: event.player,
-            location: CardLocation.HAND,
-            sequence: cardIndex
-          }
-          rows.push(
-            <div
-              key={`log-${index}-${cardIndex}`}
-              className="flex h-[64px] items-center gap-2 border-b border-border/30 px-2"
-            >
-              <LogCardThumb card={cardRef} />
-              <span className="shrink-0 text-[10px] font-bold text-foreground">抽卡</span>
-              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground/90">
-                {nameOf(cardRef)}
-              </span>
-              <span className="ml-auto flex shrink-0 items-center">
-                <MdLocationIcon card={cardRef} size={30} />
-              </span>
-            </div>
-          )
-        })
-      }
-      return
-    }
-
-    if (event.kind === 'damage') {
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[26px] items-center gap-1.5 px-2 text-[10px] font-semibold"
-          style={{ color: MDLOG_COLORS.damage }}
-        >
-          <span>{sideName(event.player)}受到</span>
-          <span className="font-mono text-[12px]">-{event.value}</span>
-          <span>LP</span>
-          <span className="font-mono text-[10px] text-muted-foreground">→ {event.lp}</span>
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'recover') {
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[26px] items-center gap-1.5 px-2 text-[10px] font-semibold"
-          style={{ color: MDLOG_COLORS.recover }}
-        >
-          <span>{sideName(event.player)}回复</span>
-          <span className="font-mono text-[12px]">+{event.value}</span>
-          <span>LP</span>
-          <span className="font-mono text-[10px] text-muted-foreground">→ {event.lp}</span>
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'lp-update') {
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[26px] items-center gap-1.5 px-2 text-[10px]"
-          style={{ color: MDLOG_COLORS.gold }}
-        >
-          <span>{sideName(event.player)} LP →</span>
-          <span className="font-mono text-[12px] font-bold">{event.lp}</span>
-          <span className="font-mono text-[10px] text-muted-foreground">
-            ({event.delta >= 0 ? '+' : ''}
-            {event.delta})
-          </span>
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'position') {
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[26px] items-center gap-1.5 px-2 text-[10px] text-foreground/75"
-        >
-          <span className="font-bold text-foreground">{nameOf(event.card)}</span>
-          <span>{POSITION_NAMES[event.fromPosition] ?? '？'}</span>
-          <span className="text-muted-foreground/60">→</span>
-          <span>{POSITION_NAMES[event.toPosition] ?? '？'}</span>
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'counter') {
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[26px] items-center gap-1.5 px-2 text-[10px] text-violet-600"
-        >
-          <span>{event.remove ? '取除' : '放置'}</span>
-          <span className="font-semibold">{resolveCounterName(event.counterType)}</span>
-          <span className="font-mono">×{event.count}</span>
-          <span className="min-w-0 truncate text-muted-foreground">· {nameOf(event.card)}</span>
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'reveal') {
-      const source =
-        event.source === 'hand' ? '公开手牌' : event.source === 'field' ? '公开盖卡' : '公开卡组'
-      rows.push(
-        <div key={`log-${index}`} className="flex h-[26px] items-center gap-1.5 px-2 text-[10px]">
-          <Eye className="h-3 w-3 shrink-0 text-sky-600" />
-          <span className="shrink-0 font-bold text-sky-600">{source}</span>
-          <span className="min-w-0 truncate text-muted-foreground">
-            {event.cards.map((card) => nameOf(card)).join('、')}
-          </span>
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'swap') {
-      rows.push(
-        <div
-          key={`log-${index}`}
-          className="flex h-[26px] items-center gap-1.5 px-2 text-[10px] text-muted-foreground"
-        >
-          <span className="font-bold text-foreground/85">交换</span>
-          <span className="min-w-0 truncate">
-            {nameOf(event.from)} ↔ {nameOf(event.to)}
-          </span>
-        </div>
-      )
-      return
-    }
-
-    if (event.kind === 'text') {
-      rows.push(
-        <Band key={`log-${index}`} tone="header">
-          {event.text}
-        </Band>
-      )
-    }
-  })
-
-  if (rows.length === 0) return null
-  return <div className="flex flex-col">{rows}</div>
+      </div>
+    </div>
+  )
 }
+
+function LpRow({
+  row,
+  duelists
+}: {
+  row: StepLogLpRow
+  duelists: Duelist[] | undefined
+}): React.JSX.Element {
+  const loss = row.change < 0
+  const name = resolveTeamLabel({ duelists }, row.player, row.turn) || sideName(row.player)
+  return (
+    <div
+      className={cn(
+        'relative flex items-center gap-1.5 border-b border-border/40 px-2 py-1 text-[10px] transition-colors hover:bg-muted/30',
+        row.indented && 'pl-7'
+      )}
+    >
+      {!row.indented && <SideBar player={row.player} />}
+      <span className="min-w-0 truncate font-semibold text-foreground/90">{name}</span>
+      <span className="shrink-0 text-muted-foreground">{row.reason}</span>
+      <span
+        className={cn(
+          'shrink-0 font-mono text-[12px] font-bold tabular-nums',
+          loss ? 'text-rose-600 dark:text-rose-400' : 'text-sky-600 dark:text-sky-400'
+        )}
+      >
+        {row.change > 0 ? '+' : ''}
+        {row.change}
+      </span>
+      <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
+        LP {row.total}
+      </span>
+    </div>
+  )
+}
+
+function CounterRow({ row }: { row: StepLogCounterRow }): React.JSX.Element {
+  return (
+    <div
+      className={cn(
+        'relative flex flex-col gap-1 border-b border-border/40 px-2 py-1.5 transition-colors hover:bg-muted/30',
+        row.indented && 'pl-7'
+      )}
+    >
+      {!row.indented && <SideBar player={row.player} />}
+      <span className="truncate text-[11px] font-bold leading-tight text-foreground">
+        {cardLabel(row.card)}
+      </span>
+      <div className="flex min-w-0 items-end gap-2">
+        <LogCardThumb card={row.card} width={28} height={41} />
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 pb-1 text-[10px]">
+          <span
+            className={cn(
+              'font-mono font-bold',
+              row.remove
+                ? 'text-rose-600 dark:text-rose-400'
+                : 'text-violet-600 dark:text-violet-400'
+            )}
+          >
+            {row.remove ? '-' : '+'}
+            {row.count}
+          </span>
+          <span className="truncate">{resolveCounterName(row.counterType)}</span>
+        </div>
+        <ZonePair to={row.card} />
+      </div>
+    </div>
+  )
+}
+
+function TargetRow({ row }: { row: StepLogTargetRow }): React.JSX.Element {
+  return (
+    <div className="flex flex-col">
+      <div
+        className={cn(
+          'flex items-center gap-1.5 border-b border-border/50 bg-muted/40 px-2 py-1 text-[10px] font-bold text-foreground',
+          row.indented && 'pl-7'
+        )}
+      >
+        <img src={targetedIcon} alt="" className="h-3 w-3 shrink-0 opacity-80" />
+        <span>对象</span>
+      </div>
+      {row.cards.map((card, index) => (
+        <CardRow
+          key={`${card.code}-${card.controller}-${card.location}-${card.sequence}-${index}`}
+          row={{
+            kind: 'single',
+            card,
+            to: card,
+            label: '',
+            indented: true,
+            variant: 'target',
+            player: card.controller
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function OpeningDrawRow({ row }: { row: StepLogOpeningDrawRow }): React.JSX.Element {
+  const hand: DuelLogCardRef = {
+    code: 0,
+    controller: row.player,
+    location: CardLocation.HAND,
+    sequence: 0
+  }
+  const cards = row.cards.length > 0 ? row.cards : [{ code: 0 }]
+  return (
+    <div className="border-b border-border/40 px-2 py-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-bold text-foreground">抽卡</span>
+        <span className="text-[10px] text-muted-foreground">×{cards.length}</span>
+        <span className="ml-auto">
+          <MdLocationIcon card={hand} size={24} />
+        </span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-start gap-1">
+        {cards.map((card, index) => (
+          <LogCardThumb
+            key={`${card.code}-${index}`}
+            card={{
+              code: card.code,
+              name: card.name,
+              controller: row.player,
+              location: CardLocation.HAND,
+              sequence: index
+            }}
+            width={30}
+            height={44}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TextRow({ row }: { row: StepLogTextRow }): React.JSX.Element {
+  const danger = row.tone === 'danger'
+  const targeted = row.text.startsWith('对象')
+  const shuffle = row.text.includes('手牌切洗')
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-1.5 border-b border-border/40 px-2 py-1 text-[10px]',
+        row.indented && 'pl-7',
+        danger ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'
+      )}
+    >
+      {targeted && <img src={targetedIcon} alt="" className="h-3 w-3 shrink-0 opacity-80" />}
+      {shuffle && <Shuffle className="h-3 w-3 shrink-0" />}
+      {danger && <Ban className="h-3 w-3 shrink-0" />}
+      <span className="min-w-0 truncate">{row.text}</span>
+    </div>
+  )
+}
+
+function ChainBand({ row }: { row: StepLogBandRow }): React.JSX.Element {
+  return (
+    <div className="flex h-[30px] items-center gap-2 border-b border-border/40 bg-muted/70 px-2 text-[10px] font-semibold text-foreground">
+      <span className="relative h-[22px] w-[22px] shrink-0">
+        <img
+          src={MDLOG_ASSETS.chain}
+          alt=""
+          className="h-full w-full opacity-80 invert dark:invert-0"
+        />
+        {row.count !== undefined && row.count > 0 && (
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-foreground">
+            {row.count}
+          </span>
+        )}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{row.text}</span>
+      {row.card && <LogCardThumb card={row.card} width={22} height={28} />}
+    </div>
+  )
+}
+
+function BandRow({ row }: { row: StepLogBandRow }): React.JSX.Element {
+  if (row.tone === 'chain' || row.tone === 'solve') return <ChainBand row={row} />
+  const cost = row.tone === 'cost'
+  return (
+    <div
+      className={cn(
+        'flex h-[26px] items-center gap-2 border-b border-border/40 px-2 text-[10px] font-semibold',
+        cost ? 'bg-muted/50 text-muted-foreground' : 'bg-muted/30 text-muted-foreground'
+      )}
+    >
+      <span className="min-w-0 flex-1 truncate">{row.text}</span>
+    </div>
+  )
+}
+
+export const StepLogRows: React.FC<StepLogRowsProps> = ({ rows, duelists }) => (
+  <div className="flex flex-col">
+    {rows.map((row, index) => {
+      if (row.kind === 'single') return <CardRow key={index} row={row} />
+      if (row.kind === 'attack') {
+        return <AttackRow key={index} row={row} duelists={duelists} />
+      }
+      if (row.kind === 'lp') return <LpRow key={index} row={row} duelists={duelists} />
+      if (row.kind === 'counter') return <CounterRow key={index} row={row} />
+      if (row.kind === 'target') return <TargetRow key={index} row={row} />
+      if (row.kind === 'opening-draw') return <OpeningDrawRow key={index} row={row} />
+      if (row.kind === 'text') return <TextRow key={index} row={row} />
+      return <BandRow key={index} row={row} />
+    })}
+  </div>
+)

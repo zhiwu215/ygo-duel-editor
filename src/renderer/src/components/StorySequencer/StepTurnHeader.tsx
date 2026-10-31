@@ -1,6 +1,6 @@
 import React from 'react'
 import { Duelist } from '@shared/index'
-import { resolveTurnDuelist, turnOrderOf } from '../../utils/duelistNames'
+import { sideName } from './stepLogFormat'
 import { cn } from '../../lib/utils'
 
 interface StepTurnHeaderProps {
@@ -8,22 +8,21 @@ interface StepTurnHeaderProps {
   turnPlayer: 0 | 1
   lp: [number, number]
   duelists: Duelist[] | undefined
-  actingDuelistId?: string
   sharedLp?: boolean
 }
 
 const TEAM_STYLES = [
   {
     dot: 'bg-blue-500',
-    panel: 'border-blue-500/40 bg-blue-500/[0.07]',
-    lp: 'text-blue-600 dark:text-blue-300',
-    activeRow: 'bg-blue-500/15 text-blue-700 dark:text-blue-200'
+    text: 'text-blue-600 dark:text-blue-400',
+    lp: 'text-blue-700 dark:text-blue-300',
+    panel: 'border-blue-500/30 bg-blue-500/[0.06]'
   },
   {
     dot: 'bg-rose-500',
-    panel: 'border-rose-500/40 bg-rose-500/[0.07]',
-    lp: 'text-rose-600 dark:text-rose-300',
-    activeRow: 'bg-rose-500/15 text-rose-700 dark:text-rose-200'
+    text: 'text-rose-600 dark:text-rose-400',
+    lp: 'text-rose-700 dark:text-rose-300',
+    panel: 'border-rose-500/30 bg-rose-500/[0.06]'
   }
 ] as const
 
@@ -32,10 +31,10 @@ const TURN_PLAYER_STYLES = [
   'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
 ] as const
 
-function sortedTeamDuelists(duelists: Duelist[] | undefined, team: 0 | 1): Duelist[] {
-  return [...(duelists || [])]
-    .filter((duelist) => duelist.team === team)
-    .sort((a, b) => turnOrderOf(a) - turnOrderOf(b))
+function teamName(duelists: Duelist[] | undefined, team: 0 | 1): string {
+  const members = (duelists || []).filter((duelist) => duelist.team === team)
+  if (members.length === 0) return sideName(team)
+  return members.map((duelist) => duelist.name).join('／') || sideName(team)
 }
 
 export const StepTurnHeader: React.FC<StepTurnHeaderProps> = ({
@@ -43,108 +42,84 @@ export const StepTurnHeader: React.FC<StepTurnHeaderProps> = ({
   turnPlayer,
   lp,
   duelists,
-  actingDuelistId,
   sharedLp = false
-}) => {
-  const knownActingId = (duelists || []).some((duelist) => duelist.id === actingDuelistId)
-    ? actingDuelistId
-    : undefined
-  const actingId = knownActingId ?? resolveTurnDuelist(duelists, turn)?.id
-  const actingName = (duelists || []).find((duelist) => duelist.id === actingId)?.name
-  const turnLabel = actingName ? `${actingName} 行动` : turnPlayer === 0 ? '我方行动' : '对方行动'
-
-  return (
-    <div className="flex flex-col gap-1.5 p-2 rounded-lg border border-border/70 bg-gradient-to-br from-muted/40 to-card shadow-xs select-none">
-      <div className="flex items-center gap-1.5">
-        <span className="text-[11px] font-extrabold text-foreground">第 {turn} 回合</span>
-        <span
-          className={cn(
-            'text-[9px] font-bold px-1.5 py-0.5 rounded-full border leading-none',
-            TURN_PLAYER_STYLES[turnPlayer]
-          )}
-        >
-          {turnLabel}
+}) => (
+  <div className="flex flex-col gap-1 border-y border-border/70 bg-muted/40 px-2 py-1.5 select-none">
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] font-extrabold text-foreground">第 {turn} 回合</span>
+      <span
+        className={cn(
+          'rounded-full border px-1.5 py-0.5 text-[9px] font-bold leading-none',
+          TURN_PLAYER_STYLES[turnPlayer]
+        )}
+      >
+        {sideName(turnPlayer)}行动
+      </span>
+      {sharedLp && (
+        <span className="rounded border border-border/60 px-1 py-0.5 text-[8px] font-semibold text-muted-foreground">
+          共用 LP
         </span>
-      </div>
+      )}
+    </div>
 
-      <div className="grid grid-cols-2 gap-1.5">
-        {([0, 1] as const).map((team) => {
-          const styles = TEAM_STYLES[team]
-          const members = sortedTeamDuelists(duelists, team)
-          const active = team === turnPlayer
-          const isMulti = members.length > 1
-          const teamName = team === 0 ? '我方' : '对方'
-          const headerName = isMulti ? teamName : members[0]?.name || teamName
-          return (
-            <div
-              key={team}
-              className={cn(
-                'flex flex-col gap-1 rounded-md border px-1.5 py-1 min-w-0',
-                active ? styles.panel : 'border-border/50 bg-background/40'
-              )}
-            >
-              <div className="flex items-center gap-1 min-w-0">
-                <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', styles.dot)} />
-                <span className="truncate text-[10px] font-semibold text-foreground/90">
-                  {headerName}
-                </span>
-                {sharedLp || !isMulti ? (
-                  <span className="flex items-baseline gap-0.5 ml-auto shrink-0">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+      {([0, 1] as const).map((team) => {
+        const styles = TEAM_STYLES[team]
+        const active = team === turnPlayer
+        const members = (duelists || []).filter((duelist) => duelist.team === team)
+        const independent = members.length > 1 && !sharedLp
+        return (
+          <div
+            key={team}
+            className={cn(
+              'flex min-w-0 items-center gap-1.5 rounded border px-1.5 py-0.5',
+              active ? styles.panel : 'border-transparent'
+            )}
+          >
+            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', styles.dot)} />
+            {independent ? (
+              <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-semibold">
+                {members.map((member) => (
+                  <span key={member.id} className="flex min-w-0 items-center gap-1">
+                    <span className={cn('truncate', active ? styles.text : 'text-foreground/80')}>
+                      {member.name}
+                    </span>
                     <span
                       className={cn(
-                        'font-mono text-[13px] font-bold tabular-nums leading-none',
+                        'shrink-0 font-mono text-[11px] font-bold tabular-nums',
                         active ? styles.lp : 'text-foreground/80'
                       )}
                     >
-                      {sharedLp ? lp[team] : (members[0]?.lp ?? lp[team])}
+                      {member.lp}
                     </span>
-                    <span className="text-[8px] font-bold text-muted-foreground">LP</span>
-                    {isMulti && (
-                      <span className="ml-0.5 rounded border border-border/60 px-1 text-[8px] font-semibold text-muted-foreground">
-                        共用
-                      </span>
-                    )}
                   </span>
-                ) : (
-                  <span className="ml-auto shrink-0 rounded border border-border/60 px-1 text-[8px] font-semibold text-muted-foreground">
-                    独立 LP
-                  </span>
-                )}
-              </div>
-
-              {isMulti && (
-                <div className="flex flex-col gap-0.5">
-                  {members.map((duelist) => {
-                    const isActing = duelist.id === actingId
-                    return (
-                      <div
-                        key={duelist.id}
-                        className={cn(
-                          'flex items-center gap-1 rounded px-1 py-0.5 min-w-0',
-                          isActing ? styles.activeRow : 'text-foreground/80'
-                        )}
-                      >
-                        <span className="truncate text-[10px] font-semibold">{duelist.name}</span>
-                        <span className="ml-auto shrink-0 text-[8px] font-mono text-muted-foreground">
-                          {turnOrderOf(duelist)} 顺位
-                        </span>
-                        {!sharedLp && (
-                          <span className="shrink-0 font-mono text-[10px] font-bold tabular-nums">
-                            {duelist.lp}
-                          </span>
-                        )}
-                        {isActing && (
-                          <span className="shrink-0 text-[8px] font-bold text-current">行动</span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+                ))}
+                <span className="shrink-0 text-[8px] font-bold text-muted-foreground">LP</span>
+              </span>
+            ) : (
+              <>
+                <span
+                  className={cn(
+                    'min-w-0 truncate text-[10px] font-semibold',
+                    active ? styles.text : 'text-foreground/80'
+                  )}
+                >
+                  {teamName(duelists, team)}
+                </span>
+                <span
+                  className={cn(
+                    'shrink-0 font-mono text-[11px] font-bold tabular-nums',
+                    active ? styles.lp : 'text-foreground/80'
+                  )}
+                >
+                  {lp[team]}
+                </span>
+                <span className="shrink-0 text-[8px] font-bold text-muted-foreground">LP</span>
+              </>
+            )}
+          </div>
+        )
+      })}
     </div>
-  )
-}
+  </div>
+)

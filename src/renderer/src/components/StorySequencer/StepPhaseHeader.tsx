@@ -1,16 +1,15 @@
 import React from 'react'
-import { DuelPhase, PHASE_SHORT_NAMES } from '@shared/index'
+import { DuelPhase } from '@shared/index'
+import { phaseLabel } from './stepLogFormat'
 
 interface StepPhaseHeaderProps {
   phase: DuelPhase
-  turnPlayer: 0 | 1
 }
 
 export const StepPhaseHeader: React.FC<StepPhaseHeaderProps> = ({ phase }) => (
-  <div className="flex select-none items-center gap-2 px-2 pb-1 pt-2.5">
-    <span className="text-[15px] font-bold tracking-wide text-foreground/90">
-      {PHASE_SHORT_NAMES[phase]}
+  <div className="flex select-none items-center border-b border-border/60 bg-muted/20 px-2 py-1">
+    <span className="text-[11px] font-bold tracking-wide text-foreground/90">
+      {phaseLabel(phase)}
     </span>
-    <span className="h-px flex-1 bg-border/70" />
   </div>
 )

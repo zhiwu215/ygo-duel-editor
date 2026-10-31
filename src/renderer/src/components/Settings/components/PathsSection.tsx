@@ -48,6 +48,11 @@ export function PathsSection(): JSX.Element {
     return `(${gameLabel}${language}) ${config.gameDirectory}`
   }
 
+  const mdpro3DirDescription = (): string =>
+    config.mdpro3Directory
+      ? `${config.mdpro3Directory}（导出 YRP3D 回放时，回放与脚本写入其 replay / single）`
+      : '未设置：主程序目录不是 MDPro3 时，导出 YRP3D 回放需要指定 MDPro3 目录'
+
   const ygoDirActionLabel = (): string => {
     if (gamePathMissing || cdbPathMissing) return '重新选择...'
     return config.gameDirectory ? '更换...' : '设置...'
@@ -81,23 +86,19 @@ export function PathsSection(): JSX.Element {
           </div>
         </SettingsRow>
 
-        <SettingsRow
-          title="MDPro3 目录"
-          description={
-            config.mdpro3Directory ??
-            '可选：导出 / 打开 .yrp3d 回放时使用（用 ygopro 时也能导出 MDPro3 回放）'
-          }
-        >
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => void selectMdpro3Dir()}
-            className="gap-1"
-          >
-            <Folder className="w-3.5 h-3.5" />
-            <span>{config.mdpro3Directory ? '更换...' : '选择...'}</span>
-          </Button>
-        </SettingsRow>
+        {config.gameType !== 'mdpro3' && (
+          <SettingsRow title="MDPro3 目录" description={mdpro3DirDescription()}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void selectMdpro3Dir()}
+              className="gap-1"
+            >
+              <Folder className="w-3.5 h-3.5" />
+              <span>{config.mdpro3Directory ? '更换...' : '选择...'}</span>
+            </Button>
+          </SettingsRow>
+        )}
 
         {config.gameType === 'mdpro3' && (
           <SettingsRow title="卡图目录" description={imageDirDescription()}>

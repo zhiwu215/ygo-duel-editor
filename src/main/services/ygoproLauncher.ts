@@ -107,7 +107,7 @@ export class YgoproLauncher {
 
   public async selectMdpro3Directory(window?: BrowserWindow): Promise<string | null> {
     const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-      title: '选择 MDPro3 主目录 (用于导出和打开 .yrp3d 回放)',
+      title: '选择 MDPro3 主目录 (用于导出 .yrp3d 回放)',
       properties: ['openDirectory']
     })
 

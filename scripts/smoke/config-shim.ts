@@ -1,4 +1,4 @@
-/** 冒烟测试用 configService 替身(strings-service/currentLanguagePackPaths 只用 gameDirectory/gameType/gameLanguage) */
+/** 冒烟测试用 configService 替身(currentLanguagePackPaths 只用 gameDirectory/gameType/gameLanguage) */
 export const configService = {
   get: () => ({
     gameDirectory: process.env.YGO_SMOKE_GAMEDIR || 'E:/MyCardLibrary/ygopro',

@@ -1,9 +1,10 @@
 /**
- * 冒烟测试用 cdbService 替身：sql.js 读取 cards.cdb，接口与真实 cdbService 对齐（仅 getCardById）。
+ * 冒烟测试用 cdbService 替身：sql.js 读取 cards.cdb，接口与真实 cdbService 对齐（卡牌、系统文本、指示物、卡片描述）。
  */
 import initSqlJs from 'sql.js'
 import fs from 'fs'
 import path from 'path'
+import { loadCdbStringsConf } from '../../src/main/db/stringsConfParser'
 
 interface CdbCardLike {
   id: number
@@ -20,13 +21,18 @@ interface CdbCardLike {
   name?: string
 }
 
-
 const cdbPath = process.env.YGO_SMOKE_CDB || 'E:/MyCardLibrary/ygopro/cards.cdb'
 
 let db: ReturnType<Awaited<typeof initSqlJs>>['Database'] extends infer T ? T : never
 const cardCache = new Map<number, CdbCardLike>()
+let systemStringMap = new Map<number, string>()
+let counterStringMap = new Map<number, string>()
 
 async function loadCdb(): Promise<void> {
+  const gameDir = process.env.YGO_SMOKE_GAMEDIR
+  const strings = loadCdbStringsConf([path.dirname(cdbPath), ...(gameDir ? [gameDir] : [])])
+  systemStringMap = strings.systemStringMap
+  counterStringMap = strings.counterStringMap
   const SQL = await initSqlJs({
     locateFile: (file: string) => path.join(process.cwd(), 'node_modules/sql.js/dist', file)
   })
@@ -62,6 +68,25 @@ async function loadCdb(): Promise<void> {
 export const cdbService = {
   getCardById(id: number): CdbCardLike | null {
     return cardCache.get(id) ?? null
+  },
+  getSystemString(id: number): string | undefined {
+    return systemStringMap.get(id)
+  },
+  getCounterName(id: number): string | undefined {
+    return counterStringMap.get(id)
+  },
+  getCardDescText(desc: number): string | undefined {
+    const code = (desc >>> 4) & 0x0fffffff
+    const column = `str${(desc & 0xf) + 1}`
+    try {
+      const stmt = db.prepare(`SELECT ${column} AS text FROM texts WHERE id = ?`)
+      stmt.bind([code])
+      const text = stmt.step() ? String(stmt.getAsObject().text ?? '') : ''
+      stmt.free()
+      return text || undefined
+    } catch {
+      return undefined
+    }
   },
   /** 冒烟测试辅助：按类型掩码找卡（TYPE_PENDULUM = 0x1000000） */
   findCardsByType(typeMask: number, limit: number): CdbCardLike[] {

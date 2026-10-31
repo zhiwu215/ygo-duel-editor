@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { DuelStep } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
@@ -7,21 +7,15 @@ import { useCleanupBlankReplaySteps } from '../../hooks/useCleanupBlankReplaySte
 import { Button } from '../ui/button'
 import { Film, PlayCircle, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { StepGroupHeader } from './StepGroupHeader'
 import { StepPhaseHeader } from './StepPhaseHeader'
 import { StepTurnHeader } from './StepTurnHeader'
-import { StepCard } from './StepCard'
-import { StepLpChange } from './StepLpChange'
-import { buildStepList, getAttackDamageText, resolveStepCardName } from './stepGrouping'
-import { resolveDuelistName, resolveTeamLabel } from '../../utils/duelistNames'
+import { StepLogRows } from './StepLogRows'
+import { StepHoverActions } from './StepHoverActions'
+import { buildStepLogItems } from './stepLogItems'
 import { SCENE_STEP_INDEX } from '../../utils/openingScene'
 
 interface StepListProps {
   steps: DuelStep[]
-}
-
-function engineIdOf(step: DuelStep): string | undefined {
-  return step.endActId ?? step.actId
 }
 
 export const StepList: React.FC<StepListProps> = ({ steps }) => {
@@ -29,6 +23,7 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
   const sceneEditing = useDuelStore((state) => state.sceneEditing)
   const previewReturn = useDuelStore((state) => state.previewReturn)
   const exitPreview = useDuelStore((state) => state.exitPreview)
+  const setHoveredInstanceId = useDuelStore((state) => state.setHoveredInstanceId)
   const { handleStepClick, handleRestartFromStep } = useStepPlayback()
   const engineActive = useDuelEngineStore((s) => s.isInitialized)
   const engineTimeline = useDuelEngineStore((s) => s.timeline)
@@ -40,83 +35,62 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
 
   useCleanupBlankReplaySteps(steps)
 
-  const stepList = useMemo(() => buildStepList(steps, initialLp), [steps, initialLp])
-  const turnActingDuelistIds = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const step of steps) {
-      if (!step.actionDuelistId || step.actionPlayer !== step.turnPlayer) continue
-      if (map.has(step.turn)) continue
-      map.set(step.turn, step.actionDuelistId)
-    }
-    return map
-  }, [steps])
+  const items = useMemo(() => buildStepLogItems(steps, initialLp), [steps, initialLp])
+  const stepsWithRows = useMemo(() => {
+    const set = new Set<string>()
+    items.forEach((item) => {
+      if (item.kind === 'step') set.add(item.step.id)
+    })
+    return set
+  }, [items])
+  const firstSegmentKeys = useMemo(() => {
+    const seen = new Set<string>()
+    const keys = new Set<string>()
+    items.forEach((item) => {
+      if (item.kind !== 'step' || seen.has(item.step.id)) return
+      seen.add(item.step.id)
+      keys.add(item.key)
+    })
+    return keys
+  }, [items])
 
   const engineIndexById = useMemo(() => {
     const map = new Map<string, number>()
     engineTimeline.forEach((node, index) => map.set(node.id, index))
     return map
   }, [engineTimeline])
+
   const engineCursor = useMemo(() => {
     if (!engineActive || !engineCurrentStepId) return -1
     return engineIndexById.get(engineCurrentStepId) ?? -1
   }, [engineActive, engineCurrentStepId, engineIndexById])
+
   const futureStepCount = useMemo(() => {
     if (engineCursor < 0) return 0
-    return stepList.reduce((count, item) => {
-      if (item.kind !== 'group') return count
-      return (
-        count +
-        item.group.entries.filter(({ step }) => {
-          const stepIndex = engineIdOf(step) ? engineIndexById.get(engineIdOf(step)!) : undefined
-          return stepIndex !== undefined && stepIndex > engineCursor
-        }).length
-      )
-    }, 0)
-  }, [stepList, engineCursor, engineIndexById])
+    return steps.filter((step) => {
+      const startId = step.startActId ?? step.actId
+      const start = startId ? engineIndexById.get(startId) : undefined
+      return start !== undefined && start > engineCursor
+    }).length
+  }, [steps, engineCursor, engineIndexById])
 
   const previewIndex = currentStepIndex
   const previewStep = previewIndex !== null ? steps[previewIndex] : undefined
   const isPreviewing = previewReturn !== null && previewIndex !== null && Boolean(previewStep)
 
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set())
-
-  const toggleGroup = (key: string): void => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
-  const isCurrentStepOf = (step: DuelStep, index: number): boolean => {
-    if (engineCursor < 0) return currentStepIndex === index
-    const stepIndex = engineIdOf(step) ? engineIndexById.get(engineIdOf(step)!) : undefined
-    return stepIndex === engineCursor
-  }
-
-  const renderStepCard = (
-    step: DuelStep,
-    index: number,
-    showLpChange = true
-  ): React.JSX.Element => {
-    const stepEngineIndex = engineIdOf(step) ? engineIndexById.get(engineIdOf(step)!) : undefined
-    const isFutureStep =
-      engineCursor >= 0 && stepEngineIndex !== undefined && stepEngineIndex > engineCursor
-    const isCurrentPlaying =
-      engineCursor >= 0 ? stepEngineIndex === engineCursor : currentStepIndex === index
-    return (
-      <StepCard
-        key={step.id}
-        step={step}
-        index={index}
-        stepsLength={steps.length}
-        isCurrentPlaying={isCurrentPlaying}
-        isFutureStep={isFutureStep}
-        showLpChange={showLpChange}
-        onClick={handleStepClick}
-      />
-    )
+  const stepState = (step: DuelStep, index: number): { current: boolean; future: boolean } => {
+    if (engineActive && engineCursor >= 0) {
+      const endId = step.endActId ?? step.actId
+      const startId = step.startActId ?? step.actId
+      const end = endId ? engineIndexById.get(endId) : undefined
+      const start = startId ? engineIndexById.get(startId) : undefined
+      return {
+        current:
+          start !== undefined && end !== undefined && engineCursor >= start && engineCursor <= end,
+        future: start !== undefined && start > engineCursor
+      }
+    }
+    return { current: currentStepIndex === index, future: false }
   }
 
   return (
@@ -164,6 +138,7 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
             </div>
           )
         )}
+
         {steps.length === 0 ? (
           <div
             className={cn(
@@ -183,7 +158,7 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
         ) : (
           <div
             className={cn(
-              'flex flex-col gap-2',
+              'flex flex-col overflow-hidden rounded-md border border-border/60 bg-card/30',
               sceneEditing && 'pointer-events-none select-none opacity-55'
             )}
           >
@@ -191,91 +166,93 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
               !isReplay &&
               !sceneEditing &&
               currentStepIndex === SCENE_STEP_INDEX && (
-                <div className="flex h-[30px] items-center justify-center border-t border-border/40 bg-muted/20 px-2 text-[11px] font-bold text-foreground/80">
+                <div className="flex h-[30px] items-center justify-center border-b border-border/60 bg-muted/30 px-2 text-[11px] font-bold text-foreground/80">
                   初始局面 · 所有操作之前
                 </div>
               )}
-            {stepList.map((item) => {
+
+            {items.map((item) => {
               if (item.kind === 'turn') {
+                const { current, future } = stepState(item.step, item.index)
                 return (
-                  <StepTurnHeader
+                  <div
                     key={item.key}
-                    turn={item.turn}
-                    turnPlayer={item.turnPlayer}
-                    lp={item.lp}
-                    duelists={duelists}
-                    actingDuelistId={turnActingDuelistIds.get(item.turn)}
-                    sharedLp={sharedLp}
-                  />
-                )
-              }
-
-              if (item.kind === 'phase') {
-                return (
-                  <StepPhaseHeader key={item.key} phase={item.phase} turnPlayer={item.turnPlayer} />
-                )
-              }
-
-              const { group } = item
-              const firstEntry = group.entries[0]
-
-              if (group.kind === 'single') {
-                const { step, index } = firstEntry
-                const splitLp =
-                  step.actionType === 'ATTACK' &&
-                  Boolean(step.lpChange) &&
-                  !(step.logEvents && step.logEvents.length > 0)
-                return (
-                  <div key={step.id} className="flex flex-col gap-1.5">
-                    {renderStepCard(step, index, !splitLp)}
-                    {splitLp && step.lpChange && (
-                      <StepLpChange lpChange={step.lpChange} turn={step.turn} />
+                    className={cn(
+                      'group/step relative cursor-pointer border-l-2 transition-colors',
+                      current ? 'border-primary' : 'border-transparent',
+                      future && 'opacity-50 hover:opacity-100'
+                    )}
+                    onClick={() => handleStepClick(item.index, item.step)}
+                  >
+                    <StepTurnHeader
+                      turn={item.turn}
+                      turnPlayer={item.turnPlayer}
+                      lp={item.lp}
+                      duelists={duelists}
+                      sharedLp={sharedLp}
+                    />
+                    {!isReplay && !stepsWithRows.has(item.step.id) && (
+                      <StepHoverActions
+                        step={item.step}
+                        index={item.index}
+                        stepsLength={steps.length}
+                        canReorder={!engineActive}
+                      />
                     )}
                   </div>
                 )
               }
-
-              const expanded = expandedGroups.has(group.key)
-              const names = group.entries.map(({ step }) => resolveStepCardName(step))
-              const isCurrentPlaying = group.entries.some(({ step, index }) =>
-                isCurrentStepOf(step, index)
-              )
-              const damageText =
-                group.kind === 'attack'
-                  ? getAttackDamageText(firstEntry.step, group.entries[1]?.step)
-                  : undefined
-
+              if (item.kind === 'phase') {
+                const { current, future } = stepState(item.step, item.index)
+                return (
+                  <div
+                    key={item.key}
+                    className={cn(
+                      'group/step relative cursor-pointer border-l-2 transition-colors',
+                      current ? 'border-primary' : 'border-transparent',
+                      future && 'opacity-50 hover:opacity-100'
+                    )}
+                    onClick={() => handleStepClick(item.index, item.step)}
+                  >
+                    <StepPhaseHeader phase={item.phase} />
+                    {!isReplay && !stepsWithRows.has(item.step.id) && (
+                      <StepHoverActions
+                        step={item.step}
+                        index={item.index}
+                        stepsLength={steps.length}
+                        canReorder={!engineActive}
+                      />
+                    )}
+                  </div>
+                )
+              }
+              const { current, future } = stepState(item.step, item.index)
               return (
-                <div key={group.key} className="flex flex-col gap-1.5">
-                  <StepGroupHeader
-                    summary={{
-                      kind: group.kind,
-                      player: firstEntry.step.actionPlayer,
-                      playerName:
-                        resolveDuelistName(duelists, firstEntry.step.actionDuelistId) ??
-                        resolveTeamLabel(
-                          { duelists },
-                          firstEntry.step.actionPlayer,
-                          firstEntry.step.turn
-                        ),
-                      cardCode: firstEntry.step.cardCode,
-                      cardName: names[0],
-                      actionType: firstEntry.step.actionType,
-                      names,
-                      cardCodes: group.entries.map(({ step }) => step.cardCode),
-                      damageText,
-                      count: group.entries.length,
-                      expanded,
-                      isCurrentPlaying,
-                      onToggle: () => toggleGroup(group.key)
-                    }}
-                  />
-                  {expanded && (
-                    <div
-                      className={cn('flex flex-col gap-2 pl-2 ml-1 border-l', 'border-border/60')}
-                    >
-                      {group.entries.map(({ step, index }) => renderStepCard(step, index))}
-                    </div>
+                <div
+                  key={item.key}
+                  className={cn(
+                    'group/step relative transition-colors',
+                    current && 'bg-primary/[0.07] ring-1 ring-inset ring-primary/20',
+                    future && 'opacity-50 hover:opacity-100'
+                  )}
+                  onMouseEnter={() =>
+                    setHoveredInstanceId(item.step.targetInstanceId ?? item.step.instanceId ?? null)
+                  }
+                  onMouseLeave={() => setHoveredInstanceId(null)}
+                >
+                  <div
+                    className="cursor-pointer"
+                    onClick={() => handleStepClick(item.index, item.step)}
+                  >
+                    <StepLogRows rows={item.rows} duelists={duelists} />
+                  </div>
+                  {!isReplay && firstSegmentKeys.has(item.key) && (
+                    <StepHoverActions
+                      step={item.step}
+                      index={item.index}
+                      stepsLength={steps.length}
+                      canReorder={!engineActive}
+                    />
                   )}
                 </div>
               )

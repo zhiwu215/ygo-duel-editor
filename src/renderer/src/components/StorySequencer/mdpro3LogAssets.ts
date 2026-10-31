@@ -74,10 +74,7 @@ export const MDLOG_ASSETS = {
 
 export const MDLOG_COLORS = {
   myArrow: '#0a86ff',
-  opArrow: '#e11d48',
-  damage: '#dc2626',
-  recover: '#0284c7',
-  gold: '#b45309'
+  opArrow: '#e11d48'
 }
 
 export interface MdLocationIcon {

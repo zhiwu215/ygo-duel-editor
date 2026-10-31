@@ -127,7 +127,8 @@ export function registerCustomCardIpc(): void {
 
   ipcMain.handle('customcard:sync-to-game', (_, target?: 'mdpro3') => {
     if (target === 'mdpro3') {
-      const directory = configService.get().mdpro3Directory
+      const config = configService.get()
+      const directory = config.gameType === 'mdpro3' ? config.gameDirectory : config.mdpro3Directory
       if (!directory) {
         return {
           success: false,

@@ -47,7 +47,7 @@ export const SingleHandTray: React.FC<{
     captureHandLayout,
     updateHandInsertionPosition,
     setIsDragOver,
-    handleDragStartCapture,
+    handleDragStart,
     handleDragOver,
     handleDrop
   } = useHandReorderDrag({
@@ -204,7 +204,7 @@ export const SingleHandTray: React.FC<{
       <div className="relative">
         <div
           ref={scrollContainerRef}
-          onDragStartCapture={handleDragStartCapture}
+          onDragStart={handleDragStart}
           onDragEnter={handleDragEnter}
           onDragOver={handleEngineDragOver}
           onDragLeave={handleDragLeave}

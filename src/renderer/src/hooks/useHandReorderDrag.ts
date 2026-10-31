@@ -17,7 +17,7 @@ export interface HandReorderDragOptions {
   isOwnedHandCard: (movingCard: FieldCard) => boolean
   highlightOnForeignOver?: boolean
   canCaptureLayout?: () => boolean
-  onDragStartCapture?: () => void
+  onHandDragStart?: () => void
   onGlobalReset?: () => void
   onDropAdopted?: () => void
   onParseError?: () => void
@@ -34,7 +34,7 @@ export interface HandReorderDrag {
   setIsDragOver: (over: boolean) => void
   updateHandInsertionPosition: (next: HandInsertionPosition | null) => void
   captureHandLayout: () => void
-  handleDragStartCapture: (e: React.DragEvent<HTMLDivElement>) => void
+  handleDragStart: (e: React.DragEvent<HTMLDivElement>) => void
   handleDragOver: (e: React.DragEvent<HTMLDivElement>) => void
   handleDrop: (e: React.DragEvent) => void
 }
@@ -47,7 +47,7 @@ export function useHandReorderDrag(options: HandReorderDragOptions): HandReorder
     isOwnedHandCard,
     highlightOnForeignOver = false,
     canCaptureLayout,
-    onDragStartCapture,
+    onHandDragStart,
     onGlobalReset,
     onDropAdopted,
     onParseError,
@@ -91,13 +91,19 @@ export function useHandReorderDrag(options: HandReorderDragOptions): HandReorder
       if (e.target instanceof Node && hitAreaRef.current?.contains(e.target)) return
       handleGlobalDragEnd()
     }
+    const handleGlobalMouseUp = (): void => {
+      if (draggedHandCardIdRef.current === null) return
+      handleGlobalDragEnd()
+    }
     window.addEventListener('dragend', handleGlobalDragEnd)
     window.addEventListener('drop', handleGlobalDragEnd)
     window.addEventListener('drop', handleGlobalDropOutside, true)
+    window.addEventListener('mouseup', handleGlobalMouseUp)
     return () => {
       window.removeEventListener('dragend', handleGlobalDragEnd)
       window.removeEventListener('drop', handleGlobalDragEnd)
       window.removeEventListener('drop', handleGlobalDropOutside, true)
+      window.removeEventListener('mouseup', handleGlobalMouseUp)
       if (hideDraggedCardFrameRef.current !== null) {
         window.cancelAnimationFrame(hideDraggedCardFrameRef.current)
       }
@@ -120,8 +126,9 @@ export function useHandReorderDrag(options: HandReorderDragOptions): HandReorder
     }
   }
 
-  const handleDragStartCapture = (e: React.DragEvent<HTMLDivElement>): void => {
-    onDragStartCapture?.()
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>): void => {
+    if (!e.dataTransfer.types.includes(HAND_REORDER_DRAG_TYPE)) return
+    onHandDragStart?.()
     const cardElement = (e.target as HTMLElement).closest<HTMLElement>('[data-hand-instance-id]')
     const instanceId = cardElement?.dataset.handInstanceId ?? null
     draggedHandCardIdRef.current = instanceId
@@ -275,7 +282,7 @@ export function useHandReorderDrag(options: HandReorderDragOptions): HandReorder
     setIsDragOver,
     updateHandInsertionPosition,
     captureHandLayout,
-    handleDragStartCapture,
+    handleDragStart,
     handleDragOver,
     handleDrop
   }

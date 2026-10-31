@@ -23,7 +23,7 @@ export const RequestCardTile: React.FC<RequestCardTileProps> = ({
   badge,
   onClick
 }) => {
-  const name = cardNameOf(meta, card.code)
+  const name = card.code > 0 ? cardNameOf(meta, card.code) : '未知卡片'
   return (
     <button
       type="button"
@@ -31,13 +31,17 @@ export const RequestCardTile: React.FC<RequestCardTileProps> = ({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        'group relative w-[86px] shrink-0 overflow-hidden rounded-sm bg-black/30 transition-shadow',
+        'group flex w-[86px] shrink-0 flex-col',
         onClick ? 'cursor-pointer' : 'cursor-default',
-        selected ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-primary/70',
         disabled && 'pointer-events-none opacity-60'
       )}
     >
-      <div className="relative aspect-[59/86]">
+      <div
+        className={cn(
+          'relative aspect-[59/86] w-full overflow-hidden rounded-sm bg-black/30 transition-shadow',
+          selected ? 'ring-2 ring-primary' : 'group-hover:ring-2 group-hover:ring-primary/70'
+        )}
+      >
         <CardThumb
           code={card.code}
           name={name}
@@ -55,6 +59,9 @@ export const RequestCardTile: React.FC<RequestCardTileProps> = ({
           </span>
         )}
       </div>
+      <span className="mt-1 line-clamp-2 h-[26px] w-full px-0.5 break-words text-center text-[10px] font-medium leading-[13px] text-foreground">
+        {name}
+      </span>
     </button>
   )
 }

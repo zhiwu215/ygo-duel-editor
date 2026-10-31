@@ -82,7 +82,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
     captureHandLayout,
     updateHandInsertionPosition,
     setIsDragOver,
-    handleDragStartCapture,
+    handleDragStart,
     handleDragOver,
     handleDrop
   } = useHandReorderDrag({
@@ -95,7 +95,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         `duelist_${controller}_0`
       return (movingCard.duelistId ?? fallbackDuelistId) === duelist.id
     },
-    onDragStartCapture: focusAsViewer,
+    onHandDragStart: focusAsViewer,
     canCaptureLayout: () => !isCollapsed,
     onGlobalReset: () => {
       if (hoverExpandTimerRef.current) {
@@ -261,7 +261,7 @@ export const DuelistHandStrip: React.FC<DuelistHandStripProps> = ({
         ref={scrollContainerRef}
         onClickCapture={focusAsViewer}
         onClick={handlePlaceHeldCard}
-        onDragStartCapture={handleDragStartCapture}
+        onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

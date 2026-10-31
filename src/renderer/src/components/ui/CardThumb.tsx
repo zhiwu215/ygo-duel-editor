@@ -41,6 +41,7 @@ export function CardThumb({
         code={code}
         small
         alt={displayName}
+        draggable={false}
         fallback={fallback}
         onFallback={() => setFailedCode(code ?? null)}
         className={cn('h-full w-full object-cover', imageClassName)}

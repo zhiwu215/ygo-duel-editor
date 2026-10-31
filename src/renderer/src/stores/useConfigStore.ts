@@ -10,6 +10,8 @@ import {
   DEFAULT_CARD_NAME_WRAPPER,
   DuelTestSettings,
   EngineSupportInfo,
+  ExtraCdbLanguageInfo,
+  ExtraCdbPickResult,
   FontSizeRole,
   GamePathStatus,
   WebSearchConfig,
@@ -19,6 +21,7 @@ import {
   normalizeWebSearchConfig
 } from '@shared/index'
 import { alertDialog } from './useDialogStore'
+import { openGameLanguageDialog } from './useGameLanguageStore'
 import { applyFontSizes, applyTheme } from '../utils/appearance'
 
 interface ConfigStoreState {
@@ -29,6 +32,7 @@ interface ConfigStoreState {
   customCdbPath: string
   libraries: CdbLibraryInfo[]
   customSyncCdb: CustomSyncCdbInfo | null
+  extraLanguages: Record<string, ExtraCdbLanguageInfo>
   engineSupport: EngineSupportInfo | null
   loadConfig: () => Promise<void>
   refreshCdbStatus: () => Promise<void>
@@ -36,9 +40,14 @@ interface ConfigStoreState {
   refreshEngineSupport: () => Promise<void>
   selectYgoDir: () => Promise<CdbSelectResult>
 
-  addExtraCdb: () => Promise<string | null>
+  addExtraCdb: (paths: string[]) => Promise<boolean>
+  pickExtraCdb: () => Promise<ExtraCdbPickResult | null>
   removeExtraCdb: (cdbPath: string) => Promise<void>
   setExtraCdbEnabled: (cdbPath: string, enabled: boolean) => Promise<void>
+  setExtraCdbLanguage: (
+    root: string,
+    languageId: string
+  ) => Promise<{ success: boolean; error?: string }>
   setTheme: (theme: ThemePreference) => Promise<void>
   setFontSize: (role: FontSizeRole, px: number) => Promise<void>
   setCardNameWrapper: (wrapper: string) => Promise<void>
@@ -72,6 +81,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   customCdbPath: '',
   libraries: [],
   customSyncCdb: null,
+  extraLanguages: {},
   engineSupport: null,
 
   refreshEngineSupport: async () => {
@@ -104,7 +114,8 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
         dbReady: status.ready,
         customCdbPath: status.customCdbPath,
         libraries: status.libraries ?? [],
-        customSyncCdb: status.customSyncCdb ?? null
+        customSyncCdb: status.customSyncCdb ?? null,
+        extraLanguages: status.extraLanguages ?? {}
       })
     } catch (err) {
       console.error('[useConfigStore] refreshCdbStatus error:', err)
@@ -265,23 +276,43 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     await window.api.saveConfig({ webSearch })
   },
 
-  addExtraCdb: async () => {
+  pickExtraCdb: async () => {
     try {
-      const res = await window.api.addExtraCdb()
+      const res = await window.api.pickExtraCdb()
+      if (!res.success) {
+        if (!res.canceled && res.error) void alertDialog(`扫描卡库失败：${res.error}`)
+        return null
+      }
+      return res
+    } catch (err) {
+      console.error('[useConfigStore] pickExtraCdb error:', err)
+      return null
+    }
+  },
+
+  addExtraCdb: async (paths) => {
+    try {
+      const res = await window.api.addExtraCdb(paths)
       if (res.success && res.path) {
         await get().loadConfig()
         if (res.picsDetected === false) {
           void alertDialog('已添加卡库，但未自动找到卡图目录，卡牌将不显示图片。')
         }
-        return res.path
+        if (res.extraLanguage && !res.extraLanguage.language) {
+          openGameLanguageDialog(res.extraLanguage.options, {
+            kind: 'extra',
+            root: res.extraLanguage.root
+          })
+        }
+        return true
       }
       if (res.error) {
         void alertDialog(`添加附加卡库失败：${res.error}`)
       }
-      return null
+      return false
     } catch (err) {
       console.error('[useConfigStore] addExtraCdb error:', err)
-      return null
+      return false
     }
   },
 
@@ -300,6 +331,18 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       await get().loadConfig()
     } catch (err) {
       console.error('[useConfigStore] setExtraCdbEnabled error:', err)
+    }
+  },
+
+  setExtraCdbLanguage: async (root, languageId) => {
+    try {
+      const res = await window.api.setExtraCdbLanguage(root, languageId)
+      if (!res.success) return res
+      await get().loadConfig()
+      return res
+    } catch (err) {
+      console.error('[useConfigStore] setExtraCdbLanguage error:', err)
+      return { success: false }
     }
   }
 }))

@@ -90,13 +90,35 @@ export interface GameLanguageOption {
   detail?: string
 }
 
+export interface ExtraCdbLanguageInfo {
+  root: string
+  language: string | null
+  options: GameLanguageOption[]
+}
+
 export interface CdbSelectResult {
   success: boolean
   path?: string
   error?: string
   languageOptions?: GameLanguageOption[]
 
+  extraLanguage?: ExtraCdbLanguageInfo
+
   artOnlyImages?: boolean
+}
+
+export interface ExtraCdbCandidate {
+  path: string
+  cardCount: number
+  added: boolean
+}
+
+export interface ExtraCdbPickResult {
+  success: boolean
+  canceled?: boolean
+  error?: string
+  directory?: string
+  files?: ExtraCdbCandidate[]
 }
 
 export interface CardImageDirResult {
@@ -120,6 +142,7 @@ export interface CdbStatusResult {
   customCdbPath: string
   libraries: CdbLibraryInfo[]
   customSyncCdb?: CustomSyncCdbInfo | null
+  extraLanguages?: Record<string, ExtraCdbLanguageInfo>
 }
 
 export interface CustomSyncCdbInfo {

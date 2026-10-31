@@ -119,6 +119,12 @@ export function currentBundledCdbPaths(): string[] {
   return additional.filter((p) => !isCustomSyncCdbPath(p))
 }
 
+export function enabledExtraCdbPaths(): string[] {
+  const cfg = configService.get()
+  const disabled = cfg.disabledCdbPaths || []
+  return (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
+}
+
 export interface GameLanguagePack {
   id: string
 

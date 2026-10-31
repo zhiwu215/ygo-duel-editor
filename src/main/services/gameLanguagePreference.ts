@@ -2,7 +2,7 @@ import { AppConfig } from '@shared/index'
 import { configService } from './configService'
 import { currentLanguagePack, listMdpro3Locales } from './gameContent'
 
-function gameDirectoryKey(dir: string): string {
+export function gameDirectoryKey(dir: string): string {
   return dir.replace(/[\\/]+$/, '').toLowerCase()
 }
 

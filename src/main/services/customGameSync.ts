@@ -10,6 +10,7 @@ import {
 } from 'fs'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'path'
 import {
+  CustomCard,
   CustomCardOpenDirResult,
   CustomCardSyncResult,
   CustomCardSyncTarget,
@@ -17,10 +18,16 @@ import {
 } from '@shared/index'
 import { configService } from './configService'
 import { customCardService } from './customCardService'
-import { writeCustomCardsCdb } from './customCardLibrary'
+import { writeGameCardCdb } from './customCardLibrary'
 import { getCustomScriptInfo } from './customCardScript'
 import { cdbService } from '../db/cdbService'
-import { CUSTOM_CDB_NAME, invalidateGameContentScan } from './gameContent'
+import {
+  checkGameContentCoverage,
+  CUSTOM_CDB_NAME,
+  invalidateGameContentScan,
+  type GameType
+} from './gameContent'
+import { findExternalCardImage, findExternalCardScript, importableCard } from './externalCardImport'
 import {
   placeholderGameCards,
   placeholderScript,
@@ -35,6 +42,7 @@ interface SyncManifest {
   cdb: string | null
   scripts: string[]
   pics: string[]
+  cards: number[]
 }
 
 function filesDiffer(source: string, target: string): boolean {
@@ -50,6 +58,13 @@ function placeFile(source: string, target: string): boolean {
   if (existsSync(target) && !filesDiffer(source, target)) return false
   mkdirSync(dirname(target), { recursive: true })
   copyFileSync(source, target)
+  return true
+}
+
+function placeContent(content: Buffer, target: string): boolean {
+  if (existsSync(target) && readFileSync(target).equals(content)) return false
+  mkdirSync(dirname(target), { recursive: true })
+  writeFileSync(target, content)
   return true
 }
 
@@ -89,6 +104,10 @@ export interface CustomSyncTarget {
   gameType: 'ygopro' | 'mdpro3'
 }
 
+export interface CustomSyncOptions {
+  cardIds?: number[]
+}
+
 function resolveSyncLayout(target?: CustomSyncTarget): SyncLayout | null {
   const config = configService.get()
   const gameDirectory = target?.gameDirectory ?? config.gameDirectory
@@ -104,18 +123,19 @@ function resolveSyncLayout(target?: CustomSyncTarget): SyncLayout | null {
 }
 
 function readManifest(path: string): SyncManifest {
-  const empty: SyncManifest = { version: 1, cdb: null, scripts: [], pics: [] }
+  const empty: SyncManifest = { version: 1, cdb: null, scripts: [], pics: [], cards: [] }
   if (!existsSync(path)) return empty
+  const toList = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf-8')) as Partial<SyncManifest>
     return {
       version: 1,
       cdb: typeof parsed.cdb === 'string' ? parsed.cdb : null,
-      scripts: Array.isArray(parsed.scripts)
-        ? parsed.scripts.filter((entry): entry is string => typeof entry === 'string')
-        : [],
-      pics: Array.isArray(parsed.pics)
-        ? parsed.pics.filter((entry): entry is string => typeof entry === 'string')
+      scripts: toList(parsed.scripts),
+      pics: toList(parsed.pics),
+      cards: Array.isArray(parsed.cards)
+        ? parsed.cards.filter((entry): entry is number => Number.isInteger(entry) && entry > 0)
         : []
     }
   } catch (err) {
@@ -166,8 +186,29 @@ export async function openCustomCardSyncDirectory(
   return error ? { success: false, error } : { success: true }
 }
 
+function importedCardsFor(ids: Set<number>, customIds: Set<number>): CustomCard[] {
+  const cards: CustomCard[] = []
+  for (const id of ids) {
+    if (customIds.has(id)) continue
+    const card = importableCard(id)
+    if (card) cards.push(card)
+  }
+  return cards
+}
+
+async function resolveRequestedImport(
+  gameDirectory: string,
+  gameType: GameType,
+  requested: number[]
+): Promise<{ dataIds: number[]; scriptIds: number[] }> {
+  if (requested.length === 0) return { dataIds: [], scriptIds: [] }
+  const coverage = await checkGameContentCoverage(gameDirectory, gameType, requested)
+  return { dataIds: coverage.missingDataIds, scriptIds: coverage.missingScriptIds }
+}
+
 export async function syncCustomCardsToGame(
-  target?: CustomSyncTarget
+  target?: CustomSyncTarget,
+  options?: CustomSyncOptions
 ): Promise<CustomCardSyncResult> {
   const layout = resolveSyncLayout(target)
   if (!layout) {
@@ -175,6 +216,7 @@ export async function syncCustomCardsToGame(
   }
 
   const { gameDirectory, expansionsDir, scriptDir, picsDir } = layout
+  const gameType: GameType = target?.gameType ?? configService.get().gameType ?? 'ygopro'
   const manifestPath = join(expansionsDir, MANIFEST_NAME)
   const previous = readManifest(manifestPath)
   const desiredScripts = new Set<string>()
@@ -184,17 +226,33 @@ export async function syncCustomCardsToGame(
     cdb: false,
     scripts: 0,
     pics: 0,
-    removed: 0
+    removed: 0,
+    cards: 0
   }
 
   try {
     const cards = customCardService.list()
-    await writeCustomCardsCdb(
+    const customIds = new Set(cards.map((card) => card.id))
+    const requested = [...new Set(options?.cardIds ?? [])].filter(
+      (id) => Number.isInteger(id) && id > 0 && !customIds.has(id)
+    )
+
+    const importedIds = new Set<number>(previous.cards)
+    const scriptOnlyIds = new Set<number>()
+    const requestedImport = await resolveRequestedImport(gameDirectory, gameType, requested)
+    for (const id of requestedImport.dataIds) importedIds.add(id)
+    for (const id of requestedImport.scriptIds) scriptOnlyIds.add(id)
+
+    const importedCards = importedCardsFor(importedIds, customIds)
+
+    await writeGameCardCdb(
       [...cards, ...placeholderGameCards()],
+      importedCards,
       join(expansionsDir, CUSTOM_CDB_NAME),
       customPoolMask(cdbService.getPoolSchema())
     )
     result.cdb = true
+    result.cards = importedCards.length
 
     for (const card of cards) {
       const script = getCustomScriptInfo(card.id)
@@ -219,6 +277,22 @@ export async function syncCustomCardsToGame(
       desiredScripts.add(toRelative(expansionsDir, placeholderScriptPath))
     }
 
+    const importTargets = [...new Set([...importedCards.map((card) => card.id), ...scriptOnlyIds])]
+    for (const id of importTargets) {
+      const script = findExternalCardScript(id)
+      if (script) {
+        const target = join(scriptDir, script.fileName)
+        if (placeContent(script.content, target)) result.scripts++
+        desiredScripts.add(toRelative(expansionsDir, target))
+      }
+      const image = findExternalCardImage(id)
+      if (image) {
+        const target = join(picsDir, gameImageName(id, image))
+        if (placeFile(image, target)) result.pics++
+        desiredPics.add(toRelative(expansionsDir, target))
+      }
+    }
+
     for (const relativePath of [...previous.scripts, ...previous.pics]) {
       if (desiredScripts.has(relativePath) || desiredPics.has(relativePath)) continue
       if (removeManagedFile(expansionsDir, relativePath)) result.removed++
@@ -228,21 +302,15 @@ export async function syncCustomCardsToGame(
       version: 1,
       cdb: CUSTOM_CDB_NAME,
       scripts: [...desiredScripts],
-      pics: [...desiredPics]
+      pics: [...desiredPics],
+      cards: importedCards.map((card) => card.id)
     })
     invalidateGameContentScan(gameDirectory)
     broadcastToWindows('cdb:updated')
     return result
   } catch (err) {
     console.error('[CustomGameSync] Failed to sync custom cards to game:', err)
-    return {
-      success: false,
-      error: '同步到游戏目录失败',
-      cdb: false,
-      scripts: 0,
-      pics: 0,
-      removed: 0
-    }
+    return { ...result, success: false, error: '同步到游戏目录失败' }
   }
 }
 

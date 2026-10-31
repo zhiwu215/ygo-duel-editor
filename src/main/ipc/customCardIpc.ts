@@ -125,7 +125,7 @@ export function registerCustomCardIpc(): void {
     }
   })
 
-  ipcMain.handle('customcard:sync-to-game', (_, target?: 'mdpro3') => {
+  ipcMain.handle('customcard:sync-to-game', (_, target?: 'mdpro3', cardIds?: number[]) => {
     if (target === 'mdpro3') {
       const config = configService.get()
       const directory = config.gameType === 'mdpro3' ? config.gameDirectory : config.mdpro3Directory
@@ -139,9 +139,9 @@ export function registerCustomCardIpc(): void {
           removed: 0
         }
       }
-      return syncCustomCardsToGame({ gameDirectory: directory, gameType: 'mdpro3' })
+      return syncCustomCardsToGame({ gameDirectory: directory, gameType: 'mdpro3' }, { cardIds })
     }
-    return syncCustomCardsToGame()
+    return syncCustomCardsToGame(undefined, { cardIds })
   })
 
   ipcMain.handle('customcard:clean-from-game', () => {

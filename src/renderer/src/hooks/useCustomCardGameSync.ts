@@ -28,6 +28,7 @@ export function useCustomCardGameSync(): {
       }
       const parts = [
         result.cdb ? '卡库' : '',
+        result.cards && result.cards > 0 ? `导入 ${result.cards} 张外部卡` : '',
         result.scripts > 0 ? `${result.scripts} 个脚本` : '',
         result.pics > 0 ? `${result.pics} 张卡图` : ''
       ].filter(Boolean)

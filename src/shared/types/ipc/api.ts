@@ -40,6 +40,7 @@ import {
   CardSearchResult,
   CdbSelectResult,
   CdbStatusResult,
+  ExtraCdbPickResult,
   GameLanguageOption
 } from './cardSearch'
 import {
@@ -99,12 +100,19 @@ export interface IpcApi {
   setCardImageDirectory: (dir: string | null) => Promise<boolean>
   getGameLanguageOptions: () => Promise<GameLanguageOption[]>
   setGameLanguage: (languageId: string) => Promise<{ success: boolean; error?: string }>
-  addExtraCdb: () => Promise<CdbSelectResult & { paths?: string[]; picsDetected?: boolean }>
+  pickExtraCdb: () => Promise<ExtraCdbPickResult>
+  addExtraCdb: (
+    paths: string[]
+  ) => Promise<CdbSelectResult & { paths?: string[]; picsDetected?: boolean }>
   removeExtraCdb: (cdbPath: string) => Promise<{ success: boolean; paths: string[] }>
   setExtraCdbEnabled: (
     cdbPath: string,
     enabled: boolean
   ) => Promise<{ success: boolean; paths: string[] }>
+  setExtraCdbLanguage: (
+    root: string,
+    languageId: string
+  ) => Promise<{ success: boolean; error?: string }>
   searchCards: (params: CardSearchParams) => Promise<CardSearchResult>
   getCardSearchFilterOptions: () => Promise<CardSearchFilterOptions>
   setCardBanlist: (name: string | null) => Promise<CardSearchFilterOptions>
@@ -140,7 +148,7 @@ export interface IpcApi {
   openCustomCardSyncDir: (target: CustomCardSyncTarget) => Promise<CustomCardOpenDirResult>
   getCustomSetcodeNames: () => Promise<Record<string, string>>
   renameCustomSetcode: (codeHex: string, name: string) => Promise<CustomSetcodeNamesResult>
-  syncCustomCardsToGame: (target?: 'mdpro3') => Promise<CustomCardSyncResult>
+  syncCustomCardsToGame: (target?: 'mdpro3', cardIds?: number[]) => Promise<CustomCardSyncResult>
   cleanCustomCardsFromGame: () => Promise<CustomCardSyncResult>
   onCustomCardsUpdated: (callback: () => void) => () => void
 

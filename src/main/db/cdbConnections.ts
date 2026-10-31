@@ -3,7 +3,7 @@ import { existsSync, readdirSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import path from 'path'
 import { CdbLibraryRole, CdbLibrarySource } from '@shared/index'
-import { CUSTOM_CDB_NAME } from '../services/gameContent'
+import { CUSTOM_CDB_NAME, type GameLanguagePack } from '../services/gameContent'
 
 export interface CdbConnection {
   path: string
@@ -69,10 +69,35 @@ function openConnection(cdbPath: string, source: CdbLibrarySource): CdbConnectio
   }
 }
 
+export function readCdbCardCount(cdbPath: string): number | null {
+  if (!existsSync(cdbPath)) return null
+  try {
+    const db = new Database(cdbPath, { readonly: true, fileMustExist: true })
+    try {
+      const probe = db
+        .prepare(
+          "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('datas','texts')"
+        )
+        .get() as { n: number } | undefined
+      if (!probe || probe.n < 2) return null
+      const row = db.prepare('SELECT count(*) AS n FROM datas').get() as { n: number } | undefined
+      return row ? row.n : null
+    } finally {
+      db.close()
+    }
+  } catch {
+    return null
+  }
+}
+
+export function isValidCdb(cdbPath: string): boolean {
+  return readCdbCardCount(cdbPath) !== null
+}
+
 export class CdbConnections {
   private connections: CdbConnection[] = []
   private currentPath: string | null = null
-  private languageConnDir: string | undefined
+  private languageDirs: string[] = []
   private overlayPath: string | null = null
   private overlaySeq = 0
 
@@ -292,18 +317,18 @@ export class CdbConnections {
     cdbPath: string,
     bundledPaths: string[] = [],
     extraPaths: string[] = [],
-    languagePack: { id: string; dir?: string; cdbPaths: string[] } | null = null
+    languagePacks: GameLanguagePack[] = []
   ): boolean {
     const primary = openConnection(cdbPath, 'primary')
     if (!primary) return false
 
     this.closeConnections()
-    this.languageConnDir = languagePack?.dir
+    this.languageDirs = languagePacks.map((pack) => pack.dir).filter((dir): dir is string => !!dir)
     this.connections = [primary]
 
     this.addConnections(bundledPaths, 'bundled')
     this.addConnections(extraPaths, 'extra')
-    this.addConnections(languagePack?.cdbPaths ?? [], 'language')
+    for (const pack of languagePacks) this.addConnections(pack.cdbPaths, 'language')
 
     this.currentPath = cdbPath
     this.finalizeConnections()
@@ -325,42 +350,25 @@ export class CdbConnections {
     }
   }
 
-  public addExtra(extraPaths: string[]): string[] {
-    const loaded: string[] = []
-    for (const extraPath of extraPaths) {
-      if (this.connections.some((c) => c.path === extraPath)) {
-        loaded.push(extraPath)
-        continue
-      }
-      const conn = openConnection(extraPath, 'extra')
-      if (!conn) continue
-      this.connections.push(conn)
-      loaded.push(extraPath)
-    }
-    this.finalizeConnections()
-    this.notifyTexts()
-    console.log(`[CdbService] Extra cdb loaded: ${loaded.join(', ') || '(none)'}`)
-    return loaded
-  }
-
   public reloadAll(
     primaryPath: string | undefined,
     bundledPaths: string[],
     extraPaths: string[],
-    languagePack: { id: string; dir?: string; cdbPaths: string[] } | null = null
+    languagePacks: GameLanguagePack[] = []
   ): void {
     this.closeConnections()
     this.currentPath = null
     if (primaryPath) {
-      this.open(primaryPath, bundledPaths, extraPaths, languagePack)
+      this.open(primaryPath, bundledPaths, extraPaths, languagePacks)
       return
     }
+    this.languageDirs = languagePacks.map((pack) => pack.dir).filter((dir): dir is string => !!dir)
     for (const cdbPath of [...bundledPaths, ...extraPaths]) {
       const conn = openConnection(cdbPath, 'extra')
       if (!conn) continue
-      this.languageConnDir = undefined
       this.connections = [conn]
       this.currentPath = conn.path
+      for (const pack of languagePacks) this.addConnections(pack.cdbPaths, 'language')
       this.finalizeConnections()
       this.notifyTexts()
       return
@@ -370,7 +378,7 @@ export class CdbConnections {
   private notifyTexts(): void {
     this.loadTexts(
       this.searchableList().map((c) => c.path),
-      this.languageConnDir ? [this.languageConnDir] : []
+      [...this.languageDirs].reverse()
     )
   }
 
@@ -383,6 +391,7 @@ export class CdbConnections {
       }
     }
     this.connections = []
+    this.languageDirs = []
     this.releaseOverlayFile()
   }
 

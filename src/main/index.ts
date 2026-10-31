@@ -12,11 +12,11 @@ import { dataDirService } from './services/dataDirService'
 import { cdbService } from './db/cdbService'
 import {
   currentBundledCdbPaths,
-  currentLanguagePack,
   discoverGameLanguagePacks,
   readGameConfigLanguage,
   resolveGameLanguagePack
 } from './services/gameContent'
+import { currentLanguagePacks } from './services/extraCdbLanguage'
 import { imageService } from './services/imageService'
 import { libraryService } from './services/libraryService'
 import { textLibraryService } from './services/textLibraryService'
@@ -180,7 +180,7 @@ app.whenReady().then(() => {
   cdbService.setPreferredBanlist(cfg.banlistName)
   if (cdbPath || extraCdbPaths.length > 0 || bundledCdbPaths.length > 0) {
     cdbService.setGameDirectory(gameDirectory)
-    cdbService.reloadAll(cdbPath, bundledCdbPaths, extraCdbPaths, currentLanguagePack())
+    cdbService.reloadAll(cdbPath, bundledCdbPaths, extraCdbPaths, currentLanguagePacks())
     if (!gameDirectory && cdbPath) {
       const detected = imageService.detectGameDirectory(cdbPath)
       if (detected) {

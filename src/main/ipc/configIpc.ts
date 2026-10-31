@@ -9,18 +9,19 @@ import {
   currentBundledCdbPaths,
   discoverGameCdbPaths,
   discoverGameLanguagePacks,
+  enabledExtraCdbPaths,
   isCustomSyncCdbPath,
   listMdpro3Locales,
   readGameConfigLanguage,
   resolveGameLanguagePack,
   type GameLanguagePack
 } from '../services/gameContent'
+import { extraLanguagePacks } from '../services/extraCdbLanguage'
 import { rememberGameLanguage, rememberedGameLanguage } from '../services/gameLanguagePreference'
 import { invalidateScriptReaders } from '../services/duel/ocgcore-engine'
 import { imageService } from '../services/imageService'
 import { ygoproLauncher } from '../services/ygoproLauncher'
 import { broadcastToWindows } from '../services/broadcast'
-import { enabledExtraPaths } from './cdbIpc'
 
 type GameType = 'ygopro' | 'mdpro3'
 
@@ -116,8 +117,8 @@ export function registerConfigIpc(): void {
     const ok = cdbService.open(
       primary,
       additional.filter((p) => !isCustomSyncCdbPath(p)),
-      enabledExtraPaths(),
-      languagePack
+      enabledExtraCdbPaths(),
+      languagePack ? [languagePack, ...extraLanguagePacks()] : extraLanguagePacks()
     )
     if (!ok) {
       return { success: false, error: 'cards.cdb 加载失败，文件可能已损坏' }
@@ -192,7 +193,7 @@ export function registerConfigIpc(): void {
         return { success: false, error: '该语言卡库不存在，可能已被删除' }
       }
       cdbService.setGameDirectory(cfg.gameDirectory)
-      const ok = cdbService.open(cdbPath, [], enabledExtraPaths())
+      const ok = cdbService.open(cdbPath, [], enabledExtraCdbPaths(), extraLanguagePacks())
       if (!ok) {
         return { success: false, error: '该语言卡库加载失败，文件可能已损坏' }
       }
@@ -202,7 +203,10 @@ export function registerConfigIpc(): void {
       if (!pack || pack.id !== languageId) {
         return { success: false, error: '该语言包不存在' }
       }
-      const ok = cdbService.open(cfg.cdbPath, currentBundledCdbPaths(), enabledExtraPaths(), pack)
+      const ok = cdbService.open(cfg.cdbPath, currentBundledCdbPaths(), enabledExtraCdbPaths(), [
+        pack,
+        ...extraLanguagePacks()
+      ])
       if (!ok) {
         return { success: false, error: '语言包加载失败，文件可能已损坏' }
       }

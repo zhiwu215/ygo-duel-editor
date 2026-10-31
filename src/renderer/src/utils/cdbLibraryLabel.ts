@@ -89,6 +89,10 @@ const LIBRARY_RULES: Array<{ pattern: RegExp; meta: CdbLibraryMeta }> = [
     meta: { label: 'NEET 补充卡', description: 'NEET 系列的补充卡片' }
   },
   {
+    pattern: /^yde-custom\.cdb$/i,
+    meta: { label: '自定义卡库副本', description: '自定义卡片的游戏内卡库副本' }
+  },
+  {
     pattern: /^prerelease-/i,
     meta: { label: '先行发布卡', description: '先行发布 / 未正式发售卡片' }
   },

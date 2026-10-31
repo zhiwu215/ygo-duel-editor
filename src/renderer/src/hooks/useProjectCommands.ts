@@ -214,7 +214,8 @@ export function useProjectCommands(): ProjectCommands {
         if (choice === 'settings') {
           void window.api.openSettingsWindow('paths')
         } else if (choice === true) {
-          const sync = await window.api.syncCustomCardsToGame()
+          const missingIds = [...res.coverage.missingDataIds, ...res.coverage.missingScriptIds]
+          const sync = await window.api.syncCustomCardsToGame(undefined, missingIds)
           if (!sync.success) {
             void alertDialog(`同步自定义卡到游戏失败\n\n${sync.error ?? '未知错误'}`)
             return
@@ -489,8 +490,10 @@ export function useProjectCommands(): ProjectCommands {
           if (choice === 'settings') {
             void window.api.openSettingsWindow('paths')
           } else if (choice === true) {
+            const missingIds = [...res.coverage.missingDataIds, ...res.coverage.missingScriptIds]
             const sync = await window.api.syncCustomCardsToGame(
-              exportSelection.format === 'yrp3d' ? 'mdpro3' : undefined
+              exportSelection.format === 'yrp3d' ? 'mdpro3' : undefined,
+              missingIds
             )
             if (!sync.success) {
               void alertDialog(`同步自定义卡到游戏失败\n\n${sync.error ?? '未知错误'}`)

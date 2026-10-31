@@ -1,14 +1,21 @@
 import { ipcMain } from 'electron'
-import { CardSearchParams } from '@shared/index'
+import { dirname } from 'path'
+import { CardSearchParams, ExtraCdbCandidate, ExtraCdbLanguageInfo } from '@shared/index'
 import { cdbService } from '../db/cdbService'
+import { isValidCdb, readCdbCardCount } from '../db/cdbConnections'
 import { configService } from '../services/configService'
 import { favoritesService } from '../services/favoritesService'
 import {
   collectFolderCdbPaths,
   currentBundledCdbPaths,
-  currentLanguagePack,
-  customSyncCdbInfo
+  customSyncCdbInfo,
+  enabledExtraCdbPaths
 } from '../services/gameContent'
+import {
+  currentLanguagePacks,
+  extraLanguageFor,
+  rememberExtraLanguage
+} from '../services/extraCdbLanguage'
 import { invalidateScriptReaders } from '../services/duel/ocgcore-engine'
 import { imageService } from '../services/imageService'
 import { customCardService } from '../services/customCardService'
@@ -16,10 +23,13 @@ import { customCdbPath } from '../services/customCardLibrary'
 import { ygoproLauncher } from '../services/ygoproLauncher'
 import { broadcastToWindows } from '../services/broadcast'
 
-export const enabledExtraPaths = (): string[] => {
-  const cfg = configService.get()
-  const disabled = cfg.disabledCdbPaths || []
-  return (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
+function reloadExtraLibraries(): void {
+  cdbService.reloadAll(
+    configService.get().cdbPath,
+    currentBundledCdbPaths(),
+    enabledExtraCdbPaths(),
+    currentLanguagePacks()
+  )
 }
 
 export function registerCdbIpc(): void {
@@ -47,33 +57,62 @@ export function registerCdbIpc(): void {
   })
 
   ipcMain.handle('cdb:status', () => {
+    const extraLanguages: Record<string, ExtraCdbLanguageInfo> = {}
+    for (const path of configService.get().extraCdbPaths || []) {
+      const info = extraLanguageFor(path)
+      if (info) extraLanguages[path] = info
+    }
     return {
       ready: cdbService.isReady(),
       path: cdbService.getCurrentPath(),
       loadedPaths: cdbService.getLoadedPaths(),
       customCdbPath: customCdbPath(),
       libraries: cdbService.listLibraries(),
-      customSyncCdb: customSyncCdbInfo()
+      customSyncCdb: customSyncCdbInfo(),
+      extraLanguages
     }
   })
 
-  ipcMain.handle('cdb:add-extra', async () => {
+  ipcMain.handle('cdb:pick-extra', async () => {
     const packDir = await ygoproLauncher.selectExtraPack()
     if (!packDir) {
-      return { success: false }
+      return { success: false, canceled: true }
     }
     const candidates = collectFolderCdbPaths(packDir)
     if (candidates.length === 0) {
       return { success: false, error: '该文件夹内未找到卡库文件 (.cdb)' }
     }
-    const loaded = cdbService.addExtra(candidates)
+    const configured = new Set(
+      (configService.get().extraCdbPaths || []).map((path) => path.toLowerCase())
+    )
+    const files: ExtraCdbCandidate[] = []
+    for (const path of candidates) {
+      const cardCount = readCdbCardCount(path)
+      if (cardCount === null) continue
+      files.push({ path, cardCount, added: configured.has(path.toLowerCase()) })
+    }
+    if (files.length === 0) {
+      return { success: false, error: '该文件夹内没有有效的卡库 (缺少 datas/texts 表)' }
+    }
+    return { success: true, directory: packDir, files }
+  })
+
+  ipcMain.handle('cdb:add-extra', async (_, paths: string[]) => {
+    const requested = [...new Set(paths ?? [])].filter(
+      (path): path is string => typeof path === 'string' && path.length > 0
+    )
+    if (requested.length === 0) {
+      return { success: false, error: '未选择任何卡库' }
+    }
+    const loaded = requested.filter((path) => isValidCdb(path))
     if (loaded.length === 0) {
-      return { success: false, error: '该文件不是有效的卡库 (缺少 datas/texts 表)' }
+      return { success: false, error: '所选文件不是有效的卡库 (缺少 datas/texts 表)' }
     }
 
     const cfg = configService.get()
     const merged = [...(cfg.extraCdbPaths || []).filter((p) => !loaded.includes(p)), ...loaded]
     configService.save({ extraCdbPaths: merged })
+    reloadExtraLibraries()
     broadcastToWindows('cdb:updated')
     invalidateScriptReaders()
     const picsDirs = new Set<string>()
@@ -82,9 +121,10 @@ export function registerCdbIpc(): void {
     }
     return {
       success: true,
-      path: packDir,
+      path: dirname(loaded[0]),
       paths: loaded,
-      picsDetected: picsDirs.size > 0
+      picsDetected: picsDirs.size > 0,
+      extraLanguage: loaded.map((path) => extraLanguageFor(path)).find((info) => info) ?? undefined
     }
   })
 
@@ -93,12 +133,7 @@ export function registerCdbIpc(): void {
     const extras = (cfg.extraCdbPaths || []).filter((p) => p !== cdbPath)
     const disabledCdbPaths = (cfg.disabledCdbPaths || []).filter((p) => p !== cdbPath)
     configService.save({ extraCdbPaths: extras, disabledCdbPaths })
-    cdbService.reloadAll(
-      cfg.cdbPath,
-      currentBundledCdbPaths(),
-      extras.filter((p) => !disabledCdbPaths.includes(p)),
-      currentLanguagePack()
-    )
+    reloadExtraLibraries()
     broadcastToWindows('cdb:updated')
     invalidateScriptReaders()
     return { success: true, paths: cdbService.getLoadedPaths() }
@@ -111,15 +146,20 @@ export function registerCdbIpc(): void {
       ? current.filter((p) => p !== cdbPath)
       : [...new Set([...current, cdbPath])]
     configService.save({ disabledCdbPaths })
-    cdbService.reloadAll(
-      cfg.cdbPath,
-      currentBundledCdbPaths(),
-      (cfg.extraCdbPaths || []).filter((p) => !disabledCdbPaths.includes(p)),
-      currentLanguagePack()
-    )
+    reloadExtraLibraries()
     broadcastToWindows('cdb:updated')
     invalidateScriptReaders()
     return { success: true, paths: cdbService.getLoadedPaths() }
+  })
+
+  ipcMain.handle('cdb:set-extra-language', async (_, root: string, languageId: string) => {
+    if (!rememberExtraLanguage(root, languageId)) {
+      return { success: false, error: '该语言包不存在' }
+    }
+    reloadExtraLibraries()
+    broadcastToWindows('cdb:updated')
+    invalidateScriptReaders()
+    return { success: true }
   })
 
   ipcMain.handle('image:set-card-override', async (_, code: number, variantCode: number | null) => {

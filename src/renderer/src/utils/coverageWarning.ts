@@ -24,9 +24,9 @@ export function coverageAdvice(coverage: ContentCoverageDetail): string {
     return '占位卡会随「同步并启动」写入游戏的自定义卡库 (yde-custom.cdb)，无需准备扩展卡库。'
   }
   if (ids.some(isPlaceholderCard)) {
-    return '这些内容通常来自扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏。占位卡会随「同步并启动」写入游戏的自定义卡库。'
+    return '「同步并启动」会先从已添加的附加卡库导入这些卡的数据、脚本和卡图，写入游戏目录；只有附加卡库里也找不到时，才需要切换游戏目录。占位卡会随同步写入游戏的自定义卡库。'
   }
-  return '这些内容通常来自扩展卡库。建议在 设置 → 路径 中将游戏目录切换到包含对应数据的游戏。'
+  return '「同步并启动」会先从已添加的附加卡库导入这些卡的数据、脚本和卡图，写入游戏目录；只有附加卡库里也找不到时，才需要切换游戏目录。'
 }
 
 function sampleIds(ids: number[], names: Record<number, string>): string {

@@ -6,7 +6,8 @@ import { CardDataEntry, YGOProCdb } from 'ygopro-cdb-encode'
 import { CustomCard, customCardToCdbCard } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { configService } from './configService'
-import { CUSTOM_CDB_NAME, currentBundledCdbPaths, currentLanguagePack } from './gameContent'
+import { CUSTOM_CDB_NAME, currentBundledCdbPaths, enabledExtraCdbPaths } from './gameContent'
+import { currentLanguagePacks } from './extraCdbLanguage'
 import { dataDirService } from './dataDirService'
 import { broadcastToWindows } from './broadcast'
 
@@ -72,20 +73,47 @@ function toCardEntry(card: CustomCard, customOtMask = 0): CardDataEntry {
   })
 }
 
+interface CardEntry {
+  card: CustomCard
+  otMask: number
+}
+
+async function writeCardEntries(entries: CardEntry[], cdbPath: string): Promise<void> {
+  mkdirSync(dirname(cdbPath), { recursive: true })
+  const SQL = await loadSqlJs()
+  const cdb = new YGOProCdb(SQL)
+  try {
+    for (const entry of entries) cdb.addCard(toCardEntry(entry.card, entry.otMask))
+    writeFileSync(cdbPath, Buffer.from(cdb.export()))
+  } finally {
+    cdb.finalize()
+  }
+}
+
 export async function writeCustomCardsCdb(
   cards: CustomCard[],
   cdbPath: string,
   customOtMask?: number
 ): Promise<void> {
-  mkdirSync(dirname(cdbPath), { recursive: true })
-  const SQL = await loadSqlJs()
-  const cdb = new YGOProCdb(SQL)
-  try {
-    for (const card of cards) cdb.addCard(toCardEntry(card, customOtMask))
-    writeFileSync(cdbPath, Buffer.from(cdb.export()))
-  } finally {
-    cdb.finalize()
-  }
+  await writeCardEntries(
+    cards.map((card) => ({ card, otMask: customOtMask ?? 0 })),
+    cdbPath
+  )
+}
+
+export async function writeGameCardCdb(
+  customCards: CustomCard[],
+  importedCards: CustomCard[],
+  cdbPath: string,
+  customOtMask: number
+): Promise<void> {
+  await writeCardEntries(
+    [
+      ...customCards.map((card) => ({ card, otMask: customOtMask })),
+      ...importedCards.map((card) => ({ card, otMask: 0 }))
+    ],
+    cdbPath
+  )
 }
 
 async function writeCdb(cards: CustomCard[]): Promise<void> {
@@ -126,7 +154,13 @@ function registerCustomCdb(): void {
     configService.save({ extraCdbPaths: nextExtras, disabledCdbPaths: disabled })
   }
 
-  cdbService.reloadAll(cfg.cdbPath, currentBundledCdbPaths(), nextExtras, currentLanguagePack())
+  const enabledExtras = enabledExtraCdbPaths().filter((p) => !isCustomCdbPath(p))
+  cdbService.reloadAll(
+    cfg.cdbPath,
+    currentBundledCdbPaths(),
+    [...enabledExtras, cdbPath],
+    currentLanguagePacks()
+  )
   broadcastToWindows('cdb:updated')
 }
 

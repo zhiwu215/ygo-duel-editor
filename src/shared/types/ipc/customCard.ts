@@ -69,4 +69,5 @@ export interface CustomCardSyncResult {
   scripts: number
   pics: number
   removed: number
+  cards?: number
 }

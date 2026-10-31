@@ -15,6 +15,7 @@ import {
 } from '@shared/index'
 import { CdbConnection, CdbConnections } from './cdbConnections'
 import { buildSearchSql, textSource } from './cdbSearchSql'
+import type { GameLanguagePack } from '../services/gameContent'
 import { sortCards, stripSortKeys, CardSortRow } from './cardSort'
 import { loadLfLists, LfList, selectActiveLimitList } from './lflistParser'
 import { readSystemConf } from './systemConfParser'
@@ -196,25 +197,20 @@ export class CdbService {
     cdbPath: string,
     bundledPaths: string[] = [],
     extraPaths: string[] = [],
-    languagePack: { id: string; dir?: string; cdbPaths: string[] } | null = null
+    languagePacks: GameLanguagePack[] = []
   ): boolean {
     this.invalidateSearchCache()
-    return this.connections.open(cdbPath, bundledPaths, extraPaths, languagePack)
-  }
-
-  public addExtra(extraPaths: string[]): string[] {
-    this.invalidateSearchCache()
-    return this.connections.addExtra(extraPaths)
+    return this.connections.open(cdbPath, bundledPaths, extraPaths, languagePacks)
   }
 
   public reloadAll(
     primaryPath: string | undefined,
     bundledPaths: string[],
     extraPaths: string[],
-    languagePack: { id: string; dir?: string; cdbPaths: string[] } | null = null
+    languagePacks: GameLanguagePack[] = []
   ): void {
     this.invalidateSearchCache()
-    this.connections.reloadAll(primaryPath, bundledPaths, extraPaths, languagePack)
+    this.connections.reloadAll(primaryPath, bundledPaths, extraPaths, languagePacks)
   }
 
   public getCurrentPath(): string | null {

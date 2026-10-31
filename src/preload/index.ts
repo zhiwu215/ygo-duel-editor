@@ -37,10 +37,13 @@ const api: IpcApi = {
   getGameLanguageOptions: () => ipcRenderer.invoke('config:game-language-options'),
   setGameLanguage: (languageId: string) =>
     ipcRenderer.invoke('config:set-game-language', languageId),
-  addExtraCdb: () => ipcRenderer.invoke('cdb:add-extra'),
+  pickExtraCdb: () => ipcRenderer.invoke('cdb:pick-extra'),
+  addExtraCdb: (paths: string[]) => ipcRenderer.invoke('cdb:add-extra', paths),
   removeExtraCdb: (cdbPath: string) => ipcRenderer.invoke('cdb:remove-extra', cdbPath),
   setExtraCdbEnabled: (cdbPath: string, enabled: boolean) =>
     ipcRenderer.invoke('cdb:set-extra-enabled', cdbPath, enabled),
+  setExtraCdbLanguage: (root: string, languageId: string) =>
+    ipcRenderer.invoke('cdb:set-extra-language', root, languageId),
   searchCards: (params: CardSearchParams) => ipcRenderer.invoke('cdb:search', params),
   getCardSearchFilterOptions: () => ipcRenderer.invoke('cdb:search-filter-options'),
   setCardBanlist: (name: string | null) => ipcRenderer.invoke('cdb:set-banlist', name),
@@ -77,8 +80,8 @@ const api: IpcApi = {
   getCustomSetcodeNames: () => ipcRenderer.invoke('customcard:list-setcodes'),
   renameCustomSetcode: (codeHex, name) =>
     ipcRenderer.invoke('customcard:rename-setcode', codeHex, name),
-  syncCustomCardsToGame: (target?: 'mdpro3') =>
-    ipcRenderer.invoke('customcard:sync-to-game', target),
+  syncCustomCardsToGame: (target?: 'mdpro3', cardIds?: number[]) =>
+    ipcRenderer.invoke('customcard:sync-to-game', target, cardIds),
   cleanCustomCardsFromGame: () => ipcRenderer.invoke('customcard:clean-from-game'),
   onCustomCardsUpdated: (callback) => {
     const handler = (): void => callback()

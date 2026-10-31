@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { useConfigStore } from '../stores/useConfigStore'
-import { useGameLaunchStore } from '../stores/useGameLaunchStore'
+import { BlockingTaskNotice, useBlockingTaskStore } from '../stores/useBlockingTaskStore'
 import { alertDialog, choiceDialog, confirmDialog, promptDialog } from '../stores/useDialogStore'
 import { buildPuzzleStateFromEngineBoard } from '../utils/engineBoardToPuzzle'
 import { openDuelDocument, saveDuelDocument } from '../utils/duelDocumentActions'
@@ -46,6 +46,28 @@ export interface ProjectCommands {
 interface ReplayExportSelection {
   format: ReplayExportFormat
   view?: ReplayExportView
+}
+
+const EXPORT_REPLAY_NOTICE: BlockingTaskNotice = {
+  title: '正在导出对局回放',
+  detail: '正在生成回放文件，可能需要几秒，请稍候。'
+}
+
+const RESTORE_FOR_EXPORT_NOTICE: BlockingTaskNotice = {
+  title: '正在导出对局回放',
+  detail: '正在恢复引擎会话，请稍候。'
+}
+
+const EXPORT_AND_OPEN_REPLAY_NOTICE: BlockingTaskNotice = {
+  title: '正在用游戏打开回放',
+  detail: '正在生成回放并启动游戏客户端，游戏窗口出现前请稍候。',
+  minVisibleMs: 2000
+}
+
+const OPEN_REPLAY_NOTICE: BlockingTaskNotice = {
+  title: '正在用游戏打开回放',
+  detail: '正在启动游戏客户端，游戏窗口出现前请稍候。',
+  minVisibleMs: 2000
 }
 
 async function chooseReplayExport(): Promise<ReplayExportSelection | null> {
@@ -361,7 +383,9 @@ export function useProjectCommands(): ProjectCommands {
       if (!exportSelection) return
       if (!active) {
         if (!sourceDoc) return
-        const restored = await window.api.restoreDuelEngineSession(sourceDoc)
+        const restored = await useBlockingTaskStore
+          .getState()
+          .run(RESTORE_FOR_EXPORT_NOTICE, () => window.api.restoreDuelEngineSession(sourceDoc))
         if (!restored.success) {
           void alertDialog(`恢复引擎会话失败，无法导出回放\n\n${restored.error ?? '未知错误'}`)
           return
@@ -391,9 +415,11 @@ export function useProjectCommands(): ProjectCommands {
         : editorState
 
       const exportReplay = (params: EngineExportReplayParams): Promise<EngineExportReplayResult> =>
-        launch
-          ? useGameLaunchStore.getState().run(() => window.api.duelExportReplay(params))
-          : window.api.duelExportReplay(params)
+        useBlockingTaskStore
+          .getState()
+          .run(launch ? EXPORT_AND_OPEN_REPLAY_NOTICE : EXPORT_REPLAY_NOTICE, () =>
+            window.api.duelExportReplay(params)
+          )
 
       const runExport = async (
         force: boolean,
@@ -522,7 +548,9 @@ export function useProjectCommands(): ProjectCommands {
       await handleExportYrp(engine.suspendedDoc ?? undefined, true, selection)
       return
     }
-    const res = await useGameLaunchStore.getState().run(() => window.api.duelOpenReplay(filePath))
+    const res = await useBlockingTaskStore
+      .getState()
+      .run(OPEN_REPLAY_NOTICE, () => window.api.duelOpenReplay(filePath))
     if (res.success) {
       if (res.manualHint) {
         void alertDialog(`回放已保存到游戏 replay 目录\n\n${res.manualHint}`)

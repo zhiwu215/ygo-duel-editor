@@ -20,6 +20,7 @@ import { resolveCardName } from '../../utils/cardNames'
 import { useDuelStore } from '../useDuelStore'
 import { mapPhaseToDuelPhase } from './boardReconcile'
 import { getEditorId } from './identityMap'
+import { isRootAnchoredStep, timelineStepEvents } from './stepRowProjection'
 import { findHostStep, hasEngineStep, recordEngineStep, storeEngineStep } from './stepRecords'
 
 const DISCARD_DESC_HINT = 501
@@ -74,6 +75,15 @@ function activeDuelistIdOf(node: EngineTimelineNode, team: 0 | 1): string | unde
 function answerCardOf(answer: Answer): RequestCard | undefined {
   if (answer.kind === 'idle' || answer.kind === 'battle') return answer.card
   if (answer.kind === 'chain') return answer.card ?? undefined
+  return undefined
+}
+
+function activationCardOf(node: EngineTimelineNode): DuelLogCardRef | undefined {
+  const events = node.logEvents ?? []
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]
+    if (event.kind === 'activate') return event.card
+  }
   return undefined
 }
 
@@ -190,10 +200,17 @@ function lpChangeFromEvents(
   return undefined
 }
 
-function appendNodeLogs(host: { id: string; step: DuelStep }, node: EngineTimelineNode): DuelStep {
+function appendNodeLogs(
+  host: { id: string; step: DuelStep },
+  node: EngineTimelineNode,
+  timeline: EngineTimelineNode[]
+): DuelStep {
+  const projected = isRootAnchoredStep(timeline, host.step)
+    ? null
+    : timelineStepEvents(timeline, host.step.startActId ?? host.step.actId, node.id)
   return {
     ...host.step,
-    logEvents: mergeLogEvents(host.step.logEvents, node.logEvents),
+    logEvents: projected ?? mergeLogEvents(host.step.logEvents, node.logEvents),
     boardAfter: createLightweightSnapshot(useDuelStore.getState().state.cards)
   }
 }
@@ -278,9 +295,10 @@ function summaryPatch(step: DuelStep, events: DuelLogEvent[]): Partial<DuelStep>
 function patchHostStep(
   host: { id: string; step: DuelStep },
   node: EngineTimelineNode,
+  timeline: EngineTimelineNode[],
   patch: Partial<DuelStep>
 ): void {
-  const next = appendNodeLogs(host, node)
+  const next = appendNodeLogs(host, node, timeline)
   const summary = summaryPatch(host.step, node.logEvents ?? [])
   storeEngineStep(host.id, null, {
     ...next,
@@ -346,6 +364,12 @@ function moveToActionType(toLocation: number, newPosition: number): DuelActionTy
   return 'PLACE'
 }
 
+function recordStep(nodeId: string, step: Omit<DuelStep, 'id'>): void {
+  useDuelStore.getState().addStep(step)
+  const added = useDuelStore.getState().state.steps?.at(-1)
+  if (added) recordEngineStep(nodeId, added)
+}
+
 function recordMoveSteps(
   node: EngineTimelineNode,
   diff: EngineDiffResult,
@@ -380,13 +404,10 @@ function recordMoveSteps(
       boardAfter: createLightweightSnapshot(duelStoreState.state.cards)
     }
     if (index === 0) {
-      step.actId = node.id
-      step.startActId = node.id
-      step.endActId = node.id
+      recordStep(node.id, { ...step, actId: node.id, startActId: node.id, endActId: node.id })
+      return
     }
-    duelStoreState.addStep(step)
-    const added = useDuelStore.getState().state.steps?.at(-1)
-    if (added && index === 0) recordEngineStep(node.id, added)
+    useDuelStore.getState().addStep(step)
   })
 }
 
@@ -419,13 +440,10 @@ function recordDiscardSteps(
       boardAfter: createLightweightSnapshot(duelStoreState.state.cards)
     }
     if (index === 0) {
-      step.actId = node.id
-      step.startActId = node.id
-      step.endActId = node.id
+      recordStep(node.id, { ...step, actId: node.id, startActId: node.id, endActId: node.id })
+      return
     }
-    duelStoreState.addStep(step)
-    const added = useDuelStore.getState().state.steps?.at(-1)
-    if (added && index === 0) recordEngineStep(node.id, added)
+    useDuelStore.getState().addStep(step)
   })
 }
 
@@ -563,7 +581,7 @@ export function appendEngineStepFromAnswer(
   if (answer.kind === 'card') {
     const host = findHostStep(node, timeline)
     if (host) {
-      patchHostStep(host, node, {
+      patchHostStep(host, node, timeline, {
         ...targetPatch(node, answer.cards ?? [], boardState, descHint),
         ...(lpChange ? { lpChange } : {})
       })
@@ -580,9 +598,17 @@ export function appendEngineStepFromAnswer(
   const actionKey = answerToEngineStepAction(answer)
   const actionType = actionKey ? ENGINE_STEP_TYPES[actionKey] : undefined
   if (!actionType) {
+    const activated = answer.kind === 'yesno' && answer.yes ? activationCardOf(node) : undefined
+    if (activated && !hasEngineStep(node.id)) {
+      recordStep(
+        node.id,
+        buildActionStep(node, actContext, 'ACTIVATE', activated, events, boardState)
+      )
+      return
+    }
     const host = findHostStep(node, timeline)
     if (host && (events.length > 0 || hasBoardChange(diff))) {
-      patchHostStep(host, node, lpChange ? { lpChange } : {})
+      patchHostStep(host, node, timeline, lpChange ? { lpChange } : {})
       return
     }
     recordMoveSteps(node, diff, actContext)
@@ -591,8 +617,5 @@ export function appendEngineStepFromAnswer(
   if (hasEngineStep(node.id)) return
 
   const card = answerCardOf(answer)
-  const step = buildActionStep(node, actContext, actionType, card, events, boardState)
-  useDuelStore.getState().addStep(step)
-  const added = useDuelStore.getState().state.steps?.at(-1)
-  if (added) recordEngineStep(node.id, added)
+  recordStep(node.id, buildActionStep(node, actContext, actionType, card, events, boardState))
 }

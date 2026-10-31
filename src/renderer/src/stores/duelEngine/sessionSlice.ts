@@ -30,6 +30,7 @@ import {
   splitTimeline
 } from './stepRecords'
 import { syncEngineStepsFromTimeline } from './stepRecordSync'
+import { projectEngineStepRows } from './stepRowProjection'
 import { applyInjectionToOpening } from './openingInjection'
 import { reconstructOpeningFromSession } from './openingFromSession'
 import { rebuildSessionWithoutInjections } from './replayWithoutInjections'
@@ -470,6 +471,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
         injectNotice: notice
       })
       restoreEngineSteps(get().timeline)
+      projectEngineStepRows(get().timeline, res.node.id)
       get().playStepEffects(res.node)
       return true
     } catch (err) {

@@ -79,6 +79,7 @@ const entries = [
   'turn-progression-smoke',
   'editor-battle-smoke',
   'undo-opening-smoke',
+  'engine-undo-steps-smoke',
   'reset-duel-smoke',
   'hand-open-smoke',
   'scene-opening-smoke',

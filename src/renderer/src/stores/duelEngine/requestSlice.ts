@@ -15,6 +15,7 @@ import { cancelLpSequence, lpSequenceSteps, playLpSequence } from './lpSequence'
 import { discardFutureSteps, hasEngineStep, restoreEngineSteps, splitTimeline } from './stepRecords'
 import { syncEngineStepsFromTimeline } from './stepRecordSync'
 import { appendEngineStepFromAnswer } from './stepRecording'
+import { projectEngineStepRows } from './stepRowProjection'
 import type { DuelEngineStore } from './types'
 
 export interface RequestSlice {
@@ -122,6 +123,7 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
           actContext,
           request.descHint
         )
+        projectEngineStepRows(newTimeline, get().currentStepId)
       }
     } catch (err) {
       console.error('[useDuelEngineStore] submitAnswer failed:', err)
@@ -190,6 +192,7 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
       syncJumpToStepWrapped(res.boardState)
       restoreEngineSteps(get().timeline)
       syncEngineStepsFromTimeline(get().timeline)
+      projectEngineStepRows(get().timeline, res.currentStepId)
       return true
     } catch (err) {
       console.error('[useDuelEngineStore] jumpToStep failed:', err)

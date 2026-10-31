@@ -1,7 +1,5 @@
 import {
-  CardAttribute,
   CardLocation,
-  CardRace,
   CardType,
   CustomCard,
   DuelPuzzleState,
@@ -11,32 +9,24 @@ import {
   PLACEHOLDER_MONSTER_DESC,
   PLACEHOLDER_NEUTRAL_DESC,
   PLACEHOLDER_SPELL_TRAP_CARD_CODE,
-  PLACEHOLDER_SPELL_TRAP_DESC
+  PLACEHOLDER_SPELL_TRAP_DESC,
+  placeholderEngineData
 } from '@shared/index'
 
 const NEUTRAL_NAME = '占位卡'
 const MONSTER_NAME = '占位卡（怪兽）'
 const SPELL_TRAP_NAME = '占位卡（魔陷）'
 
-function makePlaceholderCard(
-  id: number,
-  name: string,
-  desc: string,
-  type: number,
-  level: number,
-  attribute: number,
-  race: number
-): CustomCard {
+function makePlaceholderCard(code: number, name: string, desc: string): CustomCard {
+  const data = placeholderEngineData(code)
+  if (!data) throw new Error(`未知占位卡：${code}`)
   return {
     schemaVersion: 2,
-    id,
+    id: code,
     alias: 0,
     ot: 0,
     setcode: [0, 0, 0, 0],
-    type,
-    attribute,
-    race,
-    level,
+    ...data,
     lscale: 0,
     rscale: 0,
     atk: 0,
@@ -53,38 +43,33 @@ function makePlaceholderCard(
 
 export function placeholderGameCards(): CustomCard[] {
   return [
-    makePlaceholderCard(
-      PLACEHOLDER_CARD_CODE,
-      NEUTRAL_NAME,
-      PLACEHOLDER_NEUTRAL_DESC,
-      CardType.MONSTER | CardType.NORMAL,
-      1,
-      CardAttribute.EARTH,
-      CardRace.WARRIOR
-    ),
-    makePlaceholderCard(
-      PLACEHOLDER_MONSTER_CARD_CODE,
-      MONSTER_NAME,
-      PLACEHOLDER_MONSTER_DESC,
-      CardType.MONSTER | CardType.NORMAL,
-      1,
-      CardAttribute.EARTH,
-      CardRace.WARRIOR
-    ),
+    makePlaceholderCard(PLACEHOLDER_CARD_CODE, NEUTRAL_NAME, PLACEHOLDER_NEUTRAL_DESC),
+    makePlaceholderCard(PLACEHOLDER_MONSTER_CARD_CODE, MONSTER_NAME, PLACEHOLDER_MONSTER_DESC),
     makePlaceholderCard(
       PLACEHOLDER_SPELL_TRAP_CARD_CODE,
       SPELL_TRAP_NAME,
-      PLACEHOLDER_SPELL_TRAP_DESC,
-      CardType.SPELL,
-      0,
-      0,
-      0
+      PLACEHOLDER_SPELL_TRAP_DESC
     )
   ]
 }
 
-export function placeholderSpellScript(): string {
+export function placeholderScript(): string {
   return 'local s,id=GetID()\nfunction s.initial_effect(c)\nend\n'
+}
+
+export function placeholderScriptCodes(): number[] {
+  return placeholderGameCards()
+    .filter((card) => (card.type & CardType.NORMAL) === 0)
+    .map((card) => card.id)
+}
+
+const PLACEHOLDER_SCRIPTS = new Map(
+  placeholderScriptCodes().map((code) => [`c${code}.lua`, placeholderScript()])
+)
+
+export function placeholderScriptForPath(scriptPath: string): string | null {
+  const name = scriptPath.split(/[\\/]/).pop() ?? ''
+  return PLACEHOLDER_SCRIPTS.get(name) ?? null
 }
 
 function mapPlaceholderCardForGame(card: FieldCard): FieldCard {

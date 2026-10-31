@@ -11,7 +11,9 @@ import {
 import {
   mapPlaceholderCodesForGame,
   placeholderGameCards,
-  placeholderSpellScript
+  placeholderScript,
+  placeholderScriptCodes,
+  placeholderScriptForPath
 } from '../../src/main/services/placeholderGameCards'
 
 function assert(condition: boolean, message: string): void {
@@ -66,18 +68,27 @@ function main(): void {
   assert(Boolean(neutral), '未定占位卡数据存在')
   assert(Boolean(monster), '怪兽占位卡数据存在')
   assert(Boolean(spellTrap), '魔陷占位卡数据存在')
-  assert(
-    neutral!.type === (CardType.MONSTER | CardType.NORMAL) && neutral!.level === 1,
-    '未定占位卡应是 1 星通常怪兽'
-  )
+  assert(neutral!.type === 0 && neutral!.level === 0, '未定占位卡应保持未定类型（可盖放到魔陷区）')
   assert(
     monster!.type === (CardType.MONSTER | CardType.NORMAL) && monster!.level === 1,
     '怪兽占位卡应是 1 星通常怪兽'
   )
   assert(monster!.desc === '怪兽占位卡', '怪兽占位卡文本')
   assert(spellTrap!.type === CardType.SPELL && spellTrap!.level === 0, '魔陷占位卡应是通常魔法')
-  assert(neutral!.atk === 0 && neutral!.def === 0, '占位怪兽 0 攻 0 防')
-  assert(placeholderSpellScript().includes('initial_effect'), '魔陷占位卡脚本存在')
+  assert(neutral!.atk === 0 && neutral!.def === 0, '占位卡 0 攻 0 防')
+  assert(placeholderScript().includes('initial_effect'), '占位卡脚本存在')
+  const scriptCodes = placeholderScriptCodes()
+  assert(
+    scriptCodes.includes(PLACEHOLDER_CARD_CODE) &&
+      scriptCodes.includes(PLACEHOLDER_SPELL_TRAP_CARD_CODE),
+    '未定与魔陷占位卡需要效果脚本'
+  )
+  assert(!scriptCodes.includes(PLACEHOLDER_MONSTER_CARD_CODE), '通常怪兽占位卡不需要效果脚本')
+  assert(
+    placeholderScriptForPath('./script/c99999999.lua')?.includes('initial_effect') === true,
+    '未定占位卡脚本可按路径读取'
+  )
+  assert(placeholderScriptForPath('./script/c99999998.lua') === null, '通常怪兽占位卡不提供脚本')
 
   const state = makeState([
     makeCard('hand', PLACEHOLDER_CARD_CODE, CardLocation.HAND, 0),

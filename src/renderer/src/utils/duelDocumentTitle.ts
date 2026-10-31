@@ -9,6 +9,7 @@ export function documentTitleFromPath(filePath: string): string {
 
 async function applyTitle(rawTitle: string): Promise<void> {
   const sourcePath = useDuelStore.getState().currentProjectPath
+  const previousTitle = useDuelStore.getState().state.title.trim()
   const nextTitle = rawTitle.trim()
   const setTitle = useDuelStore.getState().setTitle
   if (!sourcePath) {
@@ -33,8 +34,11 @@ async function applyTitle(rawTitle: string): Promise<void> {
   }
 
   const actualTitle = documentTitleFromPath(result.filePath)
+  const titleUntouched = useDuelStore.getState().state.title.trim() === previousTitle
   useDuelStore.setState({ currentProjectPath: result.filePath })
-  if (useDuelStore.getState().state.title.trim() === nextTitle) setTitle(actualTitle)
+  if (titleUntouched || useDuelStore.getState().state.title.trim() === nextTitle) {
+    setTitle(actualTitle)
+  }
   markDuelDocumentDirty()
 }
 

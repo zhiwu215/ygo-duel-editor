@@ -14,6 +14,7 @@ import { configService } from '../configService'
 import { getGameScriptDirectories } from '../gameScriptPaths'
 import { readEngineCardData } from './card-reader'
 import { readCustomScript } from '../customCardScript'
+import { placeholderScriptForPath } from '../placeholderGameCards'
 import { getDuelEngineSupport } from './engineSupport'
 
 let ocgcoreInstance: OcgcoreWrapper | null = null
@@ -121,6 +122,7 @@ export async function bindEngineCapabilities(wrapper: OcgcoreWrapper): Promise<v
     wrapper.setScriptReader(reader)
   }
 
+  wrapper.setScriptReader(placeholderScriptForPath)
   wrapper.setScriptReader(createPreloadStubReader())
 }
 

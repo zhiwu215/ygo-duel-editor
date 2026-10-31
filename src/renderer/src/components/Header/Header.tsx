@@ -22,6 +22,7 @@ import { MatchSelector } from './components/MatchSelector'
 import { TurnPhaseIndicator } from './components/TurnPhaseIndicator'
 import { UpdateIndicator } from './components/UpdateIndicator'
 import { UpdateDialog } from './components/UpdateDialog'
+import { GameLaunchOverlay } from './components/GameLaunchOverlay'
 import { useProjectCommands } from '../../hooks/useProjectCommands'
 import { useGlobalShortcuts } from '../../hooks/useGlobalShortcuts'
 import { useSceneMode } from '../../hooks/useSceneMode'
@@ -313,6 +314,8 @@ export const Header: React.FC = () => {
       </div>
 
       <UpdateDialog />
+
+      <GameLaunchOverlay />
 
       {importingReplay && (
         <div

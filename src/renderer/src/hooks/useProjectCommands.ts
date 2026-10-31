@@ -2,17 +2,20 @@ import { useCallback } from 'react'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { useConfigStore } from '../stores/useConfigStore'
+import { useGameLaunchStore } from '../stores/useGameLaunchStore'
 import { alertDialog, choiceDialog, confirmDialog, promptDialog } from '../stores/useDialogStore'
 import { buildPuzzleStateFromEngineBoard } from '../utils/engineBoardToPuzzle'
 import { openDuelDocument, saveDuelDocument } from '../utils/duelDocumentActions'
 import { flushDuelDocumentAutosave } from '../utils/duelDocumentAutosave'
-import { flushDuelDocumentTitle } from '../utils/duelDocumentTitle'
+import { commitDuelDocumentTitle, flushDuelDocumentTitle } from '../utils/duelDocumentTitle'
+import { preloadCardImages } from '../utils/cardImage'
 import { stripDetachedEngineSteps } from '../utils/stepHistory'
 import { coverageAdvice, formatCoverageWarning } from '../utils/coverageWarning'
 import {
   ContentCoverageDetail,
   DEFAULT_DUEL_TEST_SETTINGS,
   DuelPuzzleState,
+  EngineExportReplayParams,
   EngineExportReplayResult,
   EngineSessionDoc,
   PLACEHOLDER_CARD_NAME,
@@ -307,21 +310,33 @@ export function useProjectCommands(): ProjectCommands {
       if ((active ? engine.timeline : (sourceDoc?.timeline ?? [])).length <= 1) return
       const sessionWithInjections = active ? await engine.getSessionDoc() : sourceDoc
       if (sessionWithInjections && hasSessionInjections(sessionWithInjections)) {
-        if (active) {
-          await engine.suspendEngine()
-          if (useDuelEngineStore.getState().isInitialized) {
-            void alertDialog(`自动重打前无法挂起当前引擎会话\n${engine.error ?? '未知错误'}`)
-            return
+        await alertDialog(
+          '当前对局包含注入的卡片\n\n将自动重打生成不含注入操作的回放，完成后继续导出。'
+        )
+        useDuelEngineStore.setState({ autoReplayBusy: true })
+        let replayed = false
+        try {
+          if (active) {
+            await engine.suspendEngine()
+            if (useDuelEngineStore.getState().isInitialized) {
+              void alertDialog(`自动重打前无法挂起当前引擎会话\n${engine.error ?? '未知错误'}`)
+              return
+            }
+          } else if (useDuelEngineStore.getState().suspendedDoc !== sourceDoc) {
+            useDuelEngineStore.getState().setSuspendedDoc(sourceDoc ?? null)
           }
-        } else if (useDuelEngineStore.getState().suspendedDoc !== sourceDoc) {
-          useDuelEngineStore.getState().setSuspendedDoc(sourceDoc ?? null)
+          replayed = await useDuelEngineStore.getState().replaySuspendedToClean()
+          if (replayed) {
+            await preloadCardImages(useDuelStore.getState().state.cards.map((card) => card.code))
+          }
+        } finally {
+          useDuelEngineStore.setState({ autoReplayBusy: false })
         }
-        const replayed = await useDuelEngineStore.getState().replaySuspendedToClean()
         if (!replayed) {
           void alertDialog(
             `自动重打失败，无法生成回放\n\n${
               useDuelEngineStore.getState().error ?? '现有操作无法在新的初始场面上重演。'
-            }\n\n已停在初始场面，可以手动重打后再导出。`
+            }\n\n当前盘面未改变，可以手动重打后再导出。`
           )
           return
         }
@@ -375,12 +390,17 @@ export function useProjectCommands(): ProjectCommands {
           }
         : editorState
 
+      const exportReplay = (params: EngineExportReplayParams): Promise<EngineExportReplayResult> =>
+        launch
+          ? useGameLaunchStore.getState().run(() => window.api.duelExportReplay(params))
+          : window.api.duelExportReplay(params)
+
       const runExport = async (
         force: boolean,
         overwrite = false,
         exportName?: string
       ): Promise<void> => {
-        const res = await window.api.duelExportReplay({
+        const res = await exportReplay({
           state: currentPuzzleState,
           name: exportName,
           overwrite,
@@ -416,12 +436,14 @@ export function useProjectCommands(): ProjectCommands {
           })
           if (choice === 'rename') {
             const newName = await promptDialog({
-              title: '重命名回放',
-              placeholder: '输入新的回放名称',
+              title: '重命名回放和项目',
+              placeholder: '输入新的回放与项目名称',
               initialValue: res.name ?? currentPuzzleState.title
             })
             if (newName?.trim()) {
-              await runExport(false, false, newName.trim())
+              const name = newName.trim()
+              await commitDuelDocumentTitle(name)
+              await runExport(false, false, name)
             }
           } else if (choice === true) {
             await runExport(false, true, exportName)
@@ -449,7 +471,7 @@ export function useProjectCommands(): ProjectCommands {
               return
             }
             reportReplayResult(
-              await window.api.duelExportReplay({
+              await exportReplay({
                 state: currentPuzzleState,
                 name: exportName,
                 overwrite,
@@ -500,7 +522,7 @@ export function useProjectCommands(): ProjectCommands {
       await handleExportYrp(engine.suspendedDoc ?? undefined, true, selection)
       return
     }
-    const res = await window.api.duelOpenReplay(filePath)
+    const res = await useGameLaunchStore.getState().run(() => window.api.duelOpenReplay(filePath))
     if (res.success) {
       if (res.manualHint) {
         void alertDialog(`回放已保存到游戏 replay 目录\n\n${res.manualHint}`)

@@ -111,6 +111,7 @@ export interface SessionSlice {
   loading: boolean
   error: string | null
   injectNotice: EngineInjectNotice | null
+  autoReplayBusy: boolean
   boardChains: DuelChainCard[]
   mergedMatch: boolean
   suspendedDoc: EngineSessionDoc | null
@@ -142,6 +143,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
   loading: false,
   error: null,
   injectNotice: null,
+  autoReplayBusy: false,
   boardChains: [],
   mergedMatch: false,
   suspendedDoc: null,
@@ -359,7 +361,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
     const doc = get().suspendedDoc
     if (!doc || get().isInitialized) return false
     const reconstructed = reconstructOpeningFromSession(doc)
-    if (!openInitialScene() && !reconstructed) {
+    if (!reconstructed && !openInitialScene()) {
       set({ error: '没有可用的初始场面快照，无法自动重打。' })
       return false
     }
@@ -372,7 +374,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       set({ error: '当前会话没有可自动重打的注入操作。' })
       return false
     }
-    useDuelStore.getState().commitPreview()
+    if (!reconstructed) useDuelStore.getState().commitPreview()
     const restored = await get().restoreSessionDoc(rebuilt.doc)
     if (!restored) return false
     if (reconstructed) {
@@ -453,9 +455,9 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
         message: `${appendDiscardNotice(
           res.warning ? `${res.node.title}：${res.warning}` : res.node.title,
           discarded
-        )}${baked && baked.baked > 0 ? '（已并入初始场面）' : ''}${
-          skipped > 0 ? `（${skipped} 张因初始场面没有空位未并入）` : ''
-        }${previewExited ? '（已退出步骤预览）' : ''}`
+        )}${skipped > 0 ? `（${skipped} 张因初始场面没有空位未并入）` : ''}${
+          previewExited ? '（已退出步骤预览）' : ''
+        }`
       }
       set({
         loading: false,

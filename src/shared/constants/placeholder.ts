@@ -44,6 +44,25 @@ export function placeholderCardType(kind: PlaceholderKind): number {
   }
 }
 
+export interface PlaceholderEngineData {
+  type: number
+  level: number
+  attribute: number
+  race: number
+}
+
+export function placeholderEngineData(code: number): PlaceholderEngineData | null {
+  const kind = placeholderKindOf(code)
+  if (!kind) return null
+  const isMonster = kind === 'monster'
+  return {
+    type: placeholderCardType(kind),
+    level: isMonster ? 1 : 0,
+    attribute: isMonster ? CardAttribute.EARTH : 0,
+    race: isMonster ? CardRace.WARRIOR : 0
+  }
+}
+
 export function placeholderKindLabel(kind: PlaceholderKind): string {
   switch (kind) {
     case 'monster':
@@ -57,25 +76,23 @@ export function placeholderKindLabel(kind: PlaceholderKind): string {
 
 export function placeholderCardData(code: number): CdbCard | null {
   const kind = placeholderKindOf(code)
-  if (!kind) return null
-  const isSpellTrap = kind === 'spellTrap'
+  const data = placeholderEngineData(code)
+  if (!kind || !data) return null
   return {
     id: code,
     ot: 0,
     alias: 0,
     setcode: 0,
-    type: isSpellTrap ? CardType.SPELL : CardType.MONSTER | CardType.NORMAL,
+    ...data,
     atk: 0,
     def: 0,
-    level: isSpellTrap ? 0 : 1,
-    race: isSpellTrap ? 0 : CardRace.WARRIOR,
-    attribute: isSpellTrap ? 0 : CardAttribute.EARTH,
     category: 0,
     name: PLACEHOLDER_CARD_NAME,
-    desc: isSpellTrap
-      ? PLACEHOLDER_SPELL_TRAP_DESC
-      : kind === 'monster'
-        ? PLACEHOLDER_MONSTER_DESC
-        : PLACEHOLDER_NEUTRAL_DESC
+    desc:
+      kind === 'spellTrap'
+        ? PLACEHOLDER_SPELL_TRAP_DESC
+        : kind === 'monster'
+          ? PLACEHOLDER_MONSTER_DESC
+          : PLACEHOLDER_NEUTRAL_DESC
   }
 }

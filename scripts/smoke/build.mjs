@@ -87,7 +87,8 @@ const entries = [
   'card-relations-smoke',
   'start-over-dup-smoke',
   'opening-inject-smoke',
-  'auto-replay-smoke'
+  'auto-replay-smoke',
+  'placeholder-data-smoke'
 ]
 
 let failed = 0

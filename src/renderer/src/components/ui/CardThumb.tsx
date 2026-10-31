@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PLACEHOLDER_CARD_LABEL, PLACEHOLDER_CARD_NAME, isPlaceholderCard } from '@shared/index'
 import { CardImage } from './CardImage'
+import { CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { cn } from '../../lib/utils'
 
 interface CardThumbProps {
@@ -28,7 +29,14 @@ export function CardThumb({
   const displayName = placeholder ? PLACEHOLDER_CARD_NAME : name
 
   return (
-    <div className={cn('relative overflow-hidden', className)}>
+    <div
+      className={cn('relative overflow-hidden', className)}
+      style={{
+        backgroundImage: `url(${CARD_BACK_IMAGE})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }}
+    >
       <CardImage
         code={code}
         small

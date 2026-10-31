@@ -12,6 +12,7 @@ import { CardCommandMenu } from './CardCommandMenu'
 import { PileActionMenu } from './PileActionMenu'
 import { CardStatPopover } from './components/CardStatPopover'
 import { EngineCardEditBusy } from './components/EngineCardEditBusy'
+import { EngineAutoReplayBusy } from './components/EngineAutoReplayBusy'
 import { EngineCardReplaceDialog } from './components/EngineCardReplaceDialog'
 import { EngineInjectDropDialog } from './components/EngineInjectDropDialog'
 import { HeldCardOverlay } from './components/HeldCardOverlay'
@@ -50,6 +51,8 @@ export const DuelBoardOverlays: React.FC = () => {
       <CardStatPopover />
 
       <EngineCardEditBusy />
+
+      <EngineAutoReplayBusy />
 
       <EngineCardReplaceDialog />
 

@@ -21,6 +21,21 @@ export function getCardImageUrl(code: number | undefined, small = false): string
   return `ygopic://card/${code}.jpg?${query}`
 }
 
+export function preloadCardImages(codes: Iterable<number>, small = true): Promise<void> {
+  const unique = [...new Set([...codes].filter((code) => code > 0 && !isPlaceholderCard(code)))]
+  return Promise.all(
+    unique.map(
+      (code) =>
+        new Promise<void>((resolve) => {
+          const image = new Image()
+          image.onload = () => resolve()
+          image.onerror = () => resolve()
+          image.src = getCardImageUrl(code, small)
+        })
+    )
+  ).then(() => undefined)
+}
+
 const DRAG_IMAGE_WIDTH = 64
 const DRAG_IMAGE_HEIGHT = 92
 

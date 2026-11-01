@@ -7,6 +7,7 @@ import {
   EnginePlayerState,
   CardLocation,
   CardPosition,
+  isPrivateLocation,
   placeholderCardData
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
@@ -70,14 +71,6 @@ export class FieldReader {
     this.activeSeatByTeam = [0, 1]
   }
 
-  private privateLocation(location: number): boolean {
-    return (
-      location === CardLocation.HAND ||
-      location === CardLocation.DECK ||
-      location === CardLocation.EXTRA
-    )
-  }
-
   private seatIdOf(team: 0 | 1): string | undefined {
     if (!this.tagContext) return undefined
     const seat = this.activeSeatByTeam[team]
@@ -90,7 +83,7 @@ export class FieldReader {
     sequence: number,
     duelistId?: string
   ): string {
-    if (this.tagContext && this.privateLocation(location) && duelistId) {
+    if (this.tagContext && isPrivateLocation(location) && duelistId) {
       return `${duelistId}:${location}:${sequence}`
     }
     return `${controller}:${location}:${sequence}`
@@ -184,7 +177,7 @@ export class FieldReader {
           const code = q.code ?? 0
           if (code <= 0) continue
           const duelistId =
-            this.tagContext && this.privateLocation(location)
+            this.tagContext && isPrivateLocation(location)
               ? this.seatIdOf(controller as 0 | 1)
               : undefined
           const key = this.cardKey(controller as 0 | 1, location, sequence, duelistId)
@@ -218,6 +211,8 @@ export class FieldReader {
               sequence,
               position,
               duelistId,
+              level: q.level,
+              rank: q.rank,
               atk: q.attack,
               def: q.defense,
               baseAtk: q.baseAttack,

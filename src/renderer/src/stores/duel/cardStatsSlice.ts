@@ -2,13 +2,19 @@ import type { StateCreator } from 'zustand'
 import { allocateCustomCounterId } from '@shared/index'
 import type { DuelStore } from './types'
 
+export type CardStatsPatch = {
+  customAtk?: number
+  customDef?: number
+  customLevel?: number
+}
+
 export interface CardStatsSlice {
   setCardCounter: (instanceId: string, counterType: number, count: number) => void
   removeCardCounter: (instanceId: string, counterType: number) => void
   syncCardCounters: (instanceId: string, counters?: Record<number, number>) => void
 
   registerCustomCounter: (name: string) => number
-  setCardCustomStats: (instanceId: string, customAtk?: number, customDef?: number) => void
+  setCardStats: (instanceId: string, patch: CardStatsPatch) => void
 }
 
 export const createCardStatsSlice: StateCreator<DuelStore, [], [], CardStatsSlice> = (
@@ -80,13 +86,13 @@ export const createCardStatsSlice: StateCreator<DuelStore, [], [], CardStatsSlic
     return id
   },
 
-  setCardCustomStats: (instanceId, customAtk, customDef) =>
+  setCardStats: (instanceId, patch) =>
     set((prev) => ({
       state: {
         ...prev.state,
         cards: prev.state.cards.map((c) => {
           if (c.instanceId === instanceId) {
-            return { ...c, customAtk, customDef }
+            return { ...c, ...patch }
           }
           return c
         })

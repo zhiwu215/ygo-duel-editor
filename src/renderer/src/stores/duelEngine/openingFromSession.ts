@@ -44,7 +44,8 @@ export function reconstructOpeningFromSession(doc: EngineSessionDoc): DuelPuzzle
     overlayMaterials: [...(card.overlayMaterials ?? [])],
     duelistId: card.duelistId,
     customAtk: card.customAtk,
-    customDef: card.customDef
+    customDef: card.customDef,
+    customLevel: card.customLevel
   }))
   return {
     ...structuredClone(base),

@@ -74,7 +74,7 @@ export const CardStatPopover: React.FC = () => {
     statPopoverPosition,
     setStatPopoverPosition,
     closeStatPopover,
-    setCardCustomStats,
+    setCardStats,
     setCardCounter,
     removeCardCounter,
     registerCustomCounter
@@ -218,10 +218,9 @@ export const CardStatPopover: React.FC = () => {
             isInf={stats.isAtkInf}
             diff={stats.atkDiff}
             onCommit={(val) =>
-              setCardCustomStats(
+              setCardStats(
                 card.instanceId,
-                val === stats.origAtk ? undefined : val,
-                card.customDef
+                val === stats.origAtk ? { customAtk: undefined } : { customAtk: val }
               )
             }
           />
@@ -236,10 +235,9 @@ export const CardStatPopover: React.FC = () => {
               isInf={stats.isDefInf}
               diff={stats.defDiff}
               onCommit={(val) =>
-                setCardCustomStats(
+                setCardStats(
                   card.instanceId,
-                  card.customAtk,
-                  val === stats.origDef ? undefined : val
+                  val === stats.origDef ? { customDef: undefined } : { customDef: val }
                 )
               }
             />

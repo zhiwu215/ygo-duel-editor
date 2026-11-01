@@ -77,12 +77,16 @@ export class DuelDirector {
     return duelSession.getProvenance(ref)
   }
 
-  async replaceCard(ref: EngineCardRef, newCode: number): Promise<EngineCardEditResult> {
-    return duelSession.replaceCard(ref, newCode)
+  async replaceCard(
+    ref: EngineCardRef,
+    newCode: number,
+    allowDivergence = false
+  ): Promise<EngineCardEditResult> {
+    return duelSession.replaceCard(ref, newCode, allowDivergence)
   }
 
-  async removeCard(ref: EngineCardRef): Promise<EngineCardEditResult> {
-    return duelSession.removeCard(ref)
+  async removeCard(ref: EngineCardRef, allowDivergence = false): Promise<EngineCardEditResult> {
+    return duelSession.removeCard(ref, allowDivergence)
   }
 
   getTimeline(): EngineTimelineNode[] {

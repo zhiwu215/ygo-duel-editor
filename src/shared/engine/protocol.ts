@@ -252,12 +252,24 @@ export interface EngineEditedCardInfo {
   card?: CdbCard
 }
 
+export interface EngineCardEditConflict {
+  opIndex: number
+  expectedTitle: string
+  actualTitle: string
+  message: string
+  forkStepId: string
+  forkStepNumber: number
+  forkTitle: string
+  discardedSteps: number
+}
+
 export interface EngineCardEditResult {
   boardState?: EngineBoardState
   pendingRequest?: EngineRequest | null
   node?: EngineTimelineNode
   currentStepId?: string
   warning?: string
+  conflict?: EngineCardEditConflict
   error?: string
   puzzleState?: DuelPuzzleState
   editedCard?: EngineEditedCardInfo

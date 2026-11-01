@@ -223,7 +223,7 @@ export const CardContextMenu: React.FC = () => {
     closeMenu()
     const ok = await confirmDialog({
       title: '从对局中移除这张卡？',
-      description: `「${cardName}」\n${sourceLabel}\n\n会修改来源并自动重演；无法与原历史对齐时会回到分歧点，之后的操作需要重新进行。`,
+      description: `「${cardName}」\n${sourceLabel}\n\n会修改来源并自动重演；无法与原历史对齐时会先询问是否回退到分歧点。`,
       confirmText: '移除并重演',
       destructive: true
     })

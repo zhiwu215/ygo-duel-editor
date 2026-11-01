@@ -188,7 +188,8 @@ export function sceneSignature(scene: OpeningScene): string {
       overlayMaterials: card.overlayMaterials,
       duelistId: card.duelistId,
       customAtk: card.customAtk,
-      customDef: card.customDef
+      customDef: card.customDef,
+      customLevel: card.customLevel
     }))
   return JSON.stringify({
     cards,

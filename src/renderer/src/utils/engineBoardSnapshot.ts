@@ -1,4 +1,4 @@
-import { CardLocation } from '@shared/index'
+import { CardLocation, resolveEngineCardStats } from '@shared/index'
 import type { EngineBoardState, LightweightCardSnapshot } from '@shared/index'
 import { normalizeEngineCardPosition } from './engineCardPosition'
 
@@ -10,6 +10,7 @@ export function snapshotEngineBoard(
     .filter((card) => card.location !== CardLocation.OVERLAY)
     .map((card) => {
       const position = normalizeEngineCardPosition(masterRule, card.location, card.sequence)
+      const stats = resolveEngineCardStats(card)
       return {
         instanceId: card.instanceId,
         code: card.code,
@@ -19,7 +20,10 @@ export function snapshotEngineBoard(
         sequence: position.sequence,
         position: card.position,
         overlayMaterials: [...card.overlayMaterials],
-        duelistId: card.duelistId
+        duelistId: card.duelistId,
+        customAtk: stats?.customAtk,
+        customDef: stats?.customDef,
+        customLevel: stats?.customLevel
       }
     })
 }

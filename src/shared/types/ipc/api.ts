@@ -332,8 +332,15 @@ export interface IpcApi {
   duelEngineInject: (command: InjectCommand) => Promise<EngineInjectResult>
   duelEngineGetPendingRequest: () => Promise<EngineRequest | null>
   duelEngineGetProvenance: (ref: EngineCardRef) => Promise<EngineProvenance>
-  duelEngineReplaceCard: (ref: EngineCardRef, newCode: number) => Promise<EngineCardEditResult>
-  duelEngineRemoveCard: (ref: EngineCardRef) => Promise<EngineCardEditResult>
+  duelEngineReplaceCard: (
+    ref: EngineCardRef,
+    newCode: number,
+    allowDivergence?: boolean
+  ) => Promise<EngineCardEditResult>
+  duelEngineRemoveCard: (
+    ref: EngineCardRef,
+    allowDivergence?: boolean
+  ) => Promise<EngineCardEditResult>
   duelEngineJumpToStep: (stepId: string) => Promise<{
     boardState: EngineBoardState
     currentStepId: string

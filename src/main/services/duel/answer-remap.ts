@@ -1,5 +1,5 @@
 import type { Answer, RequestCard } from '@shared/engine/protocol'
-import type { EngineBoardState } from '@shared/index'
+import { CardLocation, type EngineBoardState } from '@shared/index'
 import type { SessionState } from './session-state'
 
 export interface CardPosition {
@@ -9,6 +9,13 @@ export interface CardPosition {
 }
 
 type CardMatch = (card: RequestCard) => boolean
+
+const FIELD_LOCATIONS: ReadonlySet<number> = new Set<number>([
+  CardLocation.MZONE,
+  CardLocation.SZONE,
+  CardLocation.FZONE,
+  CardLocation.PZONE
+])
 
 function forEachAnswerCard(answer: Answer, visit: (card: RequestCard) => void): void {
   switch (answer.kind) {
@@ -52,28 +59,57 @@ function cardAt(nodeBoard: EngineBoardState, position: CardPosition, code: numbe
   )
 }
 
-function remapSetAction(
+function answerHasCode(answer: Answer, code: number): boolean {
+  let found = false
+  forEachAnswerCard(answer, (card) => {
+    if (card.code === code) found = true
+  })
+  return found
+}
+
+function findEntryAnswer(state: SessionState, entryOpIndex: number, oldCode: number): number {
+  for (let index = entryOpIndex; index >= 0; index--) {
+    const op = state.ops[index]
+    if (!op || op.type === 'inject') return -1
+    if (op.type !== 'answer' || !op.answers) continue
+    if (op.answers.some((recorded) => answerHasCode(recorded.answer, oldCode))) return index
+  }
+  return -1
+}
+
+function remapEnterFieldAction(
   state: SessionState,
   oldCode: number,
   newCode: number,
   position: CardPosition
 ): void {
-  const nodes = state.timeline
-    .getAllNodes()
-    .filter((node) => node.opIndex >= 0)
-    .sort((a, b) => a.opIndex - b.opIndex)
-  const first = nodes.find((node) => cardAt(node.boardState, position, oldCode))
-  if (!first) return
-  for (let index = first.opIndex; index >= 0; index--) {
-    const op = state.ops[index]
-    if (op?.type !== 'answer' || !op.answers) continue
-    const match: CardMatch = (card) => card.code === oldCode
-    let changed = false
-    for (const recorded of op.answers) {
-      if (remapAnswer(recorded.answer, newCode, match)) changed = true
-    }
-    if (changed) return
+  const path = state.timeline.getHistoryPath()
+  const current = path[path.length - 1]
+  if (!current || !cardAt(current.boardState, position, oldCode)) return
+  let entry = current
+  for (let index = path.length - 2; index >= 0; index--) {
+    if (!cardAt(path[index].boardState, position, oldCode)) break
+    entry = path[index]
   }
+  if (entry.opIndex < 0) return
+
+  const atPosition: CardMatch = (card) =>
+    card.code === oldCode &&
+    card.controller === position.controller &&
+    card.location === position.location &&
+    card.sequence === position.sequence
+  for (let index = entry.opIndex + 1; index <= current.opIndex; index++) {
+    const op = state.ops[index]
+    if (!op || op.type === 'inject' || !op.answers) continue
+    for (const recorded of op.answers) remapAnswer(recorded.answer, newCode, atPosition)
+  }
+
+  const answerIndex = findEntryAnswer(state, entry.opIndex, oldCode)
+  if (answerIndex < 0) return
+  const entryOp = state.ops[answerIndex]
+  if (entryOp.type !== 'answer' || !entryOp.answers) return
+  const enteringCard: CardMatch = (card) => card.code === oldCode
+  for (const recorded of entryOp.answers) remapAnswer(recorded.answer, newCode, enteringCard)
 }
 
 export function attachAnswerInstanceIds(answer: Answer, board: EngineBoardState): void {
@@ -93,27 +129,8 @@ export function remapRecordedAnswers(
   state: SessionState,
   oldCode: number,
   newCode: number,
-  positions: CardPosition[],
-  instanceId?: string
+  position: CardPosition
 ): void {
-  const current = positions[0]
-  let instanceChanged = false
-  for (const op of state.ops) {
-    if (op.type === 'inject' || !op.answers) continue
-    const instanceMatch: CardMatch = (card) =>
-      card.code === oldCode && Boolean(instanceId) && card.instanceId === instanceId
-    const positionMatch: CardMatch = (card) =>
-      card.code === oldCode &&
-      Boolean(current) &&
-      card.controller === current.controller &&
-      card.location === current.location &&
-      card.sequence === current.sequence
-    for (const recorded of op.answers) {
-      if (remapAnswer(recorded.answer, newCode, instanceMatch)) instanceChanged = true
-      remapAnswer(recorded.answer, newCode, positionMatch)
-    }
-  }
-  if (current && !instanceChanged) {
-    remapSetAction(state, oldCode, newCode, current)
-  }
+  if (!FIELD_LOCATIONS.has(position.location)) return
+  remapEnterFieldAction(state, oldCode, newCode, position)
 }

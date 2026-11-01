@@ -33,8 +33,18 @@ export const PILE_LOCATIONS: ReadonlySet<number> = new Set<number>([
   CardLocation.REMOVED
 ])
 
+export const PRIVATE_LOCATIONS: ReadonlySet<number> = new Set<number>([
+  CardLocation.HAND,
+  CardLocation.DECK,
+  CardLocation.EXTRA
+])
+
 export function isPileLocation(location: number): boolean {
   return PILE_LOCATIONS.has(location)
+}
+
+export function isPrivateLocation(location: number): boolean {
+  return PRIVATE_LOCATIONS.has(location)
 }
 
 export function isSpellTrapLocation(location: number): boolean {

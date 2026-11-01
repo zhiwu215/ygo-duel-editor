@@ -2,10 +2,12 @@ import {
   CardLocation,
   EngineBoardState,
   EngineCard,
+  EngineCardEditConflict,
   EngineCardEditResult,
   EngineCardRef,
   EngineEditedCardInfo,
   EngineTimelineNode,
+  isPrivateLocation,
   isStandardTag,
   isPlaceholderCard,
   placeholderCardData,
@@ -17,7 +19,7 @@ import { cdbService } from '../../db/cdbService'
 import { headPendingQuery, type SessionState } from './session-state'
 import { resolveProvenanceRecord, type ProvenanceOrigin } from './provenance-tracker'
 import { ReplayDivergenceError } from './replay-policy'
-import { remapRecordedAnswers, type CardPosition } from './answer-remap'
+import { remapRecordedAnswers } from './answer-remap'
 
 export type CardEditAction = { type: 'replace'; code: number } | { type: 'remove' }
 
@@ -28,28 +30,35 @@ export interface CardEditorDeps {
   replayTo(stepId: string, freshIdentity: boolean): Promise<void>
 }
 
+export interface CardEditorOptions {
+  allowDivergence?: boolean
+}
+
 export async function replaceCard(
   state: SessionState,
   deps: CardEditorDeps,
   ref: EngineCardRef,
-  newCode: number
+  newCode: number,
+  options: CardEditorOptions = {}
 ): Promise<EngineCardEditResult> {
-  return editCard(state, deps, ref, { type: 'replace', code: newCode })
+  return editCard(state, deps, ref, { type: 'replace', code: newCode }, options)
 }
 
 export async function removeCard(
   state: SessionState,
   deps: CardEditorDeps,
-  ref: EngineCardRef
+  ref: EngineCardRef,
+  options: CardEditorOptions = {}
 ): Promise<EngineCardEditResult> {
-  return editCard(state, deps, ref, { type: 'remove' })
+  return editCard(state, deps, ref, { type: 'remove' }, options)
 }
 
 async function editCard(
   state: SessionState,
   deps: CardEditorDeps,
   ref: EngineCardRef,
-  action: CardEditAction
+  action: CardEditAction,
+  options: CardEditorOptions
 ): Promise<EngineCardEditResult> {
   if (!state.duel || state.duel.ended) {
     return { error: '当前没有进行中的对局。' }
@@ -92,104 +101,153 @@ async function editCard(
   }
 
   if (action.type === 'replace') {
-    const positions: CardPosition[] = [
-      {
-        controller: resolved.card.controller,
-        location: resolved.card.location,
-        sequence: resolved.card.sequence
-      }
-    ]
-    remapRecordedAnswers(state, record.code, action.code, positions, resolved.card.instanceId)
+    remapRecordedAnswers(state, record.code, action.code, {
+      controller: resolved.card.controller,
+      location: resolved.card.location,
+      sequence: resolved.card.sequence
+    })
   }
-
-  deps.truncateToCurrentStep()
 
   try {
     await deps.replayTo(currentStepId, true)
-    const boardState = deps.readBoard()
-    const node = state.timeline.getStep(currentStepId)?.node
-    if (!node) throw new Error('编辑后找不到当前步骤。')
-    node.boardState = boardState
-    node.pendingRequest = headPendingQuery(state)?.request ?? null
-    updateEditedNodeTitle(state, record.origin, action)
-    const editedCard: EngineEditedCardInfo = {
-      action: action.type,
-      originKind: record.origin.kind,
-      instanceId:
-        record.origin.kind === 'initial' ? record.origin.puzzleCardId : resolved.card.instanceId,
-      oldCode: record.code,
-      newCode: action.type === 'replace' ? action.code : 0,
-      card:
-        action.type === 'replace'
-          ? (cdbService.getCardById(action.code) ?? placeholderCardData(action.code) ?? undefined)
-          : undefined
-    }
-    return {
-      boardState,
-      pendingRequest: headPendingQuery(state)?.request ?? null,
-      node,
-      currentStepId,
-      puzzleState: state.initParams?.puzzleState
-        ? structuredClone(state.initParams.puzzleState)
-        : undefined,
-      editedCard
-    }
+    deps.truncateToCurrentStep()
+    return buildEditResult(state, deps, action, record.origin, record.code, resolved, currentStepId)
   } catch (err) {
     if (err instanceof ReplayDivergenceError && err.forkStepId) {
       const forkRecord = state.timeline.getStep(err.forkStepId)
       const sourceOpIndex = record.origin.kind === 'inject' ? record.origin.opIndex : -1
       if (forkRecord && (sourceOpIndex < 0 || forkRecord.node.opIndex >= sourceOpIndex)) {
+        if (!options.allowDivergence) {
+          const restored = await restoreAfterFailedEdit(
+            state,
+            deps,
+            previousOps,
+            previousInitParams,
+            currentStepId
+          )
+          if (!restored) return { error: '重演失败，且未能恢复到编辑前的状态。' }
+          return { conflict: buildConflict(state, err, forkRecord.node) }
+        }
         try {
           state.timeline.retainHistory(err.forkStepId)
           state.ops.length = forkRecord.node.opIndex + 1
           await deps.replayTo(err.forkStepId, true)
-          const boardState = deps.readBoard()
-          const node = state.timeline.getStep(err.forkStepId)?.node
-          if (!node) throw new Error('分叉后找不到步骤。')
-          node.boardState = boardState
-          node.pendingRequest = headPendingQuery(state)?.request ?? null
-          updateEditedNodeTitle(state, record.origin, action)
-          const editedCard: EngineEditedCardInfo = {
-            action: action.type,
-            originKind: record.origin.kind,
-            instanceId:
-              record.origin.kind === 'initial'
-                ? record.origin.puzzleCardId
-                : resolved.card.instanceId,
-            oldCode: record.code,
-            newCode: action.type === 'replace' ? action.code : 0,
-            card:
-              action.type === 'replace'
-                ? (cdbService.getCardById(action.code) ??
-                  placeholderCardData(action.code) ??
-                  undefined)
-                : undefined
-          }
-          return {
-            boardState,
-            pendingRequest: headPendingQuery(state)?.request ?? null,
-            node,
-            currentStepId: err.forkStepId,
-            warning: `${action.type === 'replace' ? '卡片已修改' : '卡片已移除'}，但对局在第 ${err.opIndex + 1} 条操作处无法与原历史对齐（原询问「${err.expectedTitle}」，重建后是「${err.actualTitle}」：${err.message}）。已回到该步之前，之后的操作需要重新进行。`,
-            puzzleState: state.initParams?.puzzleState
-              ? structuredClone(state.initParams.puzzleState)
-              : undefined,
-            editedCard
-          }
+          return buildEditResult(
+            state,
+            deps,
+            action,
+            record.origin,
+            record.code,
+            resolved,
+            err.forkStepId,
+            {
+              divergenceWarning: `${action.type === 'replace' ? '卡片已修改' : '卡片已移除'}，但对局在第 ${err.opIndex + 1} 条操作处无法与原历史对齐（原询问「${err.expectedTitle}」，重建后是「${err.actualTitle}」：${err.message}）。已回退到第 ${forkRecord.node.stepNumber} 步，之后的操作需要重新进行。`
+            }
+          )
         } catch (forkErr) {
           console.error('[card-editor] 分叉重放失败:', forkErr)
         }
       }
     }
-    state.ops = previousOps
-    state.initParams = previousInitParams
-    try {
-      await deps.replayTo(currentStepId, true)
-    } catch {
-      void err
-    }
+    await restoreAfterFailedEdit(state, deps, previousOps, previousInitParams, currentStepId)
     return { error: err instanceof Error ? err.message : '重演失败，已回滚编辑。' }
   }
+}
+
+interface BuildResultOptions {
+  divergenceWarning?: string
+}
+
+function buildEditResult(
+  state: SessionState,
+  deps: CardEditorDeps,
+  action: CardEditAction,
+  origin: ProvenanceOrigin,
+  oldCode: number,
+  resolved: { instanceId: string; card: EngineCard },
+  stepId: string,
+  options: BuildResultOptions = {}
+): EngineCardEditResult {
+  const boardState = deps.readBoard()
+  const node = state.timeline.getStep(stepId)?.node
+  if (!node) throw new Error('编辑后找不到当前步骤。')
+  node.boardState = boardState
+  node.pendingRequest = headPendingQuery(state)?.request ?? null
+  updateEditedNodeTitle(state, origin, action)
+  const editedCard: EngineEditedCardInfo = {
+    action: action.type,
+    originKind: origin.kind,
+    instanceId: origin.kind === 'initial' ? origin.puzzleCardId : resolved.card.instanceId,
+    oldCode,
+    newCode: action.type === 'replace' ? action.code : 0,
+    card:
+      action.type === 'replace'
+        ? (cdbService.getCardById(action.code) ?? placeholderCardData(action.code) ?? undefined)
+        : undefined
+  }
+  const landedWarning =
+    action.type === 'replace' && !cardLandedAt(boardState, resolved.card, action.code)
+      ? '卡片已替换，但重演后这个位置换成了别的卡：新卡被历史操作移到了其它区域，请核对墓地与卡组。'
+      : undefined
+  const warning = [options.divergenceWarning, landedWarning].filter(Boolean).join('；')
+  return {
+    boardState,
+    pendingRequest: headPendingQuery(state)?.request ?? null,
+    node,
+    currentStepId: stepId,
+    warning: warning || undefined,
+    puzzleState: state.initParams?.puzzleState
+      ? structuredClone(state.initParams.puzzleState)
+      : undefined,
+    editedCard
+  }
+}
+
+function buildConflict(
+  state: SessionState,
+  err: ReplayDivergenceError,
+  forkNode: EngineTimelineNode
+): EngineCardEditConflict {
+  const path = state.timeline.getHistoryPath()
+  const forkIndex = path.findIndex((node) => node.id === forkNode.id)
+  return {
+    opIndex: err.opIndex,
+    expectedTitle: err.expectedTitle,
+    actualTitle: err.actualTitle,
+    message: err.message,
+    forkStepId: forkNode.id,
+    forkStepNumber: forkNode.stepNumber,
+    forkTitle: forkNode.title,
+    discardedSteps: forkIndex >= 0 ? path.length - 1 - forkIndex : 0
+  }
+}
+
+async function restoreAfterFailedEdit(
+  state: SessionState,
+  deps: CardEditorDeps,
+  previousOps: SessionState['ops'],
+  previousInitParams: SessionState['initParams'],
+  currentStepId: string
+): Promise<boolean> {
+  state.ops = previousOps
+  state.initParams = previousInitParams
+  try {
+    await deps.replayTo(currentStepId, true)
+    return true
+  } catch (err) {
+    console.error('[card-editor] 回滚编辑后重演失败:', err)
+    return false
+  }
+}
+
+function cardLandedAt(board: EngineBoardState, target: EngineCardRef, code: number): boolean {
+  return board.allCards.some(
+    (card) =>
+      card.code === code &&
+      card.controller === target.controller &&
+      card.location === target.location &&
+      (isPrivateLocation(target.location) || card.sequence === target.sequence)
+  )
 }
 
 function applySourceEdit(

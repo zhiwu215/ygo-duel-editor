@@ -27,7 +27,8 @@ import {
   invalidateGameContentScan,
   type GameType
 } from './gameContent'
-import { findExternalCardImage, findExternalCardScript, importableCard } from './externalCardImport'
+import { findExternalCardImage, importableCard } from './externalCardImport'
+import { findExtraCardScript } from './extraCardScripts'
 import {
   placeholderGameCards,
   placeholderScript,
@@ -279,7 +280,7 @@ export async function syncCustomCardsToGame(
 
     const importTargets = [...new Set([...importedCards.map((card) => card.id), ...scriptOnlyIds])]
     for (const id of importTargets) {
-      const script = findExternalCardScript(id)
+      const script = findExtraCardScript(id)
       if (script) {
         const target = join(scriptDir, script.fileName)
         if (placeContent(script.content, target)) result.scripts++

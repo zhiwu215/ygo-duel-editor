@@ -14,6 +14,7 @@ import { configService } from '../configService'
 import { getGameScriptDirectories } from '../gameScriptPaths'
 import { readEngineCardData } from './card-reader'
 import { readCustomScript } from '../customCardScript'
+import { extraScriptSources, readExtraCardScript } from '../extraCardScripts'
 import { placeholderScriptForPath } from '../placeholderGameCards'
 import { getDuelEngineSupport } from './engineSupport'
 
@@ -34,20 +35,18 @@ function getAvailableScriptSources(): { zips: string[]; dirs: string[] } {
   const zips: string[] = []
   const dirs: string[] = []
 
-  const testDirs = [config.gameDirectory, ...getGameScriptDirectories()].filter(Boolean) as string[]
+  const testDirs = [
+    config.gameDirectory,
+    ...getGameScriptDirectories(),
+    ...extraScriptSources().scriptDirs
+  ].filter(Boolean) as string[]
 
   const testZips = [
     config.gameDirectory ? path.join(config.gameDirectory, 'script.zip') : null,
     config.gameDirectory ? path.join(config.gameDirectory, 'Data', 'script.zip') : null,
-    config.gameDirectory ? path.join(config.gameDirectory, 'expansions', 'script.zip') : null
+    config.gameDirectory ? path.join(config.gameDirectory, 'expansions', 'script.zip') : null,
+    ...(config.extraCdbPaths || []).map((p) => path.join(path.dirname(p), 'script.zip'))
   ].filter(Boolean) as string[]
-
-  const extraDirs = (config.extraCdbPaths || []).map((p) => path.dirname(p))
-  for (const dir of extraDirs) {
-    testZips.push(path.join(dir, 'script.zip'))
-    testDirs.push(path.join(dir, 'script'))
-    testDirs.push(dir)
-  }
 
   for (const z of testZips) {
     if (fs.existsSync(z) && fs.statSync(z).isFile()) {
@@ -122,6 +121,7 @@ export async function bindEngineCapabilities(wrapper: OcgcoreWrapper): Promise<v
     wrapper.setScriptReader(reader)
   }
 
+  wrapper.setScriptReader(readExtraCardScript)
   wrapper.setScriptReader(placeholderScriptForPath)
   wrapper.setScriptReader(createPreloadStubReader())
 }

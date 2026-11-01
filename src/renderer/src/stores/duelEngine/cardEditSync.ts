@@ -10,6 +10,8 @@ export function syncCardEditToDuelStore(editedCard: EngineEditedCardInfo): void 
   const newName = cardData?.name ?? resolveCardName(newCode)
   const targetId = editedCard.instanceId
 
+  useDuelStore.getState().setHoveredCard(null)
+
   useDuelStore.setState((prev) => {
     const nextCards =
       editedCard.action === 'remove'

@@ -1,128 +1,26 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
-import { dirname, join } from 'path'
+import { existsSync } from 'fs'
+import { join } from 'path'
 import { CardType, CustomCard, unpackCardLevel } from '@shared/index'
 import { cdbService } from '../db/cdbService'
 import { enabledExtraCdbPaths } from './gameContent'
 import { imageService } from './imageService'
-import { buildZipScriptIndex, readZipScriptEntry, type ZipScriptEntry } from './scriptArchiveZip'
 
-const SCRIPT_ROOT_DEPTH = 4
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png']
 
-interface ZipScriptArchive {
-  key: string
-  buffer: Buffer
-  entries: Map<number, ZipScriptEntry>
-}
+let cachedImageDirs: { key: string; dirs: string[] } | null = null
 
-interface ExternalSources {
-  key: string
-  scriptDirs: string[]
-  scriptZips: string[]
-  imageDirs: string[]
-}
-
-const zipCache = new Map<string, ZipScriptArchive>()
-let cachedSources: ExternalSources | null = null
-
-function listDirectories(dir: string): string[] {
-  try {
-    return readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => join(dir, entry.name))
-  } catch {
-    return []
-  }
-}
-
-function listZipFiles(dir: string): string[] {
-  try {
-    return readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.zip'))
-      .map((entry) => join(dir, entry.name))
-  } catch {
-    return []
-  }
-}
-
-function scriptRootFor(cdbPath: string): string | null {
-  let dir = dirname(cdbPath)
-  for (let depth = 0; depth < SCRIPT_ROOT_DEPTH; depth++) {
-    if (existsSync(join(dir, 'script')) || existsSync(join(dir, 'expansions'))) return dir
-    const parent = dirname(dir)
-    if (parent === dir) return null
-    dir = parent
-  }
-  return null
-}
-
-function collectExternalSources(extraPaths: string[]): ExternalSources {
-  const scriptDirs: string[] = []
-  const scriptZips: string[] = []
-  const imageDirs: string[] = []
-  const addDir = (dir: string): void => {
-    if (dir && existsSync(dir) && !scriptDirs.includes(dir)) scriptDirs.push(dir)
-  }
-  const addZip = (file: string): void => {
-    if (existsSync(file) && !scriptZips.includes(file)) scriptZips.push(file)
-  }
-
-  for (const cdbPath of extraPaths) {
-    const dir = dirname(cdbPath)
-    addDir(dir)
-    addDir(join(dir, 'script'))
-    for (const file of listZipFiles(dir)) addZip(file)
-    for (const imageDir of imageService.detectPicsDirsFromCdb(cdbPath)) {
-      if (!imageDirs.includes(imageDir)) imageDirs.push(imageDir)
-    }
-
-    const root = scriptRootFor(cdbPath)
-    if (!root) continue
-    const scriptRoot = join(root, 'script')
-    addDir(scriptRoot)
-    for (const sub of listDirectories(scriptRoot)) addDir(sub)
-    addDir(join(root, 'expansions', 'script'))
-    for (const file of listZipFiles(root)) addZip(file)
-    for (const file of listZipFiles(join(root, 'expansions'))) addZip(file)
-    for (const file of listZipFiles(join(root, 'repositories'))) addZip(file)
-    for (const repo of listDirectories(join(root, 'repositories'))) addDir(join(repo, 'script'))
-  }
-
-  return {
-    key: extraPaths.join('|'),
-    scriptDirs,
-    scriptZips,
-    imageDirs
-  }
-}
-
-function externalSources(): ExternalSources {
+function extraImageDirs(): string[] {
   const extraPaths = enabledExtraCdbPaths()
-  if (cachedSources && cachedSources.key === extraPaths.join('|')) return cachedSources
-  cachedSources = collectExternalSources(extraPaths)
-  return cachedSources
-}
-
-function loadZipScripts(zipPath: string): ZipScriptArchive | null {
-  let key: string
-  try {
-    const stat = statSync(zipPath)
-    key = `${stat.size}:${stat.mtimeMs}`
-  } catch {
-    return null
+  const key = extraPaths.join('|')
+  if (cachedImageDirs && cachedImageDirs.key === key) return cachedImageDirs.dirs
+  const dirs: string[] = []
+  for (const cdbPath of extraPaths) {
+    for (const dir of imageService.detectPicsDirsFromCdb(cdbPath)) {
+      if (!dirs.includes(dir)) dirs.push(dir)
+    }
   }
-  const cached = zipCache.get(zipPath)
-  if (cached && cached.key === key) return cached
-  try {
-    const buffer = readFileSync(zipPath)
-    const entries = buildZipScriptIndex(buffer)
-    if (!entries) return null
-    const archive = { key, buffer, entries }
-    zipCache.set(zipPath, archive)
-    return archive
-  } catch {
-    return null
-  }
+  cachedImageDirs = { key, dirs }
+  return dirs
 }
 
 function setcodeSlots(value: bigint | number): number[] {
@@ -159,31 +57,8 @@ export function importableCard(id: number): CustomCard | null {
   }
 }
 
-export function findExternalCardScript(id: number): { fileName: string; content: Buffer } | null {
-  const fileName = `c${id}.lua`
-  const sources = externalSources()
-  for (const dir of sources.scriptDirs) {
-    const file = join(dir, fileName)
-    if (!existsSync(file)) continue
-    try {
-      return { fileName, content: readFileSync(file) }
-    } catch {
-      continue
-    }
-  }
-  for (const zipPath of sources.scriptZips) {
-    const archive = loadZipScripts(zipPath)
-    if (!archive) continue
-    const entry = archive.entries.get(id)
-    if (!entry) continue
-    const text = readZipScriptEntry(archive.buffer, entry)
-    if (text !== null) return { fileName, content: Buffer.from(text, 'utf8') }
-  }
-  return null
-}
-
 export function findExternalCardImage(id: number): string | null {
-  for (const dir of externalSources().imageDirs) {
+  for (const dir of extraImageDirs()) {
     for (const ext of IMAGE_EXTENSIONS) {
       const file = join(dir, `${id}${ext}`)
       if (existsSync(file)) return file

@@ -168,9 +168,10 @@ const api: IpcApi = {
   duelEngineGetPendingRequest: () => ipcRenderer.invoke('duel-engine:get-pending-request'),
   duelEngineGetProvenance: (ref: EngineCardRef) =>
     ipcRenderer.invoke('duel-engine:get-provenance', ref),
-  duelEngineReplaceCard: (ref: EngineCardRef, newCode: number) =>
-    ipcRenderer.invoke('duel-engine:replace-card', ref, newCode),
-  duelEngineRemoveCard: (ref: EngineCardRef) => ipcRenderer.invoke('duel-engine:remove-card', ref),
+  duelEngineReplaceCard: (ref: EngineCardRef, newCode: number, allowDivergence?: boolean) =>
+    ipcRenderer.invoke('duel-engine:replace-card', ref, newCode, allowDivergence),
+  duelEngineRemoveCard: (ref: EngineCardRef, allowDivergence?: boolean) =>
+    ipcRenderer.invoke('duel-engine:remove-card', ref, allowDivergence),
   duelEngineJumpToStep: (stepId) => ipcRenderer.invoke('duel-engine:jump-to-step', stepId),
   duelEngineGetTimeline: () => ipcRenderer.invoke('duel-engine:get-timeline'),
   duelEngineImportReplay: () => ipcRenderer.invoke('duel-engine:import-replay'),

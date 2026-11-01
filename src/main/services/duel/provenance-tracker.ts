@@ -6,6 +6,7 @@ import {
   FieldCard,
   InjectCommand,
   getPzoneSzoneSequence,
+  isPrivateLocation,
   isStandardTag
 } from '@shared/index'
 import type { DuelPuzzleState } from '@shared/index'
@@ -25,12 +26,6 @@ export interface ProvenanceRecord {
   }
 }
 
-const PRIVATE_LOCATIONS = new Set<number>([
-  CardLocation.HAND,
-  CardLocation.DECK,
-  CardLocation.EXTRA
-])
-
 function locationKey(
   controller: number,
   location: number,
@@ -38,7 +33,7 @@ function locationKey(
   duelistId?: string,
   tag = false
 ): string {
-  const seat = tag && PRIVATE_LOCATIONS.has(location) && duelistId ? `:${duelistId}` : ''
+  const seat = tag && isPrivateLocation(location) && duelistId ? `:${duelistId}` : ''
   return `${controller}${seat}:${location}:${sequence}`
 }
 

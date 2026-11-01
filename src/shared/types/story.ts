@@ -173,6 +173,7 @@ export interface LightweightCardSnapshot {
   duelistId?: string
   customAtk?: number
   customDef?: number
+  customLevel?: number
 }
 
 export type ManualOp =

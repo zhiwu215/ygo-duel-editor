@@ -939,14 +939,18 @@ export class DuelSession {
     }
   }
 
-  async replaceCard(ref: EngineCardRef, newCode: number): Promise<EngineCardEditResult> {
+  async replaceCard(
+    ref: EngineCardRef,
+    newCode: number,
+    allowDivergence = false
+  ): Promise<EngineCardEditResult> {
     if (this.state.replay) throw new Error('回放模式为只读，请先退出回放。')
-    return replaceCardOp(this.state, this.cardEditorDeps(), ref, newCode)
+    return replaceCardOp(this.state, this.cardEditorDeps(), ref, newCode, { allowDivergence })
   }
 
-  async removeCard(ref: EngineCardRef): Promise<EngineCardEditResult> {
+  async removeCard(ref: EngineCardRef, allowDivergence = false): Promise<EngineCardEditResult> {
     if (this.state.replay) throw new Error('回放模式为只读，请先退出回放。')
-    return removeCardOp(this.state, this.cardEditorDeps(), ref)
+    return removeCardOp(this.state, this.cardEditorDeps(), ref, { allowDivergence })
   }
 
   getTimeline(): EngineTimelineNode[] {

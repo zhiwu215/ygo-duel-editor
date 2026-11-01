@@ -4,6 +4,7 @@ import {
   createDefaultDuelists,
   createStandardTagDuelists,
   normalizeMatchConfig,
+  resolveEngineCardStats,
   type DuelPuzzleState,
   type EngineBoardState,
   type FieldCard
@@ -47,6 +48,7 @@ export function buildPuzzleStateFromEngineBoard(
     .filter((card) => card.location !== CardLocation.OVERLAY)
     .map((card) => {
       const position = normalizeEngineCardPosition(masterRule, card.location, card.sequence)
+      const stats = resolveEngineCardStats(card)
       return {
         instanceId: card.instanceId,
         code: card.code,
@@ -58,7 +60,10 @@ export function buildPuzzleStateFromEngineBoard(
         position: card.position,
         overlayMaterials: [...card.overlayMaterials],
         counters: card.counters ? { ...card.counters } : undefined,
-        duelistId: card.duelistId ?? (card.controller === 0 ? main0Id : main1Id)
+        duelistId: card.duelistId ?? (card.controller === 0 ? main0Id : main1Id),
+        customAtk: stats?.customAtk,
+        customDef: stats?.customDef,
+        customLevel: stats?.customLevel
       }
     })
 

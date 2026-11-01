@@ -22,7 +22,8 @@ export function createLightweightSnapshot(cards: FieldCard[]): LightweightCardSn
     overlayMaterials: [...(c.overlayMaterials || [])],
     duelistId: c.duelistId,
     customAtk: c.customAtk,
-    customDef: c.customDef
+    customDef: c.customDef,
+    customLevel: c.customLevel
   }))
 }
 

@@ -13,6 +13,8 @@ export interface EngineCard {
   sequence: number
   position: number
   duelistId?: string
+  level?: number
+  rank?: number
   atk?: number
   def?: number
   baseAtk?: number

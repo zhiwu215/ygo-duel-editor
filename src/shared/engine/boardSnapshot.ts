@@ -31,7 +31,8 @@ export function restoreCardsFromSnapshot(
       overlayMaterials: [...(s.overlayMaterials || [])],
       duelistId: s.duelistId,
       customAtk: s.customAtk,
-      customDef: s.customDef
+      customDef: s.customDef,
+      customLevel: s.customLevel
     }
   })
 }

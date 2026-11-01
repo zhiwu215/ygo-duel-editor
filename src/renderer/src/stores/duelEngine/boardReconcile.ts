@@ -230,7 +230,13 @@ function syncJumpToStepToDuelStore(
     const editorId = getEditorId(ec.instanceId) ?? ec.instanceId
     const card = editorCards.get(editorId)
     if (!card) continue
-    if (card.customAtk === stats.customAtk && card.customDef === stats.customDef) continue
-    duelStore.setCardCustomStats(editorId, stats.customAtk, stats.customDef)
+    if (
+      card.customAtk === stats.customAtk &&
+      card.customDef === stats.customDef &&
+      card.customLevel === stats.customLevel
+    ) {
+      continue
+    }
+    duelStore.setCardStats(editorId, stats)
   }
 }

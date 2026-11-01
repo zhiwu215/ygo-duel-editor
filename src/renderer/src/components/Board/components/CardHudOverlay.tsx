@@ -74,7 +74,7 @@ export const CardHudOverlay: React.FC<CardHudOverlayProps> = ({ card }) => {
   const isAtkInf = stats.isAtkInf
   const isDefInf = stats.isDefInf
 
-  const star = cdb ? CardUtils.getStarLevel(cdb.level) : 0
+  const star = card.customLevel ?? (cdb ? CardUtils.getStarLevel(cdb.level) : 0)
   const isLink = cdb ? CardUtils.isLink(cdb.type) : false
   const race = cdb ? RACE_NAMES[cdb.race] || '' : ''
   const attr = cdb ? ATTRIBUTE_NAMES[cdb.attribute] || '' : ''

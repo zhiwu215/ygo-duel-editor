@@ -1,22 +1,14 @@
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useState, useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
-import {
-  formatCardTypeLine,
-  formatCardStatsLine,
-  formatCardSeriesLine,
-  getLinkMarkerMask
-} from '../../utils/cardFormat'
-import { LinkMarkerArrows } from './LinkMarkerArrows'
 import { CardImage } from '../ui/CardImage'
-import { useCopyFeedback } from '../../hooks/useCopyFeedback'
-import { HelpCircle, ZoomIn, Copy, Check } from 'lucide-react'
+import { HelpCircle, ZoomIn } from 'lucide-react'
 import { CardImageViewer } from './CardImageViewer'
+import { CardDetailText } from './CardDetailText'
 
 export const CardDetailPanel: React.FC = () => {
   const { hoveredCard, selectedCardId, state } = useDuelStore()
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
-  const { copiedField, copy } = useCopyFeedback('CardDetailPanel')
 
   let currentCard = hoveredCard
   const selectedFieldCard = selectedCardId
@@ -42,19 +34,6 @@ export const CardDetailPanel: React.FC = () => {
     }
   }, [currentCard, selectedFieldCard])
 
-  const handleCopyName = (e: React.MouseEvent): void => {
-    e.stopPropagation()
-    if (!currentCard?.name) return
-    void copy('name', currentCard.name)
-  }
-
-  const handleCopyCode = (e: React.MouseEvent): void => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!currentCard) return
-    void copy('code', String(currentCard.id))
-  }
-
   if (!currentCard) {
     return (
       <div className="w-full h-full bg-card/30 flex flex-col select-none">
@@ -68,10 +47,6 @@ export const CardDetailPanel: React.FC = () => {
       </div>
     )
   }
-
-  const statsLine = formatCardStatsLine(currentCard)
-  const linkMarkers = getLinkMarkerMask(currentCard)
-  const seriesLine = formatCardSeriesLine(currentCard)
 
   return (
     <>
@@ -102,50 +77,7 @@ export const CardDetailPanel: React.FC = () => {
         <div className="border-t border-border" />
 
         <ScrollArea className="flex-1 min-h-0">
-          <div className="p-3 flex flex-col gap-2 select-text">
-            <div
-              onClick={handleCopyName}
-              onContextMenu={handleCopyCode}
-              className="group relative flex items-center justify-center px-2 py-1 rounded border border-border/70 bg-muted/60 dark:bg-muted/30 shadow-inner text-center cursor-pointer hover:bg-muted/80 transition-colors select-none"
-            >
-              <span className="font-bold text-xs text-foreground truncate">
-                {currentCard.name}[{currentCard.id}]
-              </span>
-              {currentCard.isCustom && (
-                <span className="ml-1 px-1 py-px rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 text-[9px] font-bold shrink-0">
-                  自定义
-                </span>
-              )}
-              <span
-                className={`absolute right-2 transition-opacity text-muted-foreground ${
-                  copiedField ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                }`}
-              >
-                {copiedField ? (
-                  <Check className="w-3 h-3 text-emerald-500" />
-                ) : (
-                  <Copy className="w-3 h-3" />
-                )}
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 select-text leading-snug">
-              <div>{formatCardTypeLine(currentCard)}</div>
-
-              {statsLine && (
-                <div className="flex items-center flex-wrap gap-x-1">
-                  <span>{statsLine}</span>
-                  {linkMarkers > 0 && <LinkMarkerArrows markers={linkMarkers} />}
-                </div>
-              )}
-
-              {seriesLine && <div>{seriesLine}</div>}
-            </div>
-
-            <div className="pt-1 text-xs text-foreground/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
-              {currentCard.desc}
-            </div>
-          </div>
+          <CardDetailText card={currentCard} source="CardDetailPanel" />
         </ScrollArea>
       </div>
 

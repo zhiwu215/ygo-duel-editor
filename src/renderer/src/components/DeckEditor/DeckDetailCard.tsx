@@ -1,19 +1,12 @@
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useState } from 'react'
-import { CdbCard, CardUtils } from '@shared/index'
+import { CdbCard } from '@shared/index'
 import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
 import { CardImage } from '../ui/CardImage'
-import {
-  formatCardTypeLine,
-  formatCardStatsLine,
-  formatCardSeriesLine,
-  getLinkMarkerMask
-} from '../../utils/cardFormat'
-import { LinkMarkerArrows } from '../CardDetail/LinkMarkerArrows'
 import { cn } from '../../lib/utils'
-
-import { Check, ZoomIn, Copy } from 'lucide-react'
+import { ZoomIn } from 'lucide-react'
 import { CardImageViewer } from '../CardDetail/CardImageViewer'
+import { CardDetailText } from '../CardDetail/CardDetailText'
 
 interface DeckDetailCardProps {
   card: CdbCard | null
@@ -23,7 +16,6 @@ interface DeckDetailCardProps {
 
 export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, onToggleCover }) => {
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
-  const [copied, setCopied] = useState<boolean>(false)
   const imageUrl = card ? getCardImageUrl(card.id) : CARD_BACK_IMAGE
   const [display, setDisplay] = useState<{ url: string; loaded: boolean; prevUrl: string | null }>(
     () => ({ url: imageUrl, loaded: true, prevUrl: null })
@@ -34,22 +26,6 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
 
   const handleImageLoaded = (): void => {
     setDisplay((s) => (s.loaded ? s : { ...s, loaded: true }))
-  }
-
-  const typeLine = card ? formatCardTypeLine(card) : ''
-  const statsLine = card && CardUtils.isMonster(card.type) ? formatCardStatsLine(card) : ''
-  const linkMarkers = card ? getLinkMarkerMask(card) : 0
-  const seriesLine = card ? formatCardSeriesLine(card) : ''
-
-  const handleCopyName = async (): Promise<void> => {
-    if (!card?.name) return
-    try {
-      await navigator.clipboard.writeText(card.name)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch (err) {
-      console.error('[DeckDetailCard] Failed to copy card name:', err)
-    }
   }
 
   return (
@@ -98,43 +74,7 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
             <div className="border-t border-border" />
 
             <ScrollArea className="flex-1 min-h-0">
-              <div className="p-3 flex flex-col gap-2 select-text">
-                <div
-                  onClick={handleCopyName}
-                  className="group relative flex items-center justify-center px-2 py-1 rounded border border-border/70 bg-muted/60 dark:bg-muted/30 shadow-inner text-center cursor-pointer hover:bg-muted/80 transition-colors select-none"
-                >
-                  <span className="font-bold text-xs text-foreground truncate">
-                    {card.name}[{card.id}]
-                  </span>
-                  {card.isCustom && (
-                    <span className="ml-1 px-1 py-px rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 text-[9px] font-bold shrink-0">
-                      自定义
-                    </span>
-                  )}
-                  <span className="absolute right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground">
-                    {copied ? (
-                      <Check className="w-3 h-3 text-emerald-500" />
-                    ) : (
-                      <Copy className="w-3 h-3" />
-                    )}
-                  </span>
-                </div>
-
-                <div className="flex flex-col gap-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 select-text leading-snug">
-                  {typeLine && <div>{typeLine}</div>}
-                  {statsLine && (
-                    <div className="flex items-center flex-wrap gap-x-1">
-                      <span>{statsLine}</span>
-                      {linkMarkers > 0 && <LinkMarkerArrows markers={linkMarkers} />}
-                    </div>
-                  )}
-                  {seriesLine && <div>{seriesLine}</div>}
-                </div>
-
-                <div className="pt-1 text-xs text-foreground/90 font-sans leading-relaxed whitespace-pre-wrap select-text cursor-text selection:bg-primary/25">
-                  {card.desc || '无效果描述'}
-                </div>
-              </div>
+              <CardDetailText card={card} descFallback="无效果描述" source="DeckDetailCard" />
             </ScrollArea>
           </>
         ) : (

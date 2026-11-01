@@ -8,7 +8,9 @@ import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { confirmDialog } from '../../../stores/useDialogStore'
 import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
+import { ScrollArea } from '../../ui/scroll-area'
 import { CardRowItem } from '../../CardSearch/CardRowItem'
+import { CardDetailText } from '../../CardDetail/CardDetailText'
 
 const PAGE_SIZE = 40
 
@@ -23,7 +25,10 @@ const ReplaceDialogBody: React.FC<{
   const [total, setTotal] = useState(0)
   const [searching, setSearching] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [previewCard, setPreviewCard] = useState<CdbCard | null>(null)
   const requestRef = useRef(0)
+
+  const shownPreview = results.find((card) => card.id === previewCard?.id) ?? results[0] ?? null
 
   const fetchPage = useCallback(
     async (value: string, offset: number, append: boolean): Promise<void> => {
@@ -87,18 +92,28 @@ const ReplaceDialogBody: React.FC<{
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) loadMore()
   }
 
-  const handleReplace = async (card: CdbCard): Promise<void> => {
-    if (loading) return
-    const ok = await confirmDialog({
-      title: '替换这张卡？',
-      description: `「${target.name}」→「${card.name}」\n\n会修改来源并自动重演；新增的可选发动默认不发动。若无法与原历史对齐，会回到分歧点，之后的操作需要重新进行。`,
-      confirmText: '替换并重演',
-      destructive: false
-    })
-    if (ok !== true) return
-    const replaced = await replaceCard(target.ref, card.id)
-    if (replaced) onClose()
-  }
+  const handleReplace = useCallback(
+    async (card: CdbCard): Promise<void> => {
+      if (loading) return
+      const ok = await confirmDialog({
+        title: '替换这张卡？',
+        description: `「${target.name}」→「${card.name}」\n\n会修改来源并自动重演；新增的可选发动默认不发动。若无法与原历史对齐，会回到分歧点，之后的操作需要重新进行。`,
+        confirmText: '替换并重演',
+        destructive: false
+      })
+      if (ok !== true) return
+      const replaced = await replaceCard(target.ref, card.id)
+      if (replaced) onClose()
+    },
+    [loading, target, replaceCard, onClose]
+  )
+
+  const handleRowClick = useCallback(
+    (card: CdbCard): void => {
+      void handleReplace(card)
+    },
+    [handleReplace]
+  )
 
   return (
     <div
@@ -106,60 +121,86 @@ const ReplaceDialogBody: React.FC<{
       onClick={onClose}
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl"
+        className="flex max-h-[85vh] w-full max-w-[960px] flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="border-b border-border px-4 py-3">
+        <div className="shrink-0 border-b border-border px-4 py-3">
           <div className="text-sm font-semibold">替换「{target.name}」</div>
           <div className="mt-0.5 text-[11px] font-mono text-muted-foreground">
             当前卡密 {target.code}
           </div>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="flex items-center gap-2 border-b border-border p-3"
-        >
-          <Input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="搜索卡名或卡密"
-            className="h-8 flex-1 text-xs"
-          />
-          <Button type="submit" size="sm" className="h-8 px-3 text-xs" disabled={searching}>
-            搜索
-          </Button>
-        </form>
+        <div className="flex min-h-[360px] flex-1">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <form
+              onSubmit={handleSubmit}
+              className="flex items-center gap-2 border-b border-border p-3"
+            >
+              <Input
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="搜索卡名或卡密"
+                className="h-8 flex-1 text-xs"
+              />
+              <Button type="submit" size="sm" className="h-8 px-3 text-xs" disabled={searching}>
+                搜索
+              </Button>
+            </form>
 
-        <div className="flex shrink-0 items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-1.5 text-[11px] text-muted-foreground">
-          <span>
-            搜索结果: <strong className="font-semibold text-foreground">{total}</strong> 张
-          </span>
-          {searching && <span>搜索中…</span>}
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-2" onScroll={handleScroll}>
-          {results.length === 0 ? (
-            <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
-              {searching ? '正在搜索…' : '没有结果'}
+            <div className="flex shrink-0 items-center justify-between border-b border-border/40 bg-muted/20 px-3 py-1.5 text-[11px] text-muted-foreground">
+              <span>
+                搜索结果: <strong className="font-semibold text-foreground">{total}</strong> 张
+              </span>
+              {searching && <span>搜索中…</span>}
             </div>
-          ) : (
-            <div className="space-y-1.5">
-              {results.map((card) => (
-                <CardRowItem
-                  key={card.id}
-                  card={card}
-                  onRowClick={() => void handleReplace(card)}
-                />
-              ))}
-              {loadingMore && (
-                <div className="py-2 text-center text-xs text-muted-foreground">加载更多卡片…</div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-2" onScroll={handleScroll}>
+              {results.length === 0 ? (
+                <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
+                  {searching ? '正在搜索…' : '没有结果'}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {results.map((card) => (
+                    <CardRowItem
+                      key={card.id}
+                      card={card}
+                      onHover={setPreviewCard}
+                      onRowClick={handleRowClick}
+                    />
+                  ))}
+                  {loadingMore && (
+                    <div className="py-2 text-center text-xs text-muted-foreground">
+                      加载更多卡片…
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
+
+          <div className="hidden w-[300px] shrink-0 flex-col border-l border-border sm:flex">
+            <div className="flex h-10 shrink-0 items-center border-b border-border bg-neutral-100/60 px-3 dark:bg-neutral-900/60">
+              <span className="text-xs font-bold text-foreground">卡片详情</span>
+            </div>
+            <ScrollArea className="min-h-0 flex-1">
+              {shownPreview ? (
+                <CardDetailText
+                  card={shownPreview}
+                  descFallback="无效果描述"
+                  source="EngineCardReplaceDialog"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center p-6 text-center text-xs text-muted-foreground">
+                  没有可预览的卡片
+                </div>
+              )}
+            </ScrollArea>
+          </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2.5">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-4 py-2.5">
           <Button type="button" variant="outline" size="sm" onClick={onClose}>
             取消
           </Button>

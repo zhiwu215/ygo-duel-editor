@@ -338,6 +338,8 @@ const PileListContent: React.FC = () => {
               dragEnabled={dragEnabled}
               location={target.location}
               holdEnabled={!isEngineActive}
+              actionsDisabled={isEngineActive}
+              showLocationLabel
               selectedCardId={selectedCardId}
               chainIndexesByInstance={chainIndexesByInstance}
               getCardName={(card) => getCardName(card.code)}

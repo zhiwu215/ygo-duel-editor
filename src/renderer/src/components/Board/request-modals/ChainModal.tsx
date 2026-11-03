@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
-import { LOCATION_NAMES } from '@shared/index'
 import type { EngineRequest } from '@shared/engine/protocol'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { Button } from '../../ui/button'
 import { cn } from '../../../lib/utils'
+import { cardLocationLabel } from '../../../utils/cardLocationLabel'
 import { RequestModalShell } from './RequestModalShell'
 import { DataOf, submitAnswer } from './engine'
 import { cardNameOf, useCardMeta } from './useCardMeta'
@@ -113,8 +113,8 @@ export const ChainModal: React.FC<{ request: EngineRequest; data: DataOf<'chain'
               <span className={cn('min-w-0 flex-1 truncate', active && 'font-semibold')}>
                 {cardNameOf(meta, card.code)}
               </span>
-              <span className="shrink-0 text-[10px] text-muted-foreground">
-                {LOCATION_NAMES[card.location] ?? '未知区域'}
+              <span className="shrink-0 rounded-[3px] bg-muted px-1 py-0.5 text-[10px] font-semibold tabular-nums text-foreground/70">
+                {cardLocationLabel(card.location, card.sequence)}
               </span>
             </button>
           )

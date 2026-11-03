@@ -10,7 +10,7 @@ import {
 } from '../../../utils/duelSelection'
 import { Button } from '../../ui/button'
 import { RequestModalShell } from './RequestModalShell'
-import { RequestCardTile } from './RequestCardTile'
+import { REQUEST_CARD_GRID_CLASS, RequestCardTile } from './RequestCardTile'
 import { DataOf } from './engine'
 import { useCardMeta } from './useCardMeta'
 
@@ -47,7 +47,7 @@ export const SumModal: React.FC<{ request: EngineRequest; data: DataOf<'sum'> }>
     <RequestModalShell
       title={request.title}
       subtitle={request.subtitle}
-      width="max-w-2xl"
+      width="max-w-3xl"
       footer={
         <>
           <span className="mr-auto text-[11px] text-muted-foreground">
@@ -64,7 +64,7 @@ export const SumModal: React.FC<{ request: EngineRequest; data: DataOf<'sum'> }>
         {data.mustSelect.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <span className="text-[10px] font-bold text-muted-foreground">必定选择</span>
-            <div className="flex flex-wrap gap-2">
+            <div className={REQUEST_CARD_GRID_CLASS}>
               {data.mustSelect.map((card, index) => (
                 <RequestCardTile
                   key={`must-${index}-${card.code}`}
@@ -77,7 +77,7 @@ export const SumModal: React.FC<{ request: EngineRequest; data: DataOf<'sum'> }>
             </div>
           </div>
         )}
-        <div className="flex flex-wrap gap-2">
+        <div className={REQUEST_CARD_GRID_CLASS}>
           {data.cards.map((card, index) => (
             <RequestCardTile
               key={`${card.controller}-${card.location}-${card.sequence}-${card.code}-${index}`}

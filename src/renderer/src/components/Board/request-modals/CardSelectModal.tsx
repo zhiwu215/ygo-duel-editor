@@ -11,7 +11,7 @@ import {
 } from '../../../utils/duelSelection'
 import { Button } from '../../ui/button'
 import { RequestModalShell } from './RequestModalShell'
-import { RequestCardTile } from './RequestCardTile'
+import { REQUEST_CARD_GRID_CLASS, RequestCardTile } from './RequestCardTile'
 import { DataOf } from './engine'
 import { useCardMeta } from './useCardMeta'
 
@@ -66,7 +66,7 @@ export const CardSelectModal: React.FC<{
         </>
       }
     >
-      <div className="flex flex-wrap gap-2">
+      <div className={REQUEST_CARD_GRID_CLASS}>
         {data.cards.map((card, index) => (
           <RequestCardTile
             key={`${card.controller}-${card.location}-${card.sequence}-${card.code}-${index}`}

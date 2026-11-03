@@ -1,11 +1,13 @@
 import React from 'react'
 import { CardLocation, CardPosition, FieldCard } from '@shared/index'
 import { CardThumb } from '../../ui/CardThumb'
+import { CardLocationLabel } from './CardLocationLabel'
 import { ChainRing } from './ChainRing'
 import { Hand, Trash2 } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from '../../../lib/utils'
+import { cardLocationLabel } from '../../../utils/cardLocationLabel'
 import { SORTABLE_TRANSITION } from '../../../utils/dnd'
 
 interface PileCardTileProps {
@@ -17,6 +19,7 @@ interface PileCardTileProps {
   dragDisabled: boolean
   chainIndexes?: number[]
   actionsDisabled?: boolean
+  showLocationLabel?: boolean
   onSelect: (card: FieldCard) => void
   onCardClick?: (e: React.MouseEvent, card: FieldCard) => boolean
   onHoverChange: (card: FieldCard, hovering: boolean) => void
@@ -36,6 +39,7 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   dragDisabled,
   chainIndexes,
   actionsDisabled = false,
+  showLocationLabel = false,
   onSelect,
   onCardClick,
   onHoverChange,
@@ -70,13 +74,21 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
       onMouseEnter={() => onHoverChange(card, true)}
       onMouseLeave={() => onHoverChange(card, false)}
       className={cn(
-        'group relative rounded overflow-hidden select-none',
+        'group relative flex w-[128px] shrink-0 select-none flex-col',
         dragDisabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing touch-none',
-        isDragging ? 'opacity-30' : '',
-        isSelected ? 'ring-2 ring-blue-500' : 'hover:ring-2 hover:ring-blue-500/70'
+        isDragging ? 'opacity-30' : ''
       )}
     >
-      <div className="relative w-full aspect-[59/86] bg-black/30">
+      {showLocationLabel && (
+        <CardLocationLabel label={cardLocationLabel(card.location, card.sequence)} interactive />
+      )}
+
+      <div
+        className={cn(
+          'relative aspect-[59/86] w-full overflow-hidden rounded bg-black/30',
+          isSelected ? 'ring-2 ring-blue-500' : 'group-hover:ring-2 group-hover:ring-blue-500/70'
+        )}
+      >
         <CardThumb
           code={card.code}
           name={cardName}
@@ -84,9 +96,11 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
           className="h-full w-full"
         />
 
-        <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
-          #{index + 1}
-        </span>
+        {!showLocationLabel && (
+          <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
+            #{index + 1}
+          </span>
+        )}
 
         {chainIndexes && chainIndexes.length > 0 && (
           <div className="pointer-events-none absolute inset-0 z-20">

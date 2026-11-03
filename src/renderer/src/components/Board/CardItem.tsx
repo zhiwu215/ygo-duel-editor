@@ -115,7 +115,6 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   useFieldCardCdb(card)
 
   const { openMenu, closeMenu: closeContextMenu } = useContextMenuStore()
-  const openCardMenu = useCardCommandMenuStore((s) => s.openMenu)
   const openOverlayList = useOverlayListStore((s) => s.openOverlayList)
   const openPile = usePileListStore((s) => s.openPile)
   const { closeMenu: closeCommandMenu } = useCardCommandMenuStore()
@@ -243,11 +242,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
         closeContextMenu()
         setSelectedCardId(card.instanceId)
         if (card.card) setHoveredCard(card.card)
-        if (isEngineActive && hasRequestActions) {
-          openCardMenu(card, e.currentTarget.getBoundingClientRect())
-        } else {
-          openMenu(card, e.clientX, e.clientY)
-        }
+        openMenu(card, e.clientX, e.clientY)
       }}
       className={cn(
         'w-full h-full relative flex items-center justify-center cursor-grab active:cursor-grabbing group select-none',

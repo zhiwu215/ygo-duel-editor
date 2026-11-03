@@ -11,11 +11,14 @@ import {
   CardLocation,
   EngineProvenance,
   LOCATION_NAMES,
+  PLACEHOLDER_MONSTER_CARD_CODE,
+  PLACEHOLDER_SPELL_TRAP_CARD_CODE,
   isEngineSupportedMatch,
   isPileLocation,
   isPlaceholderCard,
   isSpellTrapLocation,
-  PLACEHOLDER_CARD_CODE
+  PLACEHOLDER_CARD_CODE,
+  placeholderKindOf
 } from '@shared/index'
 import { ZoneContextMenu } from './components/ZoneContextMenu'
 import { HandContextMenu } from './components/HandContextMenu'
@@ -164,6 +167,7 @@ export const CardContextMenu: React.FC = () => {
     (c) => c.controller === card.controller && c.location === card.location
   ).length
   const isHand = card.location === CardLocation.HAND
+  const placeholderKind = isHand ? placeholderKindOf(card.code) : null
   const isMonsterZone = card.location === CardLocation.MZONE
   const isSpellTrapZone = isSpellTrapLocation(card.location)
   const cardName = card.card?.name ?? resolveCardName(card.code)
@@ -185,6 +189,7 @@ export const CardContextMenu: React.FC = () => {
     !engineLoading &&
     traceable &&
     (editSupported || provenance?.kind === 'inject' || editableHandPlaceholder)
+  const canConvertPlaceholder = showEngineEdit && !engineLoading && placeholderKind !== null
   const injectStep =
     provenance?.kind === 'inject'
       ? timeline.find((node) => node.id === provenance.nodeId)?.stepNumber
@@ -217,6 +222,11 @@ export const CardContextMenu: React.FC = () => {
       name: cardName,
       code: card.code
     })
+  }
+  const handleConvertPlaceholder = (targetCode: number): void => {
+    if (!canEdit) return
+    closeMenu()
+    void useDuelEngineStore.getState().replaceCard(cardRef, targetCode)
   }
   const handleRemove = async (): Promise<void> => {
     if (!canEdit) return
@@ -272,6 +282,49 @@ export const CardContextMenu: React.FC = () => {
           <div className="truncate border-b border-border/50 px-2 py-0.5 text-[10px] text-muted-foreground">
             {sourceLabel}
           </div>
+          {canConvertPlaceholder && placeholderKind !== null && (
+            <>
+              {placeholderKind === 'neutral' ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!canEdit}
+                    onClick={() => handleConvertPlaceholder(PLACEHOLDER_MONSTER_CARD_CODE)}
+                    className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal hover:bg-accent cursor-pointer"
+                  >
+                    作为怪兽
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!canEdit}
+                    onClick={() => handleConvertPlaceholder(PLACEHOLDER_SPELL_TRAP_CARD_CODE)}
+                    className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal hover:bg-accent cursor-pointer"
+                  >
+                    作为魔陷
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={!canEdit}
+                  onClick={() =>
+                    handleConvertPlaceholder(
+                      placeholderKind === 'monster'
+                        ? PLACEHOLDER_SPELL_TRAP_CARD_CODE
+                        : PLACEHOLDER_MONSTER_CARD_CODE
+                    )
+                  }
+                  className="w-full justify-start gap-2 h-7 px-2 text-xs font-normal hover:bg-accent cursor-pointer"
+                >
+                  {placeholderKind === 'monster' ? '转为魔陷' : '转为怪兽'}
+                </Button>
+              )}
+              <Separator className="my-1" />
+            </>
+          )}
           <Button
             variant="ghost"
             size="sm"

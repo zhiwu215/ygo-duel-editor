@@ -133,7 +133,9 @@ export function PathsSection(): JSX.Element {
           title="回放文件"
           description={
             config.gameDirectory
-              ? '清理游戏 replay 目录中的回放，并删除 single 目录下同名的 Lua 脚本'
+              ? config.gameType === 'mdpro3'
+                ? '清理 MDPro3 replay 目录中的回放文件'
+                : '清理游戏 replay 目录中的回放，并删除 single 目录下同名的 Lua 脚本'
               : '设置游戏目录后，可以在这里管理已导出的回放文件'
           }
         >

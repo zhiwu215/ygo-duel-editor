@@ -290,30 +290,47 @@ export class YgoproLauncher {
     }
   }
 
+  private replayRoots(): { replayDir: string; singleDir: string }[] {
+    const config = configService.get()
+    const dirs = [config.gameDirectory, config.mdpro3Directory].filter((dir): dir is string =>
+      Boolean(dir)
+    )
+    return [...new Set(dirs)].map((dir) => ({
+      replayDir: join(dir, 'replay'),
+      singleDir: join(dir, 'single')
+    }))
+  }
+
   public listReplays(): ReplayFileListResult {
-    const gameDir = configService.get().gameDirectory
-    if (!gameDir) {
+    const roots = this.replayRoots()
+    if (roots.length === 0) {
       return { success: false, entries: [], error: '未配置游戏目录' }
     }
-    const replayDir = join(gameDir, 'replay')
-    if (!existsSync(replayDir)) return { success: true, entries: [] }
     try {
-      const entries = readdirSync(replayDir)
-        .filter((fileName) => /\.(yrp|yrp3d)$/i.test(fileName))
-        .map((fileName): ReplayFileEntry => {
+      const entries: ReplayFileEntry[] = []
+      const seen = new Set<string>()
+      for (const { replayDir, singleDir } of roots) {
+        if (!existsSync(replayDir)) continue
+        for (const fileName of readdirSync(replayDir)) {
+          if (!/\.(yrp|yrp3d)$/i.test(fileName) || seen.has(fileName)) continue
+          seen.add(fileName)
           const stat = statSync(join(replayDir, fileName))
           const baseName = fileName.replace(/\.(yrp|yrp3d)$/i, '')
-          return {
+          entries.push({
             fileName,
             baseName,
             size: stat.size,
             modifiedAt: stat.mtimeMs,
-            hasLua: existsSync(join(gameDir, 'single', `${baseName}.lua`))
-          }
-        })
-        .filter((entry) => entry.hasLua)
-        .sort((left, right) => right.modifiedAt - left.modifiedAt)
-      return { success: true, entries }
+            hasLua: existsSync(join(singleDir, `${baseName}.lua`))
+          })
+        }
+      }
+      return {
+        success: true,
+        entries: entries
+          .filter((entry) => entry.hasLua || /\.yrp3d$/i.test(entry.fileName))
+          .sort((left, right) => right.modifiedAt - left.modifiedAt)
+      }
     } catch (err) {
       console.error('[YgoproLauncher] listReplays failed:', err)
       return { success: false, entries: [], error: toErrorMessage(err) }
@@ -321,8 +338,8 @@ export class YgoproLauncher {
   }
 
   public deleteReplays(fileNames: string[]): ReplayDeleteResult {
-    const gameDir = configService.get().gameDirectory
-    if (!gameDir) {
+    const roots = this.replayRoots()
+    if (roots.length === 0) {
       return {
         success: false,
         deletedReplays: 0,
@@ -330,8 +347,6 @@ export class YgoproLauncher {
         error: '未配置游戏目录'
       }
     }
-    const replayDir = join(gameDir, 'replay')
-    const singleDir = join(gameDir, 'single')
     const selected = new Set(
       fileNames
         .map((fileName) => basename(fileName))
@@ -340,15 +355,18 @@ export class YgoproLauncher {
     let deletedReplays = 0
     let deletedScripts = 0
     try {
-      for (const fileName of readdirSync(replayDir)) {
-        if (!selected.has(fileName)) continue
-        const baseName = fileName.replace(/\.(yrp|yrp3d)$/i, '')
-        rmSync(join(replayDir, fileName), { force: true })
-        deletedReplays++
-        const luaPath = join(singleDir, `${baseName}.lua`)
-        if (existsSync(luaPath)) {
-          rmSync(luaPath, { force: true })
-          deletedScripts++
+      for (const { replayDir, singleDir } of roots) {
+        if (!existsSync(replayDir)) continue
+        for (const fileName of readdirSync(replayDir)) {
+          if (!selected.has(fileName)) continue
+          const baseName = fileName.replace(/\.(yrp|yrp3d)$/i, '')
+          rmSync(join(replayDir, fileName), { force: true })
+          deletedReplays++
+          const luaPath = join(singleDir, `${baseName}.lua`)
+          if (existsSync(luaPath)) {
+            rmSync(luaPath, { force: true })
+            deletedScripts++
+          }
         }
       }
       return { success: true, deletedReplays, deletedScripts }
@@ -501,10 +519,7 @@ export class YgoproLauncher {
     const safeName = name.replace(/\s+/g, '_')
     const conflictPaths =
       format === 'yrp3d'
-        ? [
-            join(gameDir, 'replay', `${safeName}.yrp3d`),
-            ...(tagReplay ? [] : [join(gameDir, 'single', `${safeName}.lua`)])
-          ]
+        ? [join(gameDir, 'replay', `${safeName}.yrp3d`)]
         : [
             join(gameDir, 'replay', `${name}.yrp`),
             ...(tagReplay ? [] : [join(gameDir, 'single', `${name}.lua`)])
@@ -532,7 +547,6 @@ export class YgoproLauncher {
       try {
         const { messages } = await duelDirector.recordMessageStream()
         if (!tagReplay) completeCardDetails(replayState)
-        const luaContent = tagReplay ? null : generateLuaScript(replayState, { forReplay: true })
 
         const yrpBytes =
           tagYrpBytes ??
@@ -591,12 +605,8 @@ export class YgoproLauncher {
         yrp3d.messages.push(stocReplay)
 
         const replayDir = join(gameDir, 'replay')
-        const singleDir = join(gameDir, 'single')
         mkdirSync(replayDir, { recursive: true })
-        if (luaContent) mkdirSync(singleDir, { recursive: true })
         const yrp3dPath = join(replayDir, `${safeName}.yrp3d`)
-        const luaPath = join(singleDir, `${safeName}.lua`)
-        if (luaContent) writeFileSync(luaPath, luaContent, 'utf-8')
         writeFileSync(yrp3dPath, Buffer.from(yrp3d.toYrp3d()))
 
         let launched = false
@@ -613,7 +623,6 @@ export class YgoproLauncher {
           success: true,
           format,
           yrp3dPath,
-          luaPath: luaContent ? luaPath : undefined,
           launched
         }
       } catch (err) {

@@ -111,7 +111,7 @@ export function ReplayCleanupDialog({ open, onClose }: ReplayCleanupDialogProps)
     if (selected.size === 0 || deleting) return
     const confirmed = await confirmDialog({
       title: '删除所选回放',
-      description: `将删除 ${selected.size} 个回放文件，并同时删除 single 目录下同名的 Lua 脚本。此操作不可恢复。`,
+      description: `将删除 ${selected.size} 个回放文件（有同名 Lua 脚本的会一并删除）。此操作不可恢复。`,
       confirmText: '删除',
       destructive: true
     })
@@ -141,7 +141,8 @@ export function ReplayCleanupDialog({ open, onClose }: ReplayCleanupDialogProps)
         <DialogHeader className="gap-1">
           <DialogTitle className="text-sm font-medium">管理回放文件</DialogTitle>
           <DialogDescription className="text-xs leading-[18px]">
-            仅列出同时存在同名 single/*.lua 的单模式回放；勾选后回放和对应 Lua 会一起删除。
+            列出游戏与 MDPro3 的 replay 目录中的回放：.yrp 需要同名 single/*.lua 才会显示，.yrp3d
+            不需要。勾选后回放文件会被删除，存在同名 Lua 时一并删除。
           </DialogDescription>
         </DialogHeader>
 

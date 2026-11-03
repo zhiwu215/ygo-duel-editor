@@ -25,7 +25,7 @@ export function GameLanguageDialog(): JSX.Element {
     ? (extraLanguage?.language ?? null)
     : config.gameType === 'mdpro3'
       ? mdpro3LocaleIdFromCdbPath(config.cdbPath)
-      : (config.gameLanguage ?? null)
+      : (config.gameLanguage ?? 'auto')
 
   const handleChoose = async (option: GameLanguageOption): Promise<void> => {
     if (busyId) return

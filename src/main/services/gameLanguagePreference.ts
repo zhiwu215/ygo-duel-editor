@@ -1,6 +1,6 @@
-import { AppConfig } from '@shared/index'
 import { configService } from './configService'
-import { currentLanguagePack, listMdpro3Locales } from './gameContent'
+
+export const FOLLOW_GAME_LANGUAGE = 'auto'
 
 export function gameDirectoryKey(dir: string): string {
   return dir.replace(/[\\/]+$/, '').toLowerCase()
@@ -19,18 +19,11 @@ export function rememberGameLanguage(dir: string, language: string): void {
   })
 }
 
-export function seedCurrentGameLanguage(): void {
+export function forgetGameLanguage(dir: string): void {
   const cfg = configService.get()
-  if (!cfg.gameDirectory) return
-  const language = effectiveGameLanguage(cfg)
-  if (language) rememberGameLanguage(cfg.gameDirectory, language)
-}
-
-function effectiveGameLanguage(cfg: AppConfig): string | undefined {
-  if (cfg.gameType !== 'mdpro3') return currentLanguagePack()?.id
-  if (!cfg.gameDirectory || !cfg.cdbPath) return undefined
-  const cdbPath = cfg.cdbPath.toLowerCase()
-  return listMdpro3Locales(cfg.gameDirectory).find(
-    (option) => option.detail?.toLowerCase() === cdbPath
-  )?.id
+  const key = gameDirectoryKey(dir)
+  if (!cfg.gameLanguageByDirectory?.[key]) return
+  const next = { ...cfg.gameLanguageByDirectory }
+  delete next[key]
+  configService.save({ gameLanguageByDirectory: next })
 }

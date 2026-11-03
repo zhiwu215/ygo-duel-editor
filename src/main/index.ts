@@ -10,17 +10,11 @@ import { registerUpdateIpc } from './ipc/updateIpc'
 import { configService } from './services/configService'
 import { dataDirService } from './services/dataDirService'
 import { cdbService } from './db/cdbService'
-import {
-  currentBundledCdbPaths,
-  discoverGameLanguagePacks,
-  readGameConfigLanguage,
-  resolveGameLanguagePack
-} from './services/gameContent'
+import { currentBundledCdbPaths, discoverGameLanguagePacks } from './services/gameContent'
 import { currentLanguagePacks } from './services/extraCdbLanguage'
 import { imageService } from './services/imageService'
 import { libraryService } from './services/libraryService'
 import { textLibraryService } from './services/textLibraryService'
-import { seedCurrentGameLanguage } from './services/gameLanguagePreference'
 import { installWindowCloseGuard } from './services/windowCloseGuard'
 import { updateService } from './services/updateService'
 import {
@@ -161,21 +155,12 @@ app.whenReady().then(() => {
   const cdbPath = cfg.cdbPath && existsSync(cfg.cdbPath) ? cfg.cdbPath : undefined
   const disabled = cfg.disabledCdbPaths || []
   const extraCdbPaths = (cfg.extraCdbPaths || []).filter((p) => !disabled.includes(p))
-  if (gameDirectory && cfg.gameType === 'ygopro') {
+  if (gameDirectory && cfg.gameType === 'ygopro' && cfg.gameLanguage) {
     const packs = discoverGameLanguagePacks(gameDirectory)
-    if (packs.length > 0) {
-      const pack = resolveGameLanguagePack(
-        packs,
-        cfg.gameLanguage ?? readGameConfigLanguage(gameDirectory)
-      )
-      if (pack && pack.id !== cfg.gameLanguage) {
-        configService.save({ gameLanguage: pack.id })
-      }
-    } else if (cfg.gameLanguage) {
+    if (!packs.some((pack) => pack.id === cfg.gameLanguage)) {
       configService.save({ gameLanguage: undefined })
     }
   }
-  seedCurrentGameLanguage()
   const bundledCdbPaths = currentBundledCdbPaths()
   cdbService.setPreferredBanlist(cfg.banlistName)
   if (cdbPath || extraCdbPaths.length > 0 || bundledCdbPaths.length > 0) {

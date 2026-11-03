@@ -10,13 +10,14 @@ import { ReplayCleanupDialog } from './ReplayCleanupDialog'
 
 export function PathsSection(): JSX.Element {
   const [replayDialogOpen, setReplayDialogOpen] = useState(false)
-  const { config, gamePathStatus } = useConfigStore()
+  const { config, gamePathStatus, languageOptions } = useConfigStore()
   const selectYgoDir = useYgoDirSelect()
   const selectCardImageDir = useConfigStore((state) => state.selectCardImageDir)
   const clearCardImageDir = useConfigStore((state) => state.clearCardImageDir)
   const selectMdpro3Dir = useConfigStore((state) => state.selectMdpro3Dir)
   const currentLanguageId =
     config.gameType === 'mdpro3' ? mdpro3LocaleIdFromCdbPath(config.cdbPath) : config.gameLanguage
+  const followsGameLanguage = config.gameType !== 'mdpro3' && languageOptions.length > 1
   const gamePathMissing =
     !!config.gameDirectory &&
     !!gamePathStatus &&
@@ -44,7 +45,11 @@ export function PathsSection(): JSX.Element {
     if (cdbPathMissing) return `未找到 cards.cdb，请重新选择游戏主目录：${config.gameDirectory}`
     if (!config.gameDirectory) return '未设置 (指定后自动识别游戏类型并读取卡库与本地卡图)'
     const gameLabel = config.gameType === 'mdpro3' ? 'MDPro3' : 'YGOPro'
-    const language = currentLanguageId ? ` · ${languageLabel(currentLanguageId)}` : ''
+    const language = currentLanguageId
+      ? ` · ${languageLabel(currentLanguageId)}`
+      : followsGameLanguage
+        ? ' · 跟随游戏客户端'
+        : ''
     return `(${gameLabel}${language}) ${config.gameDirectory}`
   }
 
@@ -63,7 +68,7 @@ export function PathsSection(): JSX.Element {
       <section className="rounded-xl border border-border bg-card/60">
         <SettingsRow title="YGO 主程序目录" description={pathDescription()}>
           <div className="flex shrink-0 items-center gap-1">
-            {(config.gameType === 'mdpro3' || !!config.gameLanguage) && (
+            {(config.gameType === 'mdpro3' || followsGameLanguage) && (
               <Button
                 size="xs"
                 variant="outline"

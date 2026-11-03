@@ -13,6 +13,7 @@ import {
   ExtraCdbLanguageInfo,
   ExtraCdbPickResult,
   FontSizeRole,
+  GameLanguageOption,
   GamePathStatus,
   WebSearchConfig,
   clampFontSize,
@@ -33,10 +34,12 @@ interface ConfigStoreState {
   libraries: CdbLibraryInfo[]
   customSyncCdb: CustomSyncCdbInfo | null
   extraLanguages: Record<string, ExtraCdbLanguageInfo>
+  languageOptions: GameLanguageOption[]
   engineSupport: EngineSupportInfo | null
   loadConfig: () => Promise<void>
   refreshCdbStatus: () => Promise<void>
   refreshGamePathStatus: () => Promise<void>
+  refreshLanguageOptions: () => Promise<void>
   refreshEngineSupport: () => Promise<void>
   selectYgoDir: () => Promise<CdbSelectResult>
 
@@ -82,6 +85,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
   libraries: [],
   customSyncCdb: null,
   extraLanguages: {},
+  languageOptions: [],
   engineSupport: null,
 
   refreshEngineSupport: async () => {
@@ -103,6 +107,17 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
     } catch (err) {
       console.error('[useConfigStore] refreshGamePathStatus error:', err)
       set({ gamePathStatus: null })
+    }
+  },
+
+  refreshLanguageOptions: async () => {
+    try {
+      if (!window.api?.getGameLanguageOptions) return
+      const options = await window.api.getGameLanguageOptions()
+      set({ languageOptions: options ?? [] })
+    } catch (err) {
+      console.error('[useConfigStore] refreshLanguageOptions error:', err)
+      set({ languageOptions: [] })
     }
   },
 
@@ -144,6 +159,7 @@ export const useConfigStore = create<ConfigStoreState>((set, get) => ({
       applyFontSizes(fontSizes)
       set({ config: { ...cfg, theme, fontSizes }, isLoaded: true })
       await get().refreshGamePathStatus()
+      await get().refreshLanguageOptions()
       await get().refreshCdbStatus()
       await get().refreshEngineSupport()
     } catch (err) {

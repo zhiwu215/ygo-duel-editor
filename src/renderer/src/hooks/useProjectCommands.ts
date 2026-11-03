@@ -397,8 +397,8 @@ export function useProjectCommands(): ProjectCommands {
         ? buildPuzzleStateFromEngineBoard(initialBoard, {
             title: editorState.title,
             masterRule: editorState.masterRule,
-            hostName: editorState.duelists?.[0]?.name,
-            clientName: editorState.duelists?.[1]?.name
+            hostName: editorState.duelists?.find((duelist) => duelist.team === 0)?.name,
+            clientName: editorState.duelists?.find((duelist) => duelist.team === 1)?.name
           })
         : null
       const currentPuzzleState = engineState
@@ -411,6 +411,8 @@ export function useProjectCommands(): ProjectCommands {
             sourceRef: editorState.sourceRef,
             matchConfig: editorState.matchConfig,
             firstTurnAttack: editorState.firstTurnAttack,
+            viewTopSeat: editorState.viewTopSeat,
+            duelists: editorState.duelists ?? engineState.duelists,
             scenarios: editorState.scenarios
           }
         : editorState

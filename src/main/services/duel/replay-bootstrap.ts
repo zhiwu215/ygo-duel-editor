@@ -63,9 +63,9 @@ function countOf(state: DuelPuzzleState, controller: 0 | 1, location: number): n
   ).length
 }
 
-function buildStartMessage(state: DuelPuzzleState): YGOProMsgStart {
+function buildStartMessage(state: DuelPuzzleState, playerType: number): YGOProMsgStart {
   const start = new YGOProMsgStart()
-  start.playerType = 0
+  start.playerType = playerType
   start.duelRule = state.masterRule
   start.startLp0 = state.players[0]?.lp ?? 8000
   start.startLp1 = state.players[1]?.lp ?? 8000
@@ -169,9 +169,9 @@ function buildUpdateDataMessages(state: DuelPuzzleState): YGOProMsgUpdateData[] 
   return messages
 }
 
-export function buildReplayBootstrapPayloads(state: DuelPuzzleState): Uint8Array[] {
+export function buildReplayBootstrapPayloads(state: DuelPuzzleState, playerType = 0): Uint8Array[] {
   return [
-    buildStartMessage(state),
+    buildStartMessage(state, playerType),
     buildReloadFieldMessage(state),
     ...buildUpdateDataMessages(state)
   ].map((message) => message.toPayload())

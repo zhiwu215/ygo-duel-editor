@@ -3,8 +3,8 @@ import type { ReplayExportView } from '@shared/index'
 
 const OBSERVER_VIEWER = 7
 
-export function replayViewerOf(view: ReplayExportView): number {
-  return view === 'observer' ? OBSERVER_VIEWER : 0
+export function replayViewerOf(view: ReplayExportView, bottomSeat: number): number {
+  return view === 'observer' ? OBSERVER_VIEWER : bottomSeat
 }
 
 export function applyReplayView(payload: Uint8Array, viewer: number): Uint8Array | null {
@@ -33,9 +33,10 @@ export function applyReplayView(payload: Uint8Array, viewer: number): Uint8Array
 
 export function applyReplayViewToPayloads(
   payloads: Uint8Array[],
-  view: ReplayExportView
+  view: ReplayExportView,
+  bottomSeat: number
 ): Uint8Array[] {
-  const viewer = replayViewerOf(view)
+  const viewer = replayViewerOf(view, bottomSeat)
   const out: Uint8Array[] = []
   for (const payload of payloads) {
     const viewed = applyReplayView(payload, viewer)

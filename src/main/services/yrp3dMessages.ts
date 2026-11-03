@@ -26,10 +26,10 @@ function findReloadField(payloads: Uint8Array[]): YGOProMsgReloadField | null {
   return null
 }
 
-function buildStartMessage(reload: YGOProMsgReloadField): YGOProMsgStart {
+function buildStartMessage(reload: YGOProMsgReloadField, playerType: number): YGOProMsgStart {
   const [player0, player1] = reload.players
   const start = new YGOProMsgStart()
-  start.playerType = 0
+  start.playerType = playerType
   start.duelRule = reload.duelRule
   start.startLp0 = player0.lp
   start.startLp1 = player1.lp
@@ -40,14 +40,15 @@ function buildStartMessage(reload: YGOProMsgReloadField): YGOProMsgStart {
 
 export function buildYrp3dMessages(
   payloads: Uint8Array[],
-  bootstrap: Uint8Array[] = []
+  bootstrap: Uint8Array[] = [],
+  playerType = 0
 ): YGOProMsgBase[] {
   const messages: YGOProMsgBase[] = []
   const all = [...bootstrap, ...payloads]
   const hasStart = all.some((payload) => payload[0] === YGOProMsgStart.identifier)
   if (!hasStart) {
     const reload = findReloadField(payloads)
-    if (reload) messages.push(buildStartMessage(reload))
+    if (reload) messages.push(buildStartMessage(reload, playerType))
   }
   for (const payload of all) messages.push(new RawGameMessage(payload))
   return messages

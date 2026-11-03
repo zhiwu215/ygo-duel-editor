@@ -27,7 +27,8 @@ import {
   ReplayFileListResult,
   TestInGameResult,
   isPlaceholderCard,
-  isStandardTag
+  isStandardTag,
+  viewTopSeatOf
 } from '@shared/index'
 import { configService } from './configService'
 import { duelDirector } from './duel/duel-director'
@@ -157,6 +158,21 @@ export class YgoproLauncher {
     }
 
     return [nameOf(0, 0, 'Player 1'), nameOf(1, 0, 'Player 2')]
+  }
+
+  private buildReplayNamesBySeat(
+    replayState: DuelPuzzleState,
+    editorState: DuelPuzzleState
+  ): string[] {
+    const fallback = this.buildReplayNames(replayState, false)
+    const nameOfSeat = (seat: 0 | 1): string => {
+      const seatDuelist = replayState.duelists?.find((duelist) => duelist.team === seat)
+      const current = seatDuelist
+        ? editorState.duelists?.find((duelist) => duelist.id === seatDuelist.id)
+        : undefined
+      return current?.name || fallback[seat]
+    }
+    return [nameOfSeat(0), nameOfSeat(1)]
   }
 
   private async checkCoverageOrDeferred(
@@ -452,11 +468,13 @@ export class YgoproLauncher {
       }
     }
 
-    const names = this.buildReplayNames(params.state, isTag)
     const initParams = duelDirector.getInitParams()
     const rawReplayState = initParams?.puzzleState ?? params.state
     const replayState =
       gameType === 'mdpro3' ? rawReplayState : mapPlaceholderCodesForGame(rawReplayState)
+    const names = isTag
+      ? this.buildReplayNames(replayState, true)
+      : this.buildReplayNamesBySeat(replayState, params.state)
     if (collectStateCardIds(replayState).some(isPlaceholderCard)) {
       await syncCustomCardsToGame({ gameDirectory: gameDir, gameType })
     }
@@ -534,11 +552,22 @@ export class YgoproLauncher {
           })
         const embeddedYrp = new YGOProYrp().fromYrp(yrpBytes)
 
+        const editorBottomTeam = viewTopSeatOf(params.state) === 0 ? 1 : 0
+        const editorBottomDuelist = params.state.duelists?.find(
+          (duelist) => duelist.team === editorBottomTeam
+        )
+        const replayBottomTeam = editorBottomDuelist
+          ? replayState.duelists?.find((duelist) => duelist.id === editorBottomDuelist.id)?.team
+          : undefined
+        const bottomSeat = isTag ? 0 : (replayBottomTeam ?? editorBottomTeam)
+        const yrp3dName0 = isTag ? names[0] : names[bottomSeat]
+        const yrp3dName1 = isTag ? names[3] : names[1 - bottomSeat]
+
         const yrp3d = new YGOProYrp3d()
-        yrp3d.name0 = names[0]
-        yrp3d.name1 = names[isTag ? 3 : 1]
-        yrp3d.name0Current = names[0]
-        yrp3d.name1Current = names[isTag ? 3 : 1]
+        yrp3d.name0 = yrp3dName0
+        yrp3d.name1 = yrp3dName1
+        yrp3d.name0Current = yrp3dName0
+        yrp3d.name1Current = yrp3dName1
         if (isTag) {
           yrp3d.name0Tag = names[1]
           yrp3d.name1Tag = names[2]
@@ -546,10 +575,17 @@ export class YgoproLauncher {
         yrp3d.masterRule = Number(params.state.masterRule)
         const bootstrap = tagReplay
           ? []
-          : applyReplayViewToPayloads(buildReplayBootstrapPayloads(replayState), view)
-        const viewedMessages = applyReplayViewToPayloads(messages, view)
-        const refreshedMessages = insertYrp3dHandRefresh(viewedMessages, replayViewerOf(view))
-        yrp3d.messages.push(...buildYrp3dMessages(refreshedMessages, bootstrap))
+          : applyReplayViewToPayloads(
+              buildReplayBootstrapPayloads(replayState, bottomSeat),
+              view,
+              bottomSeat
+            )
+        const viewedMessages = applyReplayViewToPayloads(messages, view, bottomSeat)
+        const refreshedMessages = insertYrp3dHandRefresh(
+          viewedMessages,
+          replayViewerOf(view, bottomSeat)
+        )
+        yrp3d.messages.push(...buildYrp3dMessages(refreshedMessages, bootstrap, bottomSeat))
         const stocReplay = new YGOProStocReplay()
         stocReplay.replay = embeddedYrp
         yrp3d.messages.push(stocReplay)

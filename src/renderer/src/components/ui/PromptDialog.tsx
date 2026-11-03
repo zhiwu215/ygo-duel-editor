@@ -13,6 +13,7 @@ import { Input } from './input'
 interface PromptDialogProps {
   open: boolean
   title: string
+  description?: string
   placeholder?: string
   confirmText?: string
   cancelText?: string
@@ -25,6 +26,7 @@ interface PromptDialogProps {
 export const PromptDialog: React.FC<PromptDialogProps> = ({
   open,
   title,
+  description,
   placeholder,
   confirmText = '确定',
   cancelText = '取消',
@@ -58,9 +60,11 @@ export const PromptDialog: React.FC<PromptDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
       <DialogContent showCloseButton={false} className="max-w-[380px] gap-4 p-5">
-        <DialogHeader className="space-y-0">
+        <DialogHeader className="space-y-1">
           <DialogTitle className="text-sm font-semibold leading-tight">{title}</DialogTitle>
-          <DialogDescription className="sr-only">{title}</DialogDescription>
+          <DialogDescription className={description ? 'text-[11px] leading-snug' : 'sr-only'}>
+            {description ?? title}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-1.5">

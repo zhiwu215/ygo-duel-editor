@@ -5,6 +5,7 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import {
   boardFingerprintMatches,
   computeBoardFingerprint,
+  DEFAULT_DUEL_TITLE,
   hasSessionInjections,
   MASTER_RULES,
   MasterRule,
@@ -164,7 +165,7 @@ export const Header: React.FC = () => {
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur()
             }}
-            placeholder="未命名对局"
+            placeholder={DEFAULT_DUEL_TITLE}
             className="h-7 w-52 bg-transparent hover:bg-muted/40 focus:bg-background text-xs font-medium border-transparent focus:border-border transition-colors"
           />
 

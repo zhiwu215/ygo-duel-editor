@@ -86,6 +86,7 @@ export function alertDialog(message: string): Promise<boolean> {
 
 interface PromptDialogOptions {
   title: string
+  description?: string
   placeholder?: string
   confirmText?: string
   initialValue?: string

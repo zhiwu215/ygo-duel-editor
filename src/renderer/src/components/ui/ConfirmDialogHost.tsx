@@ -27,6 +27,7 @@ export const ConfirmDialogHost: React.FC<{ children: React.ReactNode }> = ({ chi
             key={request.id}
             open
             title={request.title}
+            description={request.description}
             placeholder={request.placeholder}
             confirmText={request.confirmText}
             initialValue={request.initialValue}

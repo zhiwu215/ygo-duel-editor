@@ -1,4 +1,9 @@
-import { DuelDocumentEntry, DuelDocumentFolder, DuelDocumentTree } from '@shared/index'
+import {
+  DEFAULT_DUEL_TITLE,
+  DuelDocumentEntry,
+  DuelDocumentFolder,
+  DuelDocumentTree
+} from '@shared/index'
 
 function normalizeTitle(title: string): string {
   return title.trim().toLowerCase()
@@ -37,7 +42,7 @@ export function nextAvailableDocumentTitle(
   folderPath: string,
   base: string
 ): string {
-  const fallback = base.trim() || '未命名对局'
+  const fallback = base.trim() || DEFAULT_DUEL_TITLE
   if (!tree) return fallback
   const used = new Set<string>()
   for (const entry of documentsOf(tree, folderPath)) {

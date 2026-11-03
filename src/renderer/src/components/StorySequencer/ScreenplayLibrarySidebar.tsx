@@ -1,6 +1,11 @@
 import React, { useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Search } from 'lucide-react'
-import { DuelDocumentEntry, DuelDocumentFolder, DuelDocumentTree } from '@shared/index'
+import {
+  DuelDocumentEntry,
+  DuelDocumentFolder,
+  DuelDocumentTree,
+  DEFAULT_DUEL_TITLE
+} from '@shared/index'
 import { Input } from '../ui/input'
 import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
 import { StepProvenanceBadge } from '../common/StepProvenanceBadge'
@@ -14,6 +19,7 @@ import { cn } from '../../lib/utils'
 interface ScreenplayLibrarySidebarProps {
   tree: DuelDocumentTree | null
   currentFilePath: string | null
+  currentTitle: string
   onOpen: (filePath: string) => void
   onCurrentDocumentChanged: (filePath: string | null) => void
   onRefresh: () => Promise<void>
@@ -43,6 +49,7 @@ function titleConflictMessage(
 export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> = ({
   tree,
   currentFilePath,
+  currentTitle,
   onOpen,
   onCurrentDocumentChanged,
   onRefresh,
@@ -95,9 +102,14 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
   }
 
   const createDocument = async (folderPath: string): Promise<void> => {
-    const defaultTitle = nextAvailableDocumentTitle(tree, folderPath, '未命名对局')
+    const defaultTitle = nextAvailableDocumentTitle(
+      tree,
+      folderPath,
+      currentTitle.trim() || DEFAULT_DUEL_TITLE
+    )
     const title = await promptDialog({
       title: '新建台本',
+      description: '会以当前盘面、步骤和台本文本创建一份新台本。',
       placeholder: defaultTitle,
       initialValue: defaultTitle,
       confirmText: '创建',
@@ -105,14 +117,6 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
     })
     if (title === null) return
     const trimmed = title.trim() || defaultTitle
-    const confirmed = await confirmDialog({
-      title: '基于当前决斗盘创建台本',
-      description: '当前盘面、步骤和台本文本会复制到新台本中。',
-      confirmText: '创建',
-      destructive: false,
-      icon: 'info'
-    })
-    if (!confirmed) return
     await flushDuelDocumentTitle()
     await flushDuelDocumentAutosave()
     const document = structuredClone(await buildDuelDocument())

@@ -8,6 +8,7 @@ import { ScreenplayLibrarySidebar } from '../StorySequencer/ScreenplayLibrarySid
 
 export const DuelDocumentLibraryPanel: React.FC = () => {
   const currentFilePath = useDuelStore((s) => s.currentProjectPath)
+  const currentTitle = useDuelStore((s) => s.state.title)
   const mode = useDuelStore((s) => s.documentPanelMode)
   const [tree, setTree] = useState<DuelDocumentTree | null>(null)
 
@@ -62,6 +63,7 @@ export const DuelDocumentLibraryPanel: React.FC = () => {
     <ScreenplayLibrarySidebar
       tree={tree}
       currentFilePath={currentFilePath}
+      currentTitle={currentTitle}
       onOpen={(filePath) => void handleOpen(filePath)}
       onCurrentDocumentChanged={handleCurrentDocumentChanged}
       onRefresh={refresh}

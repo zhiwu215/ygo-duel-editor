@@ -106,17 +106,17 @@ export class CdbService {
   private ensurePoolSchema(): CardPoolSchema {
     if (this.poolSchema) return this.poolSchema
     const kcgStringCount = KCG_POOL_STRING_IDS.filter((id) => this.systemStringMap.has(id)).length
-    if (kcgStringCount >= 2) {
-      this.poolSchema = 'kcg'
-      console.log('[CdbService] Card pool schema: kcg (strings.conf)')
-      return this.poolSchema
-    }
     const classicStringCount = CLASSIC_POOL_STRING_IDS.filter((id) =>
       this.systemStringMap.has(id)
     ).length
-    if (classicStringCount >= 2) {
+    if (classicStringCount >= 2 && classicStringCount >= kcgStringCount) {
       this.poolSchema = 'classic'
       console.log('[CdbService] Card pool schema: classic (strings.conf)')
+      return this.poolSchema
+    }
+    if (kcgStringCount >= 2) {
+      this.poolSchema = 'kcg'
+      console.log('[CdbService] Card pool schema: kcg (strings.conf)')
       return this.poolSchema
     }
     const extended = this.connections.searchableList().some((conn) => {

@@ -80,16 +80,26 @@ export function discoverGameCdbPaths(gameDir: string, gameType: GameType): GameC
     return { primary: locateMdpro3Cdb(gameDir, scan), additional: [] }
   }
 
+  const languageKeys = new Set(gameLanguageCdbPaths(gameDir).map(pathKey))
+  const playable = scan.cdbPaths.filter((p) => !languageKeys.has(pathKey(p)))
   const preferred = [
     join(gameDir, 'cards.cdb'),
     join(gameDir, 'cdb', 'cards.cdb'),
     join(gameDir, 'expansions', 'cards.cdb')
   ]
-  const primary = preferred.find((p) => scan.cdbPaths.includes(p)) ?? scan.cdbPaths[0] ?? null
-  const additional = scan.cdbPaths.filter(
+  const primary =
+    preferred.find((p) => playable.includes(p)) ??
+    playable[0] ??
+    scan.cdbPaths.find((p) => languageKeys.has(pathKey(p))) ??
+    null
+  const additional = playable.filter(
     (p) => p !== primary && !CLIENT_EXCLUDED_CDB_NAMES.has(basename(p).toLowerCase())
   )
   return { primary, additional }
+}
+
+function pathKey(path: string): string {
+  return path.toLowerCase()
 }
 
 export const CUSTOM_CDB_NAME = 'yde-custom.cdb'
@@ -152,35 +162,57 @@ function collectLanguagePacks(languageRoot: string): GameLanguagePack[] {
   return packs
 }
 
+const LOCALE_PRIORITY = ['zh-CN', 'zh-SC', 'zh-TW']
+const GAME_CONF_CANDIDATES = [join('config', 'system.conf'), 'system.conf']
+
+function localePackRank(id: string): number {
+  const index = LOCALE_PRIORITY.indexOf(id)
+  return index === -1 ? LOCALE_PRIORITY.length : index
+}
+
 export function discoverGameLanguagePacks(gameDir: string): GameLanguagePack[] {
   const packs = collectLanguagePacks(join(gameDir, 'config', 'languages'))
-  if (packs.length === 0) return []
-  return [{ id: 'en', cdbPaths: [] }, ...packs]
+  if (packs.length > 0) return [{ id: 'en', cdbPaths: [] }, ...packs]
+  return collectLanguagePacks(join(gameDir, 'locales'))
+    .filter((pack) => pack.cdbPaths.length > 0)
+    .sort(
+      (left, right) =>
+        localePackRank(left.id) - localePackRank(right.id) || left.id.localeCompare(right.id)
+    )
+}
+
+function gameLanguageCdbPaths(gameDir: string): string[] {
+  return discoverGameLanguagePacks(gameDir).flatMap((pack) => pack.cdbPaths)
 }
 
 export function readGameConfigLanguage(gameDir: string): string | null {
-  try {
-    const content = readFileSync(join(gameDir, 'config', 'system.conf'), 'utf-8')
-    const match = content.match(/^language\s*=\s*(\S+)\s*$/m)
-    return match ? match[1] : null
-  } catch {
-    return null
+  for (const relative of GAME_CONF_CANDIDATES) {
+    let content: string
+    try {
+      content = readFileSync(join(gameDir, relative), 'utf-8')
+    } catch {
+      continue
+    }
+    const match = content.match(/^\s*(?:language|locale)\s*=\s*(\S+)\s*$/m)
+    if (!match) continue
+    if (match[1].toLowerCase() === 'default') continue
+    return match[1]
   }
+  return null
 }
 
 export function resolveGameLanguagePack(
   packs: GameLanguagePack[],
   preferred: string | undefined | null
 ): GameLanguagePack | null {
-  if (packs.length === 0) return null
-  return packs.find((p) => preferred != null && p.id === preferred) ?? packs[0]
+  if (preferred == null) return null
+  return packs.find((pack) => pack.id === preferred) ?? null
 }
 
 export function currentLanguagePack(languageOverride?: string): GameLanguagePack | null {
   const cfg = configService.get()
   if (!cfg.gameDirectory || cfg.gameType !== 'ygopro') return null
   const packs = discoverGameLanguagePacks(cfg.gameDirectory)
-  if (packs.length === 0) return null
   const preferred =
     languageOverride ?? cfg.gameLanguage ?? readGameConfigLanguage(cfg.gameDirectory)
   return resolveGameLanguagePack(packs, preferred)

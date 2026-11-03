@@ -14,11 +14,15 @@ export function textSource(conn: CdbConnection): {
   join: string
 } {
   const overlays = conn.overlayAliases
+  const override = conn.overlayMode === 'override'
   return {
-    pick: (column) =>
-      overlays.length > 0
-        ? `COALESCE(${[...overlays.map((alias) => `${alias}.${column}`), `t.${column}`].join(', ')})`
-        : `t.${column}`,
+    pick: (column) => {
+      if (overlays.length === 0) return `t.${column}`
+      const own = `t.${column}`
+      const overlaid = overlays.map((alias) => `${alias}.${column}`)
+      const candidates = override ? [...overlaid, own] : [own, ...overlaid]
+      return `COALESCE(${candidates.join(', ')})`
+    },
     join: overlays
       .map((alias) => ` LEFT JOIN ${alias}.texts ${alias} ON ${alias}.id = d.id`)
       .join('')

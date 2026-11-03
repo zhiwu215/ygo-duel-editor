@@ -12,9 +12,12 @@ export interface CdbConnection {
   source: CdbLibrarySource
   customLibrary: boolean
   overlayAliases: string[]
+  overlayMode: OverlayMode
   coveredReady: boolean
   searchable: boolean
 }
+
+export type OverlayMode = 'override' | 'fallback'
 
 interface OverlayTextRow {
   id: number
@@ -60,6 +63,7 @@ function openConnection(cdbPath: string, source: CdbLibrarySource): CdbConnectio
       source,
       customLibrary: path.basename(cdbPath).toLowerCase() === CUSTOM_CDB_NAME,
       overlayAliases: [],
+      overlayMode: 'override',
       coveredReady: false,
       searchable: true
     }
@@ -153,6 +157,7 @@ export class CdbConnections {
         } catch {}
       }
       conn.overlayAliases = []
+      conn.overlayMode = 'override'
       conn.coveredReady = false
     }
 
@@ -196,6 +201,8 @@ export class CdbConnections {
     this.connections = [...dataConns, ...languageConns, ...otherTextConns]
 
     const attachConns = [...languageConns, ...otherTextConns]
+    const overlayMode: OverlayMode = languageConns.length > 0 ? 'override' : 'fallback'
+    for (const conn of this.connections) conn.overlayMode = overlayMode
     this.attachTextOverlay(attachConns, searchableConns)
 
     const coveredSoFar = new Set<number>()

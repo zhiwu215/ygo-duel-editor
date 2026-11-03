@@ -6,6 +6,7 @@ import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useHeldCardStore } from '../../stores/useHeldCardStore'
 import { useCardDataMap } from '../../hooks/useCardDataMap'
 import { resolveCardName } from '../../utils/cardNames'
+import { hasCardDragData } from '../../utils/cardDrag'
 import { buildOverlayMaterialCards } from '../../utils/overlayMaterialCards'
 import { Layers, X, Search } from 'lucide-react'
 import { Button } from '../ui/button'
@@ -96,9 +97,7 @@ export const OverlayListModal: React.FC = () => {
 
   const hostName = cardDataMap[hostCard.code]?.name || resolveCardName(hostCard.code)
 
-  const isExternalDrop = (e: React.DragEvent): boolean =>
-    e.dataTransfer.types.includes('application/json') ||
-    e.dataTransfer.types.includes('text/instanceid')
+  const isExternalDrop = (e: React.DragEvent): boolean => hasCardDragData(e.dataTransfer.types)
 
   const handleDropNewMaterial = (e: React.DragEvent): void => {
     e.preventDefault()

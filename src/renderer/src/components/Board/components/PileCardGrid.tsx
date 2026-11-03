@@ -4,6 +4,7 @@ import { DndContext, DragOverlay } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import { FieldCard } from '@shared/index'
 import { useSortableReorder } from '../../../hooks/useSortableReorder'
+import { useExternalCardDrop } from '../../../hooks/useExternalCardDrop'
 import { resolveCardName } from '../../../utils/cardNames'
 import {
   DROP_ANIMATION,
@@ -33,6 +34,7 @@ interface PileCardGridProps {
   onRemove: (card: FieldCard) => void
   onReorder: (fromIndex: number, toIndex: number) => void
   onContextMenu?: (e: React.MouseEvent, card: FieldCard) => void
+  onDropCard?: (e: React.DragEvent, insertIndex: number) => void
 }
 
 export const PileCardGrid: React.FC<PileCardGridProps> = ({
@@ -52,7 +54,8 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
   onHold,
   onRemove,
   onReorder,
-  onContextMenu
+  onContextMenu,
+  onDropCard
 }) => {
   const ids = useMemo(() => cards.map((card) => card.instanceId), [cards])
 
@@ -65,6 +68,18 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
     handleDragEnd,
     handleDragCancel
   } = useSortableReorder({ ids, enabled: dragEnabled, onReorder })
+
+  const handleExternalDrop = useCallback(
+    (event: React.DragEvent<HTMLElement>, insertIndex: number): void => {
+      onDropCard?.(event, insertIndex)
+    },
+    [onDropCard]
+  )
+
+  const externalDrop = useExternalCardDrop({
+    enabled: onDropCard !== undefined,
+    onDrop: handleExternalDrop
+  })
 
   const handleSelect = useCallback(
     (card: FieldCard): void => {
@@ -97,7 +112,10 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
       onDragCancel={handleDragCancel}
     >
       <SortableContext items={ids} strategy={rectSortingStrategy}>
-        <div className="flex flex-wrap gap-x-5 gap-y-4">
+        <div
+          onDragLeave={externalDrop.handleDragLeave}
+          className="grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-x-5 gap-y-4"
+        >
           {cards.map((card, index) => (
             <PileCardTile
               key={card.instanceId}
@@ -112,6 +130,7 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
               chainIndexes={chainIndexesByInstance?.get(card.instanceId)}
               actionsDisabled={actionsDisabled}
               showLocationLabel={showLocationLabel}
+              dropIndicator={externalDrop.indicatorAt(index, cards.length)}
               onSelect={handleSelect}
               onCardClick={onCardClick}
               onHoverChange={handleHoverChange}
@@ -120,6 +139,8 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
               holdEnabled={holdEnabled}
               onRemove={onRemove}
               onContextMenu={onContextMenu}
+              onExternalDragOver={onDropCard ? externalDrop.handleDragOver : undefined}
+              onExternalDrop={onDropCard ? externalDrop.handleDrop : undefined}
             />
           ))}
         </div>

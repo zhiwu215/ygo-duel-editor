@@ -9,6 +9,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { cn } from '../../../lib/utils'
 import { cardLocationLabel } from '../../../utils/cardLocationLabel'
 import { SORTABLE_TRANSITION } from '../../../utils/dnd'
+import type { PileDropIndicator } from '../../../hooks/useExternalCardDrop'
 
 interface PileCardTileProps {
   card: FieldCard
@@ -20,6 +21,7 @@ interface PileCardTileProps {
   chainIndexes?: number[]
   actionsDisabled?: boolean
   showLocationLabel?: boolean
+  dropIndicator?: PileDropIndicator | null
   onSelect: (card: FieldCard) => void
   onCardClick?: (e: React.MouseEvent, card: FieldCard) => boolean
   onHoverChange: (card: FieldCard, hovering: boolean) => void
@@ -28,6 +30,8 @@ interface PileCardTileProps {
   holdEnabled: boolean
   onRemove: (card: FieldCard) => void
   onContextMenu?: (e: React.MouseEvent, card: FieldCard) => void
+  onExternalDragOver?: (e: React.DragEvent<HTMLDivElement>, index: number) => void
+  onExternalDrop?: (e: React.DragEvent<HTMLDivElement>, index: number) => void
 }
 
 const PileCardTileBase: React.FC<PileCardTileProps> = ({
@@ -40,6 +44,7 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   chainIndexes,
   actionsDisabled = false,
   showLocationLabel = false,
+  dropIndicator = null,
   onSelect,
   onCardClick,
   onHoverChange,
@@ -47,7 +52,9 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   onHold,
   holdEnabled,
   onRemove,
-  onContextMenu
+  onContextMenu,
+  onExternalDragOver,
+  onExternalDrop
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.instanceId,
@@ -66,6 +73,8 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
       }}
       {...attributes}
       {...listeners}
+      onDragOver={onExternalDragOver ? (event) => onExternalDragOver(event, index) : undefined}
+      onDrop={onExternalDrop ? (event) => onExternalDrop(event, index) : undefined}
       onClick={(event) => {
         if (onCardClick?.(event, card)) return
         onSelect(card)
@@ -74,11 +83,20 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
       onMouseEnter={() => onHoverChange(card, true)}
       onMouseLeave={() => onHoverChange(card, false)}
       className={cn(
-        'group relative flex w-[128px] shrink-0 select-none flex-col',
+        'group relative flex w-full min-w-0 select-none flex-col',
         dragDisabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing touch-none',
         isDragging ? 'opacity-30' : ''
       )}
     >
+      {dropIndicator && (
+        <span
+          className={cn(
+            'pointer-events-none absolute top-0 bottom-0 z-20 w-0.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.65)]',
+            dropIndicator === 'before' ? '-left-[11px]' : '-right-[11px]'
+          )}
+        />
+      )}
+
       {showLocationLabel && (
         <CardLocationLabel label={cardLocationLabel(card.location, card.sequence)} interactive />
       )}

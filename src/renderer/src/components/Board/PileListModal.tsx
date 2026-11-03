@@ -11,6 +11,8 @@ import { resolveCardName } from '../../utils/cardNames'
 import { getDropPosOverride } from '../../utils/zoneDrop'
 import { useCardDataMap } from '../../hooks/useCardDataMap'
 import { resolveOwnerScope } from '../../utils/duelistNames'
+import { hasCardDragData } from '../../utils/cardDrag'
+import { resolvePileInsertIndex } from '../../utils/pileInsertion'
 import { Layers, Ghost, Ban, X, Search } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -178,6 +180,46 @@ const PileListContent: React.FC = () => {
     [removeCard]
   )
 
+  const handleExternalCardDrop = useCallback(
+    (e: React.DragEvent, visibleIndex: number): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!target) return
+      if (useDuelEngineStore.getState().isInitialized) return
+      const insertIndex = resolvePileInsertIndex(pileCards, filteredCards, visibleIndex)
+      const posOverride = getDropPosOverride(target.location, e.ctrlKey)
+      const duelistId = ownerDuelist?.id
+      try {
+        const movedInstanceId = e.dataTransfer.getData('text/instanceId')
+        if (movedInstanceId) {
+          moveCard(
+            movedInstanceId,
+            target.location,
+            insertIndex,
+            target.controller,
+            posOverride,
+            duelistId
+          )
+        } else {
+          const dataStr = e.dataTransfer.getData('application/json')
+          if (!dataStr) return
+          const droppedCard = JSON.parse(dataStr) as CdbCard
+          addCardToZone(
+            droppedCard,
+            target.controller,
+            target.location,
+            insertIndex,
+            posOverride,
+            duelistId
+          )
+        }
+      } catch (err) {
+        console.error('[PileListModal] External card drop failed:', err)
+      }
+    },
+    [target, pileCards, filteredCards, ownerDuelist, moveCard, addCardToZone]
+  )
+
   useEffect(() => {
     useHeldCardStore.getState().release()
   }, [])
@@ -207,27 +249,6 @@ const PileListContent: React.FC = () => {
 
   const ctrlLabel = ownerDuelist ? ownerDuelist.name : target.controller === 0 ? '我方' : '对方'
   const title = `${ctrlLabel}${meta.name}`
-
-  const handleExternalCardDrop = (e: React.DragEvent, insertIndex: number): void => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!target) return
-    if (useDuelEngineStore.getState().isInitialized) return
-    const posOverride = getDropPosOverride(target.location, e.ctrlKey)
-    try {
-      const movedInstanceId = e.dataTransfer.getData('text/instanceId')
-      if (movedInstanceId) {
-        moveCard(movedInstanceId, target.location, insertIndex, target.controller, posOverride)
-      } else {
-        const dataStr = e.dataTransfer.getData('application/json')
-        if (!dataStr) return
-        const droppedCard = JSON.parse(dataStr) as CdbCard
-        addCardToZone(droppedCard, target.controller, target.location, insertIndex, posOverride)
-      }
-    } catch (err) {
-      console.error('[PileListModal] External drop failed:', err)
-    }
-  }
 
   return (
     <div
@@ -279,24 +300,19 @@ const PileListContent: React.FC = () => {
         <div
           ref={scrollContainerRef}
           onDragOver={(e) => {
-            const isExternal =
-              e.dataTransfer.types.includes('application/json') ||
-              e.dataTransfer.types.includes('text/instanceid')
-
-            if (!isExternal) return
+            if (!hasCardDragData(e.dataTransfer.types)) return
 
             e.preventDefault()
             e.stopPropagation()
-            e.dataTransfer.dropEffect = 'copy'
+            e.dataTransfer.dropEffect = e.dataTransfer.types.includes('text/instanceid')
+              ? 'move'
+              : 'copy'
           }}
           onDrop={(e) => {
-            const isExternal =
-              e.dataTransfer.types.includes('application/json') ||
-              e.dataTransfer.types.includes('text/instanceid')
-            if (isExternal && target) {
+            if (hasCardDragData(e.dataTransfer.types) && target) {
               e.preventDefault()
               e.stopPropagation()
-              handleExternalCardDrop(e, pileCards.length)
+              handleExternalCardDrop(e, filteredCards.length)
             }
           }}
           className="relative flex-1 min-h-[300px] max-h-[66vh] overflow-y-auto overflow-x-hidden p-4 bg-muted/10"
@@ -304,22 +320,16 @@ const PileListContent: React.FC = () => {
           {filteredCards.length === 0 ? (
             <div
               onDragOver={(e) => {
-                const isExternal =
-                  e.dataTransfer.types.includes('application/json') ||
-                  e.dataTransfer.types.includes('text/instanceid')
-                if (isExternal) {
-                  e.preventDefault()
-                  e.dataTransfer.dropEffect = 'copy'
-                }
+                if (!hasCardDragData(e.dataTransfer.types)) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = e.dataTransfer.types.includes('text/instanceid')
+                  ? 'move'
+                  : 'copy'
               }}
               onDrop={(e) => {
-                const isExternal =
-                  e.dataTransfer.types.includes('application/json') ||
-                  e.dataTransfer.types.includes('text/instanceid')
-                if (isExternal) {
-                  e.preventDefault()
-                  handleExternalCardDrop(e, 0)
-                }
+                if (!hasCardDragData(e.dataTransfer.types)) return
+                e.preventDefault()
+                handleExternalCardDrop(e, 0)
               }}
               className="h-full min-h-[260px] w-full flex flex-col items-center justify-center text-muted-foreground py-16 text-xs gap-2 border-2 border-dashed border-border/40 rounded-lg"
             >
@@ -374,6 +384,7 @@ const PileListContent: React.FC = () => {
                   ownerDuelist?.id
                 )
               }}
+              onDropCard={isEngineActive ? undefined : handleExternalCardDrop}
             />
           )}
         </div>

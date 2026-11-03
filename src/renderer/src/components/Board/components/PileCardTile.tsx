@@ -9,7 +9,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { cn } from '../../../lib/utils'
 import { cardLocationLabel } from '../../../utils/cardLocationLabel'
 import { SORTABLE_TRANSITION } from '../../../utils/dnd'
-import type { PileDropIndicator } from '../../../hooks/useExternalCardDrop'
 
 interface PileCardTileProps {
   card: FieldCard
@@ -21,7 +20,6 @@ interface PileCardTileProps {
   chainIndexes?: number[]
   actionsDisabled?: boolean
   showLocationLabel?: boolean
-  dropIndicator?: PileDropIndicator | null
   onSelect: (card: FieldCard) => void
   onCardClick?: (e: React.MouseEvent, card: FieldCard) => boolean
   onHoverChange: (card: FieldCard, hovering: boolean) => void
@@ -44,7 +42,6 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   chainIndexes,
   actionsDisabled = false,
   showLocationLabel = false,
-  dropIndicator = null,
   onSelect,
   onCardClick,
   onHoverChange,
@@ -88,15 +85,6 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
         isDragging ? 'opacity-30' : ''
       )}
     >
-      {dropIndicator && (
-        <span
-          className={cn(
-            'pointer-events-none absolute top-0 bottom-0 z-20 w-0.5 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.65)]',
-            dropIndicator === 'before' ? '-left-[11px]' : '-right-[11px]'
-          )}
-        />
-      )}
-
       {showLocationLabel && (
         <CardLocationLabel label={cardLocationLabel(card.location, card.sequence)} interactive />
       )}

@@ -12,9 +12,8 @@ import {
   pointerFirstCollisionDetection
 } from '../../../utils/dnd'
 import { CardThumb } from '../../ui/CardThumb'
-import { CardLocationLabel } from './CardLocationLabel'
 import { PileCardTile } from './PileCardTile'
-import { cardLocationLabel } from '../../../utils/cardLocationLabel'
+import { PileDropPlaceholder } from './PileDropPlaceholder'
 
 interface PileCardGridProps {
   cards: FieldCard[]
@@ -102,6 +101,14 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
 
   const activeCard = activeId ? (cards.find((card) => card.instanceId === activeId) ?? null) : null
 
+  const placeholder = (
+    <PileDropPlaceholder
+      card={externalDrop.previewCard}
+      onDragOver={externalDrop.handlePlaceholderDragOver}
+      onDrop={externalDrop.handlePlaceholderDrop}
+    />
+  )
+
   return (
     <DndContext
       sensors={activeSensors}
@@ -117,55 +124,50 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
           className="grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-x-5 gap-y-4"
         >
           {cards.map((card, index) => (
-            <PileCardTile
-              key={card.instanceId}
-              card={card}
-              cardName={
-                getCardName ? getCardName(card) : card.card?.name || resolveCardName(card.code)
-              }
-              index={index}
-              location={location}
-              isSelected={selectedCardId === card.instanceId}
-              dragDisabled={!dragEnabled}
-              chainIndexes={chainIndexesByInstance?.get(card.instanceId)}
-              actionsDisabled={actionsDisabled}
-              showLocationLabel={showLocationLabel}
-              dropIndicator={externalDrop.indicatorAt(index, cards.length)}
-              onSelect={handleSelect}
-              onCardClick={onCardClick}
-              onHoverChange={handleHoverChange}
-              onTogglePosition={onTogglePosition}
-              onHold={onHold}
-              holdEnabled={holdEnabled}
-              onRemove={onRemove}
-              onContextMenu={onContextMenu}
-              onExternalDragOver={onDropCard ? externalDrop.handleDragOver : undefined}
-              onExternalDrop={onDropCard ? externalDrop.handleDrop : undefined}
-            />
+            <React.Fragment key={card.instanceId}>
+              {externalDrop.insertedAt === index && placeholder}
+              <PileCardTile
+                card={card}
+                cardName={
+                  getCardName ? getCardName(card) : card.card?.name || resolveCardName(card.code)
+                }
+                index={index}
+                location={location}
+                isSelected={selectedCardId === card.instanceId}
+                dragDisabled={!dragEnabled}
+                chainIndexes={chainIndexesByInstance?.get(card.instanceId)}
+                actionsDisabled={actionsDisabled}
+                showLocationLabel={showLocationLabel}
+                onSelect={handleSelect}
+                onCardClick={onCardClick}
+                onHoverChange={handleHoverChange}
+                onTogglePosition={onTogglePosition}
+                onHold={onHold}
+                holdEnabled={holdEnabled}
+                onRemove={onRemove}
+                onContextMenu={onContextMenu}
+                onExternalDragOver={onDropCard ? externalDrop.handleDragOver : undefined}
+                onExternalDrop={onDropCard ? externalDrop.handleDrop : undefined}
+              />
+            </React.Fragment>
           ))}
+          {externalDrop.insertedAt === cards.length && placeholder}
         </div>
       </SortableContext>
       {createPortal(
         <DragOverlay dropAnimation={DROP_ANIMATION} style={{ pointerEvents: 'none' }}>
           {activeCard ? (
-            <div className="flex w-full flex-col overflow-hidden rounded shadow-2xl ring-2 ring-blue-500/70">
-              {showLocationLabel && (
-                <CardLocationLabel
-                  label={cardLocationLabel(activeCard.location, activeCard.sequence)}
-                />
-              )}
-              <div className="aspect-[59/86] w-full overflow-hidden">
-                <CardThumb
-                  code={activeCard.code}
-                  name={
-                    getCardName
-                      ? getCardName(activeCard)
-                      : activeCard.card?.name || resolveCardName(activeCard.code)
-                  }
-                  imageClassName="pointer-events-none"
-                  className="h-full w-full"
-                />
-              </div>
+            <div className="aspect-[59/86] w-full overflow-hidden rounded shadow-2xl ring-2 ring-blue-500/70">
+              <CardThumb
+                code={activeCard.code}
+                name={
+                  getCardName
+                    ? getCardName(activeCard)
+                    : activeCard.card?.name || resolveCardName(activeCard.code)
+                }
+                imageClassName="pointer-events-none"
+                className="h-full w-full"
+              />
             </div>
           ) : null}
         </DragOverlay>,

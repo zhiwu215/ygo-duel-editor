@@ -1,6 +1,7 @@
 const LANGUAGE_LABELS: Record<string, string> = {
-  'zh-CN': '简体中文 (官方译名)',
-  'zh-SC': '简体中文 (民间译名)',
+  auto: '跟随游戏客户端 (Follow game)',
+  'zh-CN': '简体中文 (民间译名)',
+  'zh-SC': '官方简体中文 (Official Simplified Chinese)',
   'zh-TW': '繁體中文',
   'en-US': 'English',
   'en-US_mdpro3': 'English (MDPro3)',

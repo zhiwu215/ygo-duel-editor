@@ -15,7 +15,9 @@ import {
   YGOProMsgSelectChain,
   YGOProMsgSelectEffectYn,
   YGOProMsgSelectUnselectCard,
-  YGOProMsgShuffleHand
+  YGOProMsgShuffleHand,
+  YGOProMsgTossCoin,
+  YGOProMsgTossDice
 } from 'ygopro-msg-encode'
 import { cdbService } from '../../db/cdbService'
 import { CardLocation, type EngineRequest } from '@shared/index'
@@ -184,6 +186,13 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
         }
         if (msg instanceof YGOProMsgShuffleHand) {
           state.accumulatedEvents.push({ kind: 'shuffle-hand', player: msg.player === 1 ? 1 : 0 })
+        }
+        if (msg instanceof YGOProMsgTossCoin || msg instanceof YGOProMsgTossDice) {
+          state.accumulatedEvents.push({
+            kind: 'toss',
+            type: msg instanceof YGOProMsgTossCoin ? 'coin' : 'dice',
+            results: [...msg.results]
+          })
         }
         if (msg instanceof YGOProMsgDraw) {
           state.accumulatedEvents.push({

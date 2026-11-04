@@ -1,6 +1,8 @@
 export type DuelSummonKind =
   'normal' | 'special' | 'flip' | 'fusion' | 'synchro' | 'xyz' | 'link' | 'ritual' | 'pendulum'
 
+export type TossKind = 'coin' | 'dice'
+
 export interface DuelLogCardRef {
   code: number
   name?: string
@@ -82,4 +84,5 @@ export type DuelLogEvent =
       source: 'deck' | 'hand' | 'field'
     }
   | { kind: 'swap'; from: DuelLogCardRef; to: DuelLogCardRef }
+  | { kind: 'toss'; type: TossKind; results: number[] }
   | { kind: 'text'; text: string }

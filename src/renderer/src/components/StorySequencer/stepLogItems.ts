@@ -5,6 +5,7 @@ import {
   DuelPhase,
   DuelStep,
   duelPhaseFromMask,
+  formatTossResult,
   isHandShuffleNote,
   summaryEventIndex
 } from '@shared/index'
@@ -509,6 +510,15 @@ function rowsForEvent(
         })
       ]
     }
+    case 'toss':
+      return [
+        {
+          kind: 'text',
+          text: formatTossResult(event.type, event.results),
+          tone: 'note',
+          indented: state.chainSolving > 0
+        }
+      ]
   }
 }
 

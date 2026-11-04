@@ -1,15 +1,17 @@
 import { useEffect } from 'react'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
-import { STEP_EFFECT_DURATION_MS } from '../stores/duelEngine/stepEffectQueue'
+import { stepEffectDurationMs } from '../stores/duelEngine/stepEffectQueue'
 
 export function useStepEffectPlayer(): void {
-  const effectId = useDuelEngineStore((s) => s.stepEffects[0]?.id ?? 0)
+  const effect = useDuelEngineStore((s) => s.stepEffects[0] ?? null)
+  const effectId = effect?.id ?? 0
+  const duration = effect ? stepEffectDurationMs(effect) : 0
 
   useEffect(() => {
     if (!effectId) return
     const timer = setTimeout(() => {
       useDuelEngineStore.getState().finishStepEffect(effectId)
-    }, STEP_EFFECT_DURATION_MS)
+    }, duration)
     return () => clearTimeout(timer)
-  }, [effectId])
+  }, [effectId, duration])
 }

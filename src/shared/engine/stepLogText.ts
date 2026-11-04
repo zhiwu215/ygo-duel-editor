@@ -3,6 +3,7 @@ import { POSITION_NAMES } from '../constants/positions'
 import type { DuelLogCardRef, DuelLogEvent, DuelSummonKind } from '../types/duelLog'
 import type { DuelStep } from '../types/story'
 import { cardNameWrapperPair } from './cardNameWrap'
+import { formatTossResult } from './tossResult'
 
 const SUMMON_LABELS: Record<DuelSummonKind, string> = {
   normal: '通常召唤',
@@ -110,6 +111,7 @@ function eventLines(event: DuelLogEvent, wrapper: string | undefined): string[] 
   if (event.kind === 'swap') {
     return [`交换 ${cardName(event.from, wrapper)} ↔ ${cardName(event.to, wrapper)}`]
   }
+  if (event.kind === 'toss') return [formatTossResult(event.type, event.results)]
   if (event.kind === 'text') return [event.text]
   return []
 }

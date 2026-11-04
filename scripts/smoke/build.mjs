@@ -64,6 +64,7 @@ const entries = [
   'renderer-turn-steps-smoke',
   'hand-shuffle-smoke',
   'hand-shuffle-timing-smoke',
+  'toss-result-smoke',
   'lua-placement-smoke',
   'announce-order-smoke',
   'policy-smoke',

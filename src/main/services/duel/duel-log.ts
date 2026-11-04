@@ -27,7 +27,9 @@ import {
   YGOProMsgSpSummoning,
   YGOProMsgStart,
   YGOProMsgSummoning,
-  YGOProMsgSwap
+  YGOProMsgSwap,
+  YGOProMsgTossCoin,
+  YGOProMsgTossDice
 } from 'ygopro-msg-encode'
 import {
   CardLocation,
@@ -602,6 +604,14 @@ function recordPhase(state: SessionState, msg: YGOProMsgNewPhase): void {
   push(state, { kind: 'phase', phase: msg.phase })
 }
 
+function recordToss(state: SessionState, msg: YGOProMsgTossCoin | YGOProMsgTossDice): void {
+  push(state, {
+    kind: 'toss',
+    type: msg instanceof YGOProMsgTossCoin ? 'coin' : 'dice',
+    results: [...msg.results]
+  })
+}
+
 export function collectDuelLogMessages(state: SessionState, messages: unknown[]): void {
   const context = state.duelLog
   for (const msg of messages) {
@@ -616,6 +626,10 @@ export function collectDuelLogMessages(state: SessionState, messages: unknown[])
     }
     if (msg instanceof YGOProMsgNewPhase) {
       recordPhase(state, msg)
+      continue
+    }
+    if (msg instanceof YGOProMsgTossCoin || msg instanceof YGOProMsgTossDice) {
+      recordToss(state, msg)
       continue
     }
     if (msg instanceof YGOProMsgMove) {

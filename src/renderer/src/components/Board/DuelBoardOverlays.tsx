@@ -1,6 +1,7 @@
 import React from 'react'
 import { PhaseBanner } from './PhaseBanner'
 import { LpChangeOverlay } from './components/LpChangeOverlay'
+import { TossResultOverlay } from './components/TossResultOverlay'
 import { PileListModal } from './PileListModal'
 import { OverlayListModal } from './OverlayListModal'
 import { DetachMaterialModal } from './DetachMaterialModal'
@@ -25,6 +26,8 @@ export const DuelBoardOverlays: React.FC = () => {
       <PhaseBanner />
 
       <LpChangeOverlay />
+
+      <TossResultOverlay />
 
       <PileListModal />
 

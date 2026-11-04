@@ -297,6 +297,18 @@ function parseEvent(value: unknown, field: string): EngineStepEvent {
         kind: 'chain-disabled',
         chainCount: readInteger(value.chainCount, `${field}.chainCount`, 0)
       }
+    case 'toss': {
+      const type = readString(value.type, `${field}.type`)
+      if (type !== 'coin' && type !== 'dice') fail(`${field}.type 必须是 coin 或 dice。`)
+      if (!Array.isArray(value.results)) fail(`${field}.results 必须是数组。`)
+      return {
+        kind: 'toss',
+        type,
+        results: value.results.map((result, index) =>
+          readInteger(result, `${field}.results[${index}]`, 0)
+        )
+      }
+    }
     default:
       return fail(`${field}.kind 不受支持。`)
   }

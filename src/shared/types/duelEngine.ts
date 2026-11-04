@@ -1,6 +1,6 @@
 import { CdbCard } from './card'
 import { DuelPuzzleState } from './duel'
-import type { DuelLogEvent } from './duelLog'
+import type { DuelLogEvent, TossKind } from './duelLog'
 import type { EngineRequest } from '../engine/protocol'
 
 export interface EngineCard {
@@ -90,6 +90,7 @@ export type EngineStepEvent =
   | { kind: 'chain-end' }
   | { kind: 'chain-negated'; chainCount: number }
   | { kind: 'chain-disabled'; chainCount: number }
+  | { kind: 'toss'; type: TossKind; results: number[] }
 
 export interface EngineTimelineNode {
   id: string

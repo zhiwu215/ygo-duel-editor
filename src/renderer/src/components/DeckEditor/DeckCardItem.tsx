@@ -1,8 +1,10 @@
 import React from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { CdbCard, DeckSection } from '@shared/index'
+import { CdbCard, DeckSection, missingCardData } from '@shared/index'
 import { CardImage } from '../ui/CardImage'
+import { CardLimitBadge } from '../ui/CardLimitBadge'
+import { MissingCardImage } from '../ui/MissingCardImage'
 import { resolveCardName } from '../../utils/cardNames'
 import { cn } from '../../lib/utils'
 import { DeckDragSourceData } from './deckDnd'
@@ -37,9 +39,7 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
 
   const handleClick = (e: React.MouseEvent): void => {
     e.stopPropagation()
-    if (card) {
-      onSelect(card)
-    }
+    onSelect(card ?? missingCardData(code))
   }
 
   const handleContextMenu = (e: React.MouseEvent): void => {
@@ -68,14 +68,24 @@ const DeckCardItemBase: React.FC<DeckCardItemProps> = ({
         isFlash && 'ring-2 ring-primary shadow-md shadow-primary/30'
       )}
     >
-      <CardImage
-        code={code}
-        small
-        alt={card?.name || resolveCardName(code)}
-        loading="lazy"
-        draggable={false}
-        className="w-full h-full object-cover pointer-events-none"
-      />
+      {card ? (
+        <>
+          <CardImage
+            code={code}
+            small
+            alt={card.name || resolveCardName(code)}
+            loading="lazy"
+            draggable={false}
+            className="w-full h-full object-cover pointer-events-none"
+          />
+          <CardLimitBadge
+            limit={card.limit}
+            className="absolute left-0 top-0 z-10 aspect-square w-[45%] drop-shadow"
+          />
+        </>
+      ) : (
+        <MissingCardImage className="h-full w-full" />
+      )}
     </div>
   )
 }

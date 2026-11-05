@@ -1,6 +1,7 @@
 import React from 'react'
-import { CdbCard } from '@shared/index'
+import { CdbCard, MISSING_CARD_NAME } from '@shared/index'
 import { CardImage } from '../ui/CardImage'
+import { MissingCardImage } from '../ui/MissingCardImage'
 import { resolveCardName } from '../../utils/cardNames'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -59,14 +60,18 @@ export const DeckTestHandModal: React.FC<DeckTestHandModalProps> = ({
                 className="flex flex-col gap-1.5 items-center group"
               >
                 <div className="aspect-[59/86] w-full rounded-lg overflow-hidden border border-border shadow-md bg-background group-hover:scale-105 transition-transform duration-150">
-                  <CardImage
-                    code={code}
-                    alt={card?.name || resolveCardName(code)}
-                    className="w-full h-full object-cover"
-                  />
+                  {card ? (
+                    <CardImage
+                      code={code}
+                      alt={card.name || resolveCardName(code)}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <MissingCardImage className="w-full h-full" />
+                  )}
                 </div>
                 <span className="text-[11px] font-medium text-foreground text-center truncate w-full">
-                  {card?.name || resolveCardName(code)}
+                  {card?.name ?? `${MISSING_CARD_NAME}[${code}]`}
                 </span>
               </div>
             )

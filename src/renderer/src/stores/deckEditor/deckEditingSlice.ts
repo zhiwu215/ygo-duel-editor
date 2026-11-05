@@ -9,6 +9,7 @@ import {
   canPlaceInSection
 } from '@shared/index'
 import { compareCards, shuffle } from '../../utils/deckSort'
+import { collectDeckCardCodes } from '../../utils/deckCards'
 import type { DeckEditorStore } from './types'
 
 export interface DeckEditingSlice {
@@ -35,6 +36,7 @@ export interface DeckEditingSlice {
   ) => boolean
   clearDeck: () => void
   loadDeck: (deck: DeckData) => Promise<void>
+  refreshCardDetails: () => Promise<void>
   sortDeck: () => void
   shuffleDeck: () => void
   saveDeckFile: () => Promise<{ success: boolean; filePath?: string; error?: string }>
@@ -196,14 +198,7 @@ export const createDeckEditingSlice: StateCreator<DeckEditorStore, [], [], DeckE
   },
 
   loadDeck: async (newDeck): Promise<void> => {
-    const allCodes = Array.from(
-      new Set([
-        ...newDeck.main,
-        ...newDeck.extra,
-        ...newDeck.side,
-        ...(newDeck.coverCard ? [newDeck.coverCard] : [])
-      ])
-    )
+    const allCodes = collectDeckCardCodes(newDeck)
     let fetchedDetails: Record<number, CdbCard> = {}
 
     if (allCodes.length > 0 && window.api?.getCardsByIds) {
@@ -220,6 +215,23 @@ export const createDeckEditingSlice: StateCreator<DeckEditorStore, [], [], DeckE
       selectedCard: allCodes.length > 0 ? fetchedDetails[allCodes[0]] || null : null,
       testHandCards: null
     }))
+  },
+
+  refreshCardDetails: async (): Promise<void> => {
+    const codes = collectDeckCardCodes(get().deck)
+    if (codes.length === 0 || !window.api?.getCardsByIds) return
+    try {
+      const details = await window.api.getCardsByIds(codes)
+      set((prev) => ({
+        cardDetails: { ...prev.cardDetails, ...details },
+        selectedCard:
+          prev.selectedCard && details[prev.selectedCard.id]
+            ? details[prev.selectedCard.id]
+            : prev.selectedCard
+      }))
+    } catch (err) {
+      console.error('[DeckEditorStore] refreshCardDetails error:', err)
+    }
   },
 
   sortDeck: (): void => {

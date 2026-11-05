@@ -8,6 +8,7 @@ import { cn } from '../../lib/utils'
 interface CardImageViewerProps {
   cardCode: number
   cardName: string
+  fallback?: string
   onClose: () => void
   isCover?: boolean
   onToggleCover?: () => void
@@ -16,6 +17,7 @@ interface CardImageViewerProps {
 export const CardImageViewer: React.FC<CardImageViewerProps> = ({
   cardCode,
   cardName,
+  fallback,
   onClose,
   isCover,
   onToggleCover
@@ -117,6 +119,7 @@ export const CardImageViewer: React.FC<CardImageViewerProps> = ({
           <CardImage
             code={cardCode}
             alt={cardName}
+            fallback={fallback}
             draggable={false}
             onLoad={handleImageLoad}
             className={`h-[580px] max-h-[82vh] max-w-[85vw] w-auto object-contain rounded-lg shadow-2xl border border-white/10 transition-transform duration-100 ease-out ${

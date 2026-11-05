@@ -49,6 +49,7 @@ export function registerCdbIpc(): void {
   ipcMain.handle('cdb:set-banlist', (_, name: string | null) => {
     cdbService.setPreferredBanlist(name ?? undefined)
     configService.save({ banlistName: name ?? undefined })
+    broadcastToWindows('cdb:banlist-changed', name)
     return cdbService.getSearchFilterOptions()
   })
 

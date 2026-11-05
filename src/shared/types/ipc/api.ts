@@ -370,5 +370,6 @@ export interface IpcApi {
 
   onConfigUpdated: (callback: () => void) => () => void
   onCdbUpdated: (callback: () => void) => () => void
+  onBanlistChanged: (callback: (name: string | null) => void) => () => void
   onAgentEvent: (callback: (event: AgentStreamEvent) => void) => () => void
 }

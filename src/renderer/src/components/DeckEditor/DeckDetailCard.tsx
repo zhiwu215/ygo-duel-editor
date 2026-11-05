@@ -1,8 +1,9 @@
 import { ScrollArea } from '../ui/scroll-area'
 import React, { useState } from 'react'
 import { CdbCard } from '@shared/index'
-import { getCardImageUrl, CARD_BACK_IMAGE } from '../../utils/cardImage'
+import { getCardImageUrl, CARD_BACK_IMAGE, MISSING_CARD_IMAGE } from '../../utils/cardImage'
 import { CardImage } from '../ui/CardImage'
+import { MissingCardImage } from '../ui/MissingCardImage'
 import { cn } from '../../lib/utils'
 import { ZoomIn } from 'lucide-react'
 import { CardImageViewer } from '../CardDetail/CardImageViewer'
@@ -10,11 +11,17 @@ import { CardDetailText } from '../CardDetail/CardDetailText'
 
 interface DeckDetailCardProps {
   card: CdbCard | null
+  missing?: boolean
   isCover?: boolean
   onToggleCover?: () => void
 }
 
-export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, onToggleCover }) => {
+export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({
+  card,
+  missing,
+  isCover,
+  onToggleCover
+}) => {
   const [showImageModal, setShowImageModal] = useState<boolean>(false)
   const imageUrl = card ? getCardImageUrl(card.id) : CARD_BACK_IMAGE
   const [display, setDisplay] = useState<{ url: string; loaded: boolean; prevUrl: string | null }>(
@@ -42,26 +49,32 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
                 className="group relative cursor-zoom-in rounded-md overflow-hidden shadow-md border border-border/80 bg-background/60"
                 onClick={() => setShowImageModal(true)}
               >
-                {display.prevUrl && !display.loaded && (
-                  <img
-                    src={display.prevUrl}
-                    alt=""
-                    draggable={false}
-                    className="absolute inset-0 size-full object-cover"
-                    onError={() => setDisplay((s) => ({ ...s, prevUrl: null }))}
-                  />
+                {missing ? (
+                  <MissingCardImage className="w-[200px] h-[291px]" />
+                ) : (
+                  <>
+                    {display.prevUrl && !display.loaded && (
+                      <img
+                        src={display.prevUrl}
+                        alt=""
+                        draggable={false}
+                        className="absolute inset-0 size-full object-cover"
+                        onError={() => setDisplay((s) => ({ ...s, prevUrl: null }))}
+                      />
+                    )}
+                    <CardImage
+                      key={display.url}
+                      code={card.id}
+                      alt={card.name || '卡背'}
+                      draggable={false}
+                      onLoad={handleImageLoaded}
+                      className={cn(
+                        'w-[200px] h-[291px] object-cover transition-[transform,opacity] duration-200 group-hover:scale-[1.02]',
+                        !display.loaded && 'opacity-0'
+                      )}
+                    />
+                  </>
                 )}
-                <CardImage
-                  key={display.url}
-                  code={card.id}
-                  alt={card.name || '卡背'}
-                  draggable={false}
-                  onLoad={handleImageLoaded}
-                  className={cn(
-                    'w-[200px] h-[291px] object-cover transition-[transform,opacity] duration-200 group-hover:scale-[1.02]',
-                    !display.loaded && 'opacity-0'
-                  )}
-                />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none">
                   <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 text-white text-[11px] font-medium backdrop-blur-sm shadow-md">
                     <ZoomIn className="w-3.5 h-3.5" />
@@ -88,6 +101,7 @@ export const DeckDetailCard: React.FC<DeckDetailCardProps> = ({ card, isCover, o
         <CardImageViewer
           cardCode={card.id}
           cardName={card.name}
+          fallback={missing ? MISSING_CARD_IMAGE : undefined}
           onClose={() => setShowImageModal(false)}
           isCover={isCover}
           onToggleCover={onToggleCover}

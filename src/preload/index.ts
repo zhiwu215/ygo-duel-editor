@@ -326,6 +326,13 @@ const api: IpcApi = {
       ipcRenderer.removeListener('cdb:updated', handler)
     }
   },
+  onBanlistChanged: (callback) => {
+    const handler = (_: unknown, name: string | null): void => callback(name)
+    ipcRenderer.on('cdb:banlist-changed', handler)
+    return () => {
+      ipcRenderer.removeListener('cdb:banlist-changed', handler)
+    }
+  },
   onAgentEvent: (callback) => {
     const handler = (_: unknown, event: unknown): void => callback(event as AgentStreamEvent)
     ipcRenderer.on('agent:event', handler)

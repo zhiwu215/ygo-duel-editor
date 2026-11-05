@@ -7,16 +7,21 @@ import { DECK_SECTION_NAMES } from './deckDnd'
 import { DeckLibraryView } from './DeckLibraryView'
 import { DeckDetailCard } from './DeckDetailCard'
 import { DeckGrid, type DeckFlashTarget } from './DeckGrid'
+import { DeckMissingCardsBanner } from './DeckMissingCardsBanner'
 import { DeckSearchPanel } from './DeckSearchPanel'
 import { DeckTestHandModal } from './DeckTestHandModal'
 import { DeckEditorToolbar, NONE_GROUP_VALUE } from './DeckEditorToolbar'
 import { CardImage } from '../ui/CardImage'
+import { CardLimitBadge } from '../ui/CardLimitBadge'
+import { MissingCardImage } from '../ui/MissingCardImage'
 import { DROP_ANIMATION, SORTABLE_MEASURING, pointerFirstCollisionDetection } from '../../utils/dnd'
 import { useDeckDnd } from '../../hooks/useDeckDnd'
+import { useDeckCardDetailsRefresh } from '../../hooks/useDeckCardDetailsRefresh'
 import { useDeckDirtyGuard } from '../../hooks/useDeckDirtyGuard'
 import { useFlashMessage } from '../../hooks/useFlashMessage'
 import { useDeckFileExport } from '../../hooks/useDeckFileExport'
 import { getGroupSiblings, pickNextDeckAfterDelete } from '../../utils/deckLibraryView'
+import { findMissingDeckCodes } from '../../utils/deckCards'
 
 const FLASH_DURATION = 700
 
@@ -65,6 +70,8 @@ export const DeckEditorApp: React.FC = () => {
   }
 
   const { markDeckClean, confirmDiscard } = useDeckDirtyGuard(deck.id)
+
+  useDeckCardDetailsRefresh()
 
   const exportDeckFile = useDeckFileExport()
 
@@ -135,8 +142,10 @@ export const DeckEditorApp: React.FC = () => {
   }
 
   const stats = getStats()
+  const missingCodes = findMissingDeckCodes(deck, cardDetails)
 
   const detailCard = selectedCard
+  const detailCardMissing = detailCard ? !cardDetails[detailCard.id] : false
   const detailCardInDeck =
     detailCard &&
     (deck.main.includes(detailCard.id) ||
@@ -240,9 +249,10 @@ export const DeckEditorApp: React.FC = () => {
         <div className="flex-1 flex overflow-hidden min-h-0">
           <DeckDetailCard
             card={detailCard}
+            missing={detailCardMissing}
             isCover={detailCard ? deck.coverCard === detailCard.id : false}
             onToggleCover={
-              detailCard && detailCardInDeck
+              detailCard && detailCardInDeck && !detailCardMissing
                 ? () => setDeckCover(deck.coverCard === detailCard.id ? undefined : detailCard.id)
                 : undefined
             }
@@ -251,6 +261,7 @@ export const DeckEditorApp: React.FC = () => {
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
             <div className="flex-1 flex min-h-0">
               <main className="relative flex-1 flex flex-col p-2 min-w-0 min-h-0 bg-background/50">
+                <DeckMissingCardsBanner codes={missingCodes} />
                 <DeckGrid
                   deck={deck}
                   stats={stats}
@@ -281,15 +292,23 @@ export const DeckEditorApp: React.FC = () => {
         >
           {activeDrag && (
             <div
-              className="pointer-events-none overflow-hidden rounded border border-primary/80 shadow-2xl ring-2 ring-primary/40"
+              className="pointer-events-none relative overflow-hidden rounded border border-primary/80 shadow-2xl ring-2 ring-primary/40"
               style={{ width: activeDrag.width, height: activeDrag.height }}
             >
-              <CardImage
-                code={activeDrag.code}
-                small
-                alt={cardDetails[activeDrag.code]?.name ?? ''}
-                draggable={false}
-                className="w-full h-full object-cover"
+              {cardDetails[activeDrag.code] ? (
+                <CardImage
+                  code={activeDrag.code}
+                  small
+                  alt={cardDetails[activeDrag.code]?.name ?? ''}
+                  draggable={false}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <MissingCardImage className="w-full h-full" />
+              )}
+              <CardLimitBadge
+                limit={cardDetails[activeDrag.code]?.limit}
+                className="absolute left-0 top-0 z-10 aspect-square w-[45%] drop-shadow"
               />
             </div>
           )}

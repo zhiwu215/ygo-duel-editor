@@ -4,6 +4,7 @@ import { useDeckEditorStore } from '../../stores/useDeckEditorStore'
 import { CardImage } from '../ui/CardImage'
 import { CardImageViewer } from '../CardDetail/CardImageViewer'
 import { getDeckCoverCode } from '../../utils/deckLibraryView'
+import { MISSING_CARD_IMAGE } from '../../utils/cardImage'
 import { Clock } from 'lucide-react'
 
 interface DeckCardTileProps {
@@ -41,6 +42,7 @@ export const DeckCardTile: React.FC<DeckCardTileProps> = ({ deck, onContextMenu 
         <CardImage
           code={coverCode}
           alt={deck.name}
+          fallback={coverCode && !coverCard ? MISSING_CARD_IMAGE : undefined}
           className="h-full object-contain drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
         />
       </div>

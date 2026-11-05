@@ -1,15 +1,11 @@
 import React from 'react'
 import { Star } from 'lucide-react'
-import { CdbCard, CardPoolSchema, LIMIT_MARKS, isLegendCard } from '@shared/index'
+import { CdbCard, CardPoolSchema, isLegendCard } from '@shared/index'
 import { formatSearchItemLine2, formatSearchItemLine3 } from '../../utils/cardFormat'
 import { CardImage } from '../ui/CardImage'
+import { CardLimitBadge } from '../ui/CardLimitBadge'
 import { CardScopeBadge } from '../ui/CardScopeBadge'
 import { cn } from '../../lib/utils'
-import limitSprite from '../../assets/card/limit.png'
-
-const LIMIT_SPRITE_SIZE = 64
-const LIMIT_BADGE_SIZE = 24
-const LIMIT_SPRITE_SCALE = LIMIT_BADGE_SIZE / LIMIT_SPRITE_SIZE
 
 export interface CardRowItemProps {
   card: CdbCard
@@ -65,24 +61,11 @@ const CardRowItemBase: React.FC<CardRowItemProps> = ({
           draggable={false}
           className="w-[42px] h-[60px] object-cover rounded border border-border/60 group-hover:scale-102 transition-transform bg-black/40"
         />
-        {(() => {
-          const mark =
-            LIMIT_MARKS.find((m) => m.id === card.limit) ??
-            (isLegendCard(card.ot) ? { spriteX: 64, spriteY: 64 } : null)
-          if (!mark) return null
-          return (
-            <span
-              className="absolute -left-1 -top-1 drop-shadow"
-              style={{
-                width: `${LIMIT_BADGE_SIZE * 0.7}px`,
-                height: `${LIMIT_BADGE_SIZE * 0.7}px`,
-                backgroundImage: `url(${limitSprite})`,
-                backgroundSize: `${LIMIT_SPRITE_SIZE * 2 * LIMIT_SPRITE_SCALE * 0.7}px ${LIMIT_SPRITE_SIZE * 2 * LIMIT_SPRITE_SCALE * 0.7}px`,
-                backgroundPosition: `-${mark.spriteX * LIMIT_SPRITE_SCALE * 0.7}px -${mark.spriteY * LIMIT_SPRITE_SCALE * 0.7}px`
-              }}
-            />
-          )
-        })()}
+        <CardLimitBadge
+          limit={card.limit}
+          legend={isLegendCard(card.ot)}
+          className="absolute -left-1 -top-1 h-[17px] w-[17px] drop-shadow"
+        />
         <CardScopeBadge scope={showScopeBadge ? card.scopeBadge : undefined} />
       </div>
 

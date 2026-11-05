@@ -233,6 +233,15 @@ if (typeof window !== 'undefined' && window.api?.onCdbUpdated) {
   })
 }
 
+if (typeof window !== 'undefined' && window.api?.onBanlistChanged) {
+  window.api.onBanlistChanged((name) => {
+    const state = useCardSearchStore.getState()
+    if (state.filterOptions.banlist === name) return
+    void state.loadFilterOptions(true)
+    if (state.hasSearched) void state.search()
+  })
+}
+
 if (typeof window !== 'undefined' && window.api?.onCustomCardsUpdated) {
   window.api.onCustomCardsUpdated(() => {
     bumpCardImageVersion()

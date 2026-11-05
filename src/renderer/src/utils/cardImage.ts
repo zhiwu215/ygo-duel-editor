@@ -1,10 +1,13 @@
 import localBack from '../assets/card/back.jpg'
 import localUnknown from '../assets/card/unknown.jpg'
+import localMissing from '../assets/card/unknown-card.png'
 import { isPlaceholderCard } from '@shared/index'
 
 export const CARD_BACK_IMAGE = localBack
 
 export const UNKNOWN_CARD_IMAGE = localUnknown
+
+export const MISSING_CARD_IMAGE = localMissing
 
 let imageVersion = 0
 

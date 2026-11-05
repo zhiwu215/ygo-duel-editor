@@ -12,7 +12,7 @@ interface SearchCardItemProps {
   fav: boolean
   onSelectCard: (card: CdbCard | null) => void
   onAddCard: (card: CdbCard, section?: DeckSection) => boolean
-  onToggleFavorite: (code: number) => void
+  onToggleFavorite: (code: number, anchor: DOMRect) => void
 }
 
 export const SearchCardItem: React.FC<SearchCardItemProps> = ({

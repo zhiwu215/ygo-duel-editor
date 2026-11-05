@@ -35,9 +35,11 @@ export const CardSearchPanel: React.FC = () => {
     isLoadingMore,
     hasSearched,
     onlyFavorites,
+    favoriteCategoryId,
     isFilterOpen,
     toggleFilterOpen,
     setKeyword,
+    setFilters,
     search,
     loadMore,
     loadFilterOptions,
@@ -189,7 +191,12 @@ export const CardSearchPanel: React.FC = () => {
         )}
       </div>
 
-      {onlyFavorites && <FavoriteCategoryBar />}
+      {onlyFavorites && (
+        <FavoriteCategoryBar
+          categoryId={favoriteCategoryId}
+          onCategoryChange={(id) => setFilters({ favoriteCategoryId: id })}
+        />
+      )}
 
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto p-2">
         {results.length === 0 && !isLoading && hasSearched ? (

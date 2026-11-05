@@ -1,33 +1,41 @@
 import { useEffect, useState, type JSX } from 'react'
 import type { FavoriteCategory } from '@shared/index'
 import { useFavoritesStore } from '../../stores/useFavoritesStore'
-import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { confirmDialog, promptDialog } from '../../stores/useDialogStore'
 import { ContextMenu } from '../ui/ContextMenu'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '../ui/select'
+import { cn } from '../../lib/utils'
 
 const UNGROUPED_VALUE = '__ungrouped__'
 
-export function FavoriteCategoryBar(): JSX.Element {
+interface FavoriteCategoryBarProps {
+  categoryId: string | null
+  onCategoryChange: (id: string | null) => void
+  className?: string
+}
+
+export function FavoriteCategoryBar({
+  categoryId,
+  onCategoryChange,
+  className
+}: FavoriteCategoryBarProps): JSX.Element {
   const categories = useFavoritesStore((s) => s.categories)
   const addCategory = useFavoritesStore((s) => s.addCategory)
   const renameCategory = useFavoritesStore((s) => s.renameCategory)
   const deleteCategory = useFavoritesStore((s) => s.deleteCategory)
-  const favoriteCategoryId = useCardSearchStore((s) => s.favoriteCategoryId)
-  const setFilters = useCardSearchStore((s) => s.setFilters)
   const [menu, setMenu] = useState<{
     x: number
     y: number
     category: FavoriteCategory
   } | null>(null)
 
-  const currentCategory = categories.find((category) => category.id === favoriteCategoryId) ?? null
+  const currentCategory = categories.find((category) => category.id === categoryId) ?? null
 
   useEffect(() => {
-    if (!favoriteCategoryId) return
-    if (categories.some((category) => category.id === favoriteCategoryId)) return
-    setFilters({ favoriteCategoryId: null })
-  }, [categories, favoriteCategoryId, setFilters])
+    if (!categoryId) return
+    if (categories.some((category) => category.id === categoryId)) return
+    onCategoryChange(null)
+  }, [categories, categoryId, onCategoryChange])
 
   const createCategory = async (): Promise<void> => {
     const name = await promptDialog({
@@ -38,7 +46,7 @@ export function FavoriteCategoryBar(): JSX.Element {
     const trimmed = name?.trim()
     if (!trimmed) return
     const id = await addCategory(trimmed)
-    if (id) setFilters({ favoriteCategoryId: id })
+    if (id) onCategoryChange(id)
   }
 
   const openManageMenu = (event: React.MouseEvent<HTMLButtonElement>): void => {
@@ -77,14 +85,17 @@ export function FavoriteCategoryBar(): JSX.Element {
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-border/40 bg-muted/10 px-2 py-1.5">
+    <div
+      className={cn(
+        'flex shrink-0 items-center gap-2 border-b border-border/40 bg-muted/10 px-2 py-1.5',
+        className
+      )}
+    >
       <Select
-        value={favoriteCategoryId ?? UNGROUPED_VALUE}
-        onValueChange={(value) =>
-          setFilters({ favoriteCategoryId: value === UNGROUPED_VALUE ? null : value })
-        }
+        value={categoryId ?? UNGROUPED_VALUE}
+        onValueChange={(value) => onCategoryChange(value === UNGROUPED_VALUE ? null : value)}
       >
-        <SelectTrigger size="sm" className="h-6 w-44 bg-background/60 text-[11px]">
+        <SelectTrigger size="sm" className="h-6 min-w-0 flex-1 bg-background/60 text-[11px]">
           <span className="min-w-0 flex-1 truncate text-left">
             {currentCategory?.name ?? '未分类'}
           </span>

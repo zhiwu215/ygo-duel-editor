@@ -1,12 +1,14 @@
 import { ScrollArea } from '../ui/scroll-area'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { CdbCard, DeckSection } from '@shared/index'
-import { useFavoritesStore } from '../../stores/useFavoritesStore'
+import { isInAnyCategory, useFavoritesStore } from '../../stores/useFavoritesStore'
 import { useCardSearchStore } from '../../stores/useCardSearchStore'
 import { Search, Star, Layers, Loader2, Minus } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { SORT_OPTIONS } from '../CardSearch/sortOptions'
+import { FavoriteCategoryBar } from '../CardSearch/FavoriteCategoryBar'
+import { FavoriteCategoryPopover } from '../CardSearch/FavoriteCategoryPopover'
 import { cn } from '../../lib/utils'
 import { DeckDragSourceData, DeckDropTargetData } from './deckDnd'
 import { SearchCardItem } from './SearchCardItem'
@@ -50,6 +52,12 @@ const DeckRemoveFeedback: React.FC = () => {
 
 export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, onAddCard }) => {
   const [activeTab, setActiveTab] = useState<'search' | 'favorites'>('search')
+  const [favoriteCategoryId, setFavoriteCategoryId] = useState<string | null>(null)
+  const [favoriteMenu, setFavoriteMenu] = useState<{
+    card: CdbCard
+    x: number
+    y: number
+  } | null>(null)
 
   const {
     results,
@@ -67,8 +75,15 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
     setFilters
   } = useCardSearchStore()
 
-  const { favorites, isFavorite, toggleFavorite, loadFavorites } = useFavoritesStore()
-  const favoriteCards = useFavoriteCards(activeTab === 'favorites', favorites)
+  const { favorites, categorySets, isFavorite, toggleFavorite, loadFavorites } = useFavoritesStore()
+  const favoriteCodes = useMemo(() => {
+    if (favoriteCategoryId) {
+      const members = categorySets.get(favoriteCategoryId)
+      return members ? favorites.filter((code) => members.has(code)) : []
+    }
+    return favorites.filter((code) => !isInAnyCategory(categorySets, code))
+  }, [favorites, categorySets, favoriteCategoryId])
+  const favoriteCards = useFavoriteCards(activeTab === 'favorites', favoriteCodes)
   const sortLabel = SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? SORT_OPTIONS[0].label
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
@@ -88,7 +103,14 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
 
   const currentDisplayList = activeTab === 'search' ? results : favoriteCards
   const showEmptyState =
-    activeTab === 'favorites' ? favorites.length === 0 : hasSearched && !isLoading
+    activeTab === 'favorites' ? favoriteCodes.length === 0 : hasSearched && !isLoading
+
+  const handleFavoriteClick = (code: number, anchor: DOMRect): void => {
+    const card = currentDisplayList.find((item) => item.id === code)
+    if (!card) return
+    if (!isFavorite(code)) void toggleFavorite(code)
+    setFavoriteMenu({ card, x: anchor.right, y: anchor.bottom + 4 })
+  }
 
   return (
     <SearchPanelDropZone className="relative w-[270px] lg:w-[320px] xl:w-[400px] h-full flex flex-col bg-card border-l border-border select-none shrink-0">
@@ -125,6 +147,13 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
           <span className="text-[10px] text-muted-foreground font-mono">({favorites.length})</span>
         </button>
       </div>
+
+      {activeTab === 'favorites' && (
+        <FavoriteCategoryBar
+          categoryId={favoriteCategoryId}
+          onCategoryChange={setFavoriteCategoryId}
+        />
+      )}
 
       {activeTab === 'search' && (
         <div className="px-2.5 py-1 border-b border-border/40 bg-muted/20 flex items-center justify-between gap-2 text-[11px] shrink-0">
@@ -169,9 +198,9 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
               {activeTab === 'favorites' ? (
                 <>
                   <Star className="w-6 h-6 text-muted-foreground/40 stroke-1" />
-                  <span>暂无收藏卡片</span>
+                  <span>{favoriteCategoryId ? '该分类暂无收藏卡片' : '暂无收藏卡片'}</span>
                   <span className="text-[11px] text-muted-foreground/60">
-                    点击卡片右上角星星即可加入收藏
+                    点击卡片右上角星星，可在弹出菜单中设置收藏分类
                   </span>
                 </>
               ) : (
@@ -196,7 +225,7 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
                     fav={isFavorite(card.id)}
                     onSelectCard={onSelectCard}
                     onAddCard={onAddCard}
-                    onToggleFavorite={toggleFavorite}
+                    onToggleFavorite={handleFavoriteClick}
                   />
                 ))}
               </div>
@@ -215,6 +244,14 @@ export const DeckSearchPanel: React.FC<DeckSearchPanelProps> = ({ onSelectCard, 
       </ScrollArea>
 
       <DeckRemoveFeedback />
+
+      {favoriteMenu && (
+        <FavoriteCategoryPopover
+          card={favoriteMenu.card}
+          anchor={{ x: favoriteMenu.x, y: favoriteMenu.y }}
+          onClose={() => setFavoriteMenu(null)}
+        />
+      )}
     </SearchPanelDropZone>
   )
 }

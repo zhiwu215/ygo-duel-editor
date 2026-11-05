@@ -1,10 +1,10 @@
-import { CardPosition, CdbCard, FieldCard } from '@shared/index'
+import { CardLocation, CardPosition, CdbCard, FieldCard } from '@shared/index'
 import { getCodeOccurrences } from './cardOccurrences'
 
 export function buildOverlayMaterialCards(
   materials: number[],
   cardDataMap: Record<number, CdbCard>,
-  host: Pick<FieldCard, 'controller' | 'owner' | 'location'>
+  host: Pick<FieldCard, 'controller' | 'owner'>
 ): FieldCard[] {
   const occurrences = getCodeOccurrences(materials)
   return materials.map((code, index) => ({
@@ -13,7 +13,7 @@ export function buildOverlayMaterialCards(
     card: cardDataMap[code],
     controller: host.controller,
     owner: host.owner,
-    location: host.location,
+    location: CardLocation.OVERLAY,
     sequence: index,
     position: CardPosition.FACEUP,
     overlayMaterials: []

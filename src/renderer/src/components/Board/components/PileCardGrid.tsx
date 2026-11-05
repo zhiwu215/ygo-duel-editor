@@ -23,7 +23,6 @@ interface PileCardGridProps {
   selectedCardId?: string | null
   chainIndexesByInstance?: Map<string, number[]>
   actionsDisabled?: boolean
-  showLocationLabel?: boolean
   getCardName?: (card: FieldCard) => string
   onSelect: (card: FieldCard) => void
   onCardClick?: (e: React.MouseEvent, card: FieldCard) => boolean
@@ -44,7 +43,6 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
   selectedCardId = null,
   chainIndexesByInstance,
   actionsDisabled = false,
-  showLocationLabel = false,
   getCardName,
   onSelect,
   onCardClick,
@@ -137,7 +135,6 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
                 dragDisabled={!dragEnabled}
                 chainIndexes={chainIndexesByInstance?.get(card.instanceId)}
                 actionsDisabled={actionsDisabled}
-                showLocationLabel={showLocationLabel}
                 onSelect={handleSelect}
                 onCardClick={onCardClick}
                 onHoverChange={handleHoverChange}

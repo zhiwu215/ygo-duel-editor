@@ -6,9 +6,9 @@ import {
   type PileActionMenuTarget
 } from '../../stores/usePileActionMenuStore'
 import { buildCardEngineActionMap } from '../../utils/cardMenuActions'
-import { resolveCardName } from '../../utils/cardNames'
 import { resolvePileActions, type PileActionEntry } from '../../utils/pileActions'
-import { CardThumb } from '../ui/CardThumb'
+import { RequestCardTile } from './request-modals/RequestCardTile'
+import { useCardMeta } from './request-modals/useCardMeta'
 import { cn } from '../../lib/utils'
 import { X } from 'lucide-react'
 
@@ -63,6 +63,8 @@ export const PileActionMenu: React.FC = () => {
     () => (target ? resolvePileActions(pendingRequest, target.controller, target.location) : []),
     [pendingRequest, target]
   )
+  const requestCards = useMemo(() => entries.map((entry) => entry.card), [entries])
+  const meta = useCardMeta(requestCards)
 
   const categories = useMemo<PileActionCategory[]>(() => {
     const result: PileActionCategory[] = []
@@ -196,22 +198,14 @@ export const PileActionMenu: React.FC = () => {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="flex flex-wrap gap-2 overflow-y-auto p-4">
+          <div className="flex min-h-0 flex-wrap gap-x-5 gap-y-3 overflow-y-auto p-4">
             {selectionCategory.entries.map((entry) => (
-              <button
+              <RequestCardTile
                 key={`${entry.card.code}:${entry.card.sequence}`}
-                type="button"
+                card={entry.card}
+                meta={meta}
                 onClick={() => submitEntry(selectionCategory.kind, entry, activeSelection.target)}
-                className="overflow-hidden rounded ring-1 ring-border hover:ring-2 hover:ring-blue-400 transition-all"
-              >
-                <CardThumb
-                  code={entry.card.code}
-                  name={resolveCardName(entry.card.code)}
-                  showName={false}
-                  className="h-[170px] w-[120px]"
-                  imageClassName="pointer-events-none"
-                />
-              </button>
+              />
             ))}
           </div>
         </div>

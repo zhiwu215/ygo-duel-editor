@@ -5,10 +5,10 @@ import { useDetachMaterialStore } from '../../stores/useDetachMaterialStore'
 import { useCardDataMap } from '../../hooks/useCardDataMap'
 import { resolveCardName } from '../../utils/cardNames'
 import { buildOverlayMaterialCards } from '../../utils/overlayMaterialCards'
-import { Layers, X, Check, Search } from 'lucide-react'
+import { Layers, X, Search } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
-import { CardThumb } from '../ui/CardThumb'
+import { CardListTile } from './components/CardListTile'
 
 export const DetachMaterialModal: React.FC = () => {
   const { hostInstanceId, selected, toggle, closeDetach } = useDetachMaterialStore()
@@ -106,54 +106,30 @@ export const DetachMaterialModal: React.FC = () => {
               <p>{searchQuery ? '未找到符合条件的卡片' : '当前怪兽暂无超量素材'}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2.5">
-              {filteredCards.map((card, index) => {
-                const isSelected = selected.includes(index)
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-x-5 gap-y-4">
+              {filteredCards.map((card) => {
+                const materialIndex = materialCards.indexOf(card)
+                const isSelected = selected.includes(materialIndex)
+                const cardName = card.card?.name || resolveCardName(card.code)
                 return (
                   <button
                     type="button"
                     key={card.instanceId}
-                    onClick={() => toggle(index)}
+                    onClick={() => toggle(materialIndex)}
                     onMouseEnter={() => {
                       const detail = card.card || cardDataMap[card.code]
                       if (detail) setHoveredCard(detail)
                     }}
-                    className={
-                      'group relative rounded overflow-hidden select-none text-left cursor-pointer transition-all ' +
-                      (isSelected
-                        ? 'ring-2 ring-emerald-500 shadow-lg shadow-emerald-500/20'
-                        : 'ring-1 ring-transparent hover:ring-2 hover:ring-emerald-500/50')
-                    }
+                    className="group w-full min-w-0 select-none cursor-pointer text-left"
                   >
-                    <div className="relative w-full aspect-[59/86] bg-black/30">
-                      <CardThumb
-                        code={card.code}
-                        name={card.card?.name || resolveCardName(card.code)}
-                        imageClassName="pointer-events-none"
-                        className="h-full w-full"
-                      />
-
-                      <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
-                        #{index + 1}
-                      </span>
-
-                      {isSelected && (
-                        <span className="absolute right-1 top-1 flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500 text-white shadow">
-                          <Check className="w-3 h-3" strokeWidth={3} />
-                        </span>
-                      )}
-
-                      <span
-                        className={
-                          'absolute inset-x-0 bottom-0 flex items-center justify-center p-1 bg-linear-to-t from-black/80 via-black/40 to-transparent text-[10px] font-medium transition-opacity ' +
-                          (isSelected
-                            ? 'opacity-100 text-emerald-300'
-                            : 'opacity-0 group-hover:opacity-100 text-white/85')
-                        }
-                      >
-                        {isSelected ? '已选中' : '点击选中'}
-                      </span>
-                    </div>
+                    <CardListTile
+                      code={card.code}
+                      name={cardName}
+                      location={card.location}
+                      sequence={card.sequence}
+                      selected={isSelected}
+                      interactive
+                    />
                   </button>
                 )
               })}

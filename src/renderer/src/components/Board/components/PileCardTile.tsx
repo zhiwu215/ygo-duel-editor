@@ -1,13 +1,11 @@
 import React from 'react'
 import { CardLocation, CardPosition, FieldCard } from '@shared/index'
-import { CardThumb } from '../../ui/CardThumb'
-import { CardLocationLabel } from './CardLocationLabel'
 import { ChainRing } from './ChainRing'
+import { CardListTile } from './CardListTile'
 import { Hand, Trash2 } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from '../../../lib/utils'
-import { cardLocationLabel } from '../../../utils/cardLocationLabel'
 import { SORTABLE_TRANSITION } from '../../../utils/dnd'
 
 interface PileCardTileProps {
@@ -19,7 +17,6 @@ interface PileCardTileProps {
   dragDisabled: boolean
   chainIndexes?: number[]
   actionsDisabled?: boolean
-  showLocationLabel?: boolean
   onSelect: (card: FieldCard) => void
   onCardClick?: (e: React.MouseEvent, card: FieldCard) => boolean
   onHoverChange: (card: FieldCard, hovering: boolean) => void
@@ -41,7 +38,6 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   dragDisabled,
   chainIndexes,
   actionsDisabled = false,
-  showLocationLabel = false,
   onSelect,
   onCardClick,
   onHoverChange,
@@ -85,96 +81,84 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
         isDragging ? 'opacity-30' : ''
       )}
     >
-      {showLocationLabel && (
-        <CardLocationLabel label={cardLocationLabel(card.location, card.sequence)} interactive />
-      )}
-
-      <div
-        className={cn(
-          'relative aspect-[59/86] w-full overflow-hidden rounded bg-black/30',
-          isSelected ? 'ring-2 ring-blue-500' : 'group-hover:ring-2 group-hover:ring-blue-500/70'
-        )}
-      >
-        <CardThumb
-          code={card.code}
-          name={cardName}
-          imageClassName="pointer-events-none"
-          className="h-full w-full"
-        />
-
-        {!showLocationLabel && (
-          <span className="absolute left-1 top-1 px-1 rounded bg-black/65 text-white/90 font-mono text-[9px] leading-[14px] pointer-events-none">
-            #{index + 1}
-          </span>
-        )}
-
-        {chainIndexes && chainIndexes.length > 0 && (
-          <div className="pointer-events-none absolute inset-0 z-20">
-            {chainIndexes.map((chainIndex, order) => (
-              <div
-                key={chainIndex}
-                className="absolute left-0 w-full"
-                style={{ top: `${50 - order * 25}%`, transform: 'translateY(-50%)' }}
-              >
-                <ChainRing index={chainIndex} />
+      <CardListTile
+        code={card.code}
+        name={cardName}
+        location={card.location}
+        sequence={card.sequence}
+        selected={isSelected}
+        interactive
+        overlay={
+          <>
+            {chainIndexes && chainIndexes.length > 0 && (
+              <div className="pointer-events-none absolute inset-0 z-20">
+                {chainIndexes.map((chainIndex, order) => (
+                  <div
+                    key={chainIndex}
+                    className="absolute left-0 w-full"
+                    style={{ top: `${50 - order * 25}%`, transform: 'translateY(-50%)' }}
+                  >
+                    <ChainRing index={chainIndex} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-
-        {location === CardLocation.DECK && index === 0 && (
-          <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
-            下一抽
-          </span>
-        )}
-
-        {location === CardLocation.EXTRA && (
-          <span className="absolute right-1 top-1 inline-flex">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onTogglePosition?.(card)
-              }}
-              className={cn(
-                'px-1 rounded font-sans text-[9px] leading-[14px] border transition-colors cursor-pointer',
-                card.position === CardPosition.FACEUP
-                  ? 'bg-cyan-500/85 text-black border-cyan-500/50 font-bold'
-                  : 'bg-black/65 text-white/85 border-white/25 hover:text-white'
-              )}
-            >
-              {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
-            </button>
-          </span>
-        )}
-
-        {!actionsDisabled && (
-          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
-            {holdEnabled && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onHold(card, { x: e.clientX, y: e.clientY })
-                }}
-                className="p-1 rounded text-white/85 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
-              >
-                <Hand className="w-3.5 h-3.5" />
-              </button>
             )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onRemove(card)
-              }}
-              className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-      </div>
+
+            {location === CardLocation.DECK && index === 0 && (
+              <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
+                下一抽
+              </span>
+            )}
+
+            {location === CardLocation.EXTRA && (
+              <span className="absolute right-1 top-1 inline-flex">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onTogglePosition?.(card)
+                  }}
+                  className={cn(
+                    'px-1 rounded font-sans text-[9px] leading-[14px] border transition-colors cursor-pointer',
+                    card.position === CardPosition.FACEUP
+                      ? 'bg-cyan-500/85 text-black border-cyan-500/50 font-bold'
+                      : 'bg-black/65 text-white/85 border-white/25 hover:text-white'
+                  )}
+                >
+                  {card.position === CardPosition.FACEUP ? '表侧' : '里侧'}
+                </button>
+              </span>
+            )}
+
+            {!actionsDisabled && (
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity bg-linear-to-t from-black/80 via-black/40 to-transparent">
+                {holdEnabled && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onHold(card, { x: e.clientX, y: e.clientY })
+                    }}
+                    className="p-1 rounded text-white/85 hover:text-white hover:bg-white/15 transition-colors cursor-pointer"
+                  >
+                    <Hand className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onRemove(card)
+                  }}
+                  className="p-1 rounded text-white/85 hover:text-rose-300 hover:bg-white/15 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </>
+        }
+      />
     </div>
   )
 }

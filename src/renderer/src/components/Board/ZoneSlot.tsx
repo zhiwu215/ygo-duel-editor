@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { FieldCard, CdbCard, CardLocation, CardUtils } from '@shared/index'
+import { FieldCard, CdbCard, CardLocation, CardUtils, RequestPlace } from '@shared/index'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDropHintStore } from '../../stores/useDropHintStore'
 import { usePileListStore } from '../../stores/usePileListStore'
@@ -46,6 +46,7 @@ interface ZoneSlotProps {
   colorVariant?: ZoneColorVariant
   className?: string
   duelistId?: string
+  placeTargets?: RequestPlace[]
 }
 
 interface VariantConfig {
@@ -95,7 +96,8 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   pendulumDirection,
   colorVariant = 'monster',
   className = '',
-  duelistId
+  duelistId,
+  placeTargets
 }) => {
   const { addCardToZone, setSelectedCardId, moveCard, overlayDropOnto } = useDuelStore()
   const hintZone = useDropHintStore((s) => s.zone)
@@ -135,8 +137,15 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
   const enginePlaceMatch =
     pendingRequest !== null &&
     (pendingRequest.data.kind === 'place' || pendingRequest.data.kind === 'disfield')
-      ? pendingRequest.data.places.find(
-          (p) => p.controller === controller && p.location === location && p.sequence === sequence
+      ? pendingRequest.data.places.find((p) =>
+          placeTargets
+            ? placeTargets.some(
+                (target) =>
+                  target.controller === p.controller &&
+                  target.location === p.location &&
+                  target.sequence === p.sequence
+              )
+            : p.controller === controller && p.location === location && p.sequence === sequence
         )
       : undefined
   const isEnginePlaceTarget = Boolean(enginePlaceMatch)

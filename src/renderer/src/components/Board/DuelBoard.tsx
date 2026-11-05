@@ -2,7 +2,14 @@ import React, { useEffect } from 'react'
 import { useDuelStore } from '../../stores/useDuelStore'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
 import { useContextMenuStore } from '../../stores/useContextMenuStore'
-import { CardLocation, MASTER_RULES, FieldCard, isStandardTag, viewTopSeatOf } from '@shared/index'
+import {
+  CardLocation,
+  MASTER_RULES,
+  FieldCard,
+  RequestPlace,
+  isStandardTag,
+  viewTopSeatOf
+} from '@shared/index'
 import { ZoneSlot } from './ZoneSlot'
 import { HandTray } from './components/HandTray'
 import { BoardSector } from './BoardSector'
@@ -13,6 +20,16 @@ import { useBoardAutoScale } from '../../hooks/useBoardAutoScale'
 import { useStepEffectPlayer } from '../../hooks/useStepEffectPlayer'
 import { getPileTopCard, getPileCount } from '../../utils/duelBoardQuery'
 import { resolveOwnerScope } from '../../utils/duelistNames'
+
+const EMZ_LEFT_TARGETS: RequestPlace[] = [
+  { controller: 0, location: CardLocation.MZONE, sequence: 5 },
+  { controller: 1, location: CardLocation.MZONE, sequence: 6 }
+]
+
+const EMZ_RIGHT_TARGETS: RequestPlace[] = [
+  { controller: 0, location: CardLocation.MZONE, sequence: 6 },
+  { controller: 1, location: CardLocation.MZONE, sequence: 5 }
+]
 
 export const DuelBoard: React.FC = () => {
   const state = useDuelStore((s) => s.state)
@@ -98,6 +115,17 @@ export const DuelBoard: React.FC = () => {
   const getCardCount = (controller: 0 | 1, location: number): number =>
     getPileCount(state.cards, controller, location, ownerScopeOf(controller, location))
 
+  const emzCardOf = (targets: RequestPlace[]): FieldCard | undefined => {
+    for (const target of targets) {
+      const card = getCard(target.controller, target.location, target.sequence)
+      if (card) return card
+    }
+    return undefined
+  }
+
+  const emzLeftCard = emzCardOf(EMZ_LEFT_TARGETS)
+  const emzRightCard = emzCardOf(EMZ_RIGHT_TARGETS)
+
   return (
     <div className="flex-1 h-full relative select-none min-h-0 overflow-hidden flex flex-col">
       <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(180deg,#eef1f7_0%,#e2e7f0_100%)] dark:bg-[linear-gradient(180deg,#0a1128_0%,#060b1a_100%)]" />
@@ -168,22 +196,24 @@ export const DuelBoard: React.FC = () => {
                   )}
                   <ZoneSlot
                     label="EX 怪兽 1"
-                    controller={0}
+                    controller={emzLeftCard?.controller ?? 0}
                     location={CardLocation.MZONE}
-                    sequence={5}
-                    card={getCard(0, CardLocation.MZONE, 5) || getCard(1, CardLocation.MZONE, 5)}
+                    sequence={emzLeftCard?.sequence ?? 5}
+                    card={emzLeftCard}
                     colorVariant="emz"
+                    placeTargets={EMZ_LEFT_TARGETS}
                   />
                   <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
                     {middleSlot}
                   </div>
                   <ZoneSlot
                     label="EX 怪兽 2"
-                    controller={0}
+                    controller={emzRightCard?.controller ?? 0}
                     location={CardLocation.MZONE}
-                    sequence={6}
-                    card={getCard(0, CardLocation.MZONE, 6) || getCard(1, CardLocation.MZONE, 6)}
+                    sequence={emzRightCard?.sequence ?? 6}
+                    card={emzRightCard}
                     colorVariant="emz"
+                    placeTargets={EMZ_RIGHT_TARGETS}
                   />
                   {showPhaseControls && (
                     <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">

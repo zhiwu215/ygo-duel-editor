@@ -107,12 +107,6 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
               </div>
             )}
 
-            {location === CardLocation.DECK && index === 0 && (
-              <span className="absolute right-1 top-1 px-1 rounded border border-amber-500/50 bg-amber-500/85 text-black font-sans text-[9px] font-bold leading-[14px] pointer-events-none">
-                下一抽
-              </span>
-            )}
-
             {location === CardLocation.EXTRA && (
               <span className="absolute right-1 top-1 inline-flex">
                 <button

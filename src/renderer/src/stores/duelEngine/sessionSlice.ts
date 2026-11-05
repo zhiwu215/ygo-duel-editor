@@ -121,6 +121,7 @@ export interface SessionSlice {
     allowMergedMatch?: boolean
     seed?: number[]
     resetOpening?: boolean
+    preserveSteps?: boolean
   }) => Promise<void>
   stopEngine: () => void
   suspendEngine: () => Promise<void>
@@ -228,7 +229,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       if (!wasInitialized) {
         clearIdentities()
         enterEnginePileOrder()
-        dropStaleEngineSteps()
+        if (!options?.preserveSteps) dropStaleEngineSteps()
       }
       preserveStepsForNewSession(!wasInitialized)
       const timeline = [res.initialNode]

@@ -69,7 +69,7 @@ export const Header: React.FC = () => {
     if (restored) return
     const ok = await confirmDialog({
       title: '继续上次会话失败',
-      description: `${useDuelEngineStore.getState().error ?? '引擎无法恢复上次的会话。'}\n\n要从当前盘面开始新的引擎会话吗？已有步骤会保留为历史。`,
+      description: `${useDuelEngineStore.getState().error ?? '引擎无法恢复上次的会话。'}\n\n要从当前盘面开始新的引擎会话吗？`,
       confirmText: '开始新会话'
     })
     if (!ok) return

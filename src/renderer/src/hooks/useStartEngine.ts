@@ -20,6 +20,32 @@ function canResumeSuspended(): boolean {
   return boardFingerprintMatches(doc.boardFingerprint, computeBoardFingerprint(state))
 }
 
+type StartStepsChoice = 'clear' | 'keep' | null
+
+async function confirmStartNewSession(options: {
+  title: string
+  description: string
+  confirmText: string
+}): Promise<StartStepsChoice> {
+  const steps = useDuelStore.getState().state.steps ?? []
+  const choice = await confirmDialog({
+    title: options.title,
+    description: `${options.description}${
+      steps.length > 0
+        ? `\n\n已有 ${steps.length} 个步骤默认会随新会话清空；选择「保留步骤」可保留为历史步骤（文字仍可编辑）。`
+        : ''
+    }`,
+    confirmText: options.confirmText,
+    destructive: false,
+    ...(steps.length > 0 ? { extraAction: { text: '保留步骤', value: 'keep' } } : {})
+  })
+  if (choice === true) {
+    if (steps.length > 0) clearEditorSteps()
+    return 'clear'
+  }
+  return choice === 'keep' ? 'keep' : null
+}
+
 export function useStartEngine(): (options?: { skipResume?: boolean }) => Promise<void> {
   const startEngine = useDuelEngineStore((s) => s.startEngine)
   const resumeSuspended = useDuelEngineStore((s) => s.resumeSuspended)
@@ -58,6 +84,7 @@ export function useStartEngine(): (options?: { skipResume?: boolean }) => Promis
         useDuelEngineStore.getState().setSuspendedDoc(null)
       }
       useDuelStore.getState().exitPreview()
+      let stepsChoice: StartStepsChoice = 'clear'
       if (useDuelEngineStore.getState().suspendedDoc) {
         if (!options?.skipResume && canResumeSuspended()) {
           const restored = await resumeSuspended()
@@ -68,44 +95,27 @@ export function useStartEngine(): (options?: { skipResume?: boolean }) => Promis
           }
           return
         }
-        const steps = useDuelStore.getState().state.steps ?? []
         const reason = options?.skipResume
           ? '上次引擎会话无法恢复。'
           : '当前盘面与上次保存的引擎会话不一致，无法继续上次进度。'
-        const choice = await confirmDialog({
+        stepsChoice = await confirmStartNewSession({
           title: '上次会话无法续接',
-          description: `${reason}将从当前盘面开始新的引擎会话。${
-            steps.length > 0
-              ? `\n\n已有 ${steps.length} 个步骤会保留为历史步骤（文字仍可编辑），不会被删除。`
-              : ''
-          }`,
-          confirmText: '开始新会话',
-          destructive: false,
-          ...(steps.length > 0 ? { extraAction: { text: '清空步骤', value: 'clear' } } : {})
+          description: `${reason}将从当前盘面开始新的引擎会话。`,
+          confirmText: '开始新会话'
         })
-        if (choice === 'clear') {
-          clearEditorSteps()
-        } else if (choice !== true) {
-          return
-        }
-      } else {
-        const steps = useDuelStore.getState().state.steps ?? []
-        if (steps.length > 0) {
-          const choice = await confirmDialog({
-            title: '台本中已有步骤',
-            description: `开始校验会从当前盘面创建新的引擎会话。当前 ${steps.length} 个步骤会保留为历史步骤（文字仍可编辑），可在引擎里继续编写后续内容。`,
-            confirmText: '开始校验',
-            extraAction: { text: '清空步骤', value: 'clear' },
-            destructive: false
-          })
-          if (choice === 'clear') {
-            clearEditorSteps()
-          } else if (choice !== true) {
-            return
-          }
-        }
+      } else if ((useDuelStore.getState().state.steps ?? []).length > 0) {
+        stepsChoice = await confirmStartNewSession({
+          title: '台本中已有步骤',
+          description: '启动规则校验会从当前盘面开始新的引擎会话。',
+          confirmText: '开始新会话'
+        })
       }
-      await startEngine({ allowMergedMatch: true })
+      if (!stepsChoice) return
+      await startEngine({
+        allowMergedMatch: true,
+        resetOpening: stepsChoice === 'clear',
+        preserveSteps: stepsChoice === 'keep'
+      })
     },
     [startEngine, resumeSuspended]
   )

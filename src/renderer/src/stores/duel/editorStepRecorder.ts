@@ -126,16 +126,35 @@ export function recordEditorStep(input: EditorStepInput): void {
   const selected = duel.currentStepIndex
   const total = (duel.state.steps || []).length
   if (selected !== null) {
+    const index = Math.min(selected + 1, total)
     if (selected < total - 1) {
       duel.insertStep(step)
     } else {
       duel.addStep(step)
     }
-    duel.previewStepBoard(selected + 1)
+    pinRecordedBoard(index, step.boardAfter)
+    duel.previewStepBoard(index)
   } else {
     duel.addStep(step)
+    pinRecordedBoard(total, step.boardAfter)
     duel.setCurrentStepIndex((useDuelStore.getState().state.steps || []).length - 1)
   }
+}
+
+function pinRecordedBoard(index: number, boardAfter?: LightweightCardSnapshot[]): void {
+  if (!boardAfter || boardAfter.length === 0) return
+  useDuelStore.setState((prev) => {
+    const steps = prev.state.steps || []
+    const target = steps[index]
+    if (!target) return prev
+    return {
+      ...prev,
+      state: {
+        ...prev.state,
+        steps: steps.map((step) => (step.id === target.id ? { ...step, boardAfter } : step))
+      }
+    }
+  })
 }
 
 export function moveActionType(toLocation: number): DuelActionType {

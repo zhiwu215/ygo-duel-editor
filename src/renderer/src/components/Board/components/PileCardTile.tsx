@@ -14,7 +14,6 @@ interface PileCardTileProps {
   label?: string
   index: number
   location: number
-  isSelected: boolean
   dragDisabled: boolean
   chainIndexes?: number[]
   actionsDisabled?: boolean
@@ -36,7 +35,6 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
   label,
   index,
   location,
-  isSelected,
   dragDisabled,
   chainIndexes,
   actionsDisabled = false,
@@ -89,7 +87,6 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
         label={label}
         location={card.location}
         sequence={card.sequence}
-        selected={isSelected}
         interactive
         overlay={
           <>

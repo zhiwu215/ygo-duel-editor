@@ -52,7 +52,6 @@ const PileListContent: React.FC = () => {
     state,
     activeDuelistIds,
     currentTurn,
-    selectedCardId,
     setHoveredCard,
     setHoveredInstanceId,
     setSelectedCardId,
@@ -356,7 +355,6 @@ const PileListContent: React.FC = () => {
               location={target.location}
               holdEnabled={!isEngineActive}
               actionsDisabled={isEngineActive}
-              selectedCardId={selectedCardId}
               chainIndexesByInstance={chainIndexesByInstance}
               getCardName={(card) => getCardName(card.code)}
               onCardClick={(event, card) => {

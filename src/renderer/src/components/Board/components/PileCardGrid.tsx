@@ -21,7 +21,6 @@ interface PileCardGridProps {
   dragEnabled: boolean
   location: number
   holdEnabled: boolean
-  selectedCardId?: string | null
   chainIndexesByInstance?: Map<string, number[]>
   actionsDisabled?: boolean
   getCardName?: (card: FieldCard) => string
@@ -42,7 +41,6 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
   dragEnabled,
   location,
   holdEnabled,
-  selectedCardId = null,
   chainIndexesByInstance,
   actionsDisabled = false,
   getCardName,
@@ -134,7 +132,6 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
                 label={labels?.get(card.instanceId)}
                 index={index}
                 location={location}
-                isSelected={selectedCardId === card.instanceId}
                 dragDisabled={!dragEnabled}
                 chainIndexes={chainIndexesByInstance?.get(card.instanceId)}
                 actionsDisabled={actionsDisabled}

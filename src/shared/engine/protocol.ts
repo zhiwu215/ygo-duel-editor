@@ -136,6 +136,7 @@ export interface EngineRequest {
   title: string
   subtitle?: string
   descHint?: number
+  manualRandom?: boolean
   data: RequestData
 }
 

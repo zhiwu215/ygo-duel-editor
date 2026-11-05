@@ -319,7 +319,6 @@ export function routeRequest(msg: unknown, ctx: RouteContext): EngineRequest | n
             ? 565
             : 564
     title = selectHintText(ctx.descHint, announceDesc)
-    subtitle = msg.count > 1 ? `请选择 ${msg.count} 种` : undefined
     data = {
       kind: 'announce',
       announceType,

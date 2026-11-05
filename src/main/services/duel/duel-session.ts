@@ -39,7 +39,8 @@ import {
 import { computeDiff } from './diff-resolver'
 import { encodeAnswer, describeAnswer } from './answer-encoder'
 import { describeInject, executeInject, injectCardName, verifyInject } from './injector'
-import { resetDuelLogContext } from './duel-log'
+import { resetDuelLogContext, recordForcedToss } from './duel-log'
+import { isManualRandomEnabled, preloadRandomControl, readRecordedToss } from './random-control'
 import { createSessionState, headPendingQuery } from './session-state'
 import { setupFromPuzzleState, setupFromDeckParams } from './session-setup'
 import {
@@ -131,6 +132,7 @@ export class DuelSession {
       throw new Error('引擎会话尚未初始化。')
     }
     state.duel = state.ocgcore!.createDuelV2(state.seed)
+    if (isManualRandomEnabled()) preloadRandomControl(state.duel)
     if (state.initParams.puzzleState) {
       setupFromPuzzleState(state, state.initParams.puzzleState)
       initializeProvenance(state, this.readBoard())
@@ -698,6 +700,8 @@ export class DuelSession {
       if (state.lastAdvanceRetried) break
     }
 
+    this.recordManualToss()
+
     state.accumulatedLogs.push(logText)
 
     this.truncateToCurrentStep()
@@ -749,6 +753,15 @@ export class DuelSession {
       actTurnPlayer: beforeBoard.turnPlayer,
       actPhase: beforeBoard.phase
     }
+  }
+
+  private recordManualToss(): void {
+    const state = this.state
+    if (!state.duel) return
+    const toss = readRecordedToss(state.duel)
+    if (!toss) return
+    state.accumulatedEvents.push({ kind: 'toss', type: toss.type, results: [...toss.results] })
+    recordForcedToss(state, toss.type, toss.results)
   }
 
   private async rebaseDuelFromRequestSnapshot(): Promise<void> {

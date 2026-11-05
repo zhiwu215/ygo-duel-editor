@@ -4,6 +4,7 @@ export const configService = {
     gameDirectory: process.env.YGO_SMOKE_GAMEDIR || 'E:/MyCardLibrary/ygopro',
     extraCdbPaths: [],
     gameType: process.env.YGO_SMOKE_GAMETYPE as 'ygopro' | 'mdpro3' | undefined,
-    gameLanguage: process.env.YGO_SMOKE_GAMELANG
+    gameLanguage: process.env.YGO_SMOKE_GAMELANG,
+    duelTestSettings: { deckOrder: 'fixed', engineRandom: 'off' }
   })
 }

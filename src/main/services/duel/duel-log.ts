@@ -38,6 +38,7 @@ import {
   DuelLogCardRef,
   DuelLogEvent,
   DuelSummonKind,
+  TossKind,
   placeholderCardData
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
@@ -610,6 +611,10 @@ function recordToss(state: SessionState, msg: YGOProMsgTossCoin | YGOProMsgTossD
     type: msg instanceof YGOProMsgTossCoin ? 'coin' : 'dice',
     results: [...msg.results]
   })
+}
+
+export function recordForcedToss(state: SessionState, type: TossKind, results: number[]): void {
+  push(state, { kind: 'toss', type, results: [...results] })
 }
 
 export function collectDuelLogMessages(state: SessionState, messages: unknown[]): void {

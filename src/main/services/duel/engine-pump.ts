@@ -27,6 +27,7 @@ import { shouldAutoPassChain } from './chain-policy'
 import { collectDuelLogMessages } from './duel-log'
 import { isInteractiveQuery } from './message-parser'
 import { routeRequest } from './request-router'
+import { isRandomAskPending } from './random-control'
 import { createRecordedAnswer } from './replay-policy'
 
 const PRIVATE_CARD_LOCATIONS = new Set<number>([
@@ -251,6 +252,11 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
           })
           state.lastHintDesc = undefined
           if (request) {
+            if (state.duel && isRandomAskPending(state.duel)) {
+              request.manualRandom = true
+              request.title = '关闭引擎随机结果，请手动选择'
+              request.subtitle = undefined
+            }
             stampRequestSeats(request, state.fieldReader.activeDuelistIds)
             batchQueries.push({ msg, request })
           }

@@ -9,6 +9,7 @@ import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { cdbService } from './cdb-shim'
 import { readEngineCardData } from '../../src/main/services/duel/card-reader'
+import { readRandomControlScript } from '../../src/main/services/duel/random-control'
 
 declare const __filename: string
 const coreRequire = createRequire(__filename)
@@ -76,6 +77,7 @@ export async function bindEngineCapabilities(wrapper: any): Promise<void> {
   if (!cachedReaders) {
     const scriptRoot = path.join(GAME_DIR, 'script')
     cachedReaders = [
+      readRandomControlScript,
       (scriptPath: string): Uint8Array | null => {
         const normalized = scriptPath.replace(/^\.\//, '').replace(/^script\//, '')
         try {
@@ -86,7 +88,7 @@ export async function bindEngineCapabilities(wrapper: any): Promise<void> {
       }
     ]
   }
-  for (const reader of cachedReaders) {
-    wrapper.setScriptReader(reader, true)
-  }
+  cachedReaders.forEach((reader: unknown, index: number) => {
+    wrapper.setScriptReader(reader, index === 0)
+  })
 }

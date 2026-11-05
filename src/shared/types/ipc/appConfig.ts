@@ -73,12 +73,16 @@ export interface AppConfig {
 
 export type DuelTestDeckOrder = 'fixed' | 'random'
 
+export type DuelEngineRandom = 'on' | 'off'
+
 export interface DuelTestSettings {
   deckOrder: DuelTestDeckOrder
+  engineRandom?: DuelEngineRandom
 }
 
 export const DEFAULT_DUEL_TEST_SETTINGS: DuelTestSettings = {
-  deckOrder: 'fixed'
+  deckOrder: 'fixed',
+  engineRandom: 'on'
 }
 
 export type SettingsSectionId = 'general' | 'paths' | 'duel-test' | 'model-settings' | 'web-search'

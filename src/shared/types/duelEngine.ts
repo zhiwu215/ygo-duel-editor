@@ -15,6 +15,8 @@ export interface EngineCard {
   duelistId?: string
   level?: number
   rank?: number
+  lscale?: number
+  rscale?: number
   atk?: number
   def?: number
   baseAtk?: number

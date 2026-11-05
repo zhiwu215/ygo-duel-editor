@@ -189,7 +189,9 @@ export function sceneSignature(scene: OpeningScene): string {
       duelistId: card.duelistId,
       customAtk: card.customAtk,
       customDef: card.customDef,
-      customLevel: card.customLevel
+      customLevel: card.customLevel,
+      customLScale: card.customLScale,
+      customRScale: card.customRScale
     }))
   return JSON.stringify({
     cards,

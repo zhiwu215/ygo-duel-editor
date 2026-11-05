@@ -23,7 +23,9 @@ export function snapshotEngineBoard(
         duelistId: card.duelistId,
         customAtk: stats?.customAtk,
         customDef: stats?.customDef,
-        customLevel: stats?.customLevel
+        customLevel: stats?.customLevel,
+        customLScale: stats?.customLScale,
+        customRScale: stats?.customRScale
       }
     })
 }

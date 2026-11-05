@@ -23,7 +23,9 @@ export function createLightweightSnapshot(cards: FieldCard[]): LightweightCardSn
     duelistId: c.duelistId,
     customAtk: c.customAtk,
     customDef: c.customDef,
-    customLevel: c.customLevel
+    customLevel: c.customLevel,
+    customLScale: c.customLScale,
+    customRScale: c.customRScale
   }))
 }
 

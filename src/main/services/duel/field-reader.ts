@@ -213,6 +213,8 @@ export class FieldReader {
               duelistId,
               level: q.level,
               rank: q.rank,
+              lscale: q.lscale,
+              rscale: q.rscale,
               atk: q.attack,
               def: q.defense,
               baseAtk: q.baseAttack,

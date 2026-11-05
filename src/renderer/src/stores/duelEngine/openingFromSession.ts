@@ -45,7 +45,9 @@ export function reconstructOpeningFromSession(doc: EngineSessionDoc): DuelPuzzle
     duelistId: card.duelistId,
     customAtk: card.customAtk,
     customDef: card.customDef,
-    customLevel: card.customLevel
+    customLevel: card.customLevel,
+    customLScale: card.customLScale,
+    customRScale: card.customRScale
   }))
   return {
     ...structuredClone(base),

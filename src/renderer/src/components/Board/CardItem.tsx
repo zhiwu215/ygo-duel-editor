@@ -34,6 +34,8 @@ import { useFieldCardCdb } from '../../hooks/useFieldCardCdb'
 import { CardThumb } from '../ui/CardThumb'
 import { ActRing } from '../common/ActRing'
 import { CardFieldMarks, type CardFieldMark } from './components/CardFieldMarks'
+import { PendulumScaleBadge } from './components/PendulumScaleBadge'
+import { resolvePendulumScale } from '../../utils/pendulumScale'
 import negatedIcon from '../../assets/card/negated.png'
 import { CARD_BACK_IMAGE, UNKNOWN_CARD_IMAGE } from '../../utils/cardImage'
 import { cn } from '../../lib/utils'
@@ -77,6 +79,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     inLeftPendulumZone &&
     Boolean(cardEngineActions?.spSummon) &&
     (card.card ? CardUtils.isPendulum(card.card.type) : card.location === CardLocation.PZONE)
+
+  const pendulumScale = useMemo(() => resolvePendulumScale(card, masterRule), [card, masterRule])
 
   const selectionMatch = useMemo<CardSelectionMatch | null>(
     () => resolveCardSelectionMatch(pendingRequest, card, selectedKeys),
@@ -295,6 +299,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
             {showFacedownVeil && (
               <div className="absolute inset-0 bg-black/30 border border-amber-400/50 rounded pointer-events-none" />
             )}
+            {pendulumScale && <PendulumScaleBadge scale={pendulumScale} />}
             {showSummonRing && (
               <ActRing className="absolute inset-0 z-10 m-auto h-[88%] w-[88%] opacity-90" />
             )}

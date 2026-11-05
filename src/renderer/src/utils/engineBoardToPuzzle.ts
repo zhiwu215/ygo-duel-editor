@@ -63,7 +63,9 @@ export function buildPuzzleStateFromEngineBoard(
         duelistId: card.duelistId ?? (card.controller === 0 ? main0Id : main1Id),
         customAtk: stats?.customAtk,
         customDef: stats?.customDef,
-        customLevel: stats?.customLevel
+        customLevel: stats?.customLevel,
+        customLScale: stats?.customLScale,
+        customRScale: stats?.customRScale
       }
     })
 

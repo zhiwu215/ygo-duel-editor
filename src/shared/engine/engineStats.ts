@@ -6,6 +6,8 @@ interface EngineCardStats {
   customAtk?: number
   customDef?: number
   customLevel?: number
+  customLScale?: number
+  customRScale?: number
 }
 
 export function resolveEngineStarLevel(ec: EngineCard): number | undefined {
@@ -17,9 +19,8 @@ export function resolveEngineStarLevel(ec: EngineCard): number | undefined {
   return star === CardUtils.getStarLevel(cdb.level) ? undefined : star
 }
 
-export function resolveEngineCardStats(ec: EngineCard): EngineCardStats | null {
-  const cdb = ec.card
-  if (!cdb || ec.location !== CardLocation.MZONE) return null
+function resolveMonsterZoneStats(ec: EngineCard): EngineCardStats {
+  const cdb = ec.card!
   const atkBase = cdb.atk >= 0 ? cdb.atk : ec.baseAtk
   const defBase = cdb.def >= 0 ? cdb.def : ec.baseDef
   return {
@@ -30,4 +31,31 @@ export function resolveEngineCardStats(ec: EngineCard): EngineCardStats | null {
         : undefined,
     customLevel: resolveEngineStarLevel(ec)
   }
+}
+
+function isPendulumZoneSequence(location: number, sequence: number): boolean {
+  return (
+    location === CardLocation.PZONE ||
+    (location === CardLocation.SZONE && (sequence === 0 || sequence === 4))
+  )
+}
+
+function resolvePendulumZoneScales(ec: EngineCard): EngineCardStats | null {
+  const cdb = ec.card
+  if (!cdb || !CardUtils.isPendulum(cdb.type)) return null
+  if (!isPendulumZoneSequence(ec.location, ec.sequence)) return null
+
+  const base = CardUtils.getPendulumScales(cdb.level)
+  const lscale = ec.lscale
+  const rscale = ec.rscale
+  return {
+    customLScale: lscale !== undefined && lscale !== base.lscale ? lscale : undefined,
+    customRScale: rscale !== undefined && rscale !== base.rscale ? rscale : undefined
+  }
+}
+
+export function resolveEngineCardStats(ec: EngineCard): EngineCardStats | null {
+  if (!ec.card) return null
+  if (ec.location === CardLocation.MZONE) return resolveMonsterZoneStats(ec)
+  return resolvePendulumZoneScales(ec)
 }

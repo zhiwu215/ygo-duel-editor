@@ -16,6 +16,8 @@ export interface FieldCard {
   customAtk?: number
   customDef?: number
   customLevel?: number
+  customLScale?: number
+  customRScale?: number
   duelistId?: string
 }
 export interface Duelist {

@@ -174,6 +174,8 @@ export interface LightweightCardSnapshot {
   customAtk?: number
   customDef?: number
   customLevel?: number
+  customLScale?: number
+  customRScale?: number
 }
 
 export type ManualOp =

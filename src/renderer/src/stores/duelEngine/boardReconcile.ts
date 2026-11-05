@@ -233,7 +233,9 @@ function syncJumpToStepToDuelStore(
     if (
       card.customAtk === stats.customAtk &&
       card.customDef === stats.customDef &&
-      card.customLevel === stats.customLevel
+      card.customLevel === stats.customLevel &&
+      card.customLScale === stats.customLScale &&
+      card.customRScale === stats.customRScale
     ) {
       continue
     }

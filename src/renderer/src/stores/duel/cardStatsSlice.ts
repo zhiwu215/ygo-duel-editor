@@ -6,6 +6,8 @@ export type CardStatsPatch = {
   customAtk?: number
   customDef?: number
   customLevel?: number
+  customLScale?: number
+  customRScale?: number
 }
 
 export interface CardStatsSlice {

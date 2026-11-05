@@ -32,7 +32,9 @@ export function restoreCardsFromSnapshot(
       duelistId: s.duelistId,
       customAtk: s.customAtk,
       customDef: s.customDef,
-      customLevel: s.customLevel
+      customLevel: s.customLevel,
+      customLScale: s.customLScale,
+      customRScale: s.customRScale
     }
   })
 }

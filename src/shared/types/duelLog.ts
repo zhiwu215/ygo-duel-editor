@@ -63,7 +63,7 @@ export type DuelLogEvent =
     }
   | { kind: 'attack-disabled'; card?: DuelLogCardRef }
   | { kind: 'draw'; player: 0 | 1; cards: { code: number; name?: string }[] }
-  | { kind: 'damage'; player: 0 | 1; value: number; lp: number }
+  | { kind: 'damage'; player: 0 | 1; value: number; lp: number; cost?: boolean }
   | { kind: 'recover'; player: 0 | 1; value: number; lp: number }
   | { kind: 'lp-update'; player: 0 | 1; lp: number; delta: number }
   | {

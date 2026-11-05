@@ -7,6 +7,10 @@ export const CardPosition = {
   FACEDOWN: 0xa
 } as const
 
+export function isDefensePosition(position: number | undefined): boolean {
+  return position === CardPosition.FACEUP_DEFENSE || position === CardPosition.FACEDOWN_DEFENSE
+}
+
 export const POSITION_NAMES: Record<number, string> = {
   [CardPosition.FACEUP_ATTACK]: '攻击表示',
   [CardPosition.FACEDOWN_ATTACK]: '盖放攻击',

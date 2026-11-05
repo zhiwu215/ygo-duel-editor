@@ -5,7 +5,8 @@ import {
   CardPosition,
   CardLocation,
   CardUtils,
-  getPzoneSzoneSequence
+  getPzoneSzoneSequence,
+  isDefensePosition
 } from '@shared/index'
 import { setCardDragImage } from '../../utils/cardImage'
 import { resolveCardName } from '../../utils/cardNames'
@@ -147,10 +148,7 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
     card.location === CardLocation.GRAVE ||
     card.location === CardLocation.REMOVED
   const isDeckPile = card.location === CardLocation.DECK || card.location === CardLocation.EXTRA
-  const isDefense =
-    isFieldZone &&
-    (card.position === CardPosition.FACEUP_DEFENSE ||
-      card.position === CardPosition.FACEDOWN_DEFENSE)
+  const isDefense = isFieldZone && isDefensePosition(card.position)
   const isFacedown =
     card.position === CardPosition.FACEDOWN || card.position === CardPosition.FACEDOWN_DEFENSE
 

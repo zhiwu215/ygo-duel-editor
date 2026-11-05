@@ -531,7 +531,13 @@ function recordPayLp(state: SessionState, msg: YGOProMsgPayLpCost): void {
   state.duelLog.life[player] -= msg.cost
   if (!state.duelLog.lastCost) push(state, { kind: 'text', text: '代价' })
   state.duelLog.lastCost = true
-  push(state, { kind: 'damage', player, value: msg.cost, lp: state.duelLog.life[player] })
+  push(state, {
+    kind: 'damage',
+    player,
+    value: msg.cost,
+    lp: state.duelLog.life[player],
+    cost: true
+  })
 }
 
 function recordLpUpdate(state: SessionState, msg: YGOProMsgLpUpdate): void {

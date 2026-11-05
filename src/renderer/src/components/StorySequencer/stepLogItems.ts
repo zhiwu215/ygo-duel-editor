@@ -49,6 +49,7 @@ export interface StepLogLpRow {
   change: number
   turn: number
   indented: boolean
+  cost?: boolean
 }
 
 export interface StepLogCounterRow {
@@ -296,7 +297,7 @@ function rowsForEvent(
     return [{ kind: 'text', text: event.text, tone: 'note', indented: state.chainSolving > 0 }]
   }
 
-  const costDamage = state.pendingCostLp && event.kind === 'damage'
+  const costDamage = event.kind === 'damage' && (event.cost === true || state.pendingCostLp)
   state.pendingCostLp = false
 
   switch (event.kind) {
@@ -440,7 +441,8 @@ function rowsForEvent(
           total: event.lp,
           change: -event.value,
           turn: state.turn || step.turn,
-          indented: costDamage || state.chainSolving > 0
+          indented: state.chainSolving > 0,
+          ...(costDamage ? { cost: true } : {})
         }
       ]
     case 'recover':

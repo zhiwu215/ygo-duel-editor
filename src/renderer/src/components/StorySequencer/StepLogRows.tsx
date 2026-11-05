@@ -1,6 +1,12 @@
 import React from 'react'
 import { Ban, Shuffle } from 'lucide-react'
-import { CardLocation, DuelLogCardRef, Duelist, resolveCounterName } from '@shared/index'
+import {
+  CardLocation,
+  DuelLogCardRef,
+  Duelist,
+  isDefensePosition,
+  resolveCounterName
+} from '@shared/index'
 import { CardThumb } from '../ui/CardThumb'
 import { cn } from '../../lib/utils'
 import { CARD_BACK_IMAGE } from '../../utils/cardImage'
@@ -39,18 +45,28 @@ function LogCardThumb({
   width?: number
   height?: number
 }): React.JSX.Element {
+  const defense = card.location === CardLocation.MZONE && isDefensePosition(card.position)
   return (
     <div
-      className="relative shrink-0 overflow-hidden rounded-[2px] border border-border/80 bg-muted shadow-xs"
-      style={{ width, height }}
+      className="relative shrink-0"
+      style={{ width: defense ? height : width, height: defense ? width : height }}
     >
-      <CardThumb
-        code={card.code > 0 ? card.code : undefined}
-        name={cardLabel(card)}
-        fallback={card.code > 0 ? undefined : CARD_BACK_IMAGE}
-        nameClassName="text-[7px] leading-[8px]"
-        className="h-full w-full"
-      />
+      <div
+        className="absolute left-1/2 top-1/2 overflow-hidden rounded-[2px] border border-border/80 bg-muted shadow-xs"
+        style={{
+          width,
+          height,
+          transform: `translate(-50%, -50%)${defense ? ' rotate(90deg)' : ''}`
+        }}
+      >
+        <CardThumb
+          code={card.code > 0 ? card.code : undefined}
+          name={cardLabel(card)}
+          fallback={card.code > 0 ? undefined : CARD_BACK_IMAGE}
+          nameClassName="text-[7px] leading-[8px]"
+          className="h-full w-full"
+        />
+      </div>
     </div>
   )
 }
@@ -199,6 +215,54 @@ function LpRow({
       <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground">
         LP {row.total}
       </span>
+    </div>
+  )
+}
+
+function LpCostRow({
+  row,
+  duelists
+}: {
+  row: StepLogLpRow
+  duelists: Duelist[] | undefined
+}): React.JSX.Element {
+  const name = resolveTeamLabel({ duelists }, row.player, row.turn) || sideName(row.player)
+  return (
+    <div
+      className={cn(
+        'relative flex items-center gap-2.5 border-b border-border/40 bg-muted/25 px-2 py-2 transition-colors hover:bg-muted/35',
+        row.indented && 'pl-7'
+      )}
+    >
+      {!row.indented && <SideBar player={row.player} />}
+      <span className="flex w-[58px] shrink-0 items-center">
+        <span
+          className={cn(
+            'line-clamp-2 break-all font-bold text-foreground',
+            name.length <= 2
+              ? 'text-[18px] leading-[21px]'
+              : name.length <= 3
+                ? 'text-[16px] leading-[19px]'
+                : 'text-[14px] leading-[17px]'
+          )}
+        >
+          {name}
+        </span>
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[11px] font-semibold leading-none text-foreground">代价</span>
+          <span className="font-mono text-[22px] font-black leading-none tracking-tight tabular-nums text-rose-600 dark:text-rose-400">
+            {Math.abs(row.change)}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-end gap-1 border-t border-border/60 pt-1">
+          <span className="text-[9px] font-bold tracking-wider text-muted-foreground">LP</span>
+          <span className="font-mono text-[12px] font-bold leading-none tabular-nums text-foreground">
+            {row.total}
+          </span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -367,7 +431,13 @@ export const StepLogRows: React.FC<StepLogRowsProps> = ({ rows, duelists }) => (
       if (row.kind === 'attack') {
         return <AttackRow key={index} row={row} duelists={duelists} />
       }
-      if (row.kind === 'lp') return <LpRow key={index} row={row} duelists={duelists} />
+      if (row.kind === 'lp') {
+        return row.cost ? (
+          <LpCostRow key={index} row={row} duelists={duelists} />
+        ) : (
+          <LpRow key={index} row={row} duelists={duelists} />
+        )
+      }
       if (row.kind === 'counter') return <CounterRow key={index} row={row} />
       if (row.kind === 'target') return <TargetRow key={index} row={row} />
       if (row.kind === 'opening-draw') return <OpeningDrawRow key={index} row={row} />

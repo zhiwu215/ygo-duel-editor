@@ -9,6 +9,7 @@ interface CardListTileProps {
   name: string
   location: number
   sequence: number
+  label?: string
   selected?: boolean
   interactive?: boolean
   overlay?: React.ReactNode
@@ -19,13 +20,14 @@ export const CardListTile: React.FC<CardListTileProps> = ({
   name,
   location,
   sequence,
+  label,
   selected = false,
   interactive = false,
   overlay
 }) => (
   <div className="flex w-full min-w-0 flex-col">
     <CardLocationLabel
-      label={cardLocationLabel(location, sequence)}
+      label={label ?? cardLocationLabel(location, sequence)}
       selected={selected}
       interactive={interactive}
     />

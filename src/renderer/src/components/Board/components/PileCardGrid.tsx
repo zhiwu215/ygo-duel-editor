@@ -17,6 +17,7 @@ import { PileDropPlaceholder } from './PileDropPlaceholder'
 
 interface PileCardGridProps {
   cards: FieldCard[]
+  labels?: ReadonlyMap<string, string>
   dragEnabled: boolean
   location: number
   holdEnabled: boolean
@@ -37,6 +38,7 @@ interface PileCardGridProps {
 
 export const PileCardGrid: React.FC<PileCardGridProps> = ({
   cards,
+  labels,
   dragEnabled,
   location,
   holdEnabled,
@@ -129,6 +131,7 @@ export const PileCardGrid: React.FC<PileCardGridProps> = ({
                 cardName={
                   getCardName ? getCardName(card) : card.card?.name || resolveCardName(card.code)
                 }
+                label={labels?.get(card.instanceId)}
                 index={index}
                 location={location}
                 isSelected={selectedCardId === card.instanceId}

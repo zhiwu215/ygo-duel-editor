@@ -11,6 +11,7 @@ import { SORTABLE_TRANSITION } from '../../../utils/dnd'
 interface PileCardTileProps {
   card: FieldCard
   cardName: string
+  label?: string
   index: number
   location: number
   isSelected: boolean
@@ -32,6 +33,7 @@ interface PileCardTileProps {
 const PileCardTileBase: React.FC<PileCardTileProps> = ({
   card,
   cardName,
+  label,
   index,
   location,
   isSelected,
@@ -84,6 +86,7 @@ const PileCardTileBase: React.FC<PileCardTileProps> = ({
       <CardListTile
         code={card.code}
         name={cardName}
+        label={label}
         location={card.location}
         sequence={card.sequence}
         selected={isSelected}

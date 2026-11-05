@@ -13,6 +13,7 @@ import { useCardDataMap } from '../../hooks/useCardDataMap'
 import { resolveOwnerScope } from '../../utils/duelistNames'
 import { hasCardDragData } from '../../utils/cardDrag'
 import { resolvePileInsertIndex } from '../../utils/pileInsertion'
+import { buildPileCardLabels } from '../../utils/pileLabels'
 import { Layers, Ghost, Ban, X, Search } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -98,6 +99,11 @@ const PileListContent: React.FC = () => {
 
   const codes = useMemo(() => pileCards.map((c) => c.code), [pileCards])
   const cardDataMap = useCardDataMap(codes)
+
+  const pileLabels = useMemo(
+    () => buildPileCardLabels(pileCards, target?.location ?? CardLocation.DECK),
+    [pileCards, target]
+  )
 
   const chainIndexesByInstance = useMemo(() => {
     const map = new Map<string, number[]>()
@@ -345,6 +351,7 @@ const PileListContent: React.FC = () => {
           ) : (
             <PileCardGrid
               cards={filteredCards}
+              labels={pileLabels}
               dragEnabled={dragEnabled}
               location={target.location}
               holdEnabled={!isEngineActive}

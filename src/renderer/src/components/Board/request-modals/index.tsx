@@ -42,7 +42,7 @@ export const DuelRequestModals: React.FC = () => {
       return <ChainModal key={key} request={request} data={data} />
     case 'card':
     case 'tribute': {
-      if (deriveSelection(request)?.mode === 'point') return null
+      if (!request.manualRandom && deriveSelection(request)?.mode === 'point') return null
       return <CardSelectModal key={key} request={request} data={data} />
     }
     case 'idle':

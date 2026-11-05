@@ -24,7 +24,7 @@ export const DuelSelectionBar: React.FC = () => {
 
   const derived = useMemo(() => deriveSelection(request), [request])
 
-  if (!request || !derived) return null
+  if (!request || !derived || request.manualRandom) return null
 
   if (derived.mode === 'modal') {
     if (derived.kind !== 'unselect') return null

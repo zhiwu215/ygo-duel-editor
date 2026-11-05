@@ -1,5 +1,5 @@
 import { type JSX } from 'react'
-import { DEFAULT_DUEL_TEST_SETTINGS, DuelTestDeckOrder } from '@shared/index'
+import { DEFAULT_DUEL_TEST_SETTINGS, DuelEngineRandom, DuelTestDeckOrder } from '@shared/index'
 import { useConfigStore } from '../../../stores/useConfigStore'
 import { Button } from '../../ui/button'
 import { SettingsRow } from './SettingsRow'
@@ -43,10 +43,16 @@ const DECK_ORDER_CHOICES: Choice<DuelTestDeckOrder>[] = [
   { value: 'random', label: '随机洗牌' }
 ]
 
+const ENGINE_RANDOM_CHOICES: Choice<DuelEngineRandom>[] = [
+  { value: 'on', label: '开启' },
+  { value: 'off', label: '关闭' }
+]
+
 export function DuelTestSection(): JSX.Element {
   const config = useConfigStore((state) => state.config)
   const setDuelTestSettings = useConfigStore((state) => state.setDuelTestSettings)
   const settings = config.duelTestSettings ?? DEFAULT_DUEL_TEST_SETTINGS
+  const engineRandom = settings.engineRandom ?? DEFAULT_DUEL_TEST_SETTINGS.engineRandom
 
   return (
     <section className="rounded-xl border border-border bg-card/60">
@@ -62,6 +68,17 @@ export function DuelTestSection(): JSX.Element {
           value={settings.deckOrder}
           choices={DECK_ORDER_CHOICES}
           onChange={(deckOrder) => void setDuelTestSettings({ deckOrder })}
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        title="引擎随机结果"
+        description="开启：投硬币、掷骰子、随机选卡完全由引擎决定；关闭：结算时弹窗让你手动指定结果。手动指定只在本编辑器内生效，导出的回放会报错"
+      >
+        <ChoiceGroup
+          value={engineRandom ?? 'on'}
+          choices={ENGINE_RANDOM_CHOICES}
+          onChange={(value) => void setDuelTestSettings({ engineRandom: value })}
         />
       </SettingsRow>
     </section>

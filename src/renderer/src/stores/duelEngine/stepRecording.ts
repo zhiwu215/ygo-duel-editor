@@ -14,6 +14,7 @@ import {
   RequestCard,
   createLightweightSnapshot,
   createStepId,
+  isPendulumZoneSlot,
   withHandShuffleNote
 } from '@shared/index'
 import { resolveCardName } from '../../utils/cardNames'
@@ -292,6 +293,27 @@ function summaryPatch(step: DuelStep, events: DuelLogEvent[]): Partial<DuelStep>
   return {}
 }
 
+function pendulumSummonPatch(step: DuelStep, events: DuelLogEvent[]): Partial<DuelStep> {
+  if (!isSummonAction(step.actionType)) return {}
+  if (!isPendulumZoneSlot(step.toLocation ?? 0, step.toSequence ?? 0)) return {}
+  const summon = events.find(
+    (event): event is Extract<DuelLogEvent, { kind: 'summon' }> =>
+      event.kind === 'summon' && event.summonKind === 'pendulum'
+  )
+  if (!summon) return {}
+  return {
+    cardCode: summon.card.code,
+    cardName: summon.card.name ?? resolveCardName(summon.card.code),
+    fromLocation: summon.from?.location,
+    fromSequence: summon.from?.sequence,
+    fromController: summon.from?.controller,
+    toLocation: summon.card.location,
+    toSequence: summon.card.sequence,
+    toController: summon.card.controller,
+    toPosition: summon.card.position
+  }
+}
+
 function patchHostStep(
   host: { id: string; step: DuelStep },
   node: EngineTimelineNode,
@@ -300,9 +322,11 @@ function patchHostStep(
 ): void {
   const next = appendNodeLogs(host, node, timeline)
   const summary = summaryPatch(host.step, node.logEvents ?? [])
+  const pendulum = pendulumSummonPatch(host.step, node.logEvents ?? [])
   storeEngineStep(host.id, null, {
     ...next,
     ...summary,
+    ...pendulum,
     ...patch,
     description: withHandShuffleNote(next.description ?? '', node.events),
     endActId: node.id

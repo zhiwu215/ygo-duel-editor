@@ -332,7 +332,7 @@ export const CardCommandMenu: React.FC = () => {
           ) : null}
           {actionMap?.spSummon ? (
             <button type="button" onClick={handleSpSummon} className={buttonClass}>
-              特殊召唤
+              {actionMap.spSummon.label}
             </button>
           ) : null}
           {actionMap?.set ? (

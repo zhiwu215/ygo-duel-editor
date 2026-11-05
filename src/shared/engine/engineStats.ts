@@ -1,4 +1,4 @@
-import { CardLocation } from '../constants/locations'
+import { CardLocation, isPendulumZoneSlot } from '../constants/locations'
 import { CardUtils } from '../types/card'
 import type { EngineCard } from '../types/duelEngine'
 
@@ -33,17 +33,10 @@ function resolveMonsterZoneStats(ec: EngineCard): EngineCardStats {
   }
 }
 
-function isPendulumZoneSequence(location: number, sequence: number): boolean {
-  return (
-    location === CardLocation.PZONE ||
-    (location === CardLocation.SZONE && (sequence === 0 || sequence === 4))
-  )
-}
-
 function resolvePendulumZoneScales(ec: EngineCard): EngineCardStats | null {
   const cdb = ec.card
   if (!cdb || !CardUtils.isPendulum(cdb.type)) return null
-  if (!isPendulumZoneSequence(ec.location, ec.sequence)) return null
+  if (!isPendulumZoneSlot(ec.location, ec.sequence)) return null
 
   const base = CardUtils.getPendulumScales(cdb.level)
   const lscale = ec.lscale

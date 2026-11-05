@@ -24,6 +24,7 @@ import {
   YGOProMsgRecover,
   YGOProMsgRemoveCounter,
   YGOProMsgSet,
+  YGOProMsgSpSummoned,
   YGOProMsgSpSummoning,
   YGOProMsgStart,
   YGOProMsgSummoning,
@@ -39,6 +40,8 @@ import {
   DuelLogEvent,
   DuelSummonKind,
   TossKind,
+  isMainPhaseMask,
+  isPendulumZoneSlot,
   placeholderCardData
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
@@ -59,7 +62,9 @@ export interface DuelLogContext {
   attacking?: DuelLogCardRef
   life: [number, number]
   lifeReady: boolean
+  phase: number
   inPendulumSummon: boolean
+  becomeTargets: DuelLogCardRef[]
   lastTargets: string
   lastCost: boolean
 }
@@ -74,7 +79,9 @@ export function createDuelLogContext(): DuelLogContext {
     lastMoveByCode: new Map(),
     life: [0, 0],
     lifeReady: false,
+    phase: 0,
     inPendulumSummon: false,
+    becomeTargets: [],
     lastTargets: '',
     lastCost: false
   }
@@ -91,7 +98,9 @@ export function resetDuelLogContext(context: DuelLogContext): void {
   context.attacking = undefined
   context.life = fresh.life
   context.lifeReady = fresh.lifeReady
+  context.phase = fresh.phase
   context.inPendulumSummon = fresh.inPendulumSummon
+  context.becomeTargets = fresh.becomeTargets
   context.lastTargets = fresh.lastTargets
   context.lastCost = fresh.lastCost
 }
@@ -221,10 +230,9 @@ function shouldSkipMove(from: DuelLogCardRef, to: DuelLogCardRef, reason: number
   }
   if (
     from.location === CardLocation.HAND &&
-    toSpellZone &&
     isFaceUp(to.position ?? 0) &&
     CardUtils.isPendulum(type) &&
-    to.sequence >= 6
+    isPendulumZoneSlot(to.location, to.sequence)
   ) {
     return true
   }
@@ -350,10 +358,29 @@ function recordSet(state: SessionState, msg: YGOProMsgSet): void {
   })
 }
 
+function takeLastMoveFrom(
+  context: DuelLogContext,
+  code: number,
+  to: DuelLogCardRef
+): DuelLogCardRef | undefined {
+  const from = lastMoveFrom(context, code, to)
+  if (from) context.lastMoveByCode.delete(code)
+  return from
+}
+
+function isPendulumActivation(from: DuelLogCardRef | undefined, card: DuelLogCardRef): boolean {
+  return (
+    from?.location === CardLocation.HAND &&
+    isPendulumZoneSlot(card.location, card.sequence) &&
+    CardUtils.isPendulum(typeOf(card.code))
+  )
+}
+
 function recordChaining(state: SessionState, msg: YGOProMsgChaining): void {
   const context = state.duelLog
   const card = withName(moveRef(msg.code, msg))
-  const from = lastMoveFrom(context, msg.code, card)
+  const from = takeLastMoveFrom(context, msg.code, card)
+  const pendulum = isPendulumActivation(from, card)
   if (context.chainCards.length < msg.chainCount) {
     context.chainCards[msg.chainCount - 1] = card
   }
@@ -367,7 +394,8 @@ function recordChaining(state: SessionState, msg: YGOProMsgChaining): void {
     card,
     from,
     chainCount: msg.chainCount,
-    effectText
+    effectText,
+    ...(pendulum ? { pendulum: true } : {})
   })
   context.lastCost = false
   context.lastTargets = ''
@@ -394,14 +422,16 @@ function recordChainEnd(state: SessionState): void {
   context.chainEffects.clear()
   context.lastChainSolving = 0
   context.inPendulumSummon = false
+  context.becomeTargets = []
   context.lastCost = false
   context.lastTargets = ''
 }
 
-function refFromGps(state: SessionState, value: number, position?: number): DuelLogCardRef {
+function refFromGps(state: SessionState, value: number): DuelLogCardRef {
   const controller = toPlayer(value & 0xff)
   const location = (value >>> 8) & 0xff
   const sequence = (value >>> 16) & 0xff
+  const position = (value >>> 24) & 0xff
   const board = boardOf(state)
   const found = board?.allCards.find(
     (card) =>
@@ -421,24 +451,46 @@ function recordTargets(state: SessionState, cards: DuelLogCardRef[]): void {
   push(state, { kind: 'target', cards: cards.map(withName) })
 }
 
+function isPendulumZoneTarget(card: DuelLogCardRef): boolean {
+  return (
+    isFaceUp(card.position ?? 0) &&
+    isPendulumZoneSlot(card.location, card.sequence) &&
+    CardUtils.isPendulum(typeOf(card.code))
+  )
+}
+
 function recordBecomeTarget(state: SessionState, msg: YGOProMsgBecomeTarget): void {
+  const context = state.duelLog
   const cards: DuelLogCardRef[] = []
   for (let i = 0; i < msg.count; i++) {
     cards.push(refFromGps(state, msg.targets[i] ?? 0))
   }
-  if (state.duelLog.chainCards.length === 0 && cards.length === 2) {
-    const [a, b] = cards
+  context.becomeTargets.push(...cards)
+  if (context.chainCards.length === 0) {
+    const [first, second] = context.becomeTargets
     if (
-      a.location === CardLocation.PZONE &&
-      b.location === CardLocation.PZONE &&
-      a.controller === b.controller
+      isMainPhaseMask(context.phase) &&
+      context.becomeTargets.length === 2 &&
+      isPendulumZoneTarget(first) &&
+      isPendulumZoneTarget(second) &&
+      first.controller === second.controller
     ) {
-      state.duelLog.inPendulumSummon = true
+      context.inPendulumSummon = true
+    }
+    if (context.becomeTargets.length === 1 && isPendulumZoneTarget(first)) {
+      return
     }
   }
-  if (cards.length === 1 && cards[0].location === CardLocation.PZONE) return
-  if (state.duelLog.inPendulumSummon) return
+  if (context.inPendulumSummon) return
   recordTargets(state, cards)
+}
+
+function recordPendulumSummonEnd(state: SessionState): void {
+  const context = state.duelLog
+  if (!context.inPendulumSummon) return
+  context.inPendulumSummon = false
+  context.becomeTargets = []
+  push(state, { kind: 'text', text: '灵摆召唤结束' })
 }
 
 function recordRandomSelected(state: SessionState, msg: YGOProMsgRandomSelected): void {
@@ -602,6 +654,7 @@ function recordTurnStart(state: SessionState, msg: YGOProMsgNewTurn): void {
 }
 
 function recordPhase(state: SessionState, msg: YGOProMsgNewPhase): void {
+  state.duelLog.phase = msg.phase
   push(state, { kind: 'phase', phase: msg.phase })
 }
 
@@ -647,6 +700,10 @@ export function collectDuelLogMessages(state: SessionState, messages: unknown[])
     }
     if (msg instanceof YGOProMsgSpSummoning) {
       recordSpSummon(state, msg)
+      continue
+    }
+    if (msg instanceof YGOProMsgSpSummoned) {
+      recordPendulumSummonEnd(state)
       continue
     }
     if (msg instanceof YGOProMsgFlipSummoning) {

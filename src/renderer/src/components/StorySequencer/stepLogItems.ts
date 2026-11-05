@@ -11,7 +11,6 @@ import {
 } from '@shared/index'
 import { stepCardName } from '../../utils/cardNames'
 import {
-  isPendulumZone,
   moveLogLabel,
   positionChangeLabel,
   revealLogLabel,
@@ -316,7 +315,6 @@ function rowsForEvent(
         })
       ]
     case 'activate': {
-      const pendulum = event.from?.location === CardLocation.HAND && isPendulumZone(event.card)
       const from =
         event.from?.location === CardLocation.HAND &&
         (event.card.location === CardLocation.SZONE ||
@@ -325,7 +323,7 @@ function rowsForEvent(
           ? event.from
           : undefined
       return [
-        singleRow(event.card, pendulum ? '灵摆发动' : '发动', {
+        singleRow(event.card, event.pendulum ? '灵摆发动' : '发动', {
           from,
           indented: state.chainSolving > 0
         })

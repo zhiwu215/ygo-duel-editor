@@ -1,4 +1,4 @@
-import { Answer, CardPosition } from '@shared/index'
+import { Answer, CardPosition, isPendulumZoneSlot } from '@shared/index'
 import type { CardEngineActions } from './engineActions'
 
 export type CardEngineActionKey = 'summon' | 'spSummon' | 'set' | 'repos' | 'attack' | 'chain'
@@ -37,7 +37,9 @@ export function buildCardEngineActionMap(
   }
   if (actions.spSummon) {
     map.spSummon = {
-      label: '特殊召唤',
+      label: isPendulumZoneSlot(actions.spSummon.location, actions.spSummon.sequence)
+        ? '灵摆召唤'
+        : '特殊召唤',
       answer: { kind: 'idle', cmd: 'SPSUMMON', card: actions.spSummon }
     }
   }

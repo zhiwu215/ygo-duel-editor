@@ -13,6 +13,15 @@ export const CardLocation = {
 
 export const FIELD_ZONE_SEQUENCE = 5
 
+const PENDULUM_ZONE_SEQUENCES: readonly number[] = [0, 4, 6, 7]
+
+export function isPendulumZoneSlot(location: number, sequence: number): boolean {
+  return (
+    location === CardLocation.PZONE ||
+    (location === CardLocation.SZONE && PENDULUM_ZONE_SEQUENCES.includes(sequence))
+  )
+}
+
 export const LOCATION_NAMES: Record<number, string> = {
   [CardLocation.DECK]: '主卡组',
   [CardLocation.HAND]: '手牌',

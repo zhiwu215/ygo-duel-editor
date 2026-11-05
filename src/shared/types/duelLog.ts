@@ -37,6 +37,7 @@ export type DuelLogEvent =
       from?: DuelLogCardRef
       chainCount: number
       effectText?: string
+      pendulum?: boolean
     }
   | { kind: 'chain'; chainCount: number }
   | {

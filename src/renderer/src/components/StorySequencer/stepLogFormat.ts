@@ -79,13 +79,6 @@ export function handMoveLogLabel(fromLocation: number | undefined): string {
   return '回到'
 }
 
-export function isPendulumZone(card: DuelLogCardRef): boolean {
-  return (
-    card.location === CardLocation.PZONE ||
-    (card.location === CardLocation.SZONE && card.sequence >= 6)
-  )
-}
-
 export function stepActionLogLabel(step: DuelStep): string | undefined {
   if (step.actionType === 'TO_HAND') return handMoveLogLabel(step.fromLocation)
   return ACTION_LABELS[step.actionType]

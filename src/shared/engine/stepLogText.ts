@@ -52,7 +52,7 @@ function eventLines(event: DuelLogEvent, wrapper: string | undefined): string[] 
   }
   if (event.kind === 'set') return [`盖放 ${cardName(event.card, wrapper)}`]
   if (event.kind === 'activate') {
-    const lines = [`发动 ${cardName(event.card, wrapper)}`]
+    const lines = [`${event.pendulum ? '灵摆发动' : '发动'} ${cardName(event.card, wrapper)}`]
     if (event.effectText) lines.push(event.effectText)
     return lines
   }

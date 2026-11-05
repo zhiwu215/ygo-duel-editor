@@ -1,6 +1,11 @@
 import type { DuelPhase } from '../types/story'
 
 const BATTLE_PHASE_MASKS = new Set([8, 16, 32, 64, 128])
+const MAIN_PHASE_MASKS = new Set([4, 256])
+
+export function isMainPhaseMask(phase: number): boolean {
+  return MAIN_PHASE_MASKS.has(phase)
+}
 
 export function duelPhaseFromMask(phase: number): DuelPhase {
   if (phase === 1) return 'DP'

@@ -20,6 +20,7 @@ export interface CdbCard {
   markers?: number
   limit?: 1 | 2 | 3
   isCustom?: boolean
+  isMissing?: boolean
 }
 export const CARD_ARTWORK_VERSIONS_OFFSET = 10
 

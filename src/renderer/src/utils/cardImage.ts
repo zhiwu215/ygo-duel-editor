@@ -39,8 +39,8 @@ export function preloadCardImages(codes: Iterable<number>, small = true): Promis
   ).then(() => undefined)
 }
 
-const DRAG_IMAGE_WIDTH = 64
-const DRAG_IMAGE_HEIGHT = 92
+export const CARD_DRAG_PREVIEW_WIDTH = 64
+export const CARD_DRAG_PREVIEW_HEIGHT = 92
 
 export function setCardDragImage(dataTransfer: DataTransfer, source: Element | null): void {
   const image = source?.tagName === 'IMG' ? source : source?.querySelector('img')
@@ -48,16 +48,16 @@ export function setCardDragImage(dataTransfer: DataTransfer, source: Element | n
 
   if (image.complete && image.naturalWidth > 0) {
     const preview = document.createElement('canvas')
-    preview.width = DRAG_IMAGE_WIDTH
-    preview.height = DRAG_IMAGE_HEIGHT
+    preview.width = CARD_DRAG_PREVIEW_WIDTH
+    preview.height = CARD_DRAG_PREVIEW_HEIGHT
     preview.style.cssText = 'position:fixed;left:0;top:0;opacity:0.01;pointer-events:none'
     const context = preview.getContext('2d')
     if (context) {
       const iw = image.naturalWidth
       const ih = image.naturalHeight
-      const scale = Math.max(DRAG_IMAGE_WIDTH / iw, DRAG_IMAGE_HEIGHT / ih)
-      const sw = DRAG_IMAGE_WIDTH / scale
-      const sh = DRAG_IMAGE_HEIGHT / scale
+      const scale = Math.max(CARD_DRAG_PREVIEW_WIDTH / iw, CARD_DRAG_PREVIEW_HEIGHT / ih)
+      const sw = CARD_DRAG_PREVIEW_WIDTH / scale
+      const sh = CARD_DRAG_PREVIEW_HEIGHT / scale
       context.drawImage(
         image,
         (iw - sw) / 2,
@@ -66,8 +66,8 @@ export function setCardDragImage(dataTransfer: DataTransfer, source: Element | n
         sh,
         0,
         0,
-        DRAG_IMAGE_WIDTH,
-        DRAG_IMAGE_HEIGHT
+        CARD_DRAG_PREVIEW_WIDTH,
+        CARD_DRAG_PREVIEW_HEIGHT
       )
       document.body.appendChild(preview)
       const remove = (): void => {
@@ -77,7 +77,7 @@ export function setCardDragImage(dataTransfer: DataTransfer, source: Element | n
       }
       document.addEventListener('dragend', remove, true)
       const timer = window.setTimeout(remove, 30_000)
-      dataTransfer.setDragImage(preview, DRAG_IMAGE_WIDTH / 2, DRAG_IMAGE_HEIGHT / 2)
+      dataTransfer.setDragImage(preview, CARD_DRAG_PREVIEW_WIDTH / 2, CARD_DRAG_PREVIEW_HEIGHT / 2)
       return
     }
   }

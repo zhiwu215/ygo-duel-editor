@@ -13,10 +13,12 @@ import {
   deckDragGuard
 } from '../components/DeckEditor/deckDnd'
 import type { DeckFlashTarget } from '../components/DeckEditor/DeckGrid'
+import { CARD_DRAG_PREVIEW_HEIGHT, CARD_DRAG_PREVIEW_WIDTH } from '../utils/cardImage'
 import { useDeckEditorStore } from '../stores/useDeckEditorStore'
 
 interface DeckActiveDrag {
   code: number
+  card?: CdbCard
   width: number
   height: number
   source: 'search' | 'deck'
@@ -50,12 +52,22 @@ export function useDeckDnd(actions: DeckDndActions): {
     const source = event.active.data.current as DeckDragSourceData | undefined
     if (!source) return
     const rect = event.active.rect.current.initial
+    if (source.source === 'search') {
+      setActiveDrag({
+        code: source.card.id,
+        card: source.card,
+        width: CARD_DRAG_PREVIEW_WIDTH,
+        height: CARD_DRAG_PREVIEW_HEIGHT,
+        source: 'search'
+      })
+      return
+    }
     const width = rect?.width ?? 68
     setActiveDrag({
-      code: source.source === 'search' ? source.card.id : source.code,
+      code: source.code,
       width,
       height: rect?.height ?? (width * 86) / 59,
-      source: source.source
+      source: 'deck'
     })
   }
 

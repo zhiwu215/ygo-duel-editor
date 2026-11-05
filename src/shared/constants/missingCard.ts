@@ -16,6 +16,7 @@ export function missingCardData(code: number): CdbCard {
     attribute: 0,
     category: 0,
     name: MISSING_CARD_NAME,
-    desc: '该卡片不在当前卡库中，无法显示具体效果。'
+    desc: '该卡片不在当前卡库中，无法显示具体效果。',
+    isMissing: true
   }
 }

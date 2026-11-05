@@ -14,7 +14,12 @@ import { DeckEditorToolbar, NONE_GROUP_VALUE } from './DeckEditorToolbar'
 import { CardImage } from '../ui/CardImage'
 import { CardLimitBadge } from '../ui/CardLimitBadge'
 import { MissingCardImage } from '../ui/MissingCardImage'
-import { DROP_ANIMATION, SORTABLE_MEASURING, pointerFirstCollisionDetection } from '../../utils/dnd'
+import {
+  DRAG_OVERLAY_MODIFIERS,
+  DROP_ANIMATION,
+  SORTABLE_MEASURING,
+  pointerFirstCollisionDetection
+} from '../../utils/dnd'
 import { useDeckDnd } from '../../hooks/useDeckDnd'
 import { useDeckCardDetailsRefresh } from '../../hooks/useDeckCardDetailsRefresh'
 import { useDeckDirtyGuard } from '../../hooks/useDeckDirtyGuard'
@@ -145,7 +150,8 @@ export const DeckEditorApp: React.FC = () => {
   const missingCodes = findMissingDeckCodes(deck, cardDetails)
 
   const detailCard = selectedCard
-  const detailCardMissing = detailCard ? !cardDetails[detailCard.id] : false
+  const detailCardMissing = detailCard?.isMissing === true
+  const dragCard = activeDrag ? (activeDrag.card ?? cardDetails[activeDrag.code]) : undefined
   const detailCardInDeck =
     detailCard &&
     (deck.main.includes(detailCard.id) ||
@@ -287,6 +293,7 @@ export const DeckEditorApp: React.FC = () => {
         </div>
 
         <DragOverlay
+          modifiers={DRAG_OVERLAY_MODIFIERS}
           dropAnimation={activeDrag?.source === 'deck' ? DROP_ANIMATION : null}
           style={{ pointerEvents: 'none' }}
         >
@@ -295,11 +302,11 @@ export const DeckEditorApp: React.FC = () => {
               className="pointer-events-none relative overflow-hidden rounded border border-primary/80 shadow-2xl ring-2 ring-primary/40"
               style={{ width: activeDrag.width, height: activeDrag.height }}
             >
-              {cardDetails[activeDrag.code] ? (
+              {dragCard ? (
                 <CardImage
                   code={activeDrag.code}
                   small
-                  alt={cardDetails[activeDrag.code]?.name ?? ''}
+                  alt={dragCard.name}
                   draggable={false}
                   className="w-full h-full object-cover"
                 />
@@ -307,7 +314,7 @@ export const DeckEditorApp: React.FC = () => {
                 <MissingCardImage className="w-full h-full" />
               )}
               <CardLimitBadge
-                limit={cardDetails[activeDrag.code]?.limit}
+                limit={dragCard?.limit}
                 className="absolute left-0 top-0 z-10 aspect-square w-[45%] drop-shadow"
               />
             </div>

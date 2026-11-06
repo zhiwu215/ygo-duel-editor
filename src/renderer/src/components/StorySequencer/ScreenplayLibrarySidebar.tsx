@@ -11,9 +11,13 @@ import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
 import { StepProvenanceBadge } from '../common/StepProvenanceBadge'
 import { alertDialog, confirmDialog, promptDialog } from '../../stores/useDialogStore'
 import { buildDuelDocument } from '../../utils/duelDocumentBuild'
-import { flushDuelDocumentAutosave } from '../../utils/duelDocumentAutosave'
+import { flushDuelDocumentAutosave, hasUnsavedDuelDocument } from '../../utils/duelDocumentAutosave'
 import { flushDuelDocumentTitle } from '../../utils/duelDocumentTitle'
-import { findDocumentTitleConflict, nextAvailableDocumentTitle } from '../../utils/duelDocumentTree'
+import {
+  findDocumentTitleConflict,
+  nextAvailableCopyTitle,
+  nextAvailableDocumentTitle
+} from '../../utils/duelDocumentTree'
 import { cn } from '../../lib/utils'
 
 interface ScreenplayLibrarySidebarProps {
@@ -128,6 +132,34 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
     }
     await onRefresh()
     onOpen(result.filePath)
+  }
+
+  const duplicateDocument = async (entry: DuelDocumentEntry): Promise<void> => {
+    const defaultTitle = nextAvailableCopyTitle(tree, entry.categoryPath, entry.title)
+    const title = await promptDialog({
+      title: '复制台本',
+      description: '会复制原台本及其引擎决斗进度，原台本保持不变。',
+      placeholder: defaultTitle,
+      initialValue: defaultTitle,
+      confirmText: '复制',
+      validate: (value) =>
+        titleConflictMessage(tree, entry.categoryPath, value.trim() || defaultTitle)
+    })
+    if (title === null) return
+    const trimmed = title.trim() || defaultTitle
+    if (entry.filePath === currentFilePath) {
+      const flushed = await flushDuelDocumentAutosave()
+      if (!flushed && hasUnsavedDuelDocument()) {
+        await alertDialog('当前台本没有自动保存成功，已取消复制以免复制到旧内容。请先保存后重试。')
+        return
+      }
+    }
+    const result = await window.api.duplicateDuelDocument(entry.filePath, trimmed)
+    if (!result.success || !result.filePath) {
+      await alertDialog(`复制台本失败\n\n${result.error ?? '未知错误'}`)
+      return
+    }
+    await onRefresh()
   }
 
   const createFolder = async (parentPath: string): Promise<void> => {
@@ -328,6 +360,7 @@ export const ScreenplayLibrarySidebar: React.FC<ScreenplayLibrarySidebarProps> =
     if (target.kind === 'document') {
       return [
         { label: '打开', onSelect: () => onOpen(target.entry.filePath) },
+        { label: '复制', onSelect: () => void duplicateDocument(target.entry) },
         { label: '重命名', onSelect: () => void renameDocument(target.entry) },
         {
           label: '删除',

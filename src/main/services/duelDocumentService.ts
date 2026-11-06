@@ -132,6 +132,27 @@ export class DuelDocumentService {
     }
   }
 
+  public duplicateDocument(filePath: string, title: string): DuelDocumentWriteResult {
+    try {
+      const read = this.readDocument(filePath)
+      if (!read.success || !read.document) {
+        return { success: false, error: read.error ?? '读取对局文档失败' }
+      }
+      const document = read.document
+      document.state.title = title.trim() || document.state.title
+      const target = join(
+        dirname(filePath),
+        `${sanitizeSegment(document.state.title, '未命名对局')}${DOCUMENT_EXTENSION}`
+      )
+      if (existsSync(target)) {
+        return { success: false, error: '已存在同名台本。' }
+      }
+      return this.writeDocument(target, document)
+    } catch (err) {
+      return { success: false, error: toErrorMessageOr(err, '复制对局文档失败') }
+    }
+  }
+
   public async saveDocumentDialog(
     document: DuelDocument,
     window?: BrowserWindow

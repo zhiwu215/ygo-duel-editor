@@ -198,6 +198,8 @@ const api: IpcApi = {
     ipcRenderer.invoke('duel-document:rename-folder', folderPath, name),
   deleteDuelDocumentFolder: (folderPath) =>
     ipcRenderer.invoke('duel-document:delete-folder', folderPath),
+  duplicateDuelDocument: (filePath, title) =>
+    ipcRenderer.invoke('duel-document:duplicate', filePath, title),
   renameDuelDocument: (filePath, title) =>
     ipcRenderer.invoke('duel-document:rename', filePath, title),
   moveDuelDocument: (filePath, targetFolder) =>

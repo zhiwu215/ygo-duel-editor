@@ -22,6 +22,15 @@ function documentsOf(tree: DuelDocumentTree, folderPath: string): DuelDocumentEn
   return folderPath ? (findFolder(tree.folders, folderPath)?.documents ?? []) : tree.documents
 }
 
+function usedDocumentTitles(tree: DuelDocumentTree, folderPath: string): Set<string> {
+  const used = new Set<string>()
+  for (const entry of documentsOf(tree, folderPath)) {
+    used.add(normalizeTitle(entry.title))
+    used.add(normalizeTitle(entry.name))
+  }
+  return used
+}
+
 export function findDocumentTitleConflict(
   tree: DuelDocumentTree,
   folderPath: string,
@@ -44,11 +53,7 @@ export function nextAvailableDocumentTitle(
 ): string {
   const fallback = base.trim() || DEFAULT_DUEL_TITLE
   if (!tree) return fallback
-  const used = new Set<string>()
-  for (const entry of documentsOf(tree, folderPath)) {
-    used.add(normalizeTitle(entry.title))
-    used.add(normalizeTitle(entry.name))
-  }
+  const used = usedDocumentTitles(tree, folderPath)
   let candidate = fallback
   let index = 2
   while (used.has(normalizeTitle(candidate))) {
@@ -56,4 +61,19 @@ export function nextAvailableDocumentTitle(
     index += 1
   }
   return candidate
+}
+
+export function nextAvailableCopyTitle(
+  tree: DuelDocumentTree | null,
+  folderPath: string,
+  base: string
+): string {
+  const prefix = `${base.trim() || DEFAULT_DUEL_TITLE}_副本`
+  if (!tree) return `${prefix}1`
+  const used = usedDocumentTitles(tree, folderPath)
+  let index = 1
+  while (used.has(normalizeTitle(`${prefix}${index}`))) {
+    index += 1
+  }
+  return `${prefix}${index}`
 }

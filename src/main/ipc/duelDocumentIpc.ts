@@ -35,6 +35,10 @@ export function registerDuelDocumentIpc(): void {
     duelDocumentService.deleteFolder(folderPath)
   )
 
+  ipcMain.handle('duel-document:duplicate', (_, filePath: string, title: string) =>
+    duelDocumentService.duplicateDocument(filePath, title)
+  )
+
   ipcMain.handle('duel-document:rename', (_, filePath: string, title: string) =>
     duelDocumentService.renameDocument(filePath, title)
   )

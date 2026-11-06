@@ -248,6 +248,7 @@ export interface IpcApi {
   createDuelDocumentFolder: (parentPath: string, name: string) => Promise<DuelDocumentWriteResult>
   renameDuelDocumentFolder: (folderPath: string, name: string) => Promise<DuelDocumentWriteResult>
   deleteDuelDocumentFolder: (folderPath: string) => Promise<DuelDocumentWriteResult>
+  duplicateDuelDocument: (filePath: string, title: string) => Promise<DuelDocumentWriteResult>
   renameDuelDocument: (filePath: string, title: string) => Promise<DuelDocumentWriteResult>
   moveDuelDocument: (filePath: string, targetFolder: string) => Promise<DuelDocumentWriteResult>
   deleteDuelDocument: (filePath: string) => Promise<DuelDocumentWriteResult>

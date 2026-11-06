@@ -67,7 +67,6 @@ export function loadLfLists(searchDirs: string[]): LfList[] {
 
   for (const dir of searchDirs) {
     if (!dir) continue
-    loadFile(path.join(dir, 'expansions', 'lflist.conf'))
     loadFile(path.join(dir, 'lflist.conf'))
     const folder = path.join(dir, 'lflists')
     let entries: string[] = []

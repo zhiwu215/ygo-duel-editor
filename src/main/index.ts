@@ -164,13 +164,13 @@ app.whenReady().then(() => {
   const bundledCdbPaths = currentBundledCdbPaths()
   cdbService.setPreferredBanlist(cfg.banlistName)
   if (cdbPath || extraCdbPaths.length > 0 || bundledCdbPaths.length > 0) {
-    cdbService.setGameDirectory(gameDirectory)
+    cdbService.setGameDirectory(gameDirectory, cfg.gameType)
     cdbService.reloadAll(cdbPath, bundledCdbPaths, extraCdbPaths, currentLanguagePacks())
     if (!gameDirectory && cdbPath) {
       const detected = imageService.detectGameDirectory(cdbPath)
       if (detected) {
         configService.save({ gameDirectory: detected })
-        cdbService.setGameDirectory(detected)
+        cdbService.setGameDirectory(detected, cfg.gameType)
       }
     }
   }

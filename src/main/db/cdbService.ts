@@ -13,9 +13,10 @@ import {
   officialOtMask,
   searchPoolOption
 } from '@shared/index'
+import { join } from 'path'
 import { CdbConnection, CdbConnections } from './cdbConnections'
 import { buildSearchSql, textSource } from './cdbSearchSql'
-import type { GameLanguagePack } from '../services/gameContent'
+import type { GameLanguagePack, GameType } from '../services/gameContent'
 import { sortCards, stripSortKeys, CardSortRow } from './cardSort'
 import { loadLfLists, LfList, selectActiveLimitList } from './lflistParser'
 import { readSystemConf } from './systemConfParser'
@@ -50,6 +51,7 @@ export class CdbService {
   private counterStringMap: Map<number, string> = new Map()
   private limitMap: Map<number, 1 | 2 | 3> = new Map()
   private gameDirectory: string | undefined
+  private gameType: GameType | undefined
   private poolSchema: CardPoolSchema | null = null
   private lfLists: LfList[] = []
   private clientBanlist: string | null = null
@@ -61,8 +63,9 @@ export class CdbService {
     this.searchCache = null
   }
 
-  public setGameDirectory(gameDirectory: string | undefined): void {
+  public setGameDirectory(gameDirectory: string | undefined, gameType?: GameType): void {
     this.gameDirectory = gameDirectory
+    this.gameType = gameType
     this.poolSchema = null
     this.invalidateSearchCache()
     if (!gameDirectory || this.connections.list().length === 0) return
@@ -82,10 +85,17 @@ export class CdbService {
   }
 
   private reloadLimitMap(searchDirs: string[]): void {
-    this.lfLists = loadLfLists(searchDirs)
+    this.lfLists = loadLfLists(this.lfListDirs())
     this.clientBanlist =
       selectActiveLimitList(this.lfLists, readSystemConf(searchDirs))?.name ?? null
     this.applyActiveBanlist()
+  }
+
+  private lfListDirs(): string[] {
+    if (!this.gameDirectory) return []
+    return this.gameType === 'mdpro3'
+      ? [join(this.gameDirectory, 'Data')]
+      : [this.gameDirectory, join(this.gameDirectory, 'config')]
   }
 
   private applyActiveBanlist(): void {

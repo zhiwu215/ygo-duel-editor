@@ -129,7 +129,7 @@ export function registerConfigIpc(): void {
       language = selection.explicit
       promptLanguage = selection.prompt
     }
-    cdbService.setGameDirectory(dir)
+    cdbService.setGameDirectory(dir, gameType)
     const ok = cdbService.open(
       primary,
       additional.filter((p) => !isCustomSyncCdbPath(p)),
@@ -208,7 +208,7 @@ export function registerConfigIpc(): void {
       if (!existsSync(cdbPath)) {
         return { success: false, error: '该语言卡库不存在，可能已被删除' }
       }
-      cdbService.setGameDirectory(cfg.gameDirectory)
+      cdbService.setGameDirectory(cfg.gameDirectory, cfg.gameType)
       const ok = cdbService.open(cdbPath, [], enabledExtraCdbPaths(), extraLanguagePacks())
       if (!ok) {
         return { success: false, error: '该语言卡库加载失败，文件可能已损坏' }

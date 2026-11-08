@@ -2,7 +2,7 @@ import React from 'react'
 import { useContextMenuStore } from '../../../stores/useContextMenuStore'
 import { useDuelEngineStore } from '../../../stores/useDuelEngineStore'
 import { alertDialog } from '../../../stores/useDialogStore'
-import { usePlaceholderHand } from '../../../hooks/usePlaceholderHand'
+import { usePlaceholderAdd } from '../../../hooks/usePlaceholderAdd'
 import { Button } from '../../ui/button'
 
 export const HandContextMenu: React.FC<{
@@ -12,7 +12,7 @@ export const HandContextMenu: React.FC<{
   duelistId: string
 }> = ({ menuRef, menuPos, controller, duelistId }) => {
   const closeMenu = useContextMenuStore((s) => s.closeMenu)
-  const { canAdd, reason, addPlaceholder } = usePlaceholderHand(controller, duelistId)
+  const { canAdd, reason, addPlaceholder } = usePlaceholderAdd(controller, duelistId)
 
   const handleAdd = async (): Promise<void> => {
     if (!canAdd) {
@@ -21,7 +21,7 @@ export const HandContextMenu: React.FC<{
       return
     }
     closeMenu()
-    const added = await addPlaceholder()
+    const added = await addPlaceholder('hand')
     if (added) return
     const error = useDuelEngineStore.getState().error
     void alertDialog(`添加占位卡失败${error ? `\n\n${error}` : ''}`)

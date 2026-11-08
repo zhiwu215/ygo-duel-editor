@@ -3,13 +3,15 @@ import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { PLACEHOLDER_CDB_CARD } from '../utils/placeholderCard'
 
-export function usePlaceholderHand(
+export type PlaceholderDestination = 'hand' | 'deck-top' | 'deck-bottom'
+
+export function usePlaceholderAdd(
   controller: 0 | 1,
-  duelistId: string
+  duelistId?: string
 ): {
   canAdd: boolean
   reason: string | null
-  addPlaceholder: () => Promise<boolean>
+  addPlaceholder: (destination: PlaceholderDestination) => Promise<boolean>
 } {
   const addCardToZone = useDuelStore((s) => s.addCardToZone)
   const cards = useDuelStore((s) => s.state.cards)
@@ -19,7 +21,7 @@ export function usePlaceholderHand(
   const engineLoading = useDuelEngineStore((s) => s.loading)
   const inject = useDuelEngineStore((s) => s.inject)
 
-  const seatActive = !isEngine || !activeDuelistId || activeDuelistId === duelistId
+  const seatActive = !isEngine || !activeDuelistId || !duelistId || activeDuelistId === duelistId
   const canAdd = !isReplay && !engineLoading && seatActive
   const reason = isReplay
     ? '回放模式只读。'
@@ -29,31 +31,27 @@ export function usePlaceholderHand(
         ? '只能给当前行动座位添加占位卡。'
         : null
 
-  const handCount = cards.filter(
+  const scopedCards = cards.filter(
     (card) =>
       card.controller === controller &&
-      card.location === CardLocation.HAND &&
-      (card.duelistId === undefined || card.duelistId === duelistId)
-  ).length
+      (card.duelistId === undefined || !duelistId || card.duelistId === duelistId)
+  )
+  const handCount = scopedCards.filter((card) => card.location === CardLocation.HAND).length
+  const deckCount = scopedCards.filter((card) => card.location === CardLocation.DECK).length
 
-  const addPlaceholder = async (): Promise<boolean> => {
+  const addPlaceholder = async (destination: PlaceholderDestination): Promise<boolean> => {
     if (!canAdd) return false
     if (isEngine) {
       return await inject({
         op: 'add-card',
         player: controller,
         code: PLACEHOLDER_CARD_CODE,
-        to: 'hand'
+        to: destination
       })
     }
-    addCardToZone(
-      PLACEHOLDER_CDB_CARD,
-      controller,
-      CardLocation.HAND,
-      handCount,
-      undefined,
-      duelistId
-    )
+    const location = destination === 'hand' ? CardLocation.HAND : CardLocation.DECK
+    const sequence = destination === 'hand' ? handCount : destination === 'deck-top' ? 0 : deckCount
+    addCardToZone(PLACEHOLDER_CDB_CARD, controller, location, sequence, undefined, duelistId)
     return true
   }
 

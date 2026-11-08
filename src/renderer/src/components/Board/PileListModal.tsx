@@ -19,6 +19,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
 import { PileCardGrid } from './components/PileCardGrid'
+import { PilePlaceholderActions, type PlaceholderSide } from './components/PilePlaceholderActions'
 
 interface LocationMeta {
   name: string
@@ -185,6 +186,14 @@ const PileListContent: React.FC = () => {
     [removeCard]
   )
 
+  const scrollPileTo = useCallback((side: PlaceholderSide): void => {
+    requestAnimationFrame(() => {
+      const container = scrollContainerRef.current
+      if (!container) return
+      container.scrollTo({ top: side === 'top' ? 0 : container.scrollHeight, behavior: 'smooth' })
+    })
+  }, [])
+
   const handleExternalCardDrop = useCallback(
     (e: React.DragEvent, visibleIndex: number): void => {
       e.preventDefault()
@@ -343,7 +352,9 @@ const PileListContent: React.FC = () => {
                 {searchQuery
                   ? '未找到符合条件的卡片'
                   : target.location === CardLocation.DECK
-                    ? '还没有载入卡组 —— 右键主卡组格选「切换卡组」即可载入'
+                    ? isEngineActive
+                      ? '还没有卡片 —— 可在下方添加占位卡'
+                      : '还没有卡片 —— 可在下方添加占位卡，或从右侧搜索栏拖入卡片'
                     : '该区域目前没有任何卡片（可直接从右侧搜索栏拖入卡片）'}
               </p>
             </div>
@@ -393,7 +404,16 @@ const PileListContent: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center justify-end px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-t border-border bg-muted/20 shrink-0">
+          {target.location === CardLocation.DECK ? (
+            <PilePlaceholderActions
+              controller={target.controller}
+              duelistId={scopedDuelistId ?? undefined}
+              onAdded={scrollPileTo}
+            />
+          ) : (
+            <div />
+          )}
           <Button size="sm" onClick={closePile} className="px-5 h-7 text-xs">
             确定
           </Button>

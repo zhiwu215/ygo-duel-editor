@@ -1,6 +1,7 @@
 import type { Answer, RequestCard } from '@shared/engine/protocol'
 import { CardLocation, type EngineBoardState } from '@shared/index'
 import type { SessionState } from './session-state'
+import { forEachAnswerCard } from './answer-cards'
 
 export interface CardPosition {
   controller: 0 | 1
@@ -16,28 +17,6 @@ const FIELD_LOCATIONS: ReadonlySet<number> = new Set<number>([
   CardLocation.FZONE,
   CardLocation.PZONE
 ])
-
-function forEachAnswerCard(answer: Answer, visit: (card: RequestCard) => void): void {
-  switch (answer.kind) {
-    case 'idle':
-    case 'battle':
-    case 'chain':
-    case 'unselect':
-      if (answer.card) visit(answer.card)
-      return
-    case 'card':
-    case 'tribute':
-    case 'sum':
-    case 'sort':
-      for (const card of answer.cards ?? []) visit(card)
-      return
-    case 'counter':
-      for (const entry of answer.counters) visit(entry.card)
-      return
-    default:
-      return
-  }
-}
 
 function remapAnswer(answer: Answer, newCode: number, match: CardMatch): boolean {
   let changed = false
@@ -110,19 +89,6 @@ function remapEnterFieldAction(
   if (entryOp.type !== 'answer' || !entryOp.answers) return
   const enteringCard: CardMatch = (card) => card.code === oldCode
   for (const recorded of entryOp.answers) remapAnswer(recorded.answer, newCode, enteringCard)
-}
-
-export function attachAnswerInstanceIds(answer: Answer, board: EngineBoardState): void {
-  forEachAnswerCard(answer, (card) => {
-    const engineCard = board.allCards.find(
-      (item) =>
-        item.controller === card.controller &&
-        item.location === card.location &&
-        item.sequence === card.sequence &&
-        item.code === card.code
-    )
-    if (engineCard) card.instanceId = engineCard.instanceId
-  })
 }
 
 export function remapRecordedAnswers(

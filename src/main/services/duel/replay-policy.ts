@@ -1,11 +1,6 @@
-import type {
-  Answer,
-  AnswerPrompt,
-  EngineRequest,
-  RecordedAnswer,
-  RequestCard
-} from '@shared/engine/protocol'
+import type { Answer, AnswerPrompt, EngineRequest, RecordedAnswer } from '@shared/engine/protocol'
 import { encodeAnswer } from './answer-encoder'
+import { alignAnswerToRequest, type AnswerCodeRemap } from './answer-align'
 
 export class ReplayDivergenceError extends Error {
   opIndex = -1
@@ -69,14 +64,15 @@ export function defaultOptionalAnswer(request: EngineRequest): Answer | null {
 export function encodeRecordedAnswer(
   msg: unknown,
   request: EngineRequest,
-  recorded: RecordedAnswer
+  recorded: RecordedAnswer,
+  codeRemap?: AnswerCodeRemap
 ): Uint8Array {
   let answer = recorded.answer
   if (answer.kind === 'option') {
-    const options = request.data.kind === 'option' ? request.data.options : []
+    const choices = request.data.kind === 'option' ? request.data.options : []
     const chosen = recorded.option
     const index = chosen
-      ? options.findIndex(
+      ? choices.findIndex(
           (option) =>
             option.code === chosen.code &&
             (chosen.text === undefined || option.text === chosen.text)
@@ -87,47 +83,18 @@ export function encodeRecordedAnswer(
     }
     answer = { ...answer, index }
   }
+  if (codeRemap) {
+    const aligned = alignAnswerToRequest(request, answer, codeRemap)
+    if (aligned) {
+      answer = aligned
+      recorded.answer = aligned
+    }
+  }
   try {
     return encodeAnswer(msg, answer)
   } catch (err) {
-    try {
-      return encodeAnswer(msg, relaxAnswer(answer))
-    } catch {
-      throw new ReplayDivergenceError(
-        err instanceof Error ? err.message : '历史应答无法编码到当前询问。'
-      )
-    }
-  }
-}
-
-function relaxCard(card: RequestCard): RequestCard {
-  const relaxed = { ...card } as Partial<RequestCard>
-  delete relaxed.sequence
-  delete relaxed.desc
-  return relaxed as RequestCard
-}
-
-function relaxAnswer(answer: Answer): Answer {
-  switch (answer.kind) {
-    case 'idle':
-    case 'battle':
-    case 'chain':
-    case 'unselect':
-      return answer.card ? { ...answer, card: relaxCard(answer.card) } : answer
-    case 'card':
-    case 'tribute':
-    case 'sum':
-    case 'sort':
-      return answer.cards ? { ...answer, cards: answer.cards.map(relaxCard) } : answer
-    case 'counter':
-      return {
-        ...answer,
-        counters: answer.counters.map((entry) => ({
-          ...entry,
-          card: relaxCard(entry.card)
-        }))
-      }
-    default:
-      return answer
+    throw new ReplayDivergenceError(
+      err instanceof Error ? err.message : '历史应答无法编码到当前询问。'
+    )
   }
 }

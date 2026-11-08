@@ -1,8 +1,8 @@
 /**
  * 卡片编辑分歧确认冒烟：
- * 1. 用「天使的施舍」丢弃占位卡，让历史应答记住那张卡
- * 2. 替换墓地里的占位卡，重演会在丢弃应答处对不齐
- * 3. 未确认时必须原样回滚，返回分歧信息；确认后才回退并丢弃后续步骤
+ * 1. 把手牌占位卡盖放到场上
+ * 2. 把这张盖放占位卡替换成不能盖放的怪兽卡，重演会在盖放处对不齐
+ * 3. 未确认时必须原样回滚并返回分歧信息；确认后才回退到分歧点并丢弃后续步骤
  */
 import { duelSession } from '../../src/main/services/duel/duel-session'
 import {
@@ -10,17 +10,15 @@ import {
   CardPosition,
   PLACEHOLDER_CARD_CODE,
   normalizeDuelState,
-  type Answer,
   type Duelist,
   type EngineCard,
   type EngineCardRef,
-  type EngineRequest,
   type FieldCard
 } from '@shared/index'
 import { cdbService } from './cdb-shim'
+import { settleToIdle } from './settleToIdle'
 
-const GRACEFUL_CHARITY = 79571449
-const REPLACED_CODE = 36361633
+const MONSTER_CODE = 89631139
 
 let fieldId = 0
 
@@ -40,13 +38,14 @@ function makeCard(code: number, controller: 0 | 1, location: number, sequence: n
 }
 
 function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
-  const p0Deck = [23434538, 14558127, 70342110, 66518841, 97997309]
-  const p1Deck = [23434538, 14558127, 70342110, 66518841, 97997309]
   const cards: FieldCard[] = [
     makeCard(PLACEHOLDER_CARD_CODE, 0, CardLocation.HAND, 0),
-    makeCard(GRACEFUL_CHARITY, 0, CardLocation.HAND, 1),
-    ...p0Deck.map((code, index) => makeCard(code, 0, CardLocation.DECK, index)),
-    ...p1Deck.map((code, index) => makeCard(code, 1, CardLocation.DECK, index))
+    makeCard(PLACEHOLDER_CARD_CODE, 0, CardLocation.HAND, 1),
+    makeCard(PLACEHOLDER_CARD_CODE, 0, CardLocation.HAND, 2),
+    ...Array.from({ length: 6 }, (_, index) =>
+      makeCard(PLACEHOLDER_CARD_CODE, 0, CardLocation.DECK, index)
+    ),
+    makeCard(PLACEHOLDER_CARD_CODE, 1, CardLocation.DECK, 0)
   ]
   const duelists: Duelist[] = [
     { id: 'duelist_0_0', team: 0, name: '我方', lp: 8000, isFirst: true, turnOrder: 1 },
@@ -86,113 +85,68 @@ function refOf(card: EngineCard): EngineCardRef {
   }
 }
 
-function answerFor(request: EngineRequest): Answer {
-  const data = request.data
-  switch (data.kind) {
-    case 'rps':
-      return { kind: 'rps', hand: 'paper' }
-    case 'idle':
-      return { kind: 'idle', cmd: 'TO_EP' }
-    case 'chain':
-      return { kind: 'chain', card: null }
-    case 'yesno':
-      return { kind: 'yesno', yes: false }
-    case 'place':
-      return { kind: 'place', places: data.places.slice(0, Math.max(1, data.count)) }
-    case 'card': {
-      if (data.cancelable) return { kind: 'card', cards: null }
-      const picks = [...data.cards]
-        .filter((card) => card.location === CardLocation.HAND && card.controller === 0)
-        .sort((left, right) => left.sequence - right.sequence)
-        .slice(0, Math.max(1, data.min))
-      return { kind: 'card', cards: picks }
-    }
-    default:
-      throw new Error(`未覆盖 kind=${data.kind}`)
-  }
-}
-
-async function settleToIdle(): Promise<void> {
-  for (let guard = 0; guard < 40; guard++) {
-    const pending = duelSession.getPendingRequest()
-    if (!pending) return
-    if (pending.kind === 'idle') return
-    duelSession.submitAnswer(answerFor(pending))
-  }
-}
-
-async function activateCharityAndDiscardPlaceholder(): Promise<void> {
-  const charity = duelSession
-    .getBoardState()
-    .players[0].hand.find((card) => card.code === GRACEFUL_CHARITY)
-  assert(Boolean(charity), '手牌应有天使的施舍')
-  duelSession.submitAnswer({ kind: 'idle', cmd: 'ACTIVATE', card: charity as never })
-  for (let guard = 0; guard < 40; guard++) {
-    const pending = duelSession.getPendingRequest()
-    assert(Boolean(pending), '施舍结算中断')
-    if (pending!.kind === 'idle') return
-    if (pending!.kind === 'card') {
-      const data = pending!.data
-      if (data.kind === 'card' && !data.cancelable) {
-        const placeholder = data.cards.find((card) => card.code === PLACEHOLDER_CARD_CODE)
-        assert(Boolean(placeholder), '丢弃候选中应有占位卡')
-        const others = data.cards.filter((card) => card !== placeholder)
-        const picks = [placeholder!, ...others].slice(0, Math.max(1, data.min))
-        duelSession.submitAnswer({ kind: 'card', cards: picks })
-        continue
-      }
-    }
-    duelSession.submitAnswer(answerFor(pending!))
-  }
-}
-
-function handCodes(cards: EngineCard[]): string {
-  return cards.map((card) => card.code).join(',')
+async function setHandPlaceholder(sequence: number): Promise<void> {
+  const pending = duelSession.getPendingRequest()
+  if (pending?.data.kind !== 'idle') throw new Error('当前请求不是 idle')
+  const target = pending.data.ssetable.find(
+    (card) => card.code === PLACEHOLDER_CARD_CODE && card.sequence === sequence
+  )
+  assert(Boolean(target), `手牌第 ${sequence} 张占位卡应可盖放`)
+  const submitted = duelSession.submitAnswer({ kind: 'idle', cmd: 'SSET', card: target! })
+  const place = submitted.pendingRequest?.data
+  assert(place?.kind === 'place', '盖放后应询问放置区域')
+  duelSession.submitAnswer({
+    kind: 'place',
+    places: place.places.slice(0, Math.max(1, place.count))
+  })
+  await settleToIdle()
 }
 
 async function main(): Promise<void> {
   await cdbService.ready()
-  await duelSession.startDuel({ puzzleState: buildPuzzle(), seed: [1, 2, 3, 4, 5, 6, 7, 8] })
+  await duelSession.startDuel({ puzzleState: buildPuzzle() })
   await settleToIdle()
 
-  await activateCharityAndDiscardPlaceholder()
-  await settleToIdle()
+  await setHandPlaceholder(1)
+  await setHandPlaceholder(1)
 
   const board = duelSession.getBoardState()
-  const graveCard = board.players[0].graveyard.find((card) => card.code === PLACEHOLDER_CARD_CODE)
-  assert(Boolean(graveCard), '墓地应有被丢弃的占位卡')
-  const timelineBefore = duelSession.getTimeline()
-  const handBefore = handCodes(board.players[0].hand)
+  const target = board.players[0].szone.find(
+    (card): card is EngineCard => card !== null && card.code === PLACEHOLDER_CARD_CODE
+  )
+  assert(Boolean(target), '场上应有盖放的占位卡')
+  const timelineBefore = duelSession.getTimeline().length
+  const graveBefore = board.players[0].graveyard.length
 
-  const rejected = await duelSession.replaceCard(refOf(graveCard!), REPLACED_CODE)
+  const rejected = await duelSession.replaceCard(refOf(target!), MONSTER_CODE)
   assert(Boolean(rejected.conflict), '重演无法对齐时应返回分歧信息')
   assert(!rejected.error, `未确认时不应报错: ${rejected.error ?? ''}`)
   assert(!rejected.editedCard, '未确认时应回滚编辑')
 
   const afterReject = duelSession.getBoardState()
   assert(
-    afterReject.players[0].graveyard.some((card) => card.code === PLACEHOLDER_CARD_CODE),
-    '未确认时墓地占位卡应保持不变'
+    afterReject.players[0].szone.some(
+      (card) => card !== null && card.code === PLACEHOLDER_CARD_CODE
+    ),
+    '未确认时盖放占位卡应保持不变'
   )
-  assert(!afterReject.allCards.some((card) => card.code === REPLACED_CODE), '未确认时不应出现新卡')
-  assert(handCodes(afterReject.players[0].hand) === handBefore, '未确认时手牌应保持不变')
-  assert(duelSession.getTimeline().length === timelineBefore.length, '未确认时不应丢弃任何步骤')
-  assert(duelSession.getPendingRequest() !== undefined, '未确认时引擎应恢复到可继续的状态')
+  assert(!afterReject.allCards.some((card) => card.code === MONSTER_CODE), '未确认时不应出现新卡')
+  assert(afterReject.players[0].graveyard.length === graveBefore, '未确认时墓地应保持不变')
+  assert(duelSession.getTimeline().length === timelineBefore, '未确认时不应丢弃任何步骤')
+  assert(duelSession.getPendingRequest() !== null, '未确认时引擎应恢复到可继续的状态')
   console.log(
     `[card-edit-conflict] 分歧确认: 第 ${rejected.conflict!.opIndex + 1} 条操作, 会丢弃 ${rejected.conflict!.discardedSteps} 步`
   )
 
-  const accepted = await duelSession.replaceCard(refOf(graveCard!), REPLACED_CODE, true)
+  const accepted = await duelSession.replaceCard(refOf(target!), MONSTER_CODE, true)
   assert(!accepted.conflict, '确认后不应再要求确认')
-  assert(Boolean(accepted.warning), '确认后应提示已回退')
+  assert(Boolean(accepted.warning?.includes('已回退')), '确认后应提示已回退')
+  assert(duelSession.getTimeline().length < timelineBefore, '确认后应只保留到分歧点之前的步骤')
   assert(
-    accepted.boardState!.players[0].hand.some((card) => card.code === REPLACED_CODE),
+    accepted.boardState!.players[0].hand.some((card) => card.code === MONSTER_CODE),
     '确认后新卡应留在分歧点的位置'
   )
-  assert(
-    duelSession.getTimeline().length === accepted.node!.stepNumber,
-    '确认后应只保留到分歧点步骤'
-  )
+
   console.log('[card-edit-divergence-confirm-smoke] ALL CHECKS PASSED')
   process.exit(0)
 }

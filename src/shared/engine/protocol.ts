@@ -28,7 +28,6 @@ export interface RequestCard {
   sequence: number
   subsequence?: number
   duelistId?: string
-  instanceId?: string
   desc?: number
   directAttackable?: boolean
   opParam?: number
@@ -234,13 +233,6 @@ export type EngineProvenance =
       opIndex: number
       nodeId: string | null
       command: InjectCommand
-    }
-  | {
-      kind: 'drawn'
-      opIndex: number
-      nodeId: string | null
-      player: 0 | 1
-      drawIndex: number
     }
   | { kind: 'unknown' }
 

@@ -58,7 +58,6 @@ import {
   isNewOptionalPrompt,
   samePrompt
 } from './replay-policy'
-import { attachAnswerInstanceIds } from './answer-remap'
 import {
   initializeProvenance,
   nodeIdForOp,
@@ -70,6 +69,7 @@ import {
   removeCard as removeCardOp,
   type CardEditorDeps
 } from './card-editor'
+import type { AnswerCodeRemap } from './answer-align'
 
 interface SessionSnapshot {
   seed: number[]
@@ -142,7 +142,11 @@ export class DuelSession {
     return advanceEngine(state)
   }
 
-  private async replayTo(stepId: string, freshIdentity = false): Promise<void> {
+  private async replayTo(
+    stepId: string,
+    freshIdentity = false,
+    codeRemap?: AnswerCodeRemap
+  ): Promise<void> {
     const state = this.state
     const target = state.timeline.getStep(stepId)
     if (!target) {
@@ -196,7 +200,8 @@ export class DuelSession {
               op,
               responseIndex,
               recorded,
-              op.type === 'auto' ? '自动应答' : '玩家应答'
+              op.type === 'auto' ? '自动应答' : '玩家应答',
+              codeRemap
             )
           } catch (err) {
             if (err instanceof ReplayDivergenceError) {
@@ -244,7 +249,8 @@ export class DuelSession {
     op: DuelOperation,
     responseIndex: number,
     recorded: RecordedAnswer | undefined,
-    kind: string
+    kind: string,
+    codeRemap?: AnswerCodeRemap
   ): void {
     const state = this.state
     const raw = op.type === 'inject' ? new Uint8Array(0) : op.responses[responseIndex]
@@ -258,7 +264,7 @@ export class DuelSession {
         if (samePrompt(head.request, recorded.prompt)) {
           let response: Uint8Array
           try {
-            response = encodeRecordedAnswer(head.msg, head.request, recorded)
+            response = encodeRecordedAnswer(head.msg, head.request, recorded, codeRemap)
           } catch (err) {
             if (err instanceof ReplayDivergenceError) {
               err.expectedTitle = recorded.prompt.title
@@ -368,16 +374,12 @@ export class DuelSession {
 
   private recordReplayNodeState(opIndex: number): void {
     const state = this.state
-    const nodes = state.timeline.getHistoryPath().filter((node) => node.opIndex === opIndex)
-    if (nodes.length === 0) return
-    let board: EngineBoardState
-    try {
-      board = this.readBoard()
-    } catch {
-      return
-    }
-    const request = headPendingQuery(state)?.request ?? null
     const op = state.ops[opIndex]
+    const nodes = state.timeline.getHistoryPath().filter((node) => node.opIndex === opIndex)
+    const linkedNode =
+      op?.type === 'answer' && op.nodeId ? state.timeline.getStep(op.nodeId)?.node : undefined
+    if (nodes.length === 0 && !linkedNode) return
+
     const recorded = op?.type === 'answer' ? op.answers?.[0] : undefined
     const answerTitle =
       recorded && op?.type === 'answer'
@@ -387,25 +389,36 @@ export class DuelSession {
           )
         : undefined
 
-    for (const node of nodes) {
-      node.boardState = board
-      node.pendingRequest = request
-      if (state.accumulatedLogEvents.length > 0) {
-        node.logEvents = [...state.accumulatedLogEvents]
+    if (nodes.length > 0) {
+      let board: EngineBoardState
+      try {
+        board = this.readBoard()
+      } catch {
+        return
       }
-      if (state.accumulatedEvents.length > 0) {
-        node.events = [...state.accumulatedEvents]
+      const request = headPendingQuery(state)?.request ?? null
+      for (const node of nodes) {
+        node.boardState = board
+        node.pendingRequest = request
+        if (state.accumulatedLogEvents.length > 0) {
+          node.logEvents = [...state.accumulatedLogEvents]
+        }
+        if (state.accumulatedEvents.length > 0) {
+          node.events = [...state.accumulatedEvents]
+        }
+        if (state.accumulatedLogs.length > 0) {
+          node.logs = [...state.accumulatedLogs]
+        }
       }
-      if (state.accumulatedLogs.length > 0) {
-        node.logs = [...state.accumulatedLogs]
-      }
-      if (answerTitle) {
-        node.title = answerTitle
-      }
+      state.accumulatedLogs = []
+      state.accumulatedEvents = []
+      state.accumulatedLogEvents = []
     }
-    state.accumulatedLogs = []
-    state.accumulatedEvents = []
-    state.accumulatedLogEvents = []
+
+    if (!answerTitle) return
+    const titleNodes = new Set(nodes)
+    if (linkedNode) titleNodes.add(linkedNode)
+    for (const node of titleNodes) node.title = answerTitle
   }
 
   private truncateToCurrentStep(): void {
@@ -674,7 +687,6 @@ export class DuelSession {
     const response = encodeAnswer(requestMsg, answer)
     const beforeBoard = this.readBoard()
     const recorded = createRecordedAnswer(head.request, answer)
-    attachAnswerInstanceIds(recorded.answer, beforeBoard)
     const logText = describeAnswer(requestMsg, answer)
 
     state.autoAnswers = []
@@ -922,7 +934,9 @@ export class DuelSession {
       resolveCard: (ref) => this.resolveCard(ref),
       readBoard: () => this.readBoard(),
       truncateToCurrentStep: () => this.truncateToCurrentStep(),
-      replayTo: (stepId, freshIdentity) => this.replayTo(stepId, freshIdentity)
+      replayTo: (stepId, freshIdentity, codeRemap) =>
+        this.replayTo(stepId, freshIdentity, codeRemap),
+      restoreTimeline: (nodes, currentStepId) => this.state.timeline.restore(nodes, currentStepId)
     }
   }
 

@@ -21,12 +21,10 @@ export function resolveEngineStarLevel(ec: EngineCard): number | undefined {
 
 function resolveMonsterZoneStats(ec: EngineCard): EngineCardStats {
   const cdb = ec.card!
-  const atkBase = cdb.atk >= 0 ? cdb.atk : ec.baseAtk
-  const defBase = cdb.def >= 0 ? cdb.def : ec.baseDef
   return {
-    customAtk: ec.atk !== undefined && ec.atk !== atkBase ? ec.atk : undefined,
+    customAtk: ec.atk !== undefined && (cdb.atk < 0 || ec.atk !== cdb.atk) ? ec.atk : undefined,
     customDef:
-      ec.def !== undefined && !CardUtils.isLink(cdb.type) && ec.def !== defBase
+      ec.def !== undefined && !CardUtils.isLink(cdb.type) && (cdb.def < 0 || ec.def !== cdb.def)
         ? ec.def
         : undefined,
     customLevel: resolveEngineStarLevel(ec)

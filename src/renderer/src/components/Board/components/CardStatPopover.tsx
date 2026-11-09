@@ -42,7 +42,7 @@ const StatCalculatorRow: React.FC<{
     <div className="flex items-center gap-1.5 min-w-0 mr-2">
       {icon}
       <span className="font-bold text-xs tracking-wider">{label}</span>
-      {isModified && (
+      {isModified && (isInf || diff !== 0) && (
         <span
           className={cn(
             'text-[10px] font-mono font-bold px-1 rounded truncate',

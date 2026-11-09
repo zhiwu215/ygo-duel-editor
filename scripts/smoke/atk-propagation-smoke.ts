@@ -1,6 +1,7 @@
 /**
- * 装备卡攻守传导专项冒烟：团结之力装备到电子龙后，
- * 引擎全量查询 → FieldReader → resolveEngineCardStats 是否把修改后的攻守带出来。
+ * 攻守传导冒烟：团结之力装备到电子龙后，
+ * 引擎全量查询 → FieldReader → resolveEngineCardStats 是否把修改后的攻守带出来；
+ * 同时覆盖 ? 攻守卡（阿波罗萨/山铜合神偶）始终以引擎当前值为准。
  */
 import path from 'path'
 import fs from 'fs'
@@ -269,11 +270,27 @@ async function main(): Promise<void> {
   const orichalcosStats = resolveEngineCardStats(orichalcos)
   assert(
     orichalcosStats?.customAtk === 2000,
-    `传导：?-攻守卡用引擎基础值兜底 customAtk=${orichalcosStats?.customAtk}`
+    `传导：?-攻卡带出引擎当前攻击力 customAtk=${orichalcosStats?.customAtk}`
   )
 
   const apollousaStats = resolveEngineCardStats(apollousa)
+  assert(
+    apollousaStats?.customAtk === 0,
+    `传导：?-攻卡没有修正时也带出引擎当前攻击力 customAtk=${apollousaStats?.customAtk}`
+  )
   assert(apollousaStats?.customDef === undefined, '传导：Link 怪兽不把连接标记误当守备修正')
+
+  const summonedApollousa = resolveEngineCardStats({
+    ...apollousa,
+    atk: 1600,
+    def: 0,
+    baseAtk: 1600,
+    baseDef: 0
+  })
+  assert(
+    summonedApollousa?.customAtk === 1600,
+    `传导：?-攻卡基础值等于当前值时仍带出 1600 customAtk=${summonedApollousa?.customAtk}`
+  )
 
   const redEyesStats = resolveEngineCardStats(redEyes)
   assert(redEyesStats?.customAtk === undefined, '传导：里侧怪兽基础攻守一致时不写 customAtk')

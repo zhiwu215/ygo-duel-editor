@@ -102,6 +102,7 @@ const entries = [
   'start-over-dup-smoke',
   'opening-inject-smoke',
   'auto-replay-smoke',
+  'auto-replay-card-answer-smoke',
   'placeholder-data-smoke'
 ]
 

@@ -1,6 +1,6 @@
 import type { Answer, AnswerPrompt, EngineRequest, RecordedAnswer } from '@shared/engine/protocol'
 import { encodeAnswer } from './answer-encoder'
-import { alignAnswerToRequest, type AnswerCodeRemap } from './answer-align'
+import { alignAnswerPositions, alignAnswerToRequest, type AnswerCodeRemap } from './answer-align'
 
 export class ReplayDivergenceError extends Error {
   opIndex = -1
@@ -65,9 +65,16 @@ export function encodeRecordedAnswer(
   msg: unknown,
   request: EngineRequest,
   recorded: RecordedAnswer,
-  codeRemap?: AnswerCodeRemap
+  codeRemap?: AnswerCodeRemap,
+  alignPositions = true
 ): Uint8Array {
   let answer = recorded.answer
+  if (alignPositions) {
+    const positionAligned = alignAnswerPositions(request, answer)
+    if (positionAligned) {
+      answer = positionAligned
+    }
+  }
   if (answer.kind === 'option') {
     const choices = request.data.kind === 'option' ? request.data.options : []
     const chosen = recorded.option

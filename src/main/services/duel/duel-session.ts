@@ -201,7 +201,8 @@ export class DuelSession {
               responseIndex,
               recorded,
               op.type === 'auto' ? '自动应答' : '玩家应答',
-              codeRemap
+              codeRemap,
+              !freshIdentity
             )
           } catch (err) {
             if (err instanceof ReplayDivergenceError) {
@@ -250,7 +251,8 @@ export class DuelSession {
     responseIndex: number,
     recorded: RecordedAnswer | undefined,
     kind: string,
-    codeRemap?: AnswerCodeRemap
+    codeRemap?: AnswerCodeRemap,
+    alignPositions = true
   ): void {
     const state = this.state
     const raw = op.type === 'inject' ? new Uint8Array(0) : op.responses[responseIndex]
@@ -264,7 +266,13 @@ export class DuelSession {
         if (samePrompt(head.request, recorded.prompt)) {
           let response: Uint8Array
           try {
-            response = encodeRecordedAnswer(head.msg, head.request, recorded, codeRemap)
+            response = encodeRecordedAnswer(
+              head.msg,
+              head.request,
+              recorded,
+              codeRemap,
+              alignPositions
+            )
           } catch (err) {
             if (err instanceof ReplayDivergenceError) {
               err.expectedTitle = recorded.prompt.title

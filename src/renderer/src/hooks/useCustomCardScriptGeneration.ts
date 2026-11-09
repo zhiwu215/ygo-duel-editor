@@ -15,7 +15,7 @@ interface GenerateOptions {
   onEnsureId: (id: number) => void
 }
 
-export function useCustomCardScriptGeneration(): {
+export interface CustomCardScriptGeneration {
   generating: boolean
   saving: boolean
   cancelled: boolean
@@ -26,8 +26,10 @@ export function useCustomCardScriptGeneration(): {
   generate: (options: GenerateOptions) => Promise<void>
   apply: (ensureCard: () => Promise<number>) => Promise<CustomCardScriptGenerateResult | null>
   abort: () => Promise<void>
-  reset: () => void
-} {
+  discard: () => void
+}
+
+export function useCustomCardScriptGeneration(): CustomCardScriptGeneration {
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [cancelled, setCancelled] = useState(false)
@@ -125,9 +127,7 @@ export function useCustomCardScriptGeneration(): {
     }
   }
 
-  const reset = (): void => {
-    setGenerating(false)
-    setSaving(false)
+  const discard = (): void => {
     setCancelled(false)
     setError('')
     setResult(null)
@@ -146,6 +146,6 @@ export function useCustomCardScriptGeneration(): {
     generate,
     apply,
     abort,
-    reset
+    discard
   }
 }

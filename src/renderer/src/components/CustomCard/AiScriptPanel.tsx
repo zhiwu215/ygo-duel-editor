@@ -2,11 +2,12 @@ import React from 'react'
 import { Check, Square } from 'lucide-react'
 import type { CustomCard, CustomCardScriptGenerateResult } from '@shared/index'
 import { Button } from '../ui/button'
-import { useCustomCardScriptGeneration } from '../../hooks/useCustomCardScriptGeneration'
+import type { CustomCardScriptGeneration } from '../../hooks/useCustomCardScriptGeneration'
 import { AiScriptTrace } from './AiScriptTrace'
 
 interface AiScriptPanelProps {
   card: CustomCard
+  generation: CustomCardScriptGeneration
   onEnsureId: (id: number) => void
   onEnsureSaved: (result: CustomCardScriptGenerateResult) => Promise<number>
   onApplied: (result: CustomCardScriptGenerateResult) => void
@@ -14,12 +15,13 @@ interface AiScriptPanelProps {
 
 export const AiScriptPanel: React.FC<AiScriptPanelProps> = ({
   card,
+  generation,
   onEnsureId,
   onEnsureSaved,
   onApplied
 }) => {
   const { generating, saving, cancelled, error, result, applied, trace, generate, apply, abort } =
-    useCustomCardScriptGeneration()
+    generation
 
   const handleGenerate = async (): Promise<void> => {
     await generate({ card, onEnsureId })
@@ -66,7 +68,7 @@ export const AiScriptPanel: React.FC<AiScriptPanelProps> = ({
         )}
       </div>
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        结合相似卡官方脚本生成完整脚本，新建卡片应用脚本时会自动保存；生成后请在游戏中验证实际效果。
+        结合相似卡官方脚本生成完整脚本，应用脚本或保存卡片时都会写入脚本；生成后请在游戏中验证实际效果。
       </p>
       {showTrace && trace && <AiScriptTrace trace={trace} />}
       {cancelled && !generating && (

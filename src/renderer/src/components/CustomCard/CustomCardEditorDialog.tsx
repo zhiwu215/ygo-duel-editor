@@ -11,6 +11,7 @@ import { useCopyFeedback } from '../../hooks/useCopyFeedback'
 import { useCustomCardImage } from '../../hooks/useCustomCardImage'
 import { useCustomCardScript } from '../../hooks/useCustomCardScript'
 import { useCustomSetcodeNames } from '../../hooks/useCustomSetcodeNames'
+import { useCustomCardScriptGeneration } from '../../hooks/useCustomCardScriptGeneration'
 import {
   buildCustomCardDraft,
   buildCustomCardInput,
@@ -61,7 +62,6 @@ const CustomCardEditorBody: React.FC = () => {
   const [error, setError] = useState<string>('')
   const [saving, setSaving] = useState<boolean>(false)
   const [createdId, setCreatedId] = useState<number | null>(null)
-  const [aiScriptApplyTick, setAiScriptApplyTick] = useState(0)
   const [imageFailed, setImageFailed] = useState<boolean>(false)
   const [setnames, setSetnames] = useState<Array<{ code: number; name: string }>>([])
   const [poolSchema, setPoolSchema] = useState<CardPoolSchema>('classic')
@@ -70,8 +70,10 @@ const CustomCardEditorBody: React.FC = () => {
   const cardId = editingId ?? createdId
   const script = useCustomCardScript({ editingId: cardId })
   const { reloadScript } = script
+  const aiScript = useCustomCardScriptGeneration()
   const customSetcodes = useCustomSetcodeNames()
-  const aiScriptApplied = aiScriptApplyTick > 0
+  const aiScriptResult = aiScript.generating ? null : aiScript.result
+  const pendingAiScript = aiScriptResult?.script ? aiScriptResult : null
 
   useEffect(() => {
     let cancelled = false
@@ -91,15 +93,15 @@ const CustomCardEditorBody: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    if (aiScriptApplied) void reloadScript()
-  }, [aiScriptApplied, reloadScript])
+    if (aiScript.applied) void reloadScript()
+  }, [aiScript.applied, reloadScript])
 
   const isMonster = getCardKind(form.type) === 'monster'
   const isLink = hasLink(form.type)
   const isPendulum = hasPendulum(form.type)
   const isFlavorText = isMonster && !hasEffect(form.type)
   const hasScript =
-    aiScriptApplied ||
+    pendingAiScript !== null ||
     (cardId !== null ? Boolean(script.scriptInfo?.exists) : script.stagedScript !== null)
   const validation = useMemo(
     () => validateCustomCardForm(cardId, form, hasScript),
@@ -119,11 +121,11 @@ const CustomCardEditorBody: React.FC = () => {
     Number(form.id) !== script.stagedScript.suggestedId
 
   const scriptNotice =
-    (aiScriptApplied
-      ? createdId !== null
-        ? 'AI 脚本已应用，卡片已自动保存。'
-        : 'AI 脚本已应用，保存卡片后生效。'
-      : '') ||
+    (aiScript.applied
+      ? 'AI 脚本已应用。'
+      : pendingAiScript
+        ? 'AI 生成结果会在保存卡片时写入脚本。'
+        : '') ||
     script.scriptNotice ||
     (scriptIdMismatch
       ? `脚本文件名建议卡密 ${script.stagedScript?.suggestedId}，当前卡密为 ${form.id}；保存后会关联为 c${form.id}.lua`
@@ -132,7 +134,7 @@ const CustomCardEditorBody: React.FC = () => {
   const handlePickScript = async (): Promise<void> => {
     const picked = await script.pickScript()
     if (!picked) return
-    setAiScriptApplyTick(0)
+    aiScript.discard()
     if (picked.suggestedId !== undefined && cardId === null && !form.id.trim()) {
       setForm((current) => ({ ...current, id: String(picked.suggestedId) }))
     }
@@ -140,11 +142,10 @@ const CustomCardEditorBody: React.FC = () => {
 
   const handleRemoveScript = async (): Promise<void> => {
     await script.removeScript()
-    setAiScriptApplyTick(0)
+    aiScript.discard()
   }
 
   const handleAiApplied = (result: CustomCardScriptGenerateResult): void => {
-    setAiScriptApplyTick((tick) => tick + 1)
     setForm((current) => formWithAiScriptResult(current, result))
     script.dropStaged()
   }
@@ -172,20 +173,41 @@ const CustomCardEditorBody: React.FC = () => {
       setError(validation.errors[0])
       return
     }
+    const pendingScript = aiScript.applied ? undefined : pendingAiScript?.script
+    const nextForm =
+      pendingScript && pendingAiScript ? formWithAiScriptResult(form, pendingAiScript) : form
     setSaving(true)
     setError('')
-    const result = await save(
-      buildCustomCardInput(cardId, form, stagedImage?.path, script.stagedScript?.filePath)
-    )
-    setSaving(false)
-    if (!result.success) {
-      setError(result.error ?? '保存失败')
-      return
+    try {
+      const result = await save(
+        buildCustomCardInput(
+          cardId,
+          nextForm,
+          stagedImage?.path,
+          pendingScript ? undefined : script.stagedScript?.filePath
+        )
+      )
+      if (!result.success || !result.card) {
+        setError(result.error ?? '保存失败')
+        return
+      }
+      const warnings: string[] = result.warning ? [result.warning] : []
+      if (pendingScript) {
+        const scriptResult = await window.api.saveCustomCardScriptContent(
+          result.card.id,
+          pendingScript
+        )
+        if (!scriptResult.success) {
+          warnings.push(`AI 脚本保存失败：${scriptResult.error ?? '未知错误'}`)
+        }
+      }
+      if (warnings.length > 0) {
+        await alertDialog(`卡片已保存。\n${warnings.join('\n')}`)
+      }
+      closeEditor()
+    } finally {
+      setSaving(false)
     }
-    if (result.warning) {
-      await alertDialog(`卡片已保存。\n${result.warning}`)
-    }
-    closeEditor()
   }
 
   const meta = isMonster
@@ -291,6 +313,7 @@ const CustomCardEditorBody: React.FC = () => {
                   {!isFlavorText && (
                     <AiScriptPanel
                       card={buildCustomCardDraft(cardId, form)}
+                      generation={aiScript}
                       onEnsureId={(id) => setForm((current) => ({ ...current, id: String(id) }))}
                       onEnsureSaved={handleEnsureCardSaved}
                       onApplied={handleAiApplied}
@@ -345,7 +368,7 @@ const CustomCardEditorBody: React.FC = () => {
                     type="button"
                     size="sm"
                     className="gap-1.5"
-                    disabled={saving || script.scriptBusy}
+                    disabled={saving || script.scriptBusy || aiScript.saving}
                     onClick={() => void handleSave()}
                   >
                     {saving ? (

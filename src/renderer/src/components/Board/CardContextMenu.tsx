@@ -256,7 +256,8 @@ export const CardContextMenu: React.FC = () => {
     isMonsterZone && !isEngine && !!(card.overlayMaterials && card.overlayMaterials.length > 0)
   const showStatBranch = !isEngine && (isMonsterZone || isSpellTrapZone)
   const showRemoveBranch = !isEngine && !isModalOpenForThisZone
-  const showDeckPlaceholder = card.location === CardLocation.DECK && !isReplay
+  const showDeckPlaceholder =
+    card.location === CardLocation.DECK && !isReplay && !isModalOpenForThisZone
   const hasAnyContent =
     showEngineEdit ||
     showPileBranch ||

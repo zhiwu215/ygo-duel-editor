@@ -13,6 +13,8 @@ export const CardLocation = {
 
 export const FIELD_ZONE_SEQUENCE = 5
 
+export const EXTRA_MONSTER_ZONE_SEQUENCES = [5, 6] as const
+
 const PENDULUM_ZONE_SEQUENCES: readonly number[] = [0, 4, 6, 7]
 
 export function isPendulumZoneSlot(location: number, sequence: number): boolean {

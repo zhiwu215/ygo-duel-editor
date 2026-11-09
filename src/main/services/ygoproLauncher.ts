@@ -28,7 +28,7 @@ import {
   TestInGameResult,
   isPlaceholderCard,
   isStandardTag,
-  viewTopSeatOf
+  viewBottomSeatOf
 } from '@shared/index'
 import { configService } from './configService'
 import { duelDirector } from './duel/duel-director'
@@ -566,7 +566,7 @@ export class YgoproLauncher {
           })
         const embeddedYrp = new YGOProYrp().fromYrp(yrpBytes)
 
-        const editorBottomTeam = viewTopSeatOf(params.state) === 0 ? 1 : 0
+        const editorBottomTeam = viewBottomSeatOf(params.state)
         const editorBottomDuelist = params.state.duelists?.find(
           (duelist) => duelist.team === editorBottomTeam
         )

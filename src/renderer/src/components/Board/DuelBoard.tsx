@@ -7,7 +7,9 @@ import {
   MASTER_RULES,
   FieldCard,
   RequestPlace,
+  extraMonsterZonePlaces,
   isStandardTag,
+  viewBottomSeatOf,
   viewTopSeatOf
 } from '@shared/index'
 import { ZoneSlot } from './ZoneSlot'
@@ -21,20 +23,10 @@ import { useStepEffectPlayer } from '../../hooks/useStepEffectPlayer'
 import { getPileTopCard, getPileCount } from '../../utils/duelBoardQuery'
 import { resolveOwnerScope } from '../../utils/duelistNames'
 
-const EMZ_LEFT_TARGETS: RequestPlace[] = [
-  { controller: 0, location: CardLocation.MZONE, sequence: 5 },
-  { controller: 1, location: CardLocation.MZONE, sequence: 6 }
-]
-
-const EMZ_RIGHT_TARGETS: RequestPlace[] = [
-  { controller: 0, location: CardLocation.MZONE, sequence: 6 },
-  { controller: 1, location: CardLocation.MZONE, sequence: 5 }
-]
-
 export const DuelBoard: React.FC = () => {
   const state = useDuelStore((s) => s.state)
   const viewTopSeat = useDuelStore((s) => viewTopSeatOf(s.state))
-  const viewBottomSeat: 0 | 1 = viewTopSeat === 0 ? 1 : 0
+  const viewBottomSeat = useDuelStore((s) => viewBottomSeatOf(s.state))
   const activeDuelistIds = useDuelStore((s) => s.activeDuelistIds)
   const currentTurn = useDuelStore((s) => s.currentTurn)
   const duelStarted = useDuelStore((s) => s.duelStarted)
@@ -123,8 +115,9 @@ export const DuelBoard: React.FC = () => {
     return undefined
   }
 
-  const emzLeftCard = emzCardOf(EMZ_LEFT_TARGETS)
-  const emzRightCard = emzCardOf(EMZ_RIGHT_TARGETS)
+  const emzPlaces = extraMonsterZonePlaces(viewBottomSeat)
+  const emzLeftCard = emzCardOf(emzPlaces.left)
+  const emzRightCard = emzCardOf(emzPlaces.right)
 
   return (
     <div className="flex-1 h-full relative select-none min-h-0 overflow-hidden flex flex-col">
@@ -196,24 +189,24 @@ export const DuelBoard: React.FC = () => {
                   )}
                   <ZoneSlot
                     label="EX 怪兽 1"
-                    controller={emzLeftCard?.controller ?? 0}
+                    controller={emzLeftCard?.controller ?? emzPlaces.left[0].controller}
                     location={CardLocation.MZONE}
-                    sequence={emzLeftCard?.sequence ?? 5}
+                    sequence={emzLeftCard?.sequence ?? emzPlaces.left[0].sequence}
                     card={emzLeftCard}
                     colorVariant="emz"
-                    placeTargets={EMZ_LEFT_TARGETS}
+                    placeTargets={emzPlaces.left}
                   />
                   <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">
                     {middleSlot}
                   </div>
                   <ZoneSlot
                     label="EX 怪兽 2"
-                    controller={emzRightCard?.controller ?? 0}
+                    controller={emzRightCard?.controller ?? emzPlaces.right[0].controller}
                     location={CardLocation.MZONE}
-                    sequence={emzRightCard?.sequence ?? 6}
+                    sequence={emzRightCard?.sequence ?? emzPlaces.right[0].sequence}
                     card={emzRightCard}
                     colorVariant="emz"
-                    placeTargets={EMZ_RIGHT_TARGETS}
+                    placeTargets={emzPlaces.right}
                   />
                   {showPhaseControls && (
                     <div className="w-[92px] h-[92px] flex items-center justify-center shrink-0">

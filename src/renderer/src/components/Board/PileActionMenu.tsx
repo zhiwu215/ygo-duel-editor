@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { Answer } from '@shared/index'
 import { useDuelEngineStore } from '../../stores/useDuelEngineStore'
+import { useDuelStore } from '../../stores/useDuelStore'
 import {
   usePileActionMenuStore,
   type PileActionMenuTarget
@@ -55,13 +56,17 @@ export const PileActionMenu: React.FC = () => {
   const closeMenu = usePileActionMenuStore((s) => s.closeMenu)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const submitAnswer = useDuelEngineStore((s) => s.submitAnswer)
+  const masterRule = useDuelStore((s) => s.state.masterRule)
   const menuRef = useRef<HTMLDivElement>(null)
   const [selection, setSelection] = useState<SelectionState | null>(null)
   const [effects, setEffects] = useState<EffectsState | null>(null)
 
   const entries = useMemo(
-    () => (target ? resolvePileActions(pendingRequest, target.controller, target.location) : []),
-    [pendingRequest, target]
+    () =>
+      target
+        ? resolvePileActions(pendingRequest, target.controller, target.location, masterRule)
+        : [],
+    [pendingRequest, target, masterRule]
   )
   const requestCards = useMemo(() => entries.map((entry) => entry.card), [entries])
   const meta = useCardMeta(requestCards)

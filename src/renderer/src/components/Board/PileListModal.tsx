@@ -369,7 +369,11 @@ const PileListContent: React.FC = () => {
               chainIndexesByInstance={chainIndexesByInstance}
               getCardName={(card) => getCardName(card.code)}
               onCardClick={(event, card) => {
-                if (!isEngineActive || !hasCardEngineActions(pendingRequest, card)) return false
+                if (
+                  !isEngineActive ||
+                  !hasCardEngineActions(pendingRequest, card, state.masterRule)
+                )
+                  return false
                 event.preventDefault()
                 event.stopPropagation()
                 openCardMenu(card, event.currentTarget.getBoundingClientRect())
@@ -384,7 +388,7 @@ const PileListContent: React.FC = () => {
                 if (!isEngineActive) return
                 event.preventDefault()
                 event.stopPropagation()
-                if (hasCardEngineActions(pendingRequest, card)) {
+                if (hasCardEngineActions(pendingRequest, card, state.masterRule)) {
                   openCardMenu(card, event.currentTarget.getBoundingClientRect())
                   return
                 }

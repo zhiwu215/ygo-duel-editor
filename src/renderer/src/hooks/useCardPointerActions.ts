@@ -34,6 +34,7 @@ export function useCardPointerActions({
   const activeStatPopoverCardId = useDuelStore((s) => s.activeStatPopoverCardId)
   const statPopoverPosition = useDuelStore((s) => s.statPopoverPosition)
   const currentPhase = useDuelStore((s) => s.currentPhase)
+  const masterRule = useDuelStore((s) => s.state.masterRule)
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
   const hintZone = useDropHintStore((s) => s.zone)
@@ -106,7 +107,7 @@ export function useCardPointerActions({
         const defaultY = Math.max(16, Math.min(rect.top - 20, window.innerHeight - 380))
         openStatPopover(card.instanceId, statPopoverPosition || { x: defaultX, y: defaultY })
       }
-    } else if (hasCardEngineActions(pendingRequest, card) || isHandPlaceholder) {
+    } else if (hasCardEngineActions(pendingRequest, card, masterRule) || isHandPlaceholder) {
       if (menuCard?.instanceId === card.instanceId) {
         closeCommandMenu()
       } else {

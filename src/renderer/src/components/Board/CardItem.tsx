@@ -62,16 +62,16 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const boardState = useDuelEngineStore((s) => s.boardState)
   const selectedKeys = useSelectionStore((s) => s.selectedKeys)
+  const masterRule = useDuelStore((s) => s.state.masterRule)
 
   const cardEngineActions = useMemo(
-    () => deriveCardEngineActions(pendingRequest, card),
-    [pendingRequest, card]
+    () => deriveCardEngineActions(pendingRequest, card, masterRule),
+    [pendingRequest, card, masterRule]
   )
   const hasRequestActions = useMemo(
-    () => hasCardEngineActions(pendingRequest, card),
-    [pendingRequest, card]
+    () => hasCardEngineActions(pendingRequest, card, masterRule),
+    [pendingRequest, card, masterRule]
   )
-  const masterRule = useDuelStore((s) => s.state.masterRule)
   const leftPendulumSequence = getPzoneSzoneSequence(masterRule)[0]
   const inLeftPendulumZone =
     (card.location === CardLocation.SZONE && card.sequence === leftPendulumSequence) ||
@@ -84,8 +84,8 @@ export const CardItem: React.FC<CardItemProps> = ({ card, squareCell = false }) 
   const pendulumScale = useMemo(() => resolvePendulumScale(card, masterRule), [card, masterRule])
 
   const selectionMatch = useMemo<CardSelectionMatch | null>(
-    () => resolveCardSelectionMatch(pendingRequest, card, selectedKeys),
-    [pendingRequest, card, selectedKeys]
+    () => resolveCardSelectionMatch(pendingRequest, card, selectedKeys, masterRule),
+    [pendingRequest, card, selectedKeys, masterRule]
   )
 
   const editorTargetActive = useAttackTargetingStore((s) =>

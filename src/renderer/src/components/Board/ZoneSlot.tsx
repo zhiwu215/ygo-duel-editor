@@ -17,6 +17,7 @@ import { useDeckZoneInteraction } from '../../hooks/useDeckZoneInteraction'
 import { getDropPosOverride, canShowPositionHint } from '../../utils/zoneDrop'
 import { CARD_SEARCH_DRAG_TYPE } from '../../utils/cardDrag'
 import { resolveActionablePiles } from '../../utils/pileActionIndicator'
+import { isSameZoneSlot } from '../../utils/engineCardPosition'
 import { ActRing } from '../common/ActRing'
 import { Swords, Sparkles, Hexagon, Globe, Ghost, Layers, ShieldAlert, Ban } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -128,6 +129,7 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
 
   const pendingRequest = useDuelEngineStore((s) => s.pendingRequest)
   const isEngineActive = useDuelEngineStore((s) => s.isInitialized)
+  const masterRule = useDuelStore((s) => s.state.masterRule)
   const canDropToken = !isEngineActive && isTokenDropTarget
   const canEditLocally = !isEngineActive
   const actionablePiles = useMemo(
@@ -141,11 +143,9 @@ export const ZoneSlot: React.FC<ZoneSlotProps> = ({
           placeTargets
             ? placeTargets.some(
                 (target) =>
-                  target.controller === p.controller &&
-                  target.location === p.location &&
-                  target.sequence === p.sequence
+                  target.controller === p.controller && isSameZoneSlot(masterRule, target, p)
               )
-            : p.controller === controller && p.location === location && p.sequence === sequence
+            : p.controller === controller && isSameZoneSlot(masterRule, p, { location, sequence })
         )
       : undefined
   const isEnginePlaceTarget = Boolean(enginePlaceMatch)

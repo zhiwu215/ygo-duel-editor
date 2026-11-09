@@ -1,5 +1,20 @@
 import { CardLocation, getPzoneSzoneSequence } from '@shared/index'
 
+export interface ZonePosition {
+  location: number
+  sequence: number
+}
+
+export function isSameZoneSlot(
+  masterRule: number,
+  left: ZonePosition,
+  right: ZonePosition
+): boolean {
+  const a = normalizeEngineCardPosition(masterRule, left.location, left.sequence)
+  const b = normalizeEngineCardPosition(masterRule, right.location, right.sequence)
+  return a.location === b.location && a.sequence === b.sequence
+}
+
 export function normalizeEngineCardPosition(
   masterRule: number,
   location: number,

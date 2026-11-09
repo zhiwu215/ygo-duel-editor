@@ -30,7 +30,8 @@ function hasAction(actions: CardEngineActions): boolean {
 export function resolvePileActions(
   request: EngineRequest | null,
   controller: 0 | 1,
-  location: number
+  location: number,
+  masterRule: number
 ): PileActionEntry[] {
   if (!request) return []
   const seen = new Set<string>()
@@ -40,7 +41,7 @@ export function resolvePileActions(
     const key = `${card.code}:${card.sequence}`
     if (seen.has(key)) continue
     seen.add(key)
-    const actions = deriveCardEngineActions(request, card)
+    const actions = deriveCardEngineActions(request, card, masterRule)
     if (!actions || !hasAction(actions)) continue
     entries.push({ card, actions })
   }

@@ -1,6 +1,7 @@
 import { CardLocation, FieldCard } from '@shared/index'
 import type { Answer, EngineRequest, RequestCard } from '@shared/engine/protocol'
 import { resolveCardName } from './cardNames'
+import { isSameZoneSlot } from './engineCardPosition'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 
 export type DuelSelectionKind = 'card' | 'tribute' | 'sum' | 'unselect'
@@ -24,7 +25,8 @@ const POINT_LOCATIONS: ReadonlySet<number> = new Set<number>([
   CardLocation.HAND,
   CardLocation.MZONE,
   CardLocation.SZONE,
-  CardLocation.FZONE
+  CardLocation.FZONE,
+  CardLocation.PZONE
 ])
 
 function clampSelectRange(
@@ -205,7 +207,8 @@ export function resolveCardSelectionMatch(
     sequence: number
     duelistId?: string
   },
-  selectedKeys: string[]
+  selectedKeys: string[],
+  masterRule: number
 ): CardSelectionMatch | null {
   const derived = deriveSelection(request)
   if (!derived || derived.mode !== 'point') return null
@@ -214,8 +217,7 @@ export function resolveCardSelectionMatch(
   const requestCard = pool.find(
     (c) =>
       c.controller === card.controller &&
-      c.location === card.location &&
-      c.sequence === card.sequence &&
+      isSameZoneSlot(masterRule, c, card) &&
       (!c.duelistId || c.duelistId === card.duelistId)
   )
   if (!requestCard) return null
@@ -234,12 +236,15 @@ export function resolveCardRole(selectionMatch: CardSelectionMatch | null): Card
   return 'none'
 }
 
-export function requestCardName(cards: FieldCard[], requestCard: RequestCard): string {
+export function requestCardName(
+  cards: FieldCard[],
+  requestCard: RequestCard,
+  masterRule: number
+): string {
   const exact = cards.find(
     (card) =>
       card.controller === requestCard.controller &&
-      card.location === requestCard.location &&
-      card.sequence === requestCard.sequence &&
+      isSameZoneSlot(masterRule, card, requestCard) &&
       (!requestCard.duelistId || card.duelistId === requestCard.duelistId)
   )
   return exact?.card?.name || resolveCardName(requestCard.code)

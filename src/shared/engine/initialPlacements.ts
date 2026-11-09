@@ -37,12 +37,20 @@ export function initialStateOwnerOf(card: FieldCard, location: number): number {
   return isPrivatePile(location) ? card.controller : (card.owner ?? card.controller)
 }
 
-export function buildInitialPlacements(state: DuelPuzzleState): InitialPlacements {
+export interface InitialPlacementsOptions {
+  preservePendulumZone?: boolean
+}
+
+export function buildInitialPlacements(
+  state: DuelPuzzleState,
+  options?: InitialPlacementsOptions
+): InitialPlacements {
   const fieldCards = state.cards.filter((card) => card.code > 0)
   const placements: InitialPlacement[] = []
   let unsupportedPendulum = 0
   let unsupportedOverlay = 0
 
+  const preservePendulumZone = options?.preservePendulumZone === true && state.masterRule >= 3
   const pzoneSequences = getPzoneSzoneSequence(state.masterRule)
   const takenSzone = new Set<number>()
   for (const card of fieldCards) {
@@ -69,14 +77,22 @@ export function buildInitialPlacements(state: DuelPuzzleState): InitialPlacement
     }
     if (card.location === CardLocation.PZONE) {
       const sequence = pzoneSequences[card.sequence]
-      if (sequence === undefined || sequence >= PENDULUM_SZONE_LIMIT || takenSzone.has(sequence)) {
+      if (
+        sequence === undefined ||
+        (!preservePendulumZone && sequence >= PENDULUM_SZONE_LIMIT) ||
+        takenSzone.has(sequence)
+      ) {
         unsupportedPendulum += 1
         continue
       }
       takenSzone.add(sequence)
       placements.push({
         card,
-        placement: { location: CardLocation.SZONE, sequence, position: FACE_UP },
+        placement: {
+          location: preservePendulumZone ? CardLocation.PZONE : CardLocation.SZONE,
+          sequence: preservePendulumZone ? card.sequence : sequence,
+          position: FACE_UP
+        },
         identitySequence: sequence
       })
       continue

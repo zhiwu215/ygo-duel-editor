@@ -20,6 +20,7 @@ export const DuelSelectionBar: React.FC = () => {
   const mergedMatch = useDuelEngineStore((s) => s.mergedMatch)
   const lastAttacker = useDuelEngineStore((s) => s.lastAttacker)
   const cards = useDuelStore((s) => s.state.cards)
+  const masterRule = useDuelStore((s) => s.state.masterRule)
   const selectedKeys = useSelectionStore((s) => s.selectedKeys)
 
   const derived = useMemo(() => deriveSelection(request), [request])
@@ -29,7 +30,13 @@ export const DuelSelectionBar: React.FC = () => {
   if (derived.mode === 'modal') {
     if (derived.kind !== 'unselect') return null
     return (
-      <UnselectCardModal title={request.title} derived={derived} loading={loading} cards={cards} />
+      <UnselectCardModal
+        title={request.title}
+        derived={derived}
+        loading={loading}
+        cards={cards}
+        masterRule={masterRule}
+      />
     )
   }
 
@@ -77,7 +84,7 @@ export const DuelSelectionBar: React.FC = () => {
         )}
         {selected.length > 0 && (
           <span className="max-w-[320px] truncate text-[11px] text-muted-foreground">
-            {selected.map((card) => requestCardName(cards, card)).join('、')}
+            {selected.map((card) => requestCardName(cards, card, masterRule)).join('、')}
           </span>
         )}
       </div>

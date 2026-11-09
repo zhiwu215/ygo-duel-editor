@@ -55,10 +55,11 @@ export const CardCommandMenu: React.FC = () => {
   const engineLoading = useDuelEngineStore((s) => s.loading)
   const cards = useDuelStore((s) => s.state.cards)
   const currentPhase = useDuelStore((s) => s.currentPhase)
+  const masterRule = useDuelStore((s) => s.state.masterRule)
 
   const requestActions = React.useMemo(
-    () => deriveCardEngineActions(pendingRequest, card),
-    [pendingRequest, card]
+    () => deriveCardEngineActions(pendingRequest, card, masterRule),
+    [pendingRequest, card, masterRule]
   )
   const actionMap = React.useMemo(
     () => (requestActions ? buildCardEngineActionMap(requestActions, card?.position) : null),

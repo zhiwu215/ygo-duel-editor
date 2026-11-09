@@ -17,7 +17,8 @@ export const UnselectCardModal: React.FC<{
   derived: DerivedSelection
   loading: boolean
   cards: FieldCard[]
-}> = ({ title, derived, loading, cards }) => (
+  masterRule: number
+}> = ({ title, derived, loading, cards, masterRule }) => (
   <RequestModalShell
     title={title ?? '请选择'}
     subtitle={derived.canFinish ? '逐张点击选择，完成后点「完成」' : '请选择一张卡'}
@@ -54,10 +55,12 @@ export const UnselectCardModal: React.FC<{
           <CardImage
             code={card.code}
             small
-            alt={requestCardName(cards, card)}
+            alt={requestCardName(cards, card, masterRule)}
             className="h-11 w-8 shrink-0 rounded-sm border border-border/60 object-cover"
           />
-          <span className="truncate text-xs text-foreground">{requestCardName(cards, card)}</span>
+          <span className="truncate text-xs text-foreground">
+            {requestCardName(cards, card, masterRule)}
+          </span>
         </button>
       ))}
 
@@ -80,11 +83,11 @@ export const UnselectCardModal: React.FC<{
               <CardImage
                 code={card.code}
                 small
-                alt={requestCardName(cards, card)}
+                alt={requestCardName(cards, card, masterRule)}
                 className="h-11 w-8 shrink-0 rounded-sm border border-border/60 object-cover"
               />
               <span className="truncate text-xs font-semibold text-foreground">
-                {requestCardName(cards, card)}
+                {requestCardName(cards, card, masterRule)}
               </span>
             </button>
           ))}

@@ -1,5 +1,5 @@
-import { CardLocation } from '@shared/index'
 import { EngineRequest, RequestCard } from '@shared/engine/protocol'
+import { isSameZoneSlot } from './engineCardPosition'
 
 export interface CardEngineActions {
   requestKind: 'idle' | 'battle' | 'chain'
@@ -20,26 +20,14 @@ interface EngineCardIdentity {
   duelistId?: string
 }
 
-function sameCardPosition(requestCard: RequestCard, card: EngineCardIdentity): boolean {
-  if (requestCard.location === card.location && requestCard.sequence === card.sequence) return true
-  if (
-    requestCard.location === CardLocation.FZONE &&
-    card.location === CardLocation.SZONE &&
-    card.sequence === 5
-  ) {
-    return true
-  }
-  return (
-    requestCard.location === CardLocation.SZONE &&
-    requestCard.sequence === 5 &&
-    card.location === CardLocation.FZONE
-  )
-}
-
-export function isRequestCardAt(requestCard: RequestCard, card: EngineCardIdentity): boolean {
+function isRequestCardAt(
+  requestCard: RequestCard,
+  card: EngineCardIdentity,
+  masterRule: number
+): boolean {
   return (
     requestCard.controller === card.controller &&
-    sameCardPosition(requestCard, card) &&
+    isSameZoneSlot(masterRule, requestCard, card) &&
     (!requestCard.duelistId || requestCard.duelistId === card.duelistId)
   )
 }
@@ -52,10 +40,11 @@ function matchCards(
     location: number
     sequence: number
     duelistId?: string
-  }
+  },
+  masterRule: number
 ): RequestCard[] {
   if (!list) return []
-  return list.filter((item) => isRequestCardAt(item, card))
+  return list.filter((item) => isRequestCardAt(item, card, masterRule))
 }
 
 function matchCard(
@@ -66,9 +55,10 @@ function matchCard(
     location: number
     sequence: number
     duelistId?: string
-  }
+  },
+  masterRule: number
 ): RequestCard | undefined {
-  return matchCards(list, card)[0]
+  return matchCards(list, card, masterRule)[0]
 }
 
 export function deriveCardEngineActions(
@@ -79,7 +69,8 @@ export function deriveCardEngineActions(
     location: number
     sequence: number
     duelistId?: string
-  } | null
+  } | null,
+  masterRule: number
 ): CardEngineActions | null {
   if (!request || !card) return null
   const d = request.data
@@ -95,12 +86,12 @@ export function deriveCardEngineActions(
   if (d.kind === 'idle') {
     return {
       requestKind: 'idle',
-      summon: matchCard(d.summonable, key),
-      spSummon: matchCard(d.spSummonable, key),
-      mset: matchCard(d.msetable, key),
-      sset: matchCard(d.ssetable, key),
-      repos: matchCard(d.reposable, key),
-      activate: matchCards(d.activatable, key),
+      summon: matchCard(d.summonable, key, masterRule),
+      spSummon: matchCard(d.spSummonable, key, masterRule),
+      mset: matchCard(d.msetable, key, masterRule),
+      sset: matchCard(d.ssetable, key, masterRule),
+      repos: matchCard(d.reposable, key, masterRule),
+      activate: matchCards(d.activatable, key, masterRule),
       attack: undefined
     }
   }
@@ -113,8 +104,8 @@ export function deriveCardEngineActions(
       mset: undefined,
       sset: undefined,
       repos: undefined,
-      activate: matchCards(d.activatable, key),
-      attack: matchCard(d.attackable, key)
+      activate: matchCards(d.activatable, key, masterRule),
+      attack: matchCard(d.attackable, key, masterRule)
     }
   }
 
@@ -127,7 +118,7 @@ export function deriveCardEngineActions(
       sset: undefined,
       repos: undefined,
       activate: [],
-      chain: matchCard(d.chains, key)
+      chain: matchCard(d.chains, key, masterRule)
     }
   }
 
@@ -142,9 +133,10 @@ export function hasCardEngineActions(
     location: number
     sequence: number
     duelistId?: string
-  } | null
+  } | null,
+  masterRule: number
 ): boolean {
-  const actions = deriveCardEngineActions(request, card)
+  const actions = deriveCardEngineActions(request, card, masterRule)
   if (!actions) return false
   return Boolean(
     actions.summon ||
@@ -166,7 +158,8 @@ export function hasCardEngineActivate(
     location: number
     sequence: number
     duelistId?: string
-  } | null
+  } | null,
+  masterRule: number
 ): boolean {
-  return (deriveCardEngineActions(request, card)?.activate.length ?? 0) > 0
+  return (deriveCardEngineActions(request, card, masterRule)?.activate.length ?? 0) > 0
 }

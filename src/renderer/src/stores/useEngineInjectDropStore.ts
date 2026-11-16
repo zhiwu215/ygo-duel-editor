@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { CdbCard } from '@shared/index'
+import { CdbCard, resolveCardPlacement } from '@shared/index'
 
 export interface EngineInjectDropTarget {
   card: CdbCard
@@ -16,6 +16,6 @@ interface EngineInjectDropState {
 
 export const useEngineInjectDropStore = create<EngineInjectDropState>((set) => ({
   pending: null,
-  open: (target) => set({ pending: target }),
+  open: (target) => set({ pending: resolveCardPlacement(target.card.type, target) }),
   cancel: () => set({ pending: null })
 }))

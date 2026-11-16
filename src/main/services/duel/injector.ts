@@ -6,7 +6,8 @@ import {
   FIELD_ZONE_SEQUENCE,
   InjectCommand,
   PLACEHOLDER_CARD_NAME,
-  isPlaceholderCard
+  isPlaceholderCard,
+  resolveCardPlacement
 } from '@shared/index'
 import { cdbService } from '../../db/cdbService'
 
@@ -35,7 +36,7 @@ function firstEmpty(slots: (unknown | null)[]): number {
   return slots.findIndex((slot) => slot === null)
 }
 
-function resolveAddCard(
+function requestedAddCardTarget(
   command: Extract<InjectCommand, { op: 'add-card' }>,
   board: EngineBoardState
 ): ResolvedTarget {
@@ -136,6 +137,16 @@ function resolveAddCard(
       }
     }
   }
+}
+
+function resolveAddCard(
+  command: Extract<InjectCommand, { op: 'add-card' }>,
+  board: EngineBoardState
+): ResolvedTarget {
+  const target = requestedAddCardTarget(command, board)
+  const placement = resolveCardPlacement(cdbService.getCardById(command.code)?.type, target)
+  if (placement.location === target.location) return target
+  return { ...placement, sequence: 0, zone: 'extra', label: ADD_CARD_LABELS.extra }
 }
 
 export function executeInject(

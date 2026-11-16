@@ -4,7 +4,8 @@ import {
   CardUtils,
   CdbCard,
   FIELD_ZONE_SEQUENCE,
-  InjectCommand
+  InjectCommand,
+  resolveCardPlacement
 } from '@shared/index'
 
 export interface InjectDropTarget {
@@ -18,7 +19,8 @@ export interface InjectDropTarget {
 }
 
 export function buildInjectCommand(target: InjectDropTarget): InjectCommand | null {
-  const { card, controller, location, sequence, ctrlKey, masterRule, position } = target
+  const { card, controller, ctrlKey, masterRule } = target
+  const { location, sequence, position } = resolveCardPlacement(card.type, target)
   const base = { op: 'add-card' as const, player: controller, code: card.id }
 
   switch (location) {

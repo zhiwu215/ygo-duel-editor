@@ -7,6 +7,7 @@ import {
   FieldCard,
   LOCATION_NAMES,
   createLightweightSnapshot,
+  resolveCardPlacement,
   resolveTargetPosition
 } from '@shared/index'
 import { FIELD_ZONE_SEQ } from './setupSlice'
@@ -207,7 +208,16 @@ function placeCard(
   prev: DuelStore,
   params: PlaceCardParams
 ): { cards: FieldCard[]; newCard: FieldCard } {
-  const { card, controller, location, sequence, customPos, duelistId, instanceId } = params
+  const { card, controller, duelistId, instanceId } = params
+  const {
+    location,
+    sequence,
+    position: customPos
+  } = resolveCardPlacement(card.type, {
+    location: params.location,
+    sequence: params.sequence,
+    position: params.customPos
+  })
   const pos = resolveTargetPosition(location, customPos)
   const isPileZone =
     location === CardLocation.HAND ||
@@ -381,8 +391,8 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
 
   moveCard: (
     instanceId,
-    toLocation,
-    toSequence,
+    requestedLocation,
+    requestedSequence,
     toController,
     customPos,
     targetDuelistId,
@@ -390,10 +400,19 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
   ) => {
     get().withSingleUndoStep(() => {
       const fromCard = get().state.cards.find((c) => c.instanceId === instanceId)
+      const {
+        location: toLocation,
+        sequence: toSequence,
+        position
+      } = resolveCardPlacement(fromCard?.card?.type, {
+        location: requestedLocation,
+        sequence: requestedSequence,
+        position: customPos
+      })
       const boardBefore = createLightweightSnapshot(get().state.cards)
       const effectivePos = resolveTargetPosition(
         toLocation,
-        customPos,
+        position,
         fromCard?.location,
         fromCard?.position
       )
@@ -410,7 +429,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       if (fromCard) {
         const name = fromCard.card?.name
         const resolvedLabel =
-          stepLabel ??
+          (toLocation === requestedLocation ? stepLabel : undefined) ??
           resolveMoveStepLabel(fromCard.location, toLocation, effectivePos, fromCard.card?.name)
         const movedCard = get().state.cards.find((c) => c.instanceId === instanceId)
         recordEditorStep({
@@ -422,7 +441,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
           fromLocation: fromCard.location,
           fromSequence: fromCard.sequence,
           toLocation,
-          toSequence,
+          toSequence: movedCard?.sequence ?? toSequence,
           fromController: fromCard.controller,
           toController: toController ?? fromCard.controller,
           fromPosition: fromCard.position,
@@ -437,7 +456,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
             type: 'move',
             instanceId,
             toLocation,
-            toSequence,
+            toSequence: movedCard?.sequence ?? toSequence,
             toController,
             customPos: effectivePos,
             duelistId: movedCard?.duelistId
@@ -457,11 +476,18 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
       const boardBefore = createLightweightSnapshot(get().state.cards)
       const effectiveMoves = moves.map((m) => {
         const fromCard = fromCards.get(m.instanceId)
+        const placement = resolveCardPlacement(fromCard?.card?.type, {
+          location: m.toLocation,
+          sequence: m.toSequence,
+          position: m.customPos
+        })
         return {
           ...m,
+          toLocation: placement.location,
+          toSequence: placement.sequence,
           customPos: resolveTargetPosition(
-            m.toLocation,
-            m.customPos,
+            placement.location,
+            placement.position,
             fromCard?.location,
             fromCard?.position
           )
@@ -488,7 +514,7 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
           fromLocation: fromCard.location,
           fromSequence: fromCard.sequence,
           toLocation: m.toLocation,
-          toSequence: m.toSequence,
+          toSequence: movedCard?.sequence ?? m.toSequence,
           fromController: fromCard.controller,
           toController: m.toController ?? fromCard.controller,
           fromPosition: fromCard.position,
@@ -497,7 +523,12 @@ export const createPlacementSlice: StateCreator<DuelStore, [], [], PlacementSlic
           description: name
             ? `将【${name}】移至${LOCATION_NAMES[m.toLocation] ?? '区域'}`
             : `移动卡片至${LOCATION_NAMES[m.toLocation] ?? '区域'}`,
-          op: { type: 'move', ...m, duelistId: movedCard?.duelistId }
+          op: {
+            type: 'move',
+            ...m,
+            toSequence: movedCard?.sequence ?? m.toSequence,
+            duelistId: movedCard?.duelistId
+          }
         })
       }
     })

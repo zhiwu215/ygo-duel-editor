@@ -1,9 +1,126 @@
 import { duelSession } from '../../src/main/services/duel/duel-session'
-import { CardLocation, CardPosition, Duelist, FieldCard, normalizeDuelState } from '@shared/index'
+import {
+  CardLocation,
+  CardPosition,
+  CardType,
+  CardUtils,
+  CdbCard,
+  Duelist,
+  FieldCard,
+  normalizeDuelState
+} from '@shared/index'
 import type { Answer, EngineRequest } from '@shared/index'
 import { useDuelEngineStore } from '../../src/renderer/src/stores/useDuelEngineStore'
 import { useDuelStore } from '../../src/renderer/src/stores/useDuelStore'
 import { cdbService } from './cdb-shim'
+import { buildInjectCommand } from '../../src/renderer/src/utils/engineInject'
+import { useEngineInjectDropStore } from '../../src/renderer/src/stores/useEngineInjectDropStore'
+
+const EXTRA_CODES = [23995346, 44508094, 56840427, 1861629]
+
+function cardOf(code: number): CdbCard {
+  const card = cdbService.getCardById(code)
+  assert(Boolean(card), `卡库应存在卡片 ${code}`)
+  return card as CdbCard
+}
+
+function checkEditorExtraPlacements(): void {
+  useDuelEngineStore.getState().stopEngine()
+  useDuelStore.setState({
+    state: buildPuzzle(),
+    currentStepIndex: null,
+    selectedStepId: null,
+    previewReturn: null,
+    sceneEditing: false
+  })
+  const deckCount = editorCards(CardLocation.DECK).length
+  const ids: string[] = []
+  for (const code of EXTRA_CODES) {
+    const card = cardOf(code)
+    assert(CardUtils.isExtraDeck(card.type), `${code} 应为额外卡组怪兽`)
+    useDuelStore.getState().addCardToZone(card, 0, CardLocation.DECK, 0)
+    const added = useDuelStore.getState().state.cards.find((item) => item.code === code)!
+    assert(added.location === CardLocation.EXTRA, '编辑模式添加到主卡组应自动转入额外卡组')
+    assert(added.sequence === 0, '自动转入额外卡组的新卡应放到顶部')
+    assert(added.position === CardPosition.FACEDOWN_DEFENSE, '自动转入额外卡组应为里侧')
+    ids.push(added.instanceId)
+    const command = buildInjectCommand({
+      card,
+      controller: 0,
+      location: CardLocation.DECK,
+      sequence: 0,
+      ctrlKey: false,
+      masterRule: 5
+    })
+    assert(command?.op === 'add-card' && command.to === 'extra', '拖入主卡组应生成额外卡组指令')
+    useEngineInjectDropStore.getState().open({
+      card,
+      controller: 0,
+      location: CardLocation.DECK,
+      sequence: 0
+    })
+    assert(
+      useEngineInjectDropStore.getState().pending?.location === CardLocation.EXTRA,
+      '引擎拖放选择应显示额外卡组目标'
+    )
+    useEngineInjectDropStore.getState().cancel()
+  }
+  assert(editorCards(CardLocation.DECK).length === deckCount, '自动归位不能改变主卡组')
+  useDuelStore.getState().moveCard(ids[0], CardLocation.GRAVE, 0)
+  useDuelStore.getState().moveCard(ids[0], CardLocation.DECK, 0)
+  const moved = useDuelStore.getState().state.cards.find((card) => card.instanceId === ids[0])!
+  const step = useDuelStore.getState().state.steps!.at(-1)!
+  assert(moved.location === CardLocation.EXTRA, '已有卡片移入主卡组也应自动归位')
+  assert(moved.sequence === 0, '已有卡片自动转入额外卡组时应放到顶部')
+  assert(step.toLocation === CardLocation.EXTRA, '移动步骤应记录额外卡组')
+  assert(step.toSequence === moved.sequence && step.toSequence >= 0, '步骤应记录实际插入序号')
+  assert(step.description.includes('额外卡组'), '步骤说明应显示实际目标')
+  const move = step.manualOps?.find((op) => op.type === 'move')
+  assert(move?.type === 'move' && move.toLocation === CardLocation.EXTRA, '重放操作应使用额外卡组')
+  useDuelStore.temporal.getState().undo()
+  assert(
+    useDuelStore.getState().state.cards.find((card) => card.instanceId === ids[0])?.location ===
+      CardLocation.GRAVE,
+    '撤销应恢复原区域'
+  )
+  useDuelStore.temporal.getState().redo()
+  useDuelStore.getState().moveCards(
+    ids.slice(1).map((instanceId) => ({
+      instanceId,
+      toLocation: CardLocation.GRAVE,
+      toSequence: -1
+    }))
+  )
+  useDuelStore.getState().moveCards(
+    ids.slice(1).map((instanceId) => ({
+      instanceId,
+      toLocation: CardLocation.DECK,
+      toSequence: 0
+    }))
+  )
+  assert(
+    ids.every(
+      (id) =>
+        useDuelStore.getState().state.cards.find((card) => card.instanceId === id)?.location ===
+        CardLocation.EXTRA
+    ),
+    '批量移动也应自动归位'
+  )
+  assert(
+    useDuelStore.getState().state.cards.find((card) => card.instanceId === ids.at(-1))?.sequence ===
+      0,
+    '批量移动时最后转入的卡应位于额外卡组顶部'
+  )
+  const pendulum = cdbService
+    .findCardsByType(CardType.PENDULUM, 100)
+    .find((card) => !CardUtils.isExtraDeck(card.type ?? 0))!
+  assert(Boolean(pendulum), '应有主卡组灵摆怪兽作为对照')
+  for (const code of [89631139, 54484652, pendulum.id]) {
+    useDuelStore.getState().addCardToZone(cardOf(code), 0, CardLocation.DECK, 0)
+    assert(editorCards(CardLocation.DECK, code).length > 0, '主卡组怪兽应保留在主卡组')
+  }
+  console.log('[renderer-inject] 编辑模式额外卡组自动归位: OK')
+}
 
 let fieldId = 0
 
@@ -163,8 +280,15 @@ function editorCards(location: number, code?: number): FieldCard[] {
 async function main(): Promise<void> {
   installWindowApi()
   await cdbService.ready()
+  checkEditorExtraPlacements()
 
-  useDuelStore.setState((prev) => ({ ...prev, state: buildPuzzle() }))
+  useDuelStore.setState((prev) => ({
+    ...prev,
+    state: buildPuzzle(),
+    currentStepIndex: null,
+    selectedStepId: null,
+    previewReturn: null
+  }))
   useDuelEngineStore.getState().stopEngine()
   await useDuelEngineStore.getState().startEngine()
   assert(useDuelEngineStore.getState().isInitialized, 'startEngine 后引擎应处于激活状态')
@@ -187,11 +311,10 @@ async function main(): Promise<void> {
   assert(handOk, '加入手牌注入应成功')
   assert(editorCards(CardLocation.HAND).length === beforeHand + 1, '引擎注入后编辑器手牌应 +1')
   assert(editorCards(CardLocation.HAND, 89631139).length === 1, '编辑器手牌中应出现注入卡')
-  assert(
-    useDuelEngineStore.getState().injectNotice !== null,
-    '注入成功后应写入 toast 提示'
+  assert(useDuelEngineStore.getState().injectNotice !== null, '注入成功后应写入 toast 提示')
+  console.log(
+    `[renderer-inject] 加入手牌: 手牌 ${beforeHand} -> ${editorCards(CardLocation.HAND).length}`
   )
-  console.log(`[renderer-inject] 加入手牌: 手牌 ${beforeHand} -> ${editorCards(CardLocation.HAND).length}`)
 
   const graveOk = await useDuelEngineStore.getState().inject({
     op: 'add-card',
@@ -216,6 +339,46 @@ async function main(): Promise<void> {
     '编辑器怪兽区应出现注入卡'
   )
   console.log('[renderer-inject] 放置到怪兽区: 编辑器场上已出现注入卡')
+
+  const beforeExtraNode = duelSession.getTimeline().at(-1)!
+  const beforeExtraCount = editorCards(CardLocation.EXTRA).length
+  const beforeDeckCount = editorCards(CardLocation.DECK).length
+  for (const code of EXTRA_CODES) {
+    for (const to of ['deck-top', 'deck-bottom', 'deck-shuffle'] as const) {
+      const beforeCount = editorCards(CardLocation.EXTRA).length
+      const ok = await useDuelEngineStore.getState().inject({ op: 'add-card', player: 0, code, to })
+      assert(ok, '额外怪兽注入主卡组应成功')
+      assert(editorCards(CardLocation.EXTRA).length === beforeCount + 1, '额外卡组数量应增加')
+      assert(editorCards(CardLocation.DECK).length === beforeDeckCount, '主卡组数量应不变')
+      const notice = useDuelEngineStore.getState().injectNotice!
+      assert(notice.kind === 'success', '自动归位应提示成功')
+      assert(notice.message.includes('加入额外卡组'), '提示应说明实际加入额外卡组')
+      assert(!notice.message.includes('引擎未将卡片'), '不应误报放置失败')
+      assert(
+        useDuelStore
+          .getState()
+          .state.initialBoardSnapshot!.filter((card) => card.location === CardLocation.EXTRA)
+          .length ===
+          beforeCount + 1,
+        '初始布景应同步额外卡组中的注入卡'
+      )
+    }
+  }
+  const afterExtraNode = duelSession.getTimeline().at(-1)!
+  const doc = duelSession.exportSessionDoc()
+  await duelSession.importSessionDoc(doc)
+  assert(
+    duelSession.getBoardState().players[0].extraCount === beforeExtraCount + 12,
+    '恢复会话应保留归位结果'
+  )
+  await duelSession.jumpToStep(beforeExtraNode.id)
+  assert(duelSession.getBoardState().players[0].extraCount === beforeExtraCount, '回退应移除注入卡')
+  await duelSession.jumpToStep(afterExtraNode.id)
+  assert(
+    duelSession.getBoardState().players[0].extraCount === beforeExtraCount + 12,
+    '重放应恢复归位结果'
+  )
+  console.log('[renderer-inject] 引擎模式自动归位、成功提示与会话重放: OK')
 
   assert(useDuelEngineStore.getState().error === null, '注入链全程不应报错')
   console.log('[renderer-inject] ALL CHECKS PASSED')

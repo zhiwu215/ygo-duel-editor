@@ -360,6 +360,19 @@ async function caseSelect(): Promise<void> {
 
 async function main(): Promise<void> {
   await cdbService.ready()
+  const ghostBeef = 84046493
+  for (const [rule, location, side] of [
+    [5, CardLocation.SZONE, 0],
+    [5, CardLocation.SZONE, 4],
+    [3, CardLocation.PZONE, 1]
+  ] as const) {
+    const pendulum = makeCard(ghostBeef, 0, location, side, CardPosition.FACEUP_ATTACK)
+    const puzzle = buildPuzzle({ handCode: BLUE_EYES, field: [pendulum] })
+    puzzle.masterRule = rule
+    const ask = await driveUntilAsk({ puzzle, cardCode: ghostBeef })
+    assert.equal(ask.data.kind, 'announce')
+    assert.ok(!duelSession.submitAnswer({ kind: 'announce', value: 1 }).retry)
+  }
   await caseCoin()
   await caseDice()
   await caseSelect()

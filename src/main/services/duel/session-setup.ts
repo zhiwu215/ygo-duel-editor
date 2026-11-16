@@ -11,8 +11,13 @@ import {
   isStandardTag
 } from '@shared/index'
 import type { DuelPuzzleState, EngineDuelInitParams, FieldCard } from '@shared/index'
+import { cdbService } from '../../db/cdbService'
 import type { SessionState } from './session-state'
-import { restoreInitialOverlay } from './initial-overlay'
+import {
+  addInitialDebugCards,
+  prepareMr3PendulumZones,
+  restoreInitialOverlay
+} from './initial-overlay'
 
 const { OcgcoreScriptConstants } = _OcgcoreConstants
 
@@ -258,26 +263,41 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
   const p1Lp = Number(puzzleState.players[1]?.lp ?? 8000)
   state.fieldReader.reset([p0Lp, p1Lp], puzzleState.turnPlayer)
 
+  const { placements, unsupportedPendulum, unsupportedOverlay } = buildInitialPlacements({
+    ...puzzleState,
+    cards: puzzleState.cards.map((card) =>
+      card.location === CardLocation.SZONE && !card.card
+        ? { ...card, card: cdbService.getCardById(card.code) ?? undefined }
+        : card
+    )
+  })
+
+  if (
+    puzzleState.masterRule === 3 &&
+    placements.some((entry) => entry.placement.location === CardLocation.PZONE)
+  ) {
+    prepareMr3PendulumZones(state.duel!)
+  }
   state.duel!.setPlayerInfo({ player: 0, lp: p0Lp, startHand: 0, drawCount: 1 })
   state.duel!.setPlayerInfo({ player: 1, lp: p1Lp, startHand: 0, drawCount: 1 })
-
-  const { placements, unsupportedPendulum, unsupportedOverlay } =
-    buildInitialPlacements(puzzleState)
 
   const seeds: { key: string; code: number; instanceId: string }[] = []
   for (const entry of placements) {
     const { card } = entry
-    state.duel!.newCard({
+    const initialCard = {
       code: card.code,
       owner: initialStateOwnerOf(card, entry.placement.location),
       player: card.controller,
       location: entry.placement.location,
       sequence: entry.placement.sequence,
       position: entry.placement.position
-    })
+    }
+    const pendulum = initialCard.location === CardLocation.PZONE
+    if (pendulum) addInitialDebugCards(state.duel!, [initialCard])
+    else state.duel!.newCard(initialCard)
     restoreInitialOverlay(state.duel!, card)
     seeds.push({
-      key: `${card.controller}:${entry.placement.location}:${entry.identitySequence}`,
+      key: `${card.controller}:${pendulum ? CardLocation.SZONE : entry.placement.location}:${entry.identitySequence}`,
       code: card.code,
       instanceId: card.instanceId
     })

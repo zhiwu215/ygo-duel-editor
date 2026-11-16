@@ -5,7 +5,7 @@ import { orderPrivatePilePlacements } from './privatePilePlacements'
 
 const FACE_UP = 0x5
 const FACE_DOWN_DEFENSE = 0x8
-const PENDULUM_SZONE_LIMIT = FIELD_ZONE_SEQUENCE
+import { CardUtils } from '../types/card'
 
 export interface PlacementTarget {
   location: number
@@ -37,25 +37,17 @@ export function initialStateOwnerOf(card: FieldCard, location: number): number {
   return isPrivatePile(location) ? card.controller : (card.owner ?? card.controller)
 }
 
-export interface InitialPlacementsOptions {
-  preservePendulumZone?: boolean
-}
-
-export function buildInitialPlacements(
-  state: DuelPuzzleState,
-  options?: InitialPlacementsOptions
-): InitialPlacements {
+export function buildInitialPlacements(state: DuelPuzzleState): InitialPlacements {
   const fieldCards = state.cards.filter((card) => card.code > 0)
   const placements: InitialPlacement[] = []
   let unsupportedPendulum = 0
   let unsupportedOverlay = 0
 
-  const preservePendulumZone = options?.preservePendulumZone === true && state.masterRule >= 3
   const pzoneSequences = getPzoneSzoneSequence(state.masterRule)
-  const takenSzone = new Set<number>()
+  const takenSzone = [new Set<number>(), new Set<number>()]
   for (const card of fieldCards) {
-    if (card.location === CardLocation.SZONE) takenSzone.add(card.sequence)
-    if (card.location === CardLocation.FZONE) takenSzone.add(FIELD_ZONE_SEQUENCE)
+    if (card.location === CardLocation.SZONE) takenSzone[card.controller].add(card.sequence)
+    if (card.location === CardLocation.FZONE) takenSzone[card.controller].add(FIELD_ZONE_SEQUENCE)
   }
 
   for (const card of fieldCards) {
@@ -76,23 +68,40 @@ export function buildInitialPlacements(
       const sequence = pzoneSequences[card.sequence]
       if (
         sequence === undefined ||
-        (!preservePendulumZone && sequence >= PENDULUM_SZONE_LIMIT) ||
-        takenSzone.has(sequence)
+        state.masterRule < 3 ||
+        takenSzone[card.controller].has(sequence)
       ) {
         unsupportedPendulum += 1
         continue
       }
-      takenSzone.add(sequence)
+      takenSzone[card.controller].add(sequence)
       placements.push({
         card,
         placement: {
-          location: preservePendulumZone ? CardLocation.PZONE : CardLocation.SZONE,
-          sequence: preservePendulumZone ? card.sequence : sequence,
+          location: CardLocation.PZONE,
+          sequence: card.sequence,
           position: FACE_UP
         },
         identitySequence: sequence
       })
       continue
+    }
+    if (
+      card.location === CardLocation.SZONE &&
+      state.masterRule >= 3 &&
+      card.position & FACE_UP &&
+      card.card &&
+      CardUtils.isPendulum(card.card.type)
+    ) {
+      const side = pzoneSequences.indexOf(card.sequence)
+      if (side >= 0) {
+        placements.push({
+          card,
+          placement: { location: CardLocation.PZONE, sequence: side, position: card.position },
+          identitySequence: card.sequence
+        })
+        continue
+      }
     }
     const isFieldZone = card.location === CardLocation.FZONE
     const location = isFieldZone ? CardLocation.SZONE : card.location

@@ -273,9 +273,7 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
       )
     }
     let segment = ''
-    const initialPlacements = buildInitialPlacements(render.state, {
-      preservePendulumZone: true
-    })
+    const initialPlacements = buildInitialPlacements(render.state)
     for (const entry of initialPlacements.placements) {
       const key = `${entry.card.controller}:${entry.card.location}`
       if (key !== segment) {

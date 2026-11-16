@@ -12,6 +12,7 @@ import {
 } from '@shared/index'
 import type { DuelPuzzleState, EngineDuelInitParams, FieldCard } from '@shared/index'
 import type { SessionState } from './session-state'
+import { restoreInitialOverlay } from './initial-overlay'
 
 const { OcgcoreScriptConstants } = _OcgcoreConstants
 
@@ -194,6 +195,7 @@ function setupStandardTagFromPuzzleState(state: SessionState, puzzleState: DuelP
       sequence,
       position: card.position
     })
+    restoreInitialOverlay(state.duel!, card)
     seeds.push({
       key: `${card.controller}:${location}:${sequence}`,
       code: card.code,
@@ -273,6 +275,7 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
       sequence: entry.placement.sequence,
       position: entry.placement.position
     })
+    restoreInitialOverlay(state.duel!, card)
     seeds.push({
       key: `${card.controller}:${entry.placement.location}:${entry.identitySequence}`,
       code: card.code,
@@ -293,9 +296,7 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
     )
   }
   if (unsupportedOverlay > 0) {
-    state.accumulatedLogs.push(
-      `引擎无法还原 ${unsupportedOverlay} 张超量素材（ocgcore 建卡不接受 LOCATION_OVERLAY）`
-    )
+    state.accumulatedLogs.push(`有 ${unsupportedOverlay} 张独立超量素材缺少宿主位置信息，未能还原`)
   }
 }
 

@@ -3,13 +3,24 @@
  * 生成给游戏的 single lua 必须与编辑器引擎的建卡顺序/序列完全一致，
  * 否则游戏侧还原出的开局盘面不同，录像应答会错位（表现为游戏回放中途 Error occurs）。
  */
-import { DuelPuzzleState, FieldCard, generateLuaScript, normalizeDuelState } from '@shared/index'
+import {
+  CardLocation,
+  CardPosition,
+  DuelPuzzleState,
+  FieldCard,
+  createStandardTagDuelists,
+  generateLuaScript,
+  normalizeDuelState,
+  parseLuaScript
+} from '@shared/index'
 import { _OcgcoreConstants } from 'koishipro-core.js'
 import { createSessionState } from '../../src/main/services/duel/session-state'
 import { setupFromPuzzleState } from '../../src/main/services/duel/session-setup'
 import { buildDuelFlag } from '../../src/main/services/yrpWriter'
 import { cdbService } from './cdb-shim'
 import { getOcgcoreEngine } from './ocgcore-engine-shim'
+import { DuelSession } from '../../src/main/services/duel/duel-session'
+import { autoAnswer } from './autoAnswer'
 
 const {
   LOCATION_HAND,
@@ -160,9 +171,12 @@ async function editorSnapshot(puzzle: DuelPuzzleState): Promise<Record<string, s
   }
 }
 
-async function luaSnapshot(puzzle: DuelPuzzleState): Promise<Record<string, string>> {
+async function luaSnapshot(
+  puzzle: DuelPuzzleState,
+  forReplay = true
+): Promise<Record<string, string>> {
   const engine = await getOcgcoreEngine()
-  currentLua = generateLuaScript(puzzle, { forReplay: true })
+  currentLua = generateLuaScript(puzzle, { forReplay })
   if (!luaReaderReady) {
     luaReaderReady = true
     engine.setScriptReader((scriptPath: string) =>
@@ -201,13 +215,57 @@ function assert(condition: boolean, message: string): void {
 
 async function checkRule(masterRule: 2 | 5): Promise<void> {
   const puzzle = buildPuzzle(masterRule)
+  const host = makeCard(84013237, 0, CardLocation.MZONE, 2, CardPosition.FACEUP_ATTACK)
+  host.overlayMaterials = [89631139, 46986414, 89631139]
+  const opponentHost = makeCard(84013237, 1, CardLocation.MZONE, 2, CardPosition.FACEDOWN_DEFENSE)
+  opponentHost.owner = 0
+  opponentHost.overlayMaterials = [46986414, 89631139]
+  puzzle.cards.push(host, opponentHost)
+  if (masterRule === 5) {
+    const extraHost = makeCard(84013237, 0, CardLocation.MZONE, 5, CardPosition.FACEUP_DEFENSE)
+    extraHost.overlayMaterials = [46986414]
+    puzzle.cards.push(extraHost)
+  }
   const editor = await editorSnapshot(puzzle)
   const lua = await luaSnapshot(puzzle)
+  assert(
+    editor['0:mzone'].includes('84013237@2/1+89631139+46986414+89631139'),
+    `MR${masterRule} 编辑器启动丢失超量素材: ${editor['0:mzone']}`
+  )
+  assert(
+    lua['0:mzone'].includes('84013237@2/1+89631139+46986414+89631139'),
+    `MR${masterRule} 游戏脚本丢失超量素材: ${lua['0:mzone']}`
+  )
+  assert(
+    editor['1:mzone'].includes('84013237@2/8+46986414+89631139'),
+    `MR${masterRule} 对方盖放宿主的素材异常: ${editor['1:mzone']}`
+  )
+  if (masterRule === 5) {
+    assert(
+      editor['0:mzone'].includes('84013237@5/4+46986414'),
+      `MR5 额外怪兽区素材异常: ${editor['0:mzone']}`
+    )
+  }
+  const game = await luaSnapshot(puzzle, false)
+  const parsed = parseLuaScript(currentLua)
+  for (const card of puzzle.cards.filter((card) => card.overlayMaterials.length > 0)) {
+    const imported = parsed.cards.find(
+      (candidate) =>
+        candidate.controller === card.controller &&
+        candidate.location === card.location &&
+        candidate.sequence === card.sequence
+    )
+    assert(
+      imported?.overlayMaterials.join(',') === card.overlayMaterials.join(','),
+      `MR${masterRule} Lua 导入素材异常: ${card.instanceId}`
+    )
+  }
   for (const key of Object.keys(editor)) {
     assert(
       editor[key] === lua[key],
       `MR${masterRule} ${key} 盘面不一致\n  编辑器: ${editor[key]}\n  回放脚本: ${lua[key]}`
     )
+    assert(editor[key] === game[key], `MR${masterRule} ${key} 游戏测试脚本盘面不一致`)
   }
   assert(editor['0:extra'].startsWith('74063034@0'), `MR${masterRule} 额外卡组顺序异常`)
   assert(
@@ -224,10 +282,99 @@ async function checkRule(masterRule: 2 | 5): Promise<void> {
   console.log(`MR${masterRule}: pzone=${editor['0:pzone']}`)
 }
 
+async function checkTag(): Promise<void> {
+  const puzzle = buildPuzzle(5)
+  puzzle.cards = puzzle.cards.filter((card) => card.location !== CardLocation.HAND)
+  puzzle.duelists = createStandardTagDuelists()
+  puzzle.matchConfig = {
+    mode: 'tag',
+    team0Count: 2,
+    team1Count: 2,
+    tagFormat: 'standard',
+    sharedLp: true
+  }
+  const host = makeCard(84013237, 1, CardLocation.MZONE, 2, CardPosition.FACEUP_ATTACK)
+  host.overlayMaterials = [89631139, 46986414]
+  puzzle.cards.push(host)
+  const editor = await editorSnapshot(puzzle)
+  const lua = await luaSnapshot(puzzle, false)
+  assert(
+    editor['1:mzone'].includes('84013237@2/1+89631139+46986414'),
+    `双打启动丢失素材: ${editor['1:mzone']}`
+  )
+  assert(editor['1:mzone'] === lua['1:mzone'], '双打游戏测试脚本素材不一致')
+}
+
+async function checkDetach(): Promise<void> {
+  const puzzle = buildPuzzle(5)
+  const host = makeCard(34086406, 0, CardLocation.MZONE, 2, CardPosition.FACEUP_ATTACK)
+  host.overlayMaterials = [89631139, 46986414, 89631139]
+  puzzle.cards = [
+    ...puzzle.cards.filter(
+      (card) => card.location === CardLocation.DECK && cdbService.getCardById(card.code)
+    ),
+    host
+  ]
+  const session = new DuelSession()
+  const start = await session.startDuel({ puzzleState: puzzle, seed: SEED })
+  const totalCards = (): number =>
+    session
+      .getBoardState()
+      .allCards.reduce((total, card) => total + 1 + card.overlayMaterials.length, 0)
+  const total = totalCards()
+  const settle = (): void => {
+    for (let count = 0; count < 40; count++) {
+      const request = session.getPendingRequest()
+      assert(Boolean(request), '取除素材测试应有待答询问')
+      if (request!.data.kind === 'idle') return
+      const result = session.submitAnswer(autoAnswer(request!))
+      assert(!result.retry, '引擎不应拒绝取除素材测试的回答')
+    }
+    throw new Error('取除素材测试无法推进到主要阶段')
+  }
+  settle()
+  const request = session.getPendingRequest()!
+  if (request.data.kind !== 'idle') throw new Error('应处于主要阶段')
+  const activation = request.data.activatable.find(
+    (card) =>
+      card.controller === host.controller &&
+      card.location === host.location &&
+      card.sequence === host.sequence
+  )
+  assert(Boolean(activation), '布景素材必须可用于发动取除素材的效果')
+  const activated = session.submitAnswer({ kind: 'idle', cmd: 'ACTIVATE', card: activation! })
+  assert(!activated.retry, '引擎应接受发动效果')
+  settle()
+  assert(
+    session.getBoardState().players[0].mzone[2]?.overlayMaterials.length === 2,
+    '应取除一张素材'
+  )
+  assert(
+    session.getBoardState().players[0].graveyard.some((card) => card.code === 89631139),
+    '取除的素材应实际进入墓地'
+  )
+  assert(totalCards() === total, '取除素材前后总卡数必须守恒')
+  const doc = session.exportSessionDoc()
+  await session.importSessionDoc(doc)
+  assert(
+    session.getBoardState().players[0].mzone[2]?.overlayMaterials.length === 2,
+    '恢复会话应保留剩余素材'
+  )
+  await session.jumpToStep(start.initialNode.id)
+  assert(
+    session.getBoardState().players[0].mzone[2]?.overlayMaterials.join(',') ===
+      host.overlayMaterials.join(','),
+    '回退到开局应还原完整素材及顺序'
+  )
+  session.exitReplay()
+}
+
 async function main(): Promise<void> {
   await cdbService.ready()
   await checkRule(2)
   await checkRule(5)
+  await checkTag()
+  await checkDetach()
   console.log('[lua-placement-smoke] OK')
   process.exit(0)
 }

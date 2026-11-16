@@ -56,9 +56,6 @@ export function buildInitialPlacements(
   for (const card of fieldCards) {
     if (card.location === CardLocation.SZONE) takenSzone.add(card.sequence)
     if (card.location === CardLocation.FZONE) takenSzone.add(FIELD_ZONE_SEQUENCE)
-    if (card.location === CardLocation.MZONE && card.overlayMaterials?.length) {
-      unsupportedOverlay += card.overlayMaterials.filter((code) => code > 0).length
-    }
   }
 
   for (const card of fieldCards) {

@@ -3,6 +3,7 @@ import { alignFirstPlayerSeat } from './seatAlignment'
 import { CardLocation, FIELD_ZONE_SEQUENCE } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 import { buildInitialPlacements } from './initialPlacements'
+import { buildInitialOverlayPlacements } from './initialOverlayPlacements'
 import { orderPrivatePilePlacements } from './privatePilePlacements'
 import type { DuelTestSettings } from '../types/ipc/appConfig'
 
@@ -251,6 +252,11 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
     } else {
       lines.push(
         `Debug.AddCard(${card.code}, ${owner}, ${targetController}, ${locName}, ${sequence}, ${posName})${cardNameComment}`
+      )
+    }
+    for (const material of buildInitialOverlayPlacements(card)) {
+      lines.push(
+        `Debug.AddCard(${material.code}, ${material.owner}, ${material.player}, LOCATION_MZONE, ${material.sequence}, ${getPositionConstName(material.position)})`
       )
     }
   }

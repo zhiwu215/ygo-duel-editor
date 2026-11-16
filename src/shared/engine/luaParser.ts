@@ -115,13 +115,16 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
       } else if (rawController === 3) {
         duelistId = 'duelist_1_1'
       }
-      if (location === CardLocation.OVERLAY) {
-        const hostMonster = state.cards.find(
-          (c) =>
-            c.controller === controller &&
-            c.location === CardLocation.MZONE &&
-            c.sequence === sequence
-        )
+      const hostMonster =
+        location === CardLocation.MZONE || location === CardLocation.OVERLAY
+          ? state.cards.find(
+              (c) =>
+                c.controller === controller &&
+                c.location === CardLocation.MZONE &&
+                c.sequence === sequence
+            )
+          : undefined
+      if (location === CardLocation.OVERLAY || hostMonster) {
         if (hostMonster) {
           hostMonster.overlayMaterials.push(code)
         }

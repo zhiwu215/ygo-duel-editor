@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url'
 import { cdbService } from './cdb-shim'
 import { readEngineCardData } from '../../src/main/services/duel/card-reader'
 import { readRandomControlScript } from '../../src/main/services/duel/random-control'
+import { readInitialOverlayScript } from '../../src/main/services/duel/initial-overlay'
 
 declare const __filename: string
 const coreRequire = createRequire(__filename)
@@ -78,6 +79,7 @@ export async function bindEngineCapabilities(wrapper: any): Promise<void> {
     const scriptRoot = path.join(GAME_DIR, 'script')
     cachedReaders = [
       readRandomControlScript,
+      readInitialOverlayScript,
       (scriptPath: string): Uint8Array | null => {
         const normalized = scriptPath.replace(/^\.\//, '').replace(/^script\//, '')
         try {

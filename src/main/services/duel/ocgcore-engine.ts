@@ -14,6 +14,7 @@ import { configService } from '../configService'
 import { getGameScriptDirectories } from '../gameScriptPaths'
 import { readEngineCardData } from './card-reader'
 import { readRandomControlScript } from './random-control'
+import { readInitialOverlayScript } from './initial-overlay'
 import { readCustomScript } from '../customCardScript'
 import { extraScriptSources, readExtraCardScript } from '../extraCardScripts'
 import { placeholderScriptForPath } from '../placeholderGameCards'
@@ -116,6 +117,7 @@ export async function bindEngineCapabilities(wrapper: OcgcoreWrapper): Promise<v
   wrapper.setCardReader(readEngineCardData)
 
   wrapper.setScriptReader(readRandomControlScript)
+  wrapper.setScriptReader(readInitialOverlayScript)
 
   wrapper.setScriptReader(readCustomScript)
 

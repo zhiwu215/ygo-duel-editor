@@ -19,6 +19,8 @@ import { useDuelStore } from '../../src/renderer/src/stores/useDuelStore'
 import { cdbService } from './cdb-shim'
 
 const BLUE_EYES = 89631139
+const UTOPIA = 84013237
+const MATERIALS = [BLUE_EYES, 46986414, BLUE_EYES]
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(`断言失败: ${message}`)
@@ -95,6 +97,13 @@ function duplicatePositions(cards: FieldCard[]): string[] {
     .map(([key, list]) => `${key} => ${list.join(' + ')}`)
 }
 
+function assertMaterials(expected: number[], stage: string): void {
+  const editorHost = useDuelStore.getState().state.cards.find((card) => card.code === UTOPIA)
+  const engineHost = duelSession.getBoardState().players[0].mzone[2]
+  assert(editorHost?.overlayMaterials.join(',') === expected.join(','), `${stage}编辑器素材丢失`)
+  assert(engineHost?.overlayMaterials.join(',') === expected.join(','), `${stage}引擎素材丢失`)
+}
+
 async function main(): Promise<void> {
   installWindowApi()
   await cdbService.ready()
@@ -163,6 +172,13 @@ async function main(): Promise<void> {
   add(74063034, 0, CardLocation.DECK, 1, CardPosition.FACEDOWN_DEFENSE)
   add(12307878, 0, CardLocation.EXTRA, 0, CardPosition.FACEDOWN_DEFENSE)
   add(75286621, 0, CardLocation.EXTRA, 1, CardPosition.FACEDOWN_DEFENSE)
+  add(UTOPIA, 0, CardLocation.MZONE, 2, CardPosition.FACEUP_ATTACK)
+  const hostId = useDuelStore
+    .getState()
+    .state.cards.find((card) => card.code === UTOPIA)!.instanceId
+  for (const material of MATERIALS) {
+    useDuelStore.getState().addOverlayMaterial(hostId, material)
+  }
 
   add(14558127, 1, CardLocation.HAND, 0, CardPosition.FACEDOWN)
   add(33782437, 1, CardLocation.HAND, 1, CardPosition.FACEDOWN)
@@ -179,6 +195,7 @@ async function main(): Promise<void> {
 
   await useDuelEngineStore.getState().startEngine()
   assert(useDuelEngineStore.getState().isInitialized, '引擎应启动')
+  assertMaterials(MATERIALS, '首次启动')
 
   for (let i = 0; i < 6; i++) {
     const pending = useDuelEngineStore.getState().pendingRequest
@@ -203,10 +220,16 @@ async function main(): Promise<void> {
   assert(!useDuelEngineStore.getState().isInitialized, '挂起后引擎应停止')
   assert(useDuelEngineStore.getState().suspendedDoc !== null, '挂起后应有会话快照')
 
+  const continued = await useDuelEngineStore.getState().resumeSuspended()
+  assert(continued, `继续应成功: ${useDuelEngineStore.getState().error}`)
+  assertMaterials(MATERIALS, '继续')
+  await useDuelEngineStore.getState().suspendEngine()
+
   useDuelStore.getState().previewTimelineStart()
 
   const restored = await useDuelEngineStore.getState().resumeSuspendedFromStart()
   assert(restored, `从头开始应成功: ${useDuelEngineStore.getState().error}`)
+  assertMaterials(MATERIALS, '从头开始')
   const engineBoard = useDuelEngineStore.getState().boardState
   assert(engineBoard !== null, '引擎应有初始盘面')
 
@@ -224,6 +247,13 @@ async function main(): Promise<void> {
       `P${controller} 手牌数应与引擎一致（编辑器 ${hand.length} vs 引擎 ${engineBoard.players[controller].hand.length}）`
     )
   }
+
+  await useDuelEngineStore.getState().suspendEngine()
+  useDuelStore.getState().enterSceneMode()
+  useDuelStore.getState().addOverlayMaterial(hostId, 46986414)
+  await useDuelEngineStore.getState().startEngine()
+  assert(useDuelEngineStore.getState().isInitialized, '修改布景后引擎应启动')
+  assertMaterials([...MATERIALS, 46986414], '修改布景后重启')
 
   console.log('[start-over-dup] ALL PASSED')
   process.exit(0)

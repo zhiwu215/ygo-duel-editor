@@ -3,6 +3,19 @@
  * 圣杯A（投硬币）与天使的骰子（投骰子）必须先用询问再结算，
  * いたずら好きな双子悪魔（随机选卡）必须先用选卡询问，不允许先结算再由客户端改写。
  */
+import { YGOProYrp3d } from 'ygopro-yrp3d-encode'
+import { buildYrp3dMessages } from '../../src/main/services/yrp3dMessages'
+import assert from 'node:assert/strict'
+import {
+  YGOProMessages,
+  YGOProMsgTossCoin,
+  YGOProMsgTossDice,
+  YGOProMsgUpdateData
+} from 'ygopro-msg-encode'
+import { generateLuaScript } from '@shared/engine/luaGenerator'
+import { buildDuelFlag, buildYrpSingleFile } from '../../src/main/services/yrpWriter'
+import { verifyYrpReplay } from '../../src/main/services/duel/replay-verifier'
+import { getOcgcoreEngine } from './ocgcore-engine-shim'
 import { duelSession } from '../../src/main/services/duel/duel-session'
 import {
   CardLocation,
@@ -176,6 +189,51 @@ async function driveUntilAsk(params: {
   throw new Error('没有等到引擎询问随机结果')
 }
 
+async function verifyExport(toss?: 'coin' | 'dice', value?: number): Promise<void> {
+  const puzzle = duelSession.getInitParams()!.puzzleState!
+  const { messages, responses } = await duelSession.recordMessageStream()
+  if (toss) {
+    const type = toss === 'coin' ? YGOProMsgTossCoin : YGOProMsgTossDice
+    const recording = new YGOProYrp3d()
+    recording.messages.push(...buildYrp3dMessages(messages))
+    const decoded = new YGOProYrp3d().fromYrp3d(recording.toYrp3d())
+    const results = decoded.messages
+      .map((message) => YGOProMessages.getInstanceFromPayload(message.toPayload()))
+      .filter((message) => message instanceof type)
+      .flatMap((message) => message.results)
+    assert.deepEqual(results, [value])
+    if (toss === 'dice') {
+      const updates = decoded.messages.filter(
+        (message) =>
+          message instanceof YGOProMsgUpdateData &&
+          message.player === 0 &&
+          message.location === CardLocation.MZONE
+      )
+      const card = updates.at(-1)?.cards[0]
+      assert.equal(card?.attack, 3000 + value! * 100)
+      assert.equal(card?.defense, 2500 + value! * 100)
+    }
+  }
+  const script = generateLuaScript(puzzle, { forReplay: true, manualRandom: true })
+  const wrapper = await getOcgcoreEngine()
+  const filename = `random-smoke-${toss ?? 'select'}-${value ?? 0}.lua`
+  wrapper.setScriptReader((name: string) =>
+    name.endsWith(`/${filename}`) ? new TextEncoder().encode(script) : null
+  )
+  const bytes = buildYrpSingleFile({
+    names: ['A', 'B'],
+    seed: duelSession.getSeed(),
+    startLp: 8000,
+    startHand: 0,
+    drawCount: 1,
+    opt: buildDuelFlag(Number(puzzle.masterRule), puzzle.firstTurnAttack, false),
+    scriptFile: `./single/${filename}`,
+    responses
+  })
+  assert.ok(responses.length)
+  assert.deepEqual(verifyYrpReplay(wrapper, bytes), { ok: true, step: responses.length })
+}
+
 async function runCoin(
   chooseIndex: number
 ): Promise<{ options: string[]; node: EngineTimelineNode | null }> {
@@ -192,6 +250,7 @@ async function runCoin(
       : []
   const res = duelSession.submitAnswer({ kind: 'option', index: chooseIndex })
   if (res.retry) throw new Error('选项应答被引擎拒绝（RETRY）')
+  await verifyExport('coin', chooseIndex === 0 ? 1 : 0)
   return { options, node: res.node ?? null }
 }
 
@@ -257,6 +316,7 @@ async function caseDice(): Promise<void> {
   if (toss?.results.join(',') !== '6') {
     throw new Error(`选 6 后的投掷记录不对：${JSON.stringify(toss)}`)
   }
+  await verifyExport('dice', 6)
 }
 
 async function caseSelect(): Promise<void> {
@@ -289,6 +349,7 @@ async function caseSelect(): Promise<void> {
       if (grave.length !== 1 || grave[0].code !== wanted) {
         throw new Error('指定随机选卡后，送去墓地的不是指定的那张')
       }
+      await verifyExport()
       return
     }
     const res = duelSession.submitAnswer(autoAnswer(pending, DELINQUENT_DUO))
@@ -310,4 +371,3 @@ main().catch((err) => {
   console.error('[random-force-smoke] FAILED:', err)
   process.exit(1)
 })
-

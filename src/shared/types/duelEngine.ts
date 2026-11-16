@@ -110,6 +110,7 @@ export interface EngineTimelineNode {
 }
 
 export interface EngineDuelInitParams {
+  manualRandom?: boolean
   p0Lp?: number
   p1Lp?: number
   p0StartHand?: number

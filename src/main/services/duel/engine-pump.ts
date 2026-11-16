@@ -24,10 +24,11 @@ import { CardLocation, type EngineRequest } from '@shared/index'
 import type { Answer } from '@shared/engine/protocol'
 import type { PendingQuery, SessionState } from './session-state'
 import { shouldAutoPassChain } from './chain-policy'
+import { recordMonsterStats } from './replayMonsterStats'
 import { collectDuelLogMessages } from './duel-log'
 import { isInteractiveQuery } from './message-parser'
 import { routeRequest } from './request-router'
-import { isRandomAskPending } from './random-control'
+import { isRandomAskPending, readRecordedToss } from './random-control'
 import { createRecordedAnswer } from './replay-policy'
 
 const PRIVATE_CARD_LOCATIONS = new Set<number>([
@@ -172,11 +173,23 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
 
     assertMessagesComplete(state, res)
 
+    if (state.initParams?.manualRandom) {
+      const toss = readRecordedToss(duel)
+      if (toss) {
+        const message = toss.type === 'coin' ? new YGOProMsgTossCoin() : new YGOProMsgTossDice()
+        message.player = toss.player
+        message.results = toss.results
+        message.count = toss.results.length
+        msgs.unshift(message)
+      }
+    }
+
     if (msgs.length > 0) {
       if (state.recordingMessages) {
         for (const msg of msgs) {
           if (typeof (msg as { toPayload?: unknown }).toPayload === 'function') {
             state.recordingMessages.push((msg as { toPayload(): Uint8Array }).toPayload())
+            recordMonsterStats(duel, msg, state.recordingMessages)
           }
         }
       }

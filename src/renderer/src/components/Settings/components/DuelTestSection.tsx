@@ -73,7 +73,7 @@ export function DuelTestSection(): JSX.Element {
 
       <SettingsRow
         title="引擎随机结果"
-        description="开启：投硬币、掷骰子、随机选卡完全由引擎决定；关闭：结算时弹窗让你手动指定结果。手动指定只在本编辑器内生效，导出的回放会报错"
+        description="开启：投硬币、掷骰子、随机选卡完全由引擎决定；关闭：结算时弹窗让你手动指定结果。1v1 游戏测试支持手动指定；分享 YRP 时请附上配套的 single 脚本"
       >
         <ChoiceGroup
           value={engineRandom ?? 'on'}

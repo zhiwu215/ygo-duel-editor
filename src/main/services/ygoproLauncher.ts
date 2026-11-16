@@ -487,6 +487,7 @@ export class YgoproLauncher {
     }
 
     const initParams = duelDirector.getInitParams()
+    const manualRandom = initParams?.manualRandom ?? config.duelTestSettings?.engineRandom === 'off'
     const rawReplayState = initParams?.puzzleState ?? params.state
     const replayState =
       gameType === 'mdpro3' ? rawReplayState : mapPlaceholderCodesForGame(rawReplayState)
@@ -519,7 +520,10 @@ export class YgoproLauncher {
     const safeName = name.replace(/\s+/g, '_')
     const conflictPaths =
       format === 'yrp3d'
-        ? [join(gameDir, 'replay', `${safeName}.yrp3d`)]
+        ? [
+            join(gameDir, 'replay', `${safeName}.yrp3d`),
+            ...(manualRandom && !isTag ? [join(gameDir, 'single', `${safeName}.lua`)] : [])
+          ]
         : [
             join(gameDir, 'replay', `${name}.yrp`),
             ...(tagReplay ? [] : [join(gameDir, 'single', `${name}.lua`)])
@@ -607,6 +611,14 @@ export class YgoproLauncher {
         const replayDir = join(gameDir, 'replay')
         mkdirSync(replayDir, { recursive: true })
         const yrp3dPath = join(replayDir, `${safeName}.yrp3d`)
+        if (manualRandom && !isTag) {
+          mkdirSync(join(gameDir, 'single'), { recursive: true })
+          writeFileSync(
+            join(gameDir, 'single', `${safeName}.lua`),
+            generateLuaScript(replayState, { forReplay: true, manualRandom }),
+            'utf-8'
+          )
+        }
         writeFileSync(yrp3dPath, Buffer.from(yrp3d.toYrp3d()))
 
         let launched = false
@@ -641,7 +653,9 @@ export class YgoproLauncher {
     }
     try {
       if (!tagReplay) completeCardDetails(replayState)
-      const luaContent = tagReplay ? null : generateLuaScript(replayState, { forReplay: true })
+      const luaContent = tagReplay
+        ? null
+        : generateLuaScript(replayState, { forReplay: true, manualRandom })
       const warnings: string[] = []
 
       const singleDir = join(gameDir, 'single')

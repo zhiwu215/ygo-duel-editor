@@ -29,7 +29,15 @@ interface SerializedInjectOp {
 
 export type SerializedOp = SerializedAnswerOp | SerializedAutoOp | SerializedInjectOp
 
+export interface SessionEnvironment {
+  engineVersion: string
+  cardCodes: number[]
+  cardHash: string
+  scriptHash: string
+}
+
 export interface EngineSessionDoc {
+  environment?: SessionEnvironment
   version: 1
   seed: number[]
   initParams: EngineDuelInitParams
@@ -50,6 +58,7 @@ export function hasSessionCardInjections(doc: Pick<EngineSessionDoc, 'ops'>): bo
 }
 
 export interface EngineSessionImportPayload {
+  environmentWarning?: string
   initParams: EngineDuelInitParams
   boardState: EngineBoardState
   pendingRequest: EngineRequest | null

@@ -680,10 +680,10 @@ export class YgoproLauncher {
         })
       if (luaContent) {
         const verification = verifyYrpReplay(await getOcgcoreEngine(), yrpBytes)
-        if (!verification.ok) {
+        if (verification.status !== 'verified') {
+          const label = verification.status === 'incomplete' ? '回放校验未完成' : '回放无法复现'
           warnings.push(
-            `生成的回放无法被引擎复现：第 ${verification.step} 步的应答与引擎询问不匹配。\n` +
-              `这通常意味着 single/${name}.lua 还原出的开局盘面与编辑器内的盘面不一致，在游戏中播放可能中途报错。`
+            label + '（已读取 ' + verification.step + ' 条应答）：' + verification.reason
           )
         }
       }

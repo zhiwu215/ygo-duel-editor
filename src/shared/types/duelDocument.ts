@@ -32,6 +32,7 @@ export interface DuelDocumentTree {
 export interface DuelDocumentReadResult {
   success: boolean
   filePath?: string
+  recoveryState?: DuelPuzzleState
   document?: DuelDocument
   error?: string
 }

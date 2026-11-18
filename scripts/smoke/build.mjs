@@ -1,5 +1,7 @@
 // 冒烟测试打包配置（esbuild JS API）
 import path from 'path'
+import { pathToFileURL } from 'node:url'
+import { spawnSync } from 'node:child_process'
 import { createRequire } from 'module'
 
 // 项目未直接依赖 esbuild；vite 依赖它，用 vite 的 require 上下文解析
@@ -9,11 +11,7 @@ const viteRequire = createRequire(
     'package.json'
   )
 )
-const esbuild = await import(pathToFileUrl(viteRequire.resolve('esbuild')))
-
-function pathToFileUrl(p) {
-  return 'file:///' + p.replace(/\\/g, '/')
-}
+const esbuild = await import(pathToFileURL(viteRequire.resolve('esbuild')).href)
 
 const root = path.resolve(import.meta.dirname, '../..')
 
@@ -97,6 +95,7 @@ const entries = [
   'reset-duel-smoke',
   'hand-open-smoke',
   'scene-opening-smoke',
+  'document-library-smoke',
   'autosave-smoke',
   'duel-branch-smoke',
   'session-suspend-smoke',
@@ -109,16 +108,27 @@ const entries = [
 ]
 
 let failed = 0
-for (const name of entries) {
+const run = process.argv.includes('--run')
+const selected = process.argv.slice(2).filter((arg) => arg !== '--run')
+if (selected.some((name) => !entries.includes(name))) throw new Error('未知的 smoke 用例')
+for (const name of selected.length ? selected : entries) {
   try {
     await esbuild.build({
       ...commonOptions,
       entryPoints: [path.join(root, `scripts/smoke/${name}.ts`)],
       outfile: `scripts/smoke/${name}.bundle.cjs`
     })
+    if (run) {
+      const result = spawnSync(
+        process.execPath,
+        [path.join(root, 'scripts/smoke', name + '.bundle.cjs')],
+        { cwd: root, stdio: 'inherit' }
+      )
+      if (result.status !== 0) throw result.error ?? new Error('退出状态 ' + result.status)
+    }
   } catch (err) {
     failed++
-    console.error(`[smoke-build] ${name} 构建失败: ${err.errors?.[0]?.text ?? err.message}`)
+    console.error(`[smoke-build] ${name} 失败: ${err.errors?.[0]?.text ?? err.message}`)
   }
 }
 if (failed > 0) process.exitCode = 1

@@ -141,7 +141,7 @@ export function useProjectCommands(): ProjectCommands {
 
   const handleOpenProject = useCallback(async (): Promise<void> => {
     const result = await window.api.openDuelDocumentDialog()
-    if (!result.success || !result.filePath) {
+    if ((!result.success && !result.recoveryState) || !result.filePath) {
       if (result.error) void alertDialog(`打开失败：${result.error}`)
       return
     }

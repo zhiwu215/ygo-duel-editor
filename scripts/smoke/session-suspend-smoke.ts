@@ -186,6 +186,7 @@ let engineSupported = true
         currentStepId: node.id
       }
     }),
+    renameDuelDocument: async (filePath: string, title: string) => ({ success: true, filePath: filePath.replace(/[^/]+$/, title + '.ygoduel') }),
     getDuelEngineSupport: async () => ({ supported: engineSupported }),
     readDuelDocument: async (filePath: string) =>
       storedDocument
@@ -290,6 +291,16 @@ async function checkEngineReopen(): Promise<void> {
   assert(engine.currentStepId === node.id, '自动恢复后应停在原步骤')
 }
 
+async function checkMismatchedBoard(): Promise<void> {
+  storedDocument = { state: structuredClone(engineOrderState), engine: {...sessionDoc, boardFingerprint: 'old-board'} }
+  engineSupported = true
+  const result = await openDuelDocument('C:/tmp/session-changed.ygoduel')
+  assert(result.success, '盘面不同仍可查看台本')
+  const engine = useDuelEngineStore.getState()
+  assert(!engine.isInitialized, '不应以旧会话覆盖已编辑的盘面')
+  assert(engine.suspendedDoc?.boardFingerprint === 'old-board', '保留原会话用于恢复')
+}
+
 async function checkUnsupportedReopen(): Promise<void> {
   engineSupported = false
   storedDocument = {
@@ -342,6 +353,7 @@ async function main(): Promise<void> {
   await checkReopen(document)
   await checkResume()
   await checkEngineReopen()
+  await checkMismatchedBoard()
   await checkUnsupportedReopen()
   checkDetach()
   console.log('[session-suspend-smoke] ok')

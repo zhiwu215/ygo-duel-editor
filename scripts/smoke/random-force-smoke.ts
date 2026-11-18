@@ -231,7 +231,7 @@ async function verifyExport(toss?: 'coin' | 'dice', value?: number): Promise<voi
     responses
   })
   assert.ok(responses.length)
-  assert.deepEqual(verifyYrpReplay(wrapper, bytes), { ok: true, step: responses.length })
+  assert.deepEqual(verifyYrpReplay(wrapper, bytes), { status: 'verified', step: responses.length })
 }
 
 async function runCoin(

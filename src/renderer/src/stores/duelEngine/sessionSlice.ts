@@ -14,6 +14,7 @@ import {
   reversePileSequences,
   reverseStepBoards
 } from '@shared/index'
+import { alertDialog } from '../useDialogStore'
 import { useDuelStore } from '../useDuelStore'
 import { detachStepsFromTimeline } from '../../utils/stepHistory'
 import { syncJumpToStepWrapped } from './boardReconcile'
@@ -513,6 +514,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
         return false
       }
       const payload = res.payload
+      if (payload.environmentWarning) void alertDialog(payload.environmentWarning)
       clearEngineSteps()
       clearIdentities()
       get().clearStepEffects()

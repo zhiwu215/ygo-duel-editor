@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { verifyYrpReplay } from '../../src/main/services/duel/replay-verifier'
 import path from 'path'
 import { decompress } from '@cjser/lzma1'
 import { _OcgcoreConstants } from 'koishipro-core.js'
@@ -23,6 +24,7 @@ function buildInitParams(): EngineDuelInitParams {
     10000020, 89631139, 46986414, 23434538
   ]
   return {
+    seed: [1, 2, 3, 4, 5, 6, 7, 8],
     p0Lp: 8000,
     p1Lp: 8000,
     p0StartHand: 5,
@@ -237,6 +239,7 @@ function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
 
 async function main(): Promise<void> {
   await cdbService.ready()
+  assert(verifyYrpReplay(await getOcgcoreEngine(), new Uint8Array(2)).status === 'incomplete', '损坏回放不能通过校验')
   const initParams = buildInitParams()
   const start = await duelSession.startDuel(initParams)
   console.log(

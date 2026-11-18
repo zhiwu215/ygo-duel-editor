@@ -71,7 +71,14 @@ import {
 } from './card-editor'
 import type { AnswerCodeRemap } from './answer-align'
 
+import {
+  openingCardCodes,
+  readSessionEnvironment,
+  sessionEnvironmentWarning
+} from './session-environment'
+
 interface SessionSnapshot {
+  environment?: EngineSessionDoc['environment']
   seed: number[]
   initParams: EngineDuelInitParams | null
   ops: DuelOperation[]
@@ -85,6 +92,7 @@ const MAX_AUTO_FINISH_LOOPS = 8
 
 export class DuelSession {
   private state = createSessionState()
+  private environment?: EngineSessionDoc['environment']
 
   setTimingPolicy(policy: TimingPolicy): TimingPolicy {
     this.state.timingPolicy = normalizeTimingPolicy(policy)
@@ -442,6 +450,7 @@ export class DuelSession {
   }
 
   private resetSessionState(): void {
+    this.environment = undefined
     const state = this.state
     state.accumulatedLogs = []
     state.accumulatedEvents = []
@@ -462,6 +471,7 @@ export class DuelSession {
   private captureSessionState(): SessionSnapshot {
     const state = this.state
     return {
+      environment: this.environment,
       seed: [...state.seed],
       initParams: state.initParams ? structuredClone(state.initParams) : null,
       ops: structuredClone(state.ops),
@@ -477,6 +487,7 @@ export class DuelSession {
     this.disposeDuel()
     state.timeline.clear()
     this.resetSessionState()
+    this.environment = snapshot.environment
     state.seed = [...snapshot.seed]
     state.initParams = snapshot.initParams
     state.ops = snapshot.ops
@@ -502,6 +513,7 @@ export class DuelSession {
     }
     return {
       version: ENGINE_SESSION_DOC_VERSION,
+      environment: structuredClone(this.environment),
       seed: [...state.seed],
       initParams: structuredClone(state.initParams),
       ops: state.ops.map((op) => encodeSessionOp(op)),
@@ -523,10 +535,16 @@ export class DuelSession {
     }
 
     await this.init()
+    const environment = readSessionEnvironment(
+      state.ocgcore!,
+      parsed.environment?.cardCodes ?? openingCardCodes(parsed.initParams)
+    )
+    const warning = sessionEnvironmentWarning(parsed.environment, environment)
     const previous = this.captureSessionState()
 
     try {
       this.resetSessionState()
+      this.environment = environment
       state.seed = [...parsed.seed]
       state.initParams = structuredClone(parsed.initParams)
       state.initParams.manualRandom ??= isManualRandomEnabled()
@@ -542,6 +560,7 @@ export class DuelSession {
       node.pendingRequest = headPendingQuery(state)?.request ?? null
 
       return {
+        environmentWarning: warning,
         initParams: structuredClone(state.initParams),
         boardState,
         pendingRequest: headPendingQuery(state)?.request ?? null,
@@ -550,6 +569,7 @@ export class DuelSession {
       }
     } catch (err) {
       await this.restoreSessionState(previous)
+      if (warning) throw new Error(warning + '\n' + String(err))
       throw new Error(`导入对局剧本失败：${err instanceof Error ? err.message : String(err)}`)
     }
   }
@@ -581,6 +601,7 @@ export class DuelSession {
           Math.floor(Math.random() * 100000)
         ]
     while (seed.length < 8) seed.push(0)
+    this.environment = readSessionEnvironment(state.ocgcore!, openingCardCodes(params))
     state.seed = seed
     state.initParams = { ...params, manualRandom: params.manualRandom ?? isManualRandomEnabled() }
 

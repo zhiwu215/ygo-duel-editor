@@ -1,0 +1,33 @@
+name: Smoke
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      YGO_SMOKE_GAMEDIR: ${{ github.workspace }}/.smoke-game
+      YGO_SMOKE_CDB: ${{ github.workspace }}/.smoke-data/locales/en-US/cards.cdb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Fluorohydride/ygopro-scripts
+          ref: 7aaa8907725f9b552d49333128db20033487e206
+          path: .smoke-game/script
+      - uses: actions/checkout@v4
+        with:
+          repository: mycard/ygopro-database
+          ref: c86148b27e97d7d1b8975c9f27ab68b0edb02185
+          path: .smoke-data
+          sparse-checkout: locales/en-US
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.14.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm smoke

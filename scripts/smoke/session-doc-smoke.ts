@@ -223,6 +223,15 @@ async function main(): Promise<void> {
 
   const target = new DuelSession()
   const imported = await target.importSessionDoc(roundTrip)
+  assert.ok(doc.environment)
+  assert.deepEqual(roundTrip.environment, doc.environment)
+  assert.equal(imported.environmentWarning, undefined)
+  const changed = await target.importSessionDoc({
+    ...roundTrip, environment: { ...doc.environment!, scriptHash: 'old' }
+  })
+  assert.match(changed.environmentWarning ?? '', /脚本/)
+  const legacy = await target.importSessionDoc({ ...roundTrip, environment: undefined })
+  assert.equal(legacy.environmentWarning, undefined)
   const importedBoard = imported.boardState
   const importedPending = imported.pendingRequest
 

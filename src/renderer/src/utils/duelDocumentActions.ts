@@ -11,9 +11,11 @@ import type {
   DuelStep,
   EngineSessionDoc
 } from '@shared/index'
+import { alertDialog } from '../stores/useDialogStore'
 import { useDuelStore } from '../stores/useDuelStore'
 import { useDuelEngineStore } from '../stores/useDuelEngineStore'
 import { buildDuelDocument } from './duelDocumentBuild'
+import { readDuelDocumentForEditing } from './readDuelDocumentForEditing'
 import { clearDuelDocumentDraft } from './duelDocumentDraft'
 import {
   commitDuelDocumentTitle,
@@ -127,15 +129,15 @@ export async function openDuelDocument(
   }
   suspendDuelDocumentAutosave()
   try {
-    const result = await window.api.readDuelDocument(targetPath)
+    const result = await readDuelDocumentForEditing(targetPath)
+    let resolvedPath = result.filePath ?? targetPath
     if (!result.success || !result.document) {
       return { success: false, error: result.error ?? '读取对局文档失败' }
     }
-    let resolvedPath = targetPath
     const contentTitle = result.document.state.title?.trim()
-    if (contentTitle && contentTitle !== documentTitleFromPath(targetPath)) {
+    if (contentTitle && contentTitle !== documentTitleFromPath(resolvedPath)) {
       const renamed = await window.api
-        .renameDuelDocument(targetPath, contentTitle)
+        .renameDuelDocument(resolvedPath, contentTitle)
         .catch(() => null)
       if (renamed?.success && renamed.filePath) {
         resolvedPath = renamed.filePath
@@ -158,21 +160,25 @@ export async function openDuelDocument(
       if (engineDoc.suspended) {
         suspendedDoc = engineDoc
         useDuelEngineStore.getState().setSuspendedDoc(engineDoc)
-      } else if (!support.supported) {
+      } else if (
+        !support.supported ||
+        !documentMatchesFingerprint(engineDoc, result.document.state)
+      ) {
+        if (support.supported) void alertDialog('台本盘面与引擎记录不一致，已保留并挂起原会话。')
         restoreEditingPileOrder()
         suspendedDoc = markSessionSuspended(engineDoc)
         useDuelEngineStore.getState().setSuspendedDoc(suspendedDoc)
-      } else if (documentMatchesFingerprint(engineDoc, result.document.state)) {
+      } else {
         const restored = await useDuelEngineStore.getState().restoreSessionDoc(engineDoc)
         if (!restored) {
+          restoreEditingPileOrder()
+          useDuelEngineStore.getState().setSuspendedDoc(markSessionSuspended(engineDoc))
           return {
             success: false,
             error: useDuelEngineStore.getState().error ?? '恢复引擎会话失败'
           }
         }
         engineRestored = true
-      } else {
-        restoreEditingPileOrder()
       }
       if (suspendedDoc) syncHeaderToSuspendedSession(suspendedDoc)
     }

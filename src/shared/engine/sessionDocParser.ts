@@ -371,6 +371,18 @@ export function parseEngineSessionDoc(value: unknown): EngineSessionDoc {
   }
   if (!Array.isArray(value.seed)) fail('seed 必须是数组。')
   const seed = value.seed.map((item, index) => readNumber(item, `seed[${index}]`))
+  let environment: EngineSessionDoc['environment']
+  if (value.environment !== undefined) {
+    const env = value.environment
+    assertRecord(env, 'environment')
+    if (!Array.isArray(env.cardCodes)) fail('environment.cardCodes 必须是数组。')
+    environment = {
+      engineVersion: readString(env.engineVersion, 'environment.engineVersion'),
+      cardCodes: env.cardCodes.map((code) => readInteger(code, 'environment.cardCodes', 1)),
+      cardHash: readString(env.cardHash, 'environment.cardHash'),
+      scriptHash: readString(env.scriptHash, 'environment.scriptHash')
+    }
+  }
   const initParams = parseInitParams(value.initParams)
   if (!Array.isArray(value.ops)) fail('ops 必须是数组。')
   const ops = value.ops.map((op, index) => parseOp(op, index))
@@ -420,6 +432,7 @@ export function parseEngineSessionDoc(value: unknown): EngineSessionDoc {
 
   return {
     version: ENGINE_SESSION_DOC_VERSION,
+    ...(environment ? { environment } : {}),
     seed,
     initParams,
     ops,

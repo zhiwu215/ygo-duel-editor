@@ -7,6 +7,7 @@ import { useCleanupBlankReplaySteps } from '../../hooks/useCleanupBlankReplaySte
 import { Button } from '../ui/button'
 import { Film, PlayCircle, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { StepLogViewport } from './StepLogViewport'
 import { StepPhaseHeader } from './StepPhaseHeader'
 import { StepTurnHeader } from './StepTurnHeader'
 import { StepLogRows } from './StepLogRows'
@@ -94,8 +95,8 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="p-2 flex flex-col gap-2 select-text">
+    <div className="flex-1 min-h-0 flex flex-col">
+      <div className="p-2 flex min-h-0 flex-col gap-2 select-text">
         {sceneEditing ? (
           <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
             <span>
@@ -171,27 +172,85 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
                 </div>
               )}
 
-            {items.map((item) => {
-              if (item.kind === 'turn') {
+            <StepLogViewport items={items}>
+              {(item) => {
+                if (item.kind === 'turn') {
+                  const { current, future } = stepState(item.step, item.index)
+                  return (
+                    <div
+                      key={item.key}
+                      className={cn(
+                        'group/step relative cursor-pointer border-l-2 transition-colors',
+                        current ? 'border-primary' : 'border-transparent',
+                        future && 'opacity-50 hover:opacity-100'
+                      )}
+                      onClick={() => handleStepClick(item.index, item.step)}
+                    >
+                      <StepTurnHeader
+                        turn={item.turn}
+                        turnPlayer={item.turnPlayer}
+                        lp={item.lp}
+                        duelists={duelists}
+                        sharedLp={sharedLp}
+                      />
+                      {!isReplay && !stepsWithRows.has(item.step.id) && (
+                        <StepHoverActions
+                          step={item.step}
+                          index={item.index}
+                          stepsLength={steps.length}
+                          canReorder={!engineActive}
+                        />
+                      )}
+                    </div>
+                  )
+                }
+                if (item.kind === 'phase') {
+                  const { current, future } = stepState(item.step, item.index)
+                  return (
+                    <div
+                      key={item.key}
+                      className={cn(
+                        'group/step relative cursor-pointer border-l-2 transition-colors',
+                        current ? 'border-primary' : 'border-transparent',
+                        future && 'opacity-50 hover:opacity-100'
+                      )}
+                      onClick={() => handleStepClick(item.index, item.step)}
+                    >
+                      <StepPhaseHeader phase={item.phase} />
+                      {!isReplay && !stepsWithRows.has(item.step.id) && (
+                        <StepHoverActions
+                          step={item.step}
+                          index={item.index}
+                          stepsLength={steps.length}
+                          canReorder={!engineActive}
+                        />
+                      )}
+                    </div>
+                  )
+                }
                 const { current, future } = stepState(item.step, item.index)
                 return (
                   <div
                     key={item.key}
                     className={cn(
-                      'group/step relative cursor-pointer border-l-2 transition-colors',
-                      current ? 'border-primary' : 'border-transparent',
+                      'group/step relative transition-colors',
+                      current && 'bg-primary/[0.07] ring-1 ring-inset ring-primary/20',
                       future && 'opacity-50 hover:opacity-100'
                     )}
-                    onClick={() => handleStepClick(item.index, item.step)}
+                    onMouseEnter={() =>
+                      setHoveredInstanceId(
+                        item.step.targetInstanceId ?? item.step.instanceId ?? null
+                      )
+                    }
+                    onMouseLeave={() => setHoveredInstanceId(null)}
                   >
-                    <StepTurnHeader
-                      turn={item.turn}
-                      turnPlayer={item.turnPlayer}
-                      lp={item.lp}
-                      duelists={duelists}
-                      sharedLp={sharedLp}
-                    />
-                    {!isReplay && !stepsWithRows.has(item.step.id) && (
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => handleStepClick(item.index, item.step)}
+                    >
+                      <StepLogRows rows={item.rows} duelists={duelists} />
+                    </div>
+                    {!isReplay && firstSegmentKeys.has(item.key) && (
                       <StepHoverActions
                         step={item.step}
                         index={item.index}
@@ -201,62 +260,8 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
                     )}
                   </div>
                 )
-              }
-              if (item.kind === 'phase') {
-                const { current, future } = stepState(item.step, item.index)
-                return (
-                  <div
-                    key={item.key}
-                    className={cn(
-                      'group/step relative cursor-pointer border-l-2 transition-colors',
-                      current ? 'border-primary' : 'border-transparent',
-                      future && 'opacity-50 hover:opacity-100'
-                    )}
-                    onClick={() => handleStepClick(item.index, item.step)}
-                  >
-                    <StepPhaseHeader phase={item.phase} />
-                    {!isReplay && !stepsWithRows.has(item.step.id) && (
-                      <StepHoverActions
-                        step={item.step}
-                        index={item.index}
-                        stepsLength={steps.length}
-                        canReorder={!engineActive}
-                      />
-                    )}
-                  </div>
-                )
-              }
-              const { current, future } = stepState(item.step, item.index)
-              return (
-                <div
-                  key={item.key}
-                  className={cn(
-                    'group/step relative transition-colors',
-                    current && 'bg-primary/[0.07] ring-1 ring-inset ring-primary/20',
-                    future && 'opacity-50 hover:opacity-100'
-                  )}
-                  onMouseEnter={() =>
-                    setHoveredInstanceId(item.step.targetInstanceId ?? item.step.instanceId ?? null)
-                  }
-                  onMouseLeave={() => setHoveredInstanceId(null)}
-                >
-                  <div
-                    className="cursor-pointer"
-                    onClick={() => handleStepClick(item.index, item.step)}
-                  >
-                    <StepLogRows rows={item.rows} duelists={duelists} />
-                  </div>
-                  {!isReplay && firstSegmentKeys.has(item.key) && (
-                    <StepHoverActions
-                      step={item.step}
-                      index={item.index}
-                      stepsLength={steps.length}
-                      canReorder={!engineActive}
-                    />
-                  )}
-                </div>
-              )
-            })}
+              }}
+            </StepLogViewport>
           </div>
         )}
       </div>

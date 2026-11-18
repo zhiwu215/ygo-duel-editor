@@ -3,7 +3,6 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
   renameSync,
   rmSync,
   statSync,
@@ -12,26 +11,17 @@ import {
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'path'
 import {
   DuelDocument,
-  DuelDocumentEntry,
-  DuelDocumentFolder,
   DuelDocumentListResult,
   DuelDocumentReadResult,
   DuelDocumentWriteResult
 } from '@shared/index'
-import {
-  parseDuelDocumentJson,
-  serializeDuelDocument,
-  summarizeStepProvenance
-} from '@shared/index'
+import { DuelSessionParseError, parseDuelDocumentJson, serializeDuelDocument } from '@shared/index'
+import { DuelDocumentIndex } from './duelDocumentIndex'
 import { dataDirService } from './dataDirService'
 import { sanitizeFileName } from '../utils/fileName'
 import { toErrorMessageOr } from '../utils/errors'
 
 const DOCUMENT_EXTENSION = '.ygoduel'
-
-function isDocumentFile(name: string): boolean {
-  return name.toLowerCase().endsWith(DOCUMENT_EXTENSION)
-}
 
 function sanitizeSegment(name: string, fallback: string): string {
   const cleaned = sanitizeFileName(name.trim())
@@ -58,6 +48,8 @@ function isSamePath(left: string, right: string): boolean {
 }
 
 export class DuelDocumentService {
+  private index = new DuelDocumentIndex()
+
   public get rootPath(): string {
     return dataDirService.ensureDirectory('projects')
   }
@@ -74,7 +66,7 @@ export class DuelDocumentService {
   public listTree(): DuelDocumentListResult {
     try {
       this.ensureRoot()
-      const root = this.scanFolder(this.rootPath, '')
+      const root = this.index.scan(this.rootPath, (path) => this.readDocument(path))
       return {
         success: true,
         tree: {
@@ -105,6 +97,7 @@ export class DuelDocumentService {
       return {
         success: false,
         filePath,
+        ...(err instanceof DuelSessionParseError ? { recoveryState: err.state } : {}),
         error: toErrorMessageOr(err, '读取对局文档失败')
       }
     }
@@ -298,60 +291,6 @@ export class DuelDocumentService {
     writeFileSync(temporary, serializeDuelDocument(document), 'utf-8')
     renameSync(temporary, target)
     return { success: true, filePath: target }
-  }
-
-  private scanFolder(absolutePath: string, relativePath: string): DuelDocumentFolder {
-    const folder: DuelDocumentFolder = {
-      name: basename(absolutePath),
-      path: relativePath,
-      folders: [],
-      documents: []
-    }
-    let entries
-    try {
-      entries = readdirSync(absolutePath, { withFileTypes: true })
-    } catch {
-      return folder
-    }
-    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-      if (entry.name.startsWith('.')) continue
-      const fullPath = join(absolutePath, entry.name)
-      if (entry.isDirectory()) {
-        folder.folders.push(
-          this.scanFolder(fullPath, relativePath ? `${relativePath}/${entry.name}` : entry.name)
-        )
-        continue
-      }
-      if (!entry.isFile() || !isDocumentFile(entry.name)) continue
-      const document = this.readDocument(fullPath)
-      if (!document.success || !document.document) continue
-      try {
-        folder.documents.push(this.toEntry(fullPath, document.document, relativePath))
-      } catch {
-        continue
-      }
-    }
-    return folder
-  }
-
-  private toEntry(
-    filePath: string,
-    document: DuelDocument,
-    categoryPath: string
-  ): DuelDocumentEntry {
-    const stat = statSync(filePath)
-    const name = basename(filePath, extname(filePath))
-    const title = document.state.title?.trim() || name
-    const provenance = summarizeStepProvenance(document.state.steps)
-    return {
-      filePath,
-      fileName: basename(filePath),
-      name,
-      title,
-      categoryPath,
-      updatedAt: stat.mtimeMs,
-      ...provenance
-    }
   }
 }
 

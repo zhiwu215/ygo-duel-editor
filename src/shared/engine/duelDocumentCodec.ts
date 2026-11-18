@@ -3,6 +3,15 @@ import { normalizeDuelState } from '../types/duelFactory'
 import type { EngineSessionDoc } from './sessionDoc'
 import { parseEngineSessionDoc } from './sessionDocParser'
 
+export class DuelSessionParseError extends Error {
+  constructor(
+    readonly state: DuelDocument['state'],
+    cause: unknown
+  ) {
+    super('引擎记录读取失败：' + (cause instanceof Error ? cause.message : String(cause)))
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -15,9 +24,9 @@ export function normalizeDuelDocument(input: unknown): DuelDocument {
   let engine: EngineSessionDoc | undefined
   if (input.engine !== undefined && input.engine !== null) {
     try {
-      engine = parseEngineSessionDoc(input.engine as never)
-    } catch {
-      engine = undefined
+      engine = parseEngineSessionDoc(input.engine)
+    } catch (error) {
+      throw new DuelSessionParseError(state, error)
     }
   }
   return { state, engine }

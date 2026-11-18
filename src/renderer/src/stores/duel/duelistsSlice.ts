@@ -42,7 +42,7 @@ export const createDuelistsSlice: StateCreator<DuelStore, [], [], DuelistsSlice>
     }),
 
   switchMatchConfig: (newConfig) => {
-    if (get().sceneEditing) get().exitSceneMode()
+    if (get().sceneEditing) get().exitSceneMode('previous')
     set((prev) => {
       const currentConfig = normalizeMatchConfig(
         prev.state.matchConfig || {

@@ -100,7 +100,7 @@ export const StepList: React.FC<StepListProps> = ({ steps }) => {
         {sceneEditing ? (
           <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
             <span>
-              布景编辑中：摆放、移动或删除卡片不会记录步骤。修改布景或从布景启动引擎会清空原有步骤，作为新的起点；仅查看后完成布景不受影响。
+              布景中的操作不会记录为步骤。直接退出会停在开局并保留已有步骤。完成修改或从布景启动规则校验会清空已有步骤。
             </span>
           </div>
         ) : isPreviewing ? (

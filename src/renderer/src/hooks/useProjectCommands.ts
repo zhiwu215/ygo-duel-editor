@@ -115,7 +115,7 @@ export function useProjectCommands(): ProjectCommands {
       description: '确认清空当前局面并新建对局？'
     }).then(async (ok) => {
       if (!ok) return
-      if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode()
+      if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode('previous')
       await flushDuelDocumentTitle()
       await flushDuelDocumentAutosave()
       const engine = useDuelEngineStore.getState()

@@ -95,7 +95,7 @@ function openInitialScene(): boolean {
   if (!opening || opening.length === 0) return false
   if (live.sceneEditing) {
     const sceneDirty = live.isSceneDirty()
-    live.exitSceneMode()
+    live.exitSceneMode('previous')
     if (!sceneDirty) {
       useDuelStore.setState((prev) => ({
         ...prev,
@@ -169,55 +169,31 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       })
       return
     }
-    if (useDuelStore.getState().sceneEditing) {
-      useDuelStore.getState().exitSceneMode()
-    }
     set({ loading: true, error: null })
     const wasInitialized = get().isInitialized
     try {
       const duelStore = useDuelStore.getState()
+      const fromScene = duelStore.sceneEditing
       const aligned = alignFirstPlayerSeat(duelStore.state)
-      if (aligned !== duelStore.state) {
-        duelStore.withSingleUndoStep(() =>
-          useDuelStore.setState({ state: aligned, activeTurnPlayer: aligned.turnPlayer })
-        )
-      }
       const currentDuelState = structuredClone(aligned)
-      if ((currentDuelState.steps ?? []).length === 0) {
-        const preserveOpening =
-          !options?.resetOpening && Boolean(currentDuelState.initialBoardSnapshot?.length)
-        if (!preserveOpening) {
-          const openingCards = createLightweightSnapshot(currentDuelState.cards)
-          const initialLp: [number, number] = [
+      if (fromScene) currentDuelState.steps = []
+      const hasSteps = Boolean(currentDuelState.steps?.length)
+      if (!hasSteps) {
+        const resetOpening =
+          fromScene || options?.resetOpening || !currentDuelState.initialBoardSnapshot?.length
+        if (resetOpening) {
+          currentDuelState.initialBoardSnapshot = createLightweightSnapshot(currentDuelState.cards)
+        }
+        if (resetOpening || !currentDuelState.initialLp) {
+          currentDuelState.initialLp = [
             currentDuelState.players[0]?.lp ?? 8000,
             currentDuelState.players[1]?.lp ?? 8000
           ]
-          useDuelStore.setState((prev) => ({
-            ...prev,
-            state: {
-              ...prev.state,
-              initialBoardSnapshot: openingCards,
-              initialLp
-            }
-          }))
-          currentDuelState.initialBoardSnapshot = openingCards
-          currentDuelState.initialLp = initialLp
-        } else if (!currentDuelState.initialLp) {
-          const initialLp: [number, number] = [
-            currentDuelState.players[0]?.lp ?? 8000,
-            currentDuelState.players[1]?.lp ?? 8000
-          ]
-          useDuelStore.setState((prev) => ({
-            ...prev,
-            state: { ...prev.state, initialLp }
-          }))
-          currentDuelState.initialLp = initialLp
         }
       } else {
         const openingSnapshot = resolveOpeningSnapshot(currentDuelState)
         if (openingSnapshot) currentDuelState.initialBoardSnapshot = openingSnapshot
       }
-      duelStore.commitPreview()
       await window.api.duelEngineSetPolicy(get().timingPolicy)
 
       const initParams: EngineDuelInitParams = {
@@ -226,6 +202,23 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       }
 
       const res = await window.api.duelEngineInit(initParams)
+      if (fromScene) duelStore.exitSceneMode()
+      duelStore.commitPreview()
+      if (aligned !== duelStore.state) {
+        duelStore.withSingleUndoStep(() =>
+          useDuelStore.setState({ state: aligned, activeTurnPlayer: aligned.turnPlayer })
+        )
+      }
+      if (!hasSteps) {
+        useDuelStore.setState((prev) => ({
+          state: {
+            ...prev.state,
+            initialBoardSnapshot: currentDuelState.initialBoardSnapshot,
+            initialLp: currentDuelState.initialLp,
+            ...(fromScene ? { steps: [] } : {})
+          }
+        }))
+      }
       clearEngineSteps()
       if (!wasInitialized) {
         clearIdentities()

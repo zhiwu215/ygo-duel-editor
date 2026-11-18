@@ -4,11 +4,14 @@
  * 断言盘面与引擎初始步骤完全一致，不出现同一位置两张卡。
  */
 import { duelSession } from '../../src/main/services/duel/duel-session'
+import { createElement } from 'react'
+import { renderToString } from 'react-dom/server'
 import {
   CardLocation,
   CardPosition,
   CdbCard,
   FieldCard,
+  createInitialDuelState,
   createLightweightSnapshot,
   normalizeDuelState,
   type Answer,
@@ -17,6 +20,11 @@ import {
 import { useDuelEngineStore } from '../../src/renderer/src/stores/useDuelEngineStore'
 import { useDuelStore } from '../../src/renderer/src/stores/useDuelStore'
 import { cdbService } from './cdb-shim'
+import {
+  readDuelDocumentDraft,
+  writeDuelDocumentDraft
+} from '../../src/renderer/src/utils/duelDocumentDraft'
+import { autoAnswer as answerPrompt } from './autoAnswer'
 
 const BLUE_EYES = 89631139
 const UTOPIA = 84013237
@@ -28,6 +36,7 @@ function assert(condition: boolean, message: string): void {
 
 function installWindowApi(): void {
   ;(globalThis as unknown as { window: unknown }).window = {
+    matchMedia: () => ({ matches: false }),
     api: {
       duelEngineInit: (params: unknown) => Promise.resolve(duelSession.startDuel(params as never)),
       duelEngineSubmitAnswer: (answer: unknown) =>
@@ -102,6 +111,97 @@ function assertMaterials(expected: number[], stage: string): void {
   const engineHost = duelSession.getBoardState().players[0].mzone[2]
   assert(editorHost?.overlayMaterials.join(',') === expected.join(','), `${stage}编辑器素材丢失`)
   assert(engineHost?.overlayMaterials.join(',') === expected.join(','), `${stage}引擎素材丢失`)
+}
+
+async function checkRecoveredScene(): Promise<void> {
+  const engine = useDuelEngineStore.getState
+  const editor = useDuelStore.getState
+  engine().stopEngine()
+  editor().loadProjectAndStart(createInitialDuelState(5))
+  const kaiju = 63941210
+  const add = (code: number, player: 0 | 1, location: number, sequence = 0): void => {
+    editor().addCardToZone(cdbService.getCardById(code)!, player, location, sequence)
+  }
+  add(kaiju, 0, CardLocation.HAND)
+  add(BLUE_EYES, 1, CardLocation.MZONE, 2)
+  add(46986414, 0, CardLocation.DECK)
+  add(46986414, 1, CardLocation.DECK)
+  await engine().startEngine()
+  let summoned = false
+  for (let i = 0; i < 30; i++) {
+    const request = engine().pendingRequest
+    if (!request) throw new Error('缺少引擎询问')
+    if (request.data.kind === 'idle') {
+      if (summoned) break
+      const card = request.data.spSummonable.find((candidate) => candidate.code === kaiju)
+      if (!card) throw new Error('应能解放对方的青眼白龙特殊召唤坏兽')
+      await engine().submitAnswer({ kind: 'idle', cmd: 'SPSUMMON', card })
+      summoned = true
+    } else {
+      await engine().submitAnswer(answerPrompt(request))
+    }
+  }
+  const storage = new Map<string, string>()
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      setItem: (key: string, value: string) => storage.set(key, value),
+      getItem: (key: string) => storage.get(key) ?? null
+    }
+  })
+  writeDuelDocumentDraft()
+  engine().stopEngine()
+  editor().resetDuel()
+  const draft = readDuelDocumentDraft()
+  if (!draft) throw new Error('未写入对局草稿')
+  editor().loadState(draft.state)
+  useDuelStore.setState({ duelStarted: draft.duelStarted })
+  const cardAt = (code: number, controller: number, location: number): boolean =>
+    editor().state.cards.some(
+      (card) => card.code === code && card.controller === controller && card.location === location
+    )
+  assert(cardAt(kaiju, 1, CardLocation.MZONE), '草稿应恢复到坏兽召唤之后')
+  const steps = JSON.stringify(editor().state.steps)
+  assert((editor().state.steps?.length ?? 0) > 0, '草稿应保留召唤步骤')
+  assert(editor().enterSceneMode() && !editor().isSceneDirty(), '应能查看原始布景')
+  editor().exitSceneMode()
+  assert(cardAt(BLUE_EYES, 1, CardLocation.MZONE), '退出布景应停在青眼白龙仍在场上的开局')
+  assert(cardAt(kaiju, 0, CardLocation.HAND), '退出布景后坏兽应在我方手牌')
+  assert(editor().currentPhase === 'DP', '退出布景应显示开局的抽卡阶段')
+  assert(JSON.stringify(editor().state.steps) === steps, '退出未修改的布景应完整保留步骤')
+  editor().previewStepBoard(editor().state.steps!.length - 1)
+  assert(cardAt(kaiju, 1, CardLocation.MZONE), '仍应能从步骤列表查看召唤后的盘面')
+  assert(editor().enterSceneMode() && !editor().isSceneDirty(), '应能从未改动的布景启动引擎')
+  const { useStartEngine } = await import('../../src/renderer/src/hooks/useStartEngine')
+  let startFromToolbar!: ReturnType<typeof useStartEngine>
+  function Toolbar(): null {
+    startFromToolbar = useStartEngine()
+    return null
+  }
+  renderToString(createElement(Toolbar))
+  const init = window.api.duelEngineInit
+  window.api.duelEngineInit = async () => {
+    throw new Error('模拟引擎初始化失败')
+  }
+  try {
+    await startFromToolbar()
+    assert(!engine().isInitialized && editor().sceneEditing, '启动失败后应停在布景')
+    assert(JSON.stringify(editor().state.steps) === steps, '启动失败应保留旧步骤')
+    assert(cardAt(kaiju, 0, CardLocation.HAND), '启动失败后应保留开局盘面')
+  } finally {
+    window.api.duelEngineInit = init
+  }
+  await startFromToolbar()
+  assert(engine().isInitialized, '应成功启动规则校验')
+  assert(
+    duelSession.getBoardState().players[1].mzone[2]?.code === BLUE_EYES,
+    '新引擎应保留青眼白龙'
+  )
+  assert(
+    duelSession.getBoardState().players[0].hand.some((card) => card.code === kaiju),
+    '应能重新召唤坏兽'
+  )
+  assert(editor().state.steps?.length === 0, '从布景重新开始应清除旧步骤')
 }
 
 async function main(): Promise<void> {
@@ -254,6 +354,7 @@ async function main(): Promise<void> {
   await useDuelEngineStore.getState().startEngine()
   assert(useDuelEngineStore.getState().isInitialized, '修改布景后引擎应启动')
   assertMaterials([...MATERIALS, 46986414], '修改布景后重启')
+  await checkRecoveredScene()
 
   console.log('[start-over-dup] ALL PASSED')
   process.exit(0)

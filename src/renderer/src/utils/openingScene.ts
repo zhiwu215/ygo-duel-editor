@@ -205,9 +205,8 @@ export function sceneSignature(scene: OpeningScene): string {
 export function resolveOpeningScene(state: DuelPuzzleState): OpeningScene | null {
   const steps = state.steps ?? []
   const first = steps[0]
-  if (!first) {
-    const snapshot = resolveOpeningSnapshot(state)
-    if (!snapshot || snapshot.length === 0) return null
+  const snapshot = resolveOpeningSnapshot(state)
+  if (snapshot && (!first || first.origin === 'engine')) {
     return {
       cards: snapshot,
       lp: state.initialLp
@@ -218,6 +217,7 @@ export function resolveOpeningScene(state: DuelPuzzleState): OpeningScene | null
       turnPlayer: state.turnPlayer
     }
   }
+  if (!first) return null
 
   const isMarker = first.actionType === 'PHASE_CHANGE' || first.actionType === 'TURN_CHANGE'
   const firstAction = steps.find(
@@ -225,7 +225,6 @@ export function resolveOpeningScene(state: DuelPuzzleState): OpeningScene | null
   )
   const boardSource = firstAction ?? first
   const derived = firstAction ? reverseStepBoard(firstAction) : null
-  const snapshot = resolveOpeningSnapshot(state)
   const preferSnapshot = snapshot ? snapshotMatchesStep(snapshot, boardSource) : false
   const cards = snapshot && preferSnapshot ? snapshot : (derived ?? snapshot)
   if (!cards) return null

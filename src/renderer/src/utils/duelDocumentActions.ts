@@ -119,7 +119,7 @@ export async function openDuelDocument(
   const currentPath = useDuelStore.getState().currentProjectPath
   const targetPath =
     previousPath && filePath === previousPath && currentPath ? currentPath : filePath
-  if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode()
+  if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode('previous')
   const flushed = await flushDuelDocumentAutosave()
   if (!flushed && hasUnsavedDuelDocument()) {
     return {
@@ -191,7 +191,7 @@ export async function openDuelDocument(
 }
 
 export async function saveDuelDocument(saveAs = false): Promise<DuelDocumentWriteResult> {
-  if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode()
+  if (useDuelStore.getState().sceneEditing) useDuelStore.getState().exitSceneMode('previous')
   if (saveAs) {
     await flushDuelDocumentTitle()
   } else {

@@ -89,7 +89,7 @@ export function useDuelDocumentAutosave(): void {
     const persistBeforeClose = async (): Promise<void> => {
       try {
         const duel = useDuelStore.getState()
-        if (duel.sceneEditing) duel.exitSceneMode()
+        if (duel.sceneEditing) duel.exitSceneMode('previous')
         if (duel.previewReturn) duel.exitPreview()
         await flushDuelDocumentTitle()
         await flushDuelDocumentAutosave()

@@ -76,7 +76,7 @@ export interface StepsSlice {
   previewStepBoard: (stepIndex: number | null) => void
   previewTimelineStart: () => void
   enterSceneMode: () => boolean
-  exitSceneMode: () => boolean
+  exitSceneMode: (destination?: 'opening' | 'previous') => boolean
   isSceneDirty: () => boolean
 }
 
@@ -696,7 +696,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     return true
   },
 
-  exitSceneMode: () => {
+  exitSceneMode: (destination = 'opening') => {
     if (!get().sceneEditing) return false
     const current = get()
     const scene = sceneOf(current)
@@ -706,7 +706,7 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
     sceneReturnSnapshot = null
     get().pauseUndoTracking()
     try {
-      if (snapshotToRestore) {
+      if (snapshotToRestore && destination === 'previous') {
         set((prev) => ({
           ...prev,
           sceneEditing: false,
@@ -717,6 +717,13 @@ export const createStepsSlice: StateCreator<DuelStore, [], [], StepsSlice> = (se
           activeTurnPlayer: snapshotToRestore.activeTurnPlayer,
           currentStepIndex: snapshotToRestore.currentStepIndex
         }))
+      } else if (snapshotToRestore) {
+        set({
+          sceneEditing: false,
+          selectedStepId: null,
+          previewReturn: useDuelEngineStore.getState().suspendedDoc ? snapshotToRestore : null,
+          state: { ...current.state, initialBoardSnapshot: scene.cards, initialLp: scene.lp }
+        })
       } else {
         set((prev) => {
           const nextState = {

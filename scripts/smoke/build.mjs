@@ -67,6 +67,7 @@ const entries = [
   'toss-result-smoke',
   'random-force-smoke',
   'lua-placement-smoke',
+  'place-controller-smoke',
   'announce-order-smoke',
   'policy-smoke',
   'provenance-smoke',

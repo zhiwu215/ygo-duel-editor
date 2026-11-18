@@ -66,7 +66,7 @@ function effectYnTitle(msg: YGOProMsgSelectEffectYn, card: RequestCard): string 
 }
 
 function normalizePlayer(v: number | undefined, fallback: 0 | 1): 0 | 1 {
-  return v === 1 ? 1 : fallback
+  return v === 0 || v === 1 ? v : fallback
 }
 
 function toRequestCard(info: {

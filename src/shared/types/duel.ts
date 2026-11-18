@@ -63,7 +63,7 @@ export interface DuelSourceRef {
 export interface DuelPuzzleState {
   version: string
   title: string
-  hint: string
+  hint: string[]
   duelType?: DuelType
   series?: string
   sourceRef?: DuelSourceRef

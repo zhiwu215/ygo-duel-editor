@@ -148,7 +148,7 @@ function buildBaseState(): ReturnType<typeof normalizeDuelState> {
   return normalizeDuelState({
     version: '1.2.0',
     title: '自动重打',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

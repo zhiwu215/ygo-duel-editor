@@ -88,7 +88,7 @@ function buildPuzzle(options: {
   return normalizeDuelState({
     version: '1.2.0',
     title: '随机指定联测',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

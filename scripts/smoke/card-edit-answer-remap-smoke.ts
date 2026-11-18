@@ -61,7 +61,7 @@ function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
   return normalizeDuelState({
     version: '1.2.0',
     title: '替换应答重映射联测',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

@@ -39,7 +39,7 @@ function setup(): void {
   const base = normalizeDuelState({
     version: '1.2.0',
     title: '手牌公开',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

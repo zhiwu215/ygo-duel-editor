@@ -40,7 +40,7 @@ function setup(): void {
   const base = normalizeDuelState({
     version: '1.2.0',
     title: '撤销粒度',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

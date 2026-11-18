@@ -1,3 +1,4 @@
+import { PuzzleHintEditor } from './components/PuzzleHintEditor'
 import React from 'react'
 import appIcon from '../../assets/app-icon.png'
 import { useDuelStore } from '../../stores/useDuelStore'
@@ -205,6 +206,7 @@ export const Header: React.FC = () => {
           <Separator orientation="vertical" className="h-4" />
 
           <MatchSelector />
+          {!replayInfo && <PuzzleHintEditor />}
 
           <Separator orientation="vertical" className="h-4" />
 

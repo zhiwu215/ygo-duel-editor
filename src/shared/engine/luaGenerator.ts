@@ -1,3 +1,4 @@
+import { writePuzzleHints } from './puzzleHints'
 import { CONTROL_SCRIPT } from './randomControlScript'
 import { DuelPuzzleState, FieldCard } from '../types/duel'
 import { alignFirstPlayerSeat } from './seatAlignment'
@@ -173,7 +174,9 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
   lines.push('-- ==============================================================')
   lines.push('')
   const flags: string[] = []
-  if (state.firstTurnAttack) flags.push('DUEL_ATTACK_FIRST_TURN')
+  if (state.firstTurnAttack || (!forReplay && state.duelType === 'puzzle')) {
+    flags.push('DUEL_ATTACK_FIRST_TURN')
+  }
   if (isTag) flags.push('DUEL_TAG_MODE')
   if (!forReplay && !isFull) flags.push('DUEL_SIMPLE_AI')
   if (!randomDeck) flags.push('DUEL_PSEUDO_SHUFFLE')
@@ -373,9 +376,7 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
       lines.push(`aux.BeginPuzzle()`)
     }
   }
-  if (state.hint && state.hint.trim().length > 0) {
-    lines.push(`Debug.ShowHint("${state.hint.replace(/"/g, '\\"')}")`)
-  }
+  lines.push(...writePuzzleHints(state.hint))
 
   return lines.join('\n')
 }

@@ -72,7 +72,7 @@ export function buildPuzzleStateFromEngineBoard(
   return {
     version: '1.2.0',
     title: meta.title,
-    hint: '',
+    hint: [],
     duelType: 'puzzle',
     masterRule,
     players: [

@@ -61,7 +61,7 @@ function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
   return normalizeDuelState({
     version: '1.2.0',
     title: '弃牌后替换手牌占位卡联测',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

@@ -141,7 +141,7 @@ const sessionDoc: EngineSessionDoc = {
 const engineOrderState = normalizeDuelState({
   version: '1.2.0',
   title: '会话挂起测试',
-  hint: '',
+  hint: [],
   duelType: 'full',
   masterRule: 5,
   players: [

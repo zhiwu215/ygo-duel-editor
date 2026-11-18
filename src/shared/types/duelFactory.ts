@@ -1,3 +1,4 @@
+import { normalizePuzzleHints } from '../engine/puzzleHints'
 import { MasterRule } from './rules'
 import {
   Duelist,
@@ -178,7 +179,7 @@ export function createInitialDuelState(
   return {
     version: '1.2.0',
     title: DEFAULT_DUEL_TITLE,
-    hint: '',
+    hint: [],
     duelType,
     masterRule,
     players: [
@@ -311,7 +312,7 @@ export function normalizeDuelState(state: DuelPuzzleState): DuelPuzzleState {
     version: state.version || '1.2.0',
     duelType: state.duelType || 'full',
     title: state.title || '未命名对局',
-    hint: state.hint || '',
+    hint: normalizePuzzleHints(state.hint),
     matchConfig,
     duelists,
     scenarios: normalizeDuelScenarios(state.scenarios),

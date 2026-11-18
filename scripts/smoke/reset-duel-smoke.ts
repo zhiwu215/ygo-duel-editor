@@ -38,7 +38,7 @@ function setup(): void {
   const base = normalizeDuelState({
     version: '1.2.0',
     title: '清空重置',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

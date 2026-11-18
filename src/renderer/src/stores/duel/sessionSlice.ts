@@ -30,7 +30,7 @@ export interface SessionSlice {
   setDuelType: (type: DuelType) => void
   setSeries: (series: string) => void
   setTitle: (title: string) => void
-  setHint: (hint: string) => void
+  setHint: (hint: string[]) => void
   setSourceRef: (sourceRef?: DuelSourceRef) => void
 }
 

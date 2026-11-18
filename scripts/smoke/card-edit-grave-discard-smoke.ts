@@ -57,7 +57,7 @@ function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
   return normalizeDuelState({
     version: '1.2.0',
     title: '替换墓地占位卡联测',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

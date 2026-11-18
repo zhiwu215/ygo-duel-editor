@@ -33,7 +33,7 @@ function buildPuzzle(): DuelPuzzleState {
   return normalizeDuelState({
     version: '1.2.0',
     title: '宣言询问联测',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 2,
     players: [

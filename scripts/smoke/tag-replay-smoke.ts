@@ -83,7 +83,7 @@ function buildTagPuzzle(): DuelPuzzleState {
   return {
     version: '1.2.0',
     title: '2v2 回放冒烟',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

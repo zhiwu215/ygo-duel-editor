@@ -79,7 +79,7 @@ function buildTagPuzzle(): ReturnType<typeof normalizeDuelState> {
   return normalizeDuelState({
     version: '1.2.0',
     title: '标准 2v2 卡片编辑联测',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

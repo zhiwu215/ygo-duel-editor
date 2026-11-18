@@ -1,3 +1,4 @@
+import { readPuzzleHint } from './puzzleHints'
 import { DuelPuzzleState, FieldCard } from '../types/duel'
 import {
   createInitialDuelState,
@@ -43,7 +44,6 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
     /Debug\.SetPlayerInfo\s*\(\s*([0-3])\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i
   const addCardRegex =
     /(?:local\s+(\w+)\s*=\s*)?Debug\.AddCard\s*\(\s*(\d+)\s*,\s*([0-3])\s*,\s*([0-3])\s*,\s*([^,]+)\s*,\s*(\d+)\s*,\s*([^,)]+)\s*\)/i
-  const hintRegex = /Debug\.ShowHint\s*\(\s*["'](.*)["']\s*\)/i
   const addCounterRegex = /(\w+):AddCounter\s*\(\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*(\d+)\s*\)/
 
   let isTag = false
@@ -91,9 +91,9 @@ export function parseLuaScript(luaContent: string): DuelPuzzleState {
       state.players[pIdx].maxHand = parseInt(playerMatch[4], 10)
       continue
     }
-    const hintMatch = trimmed.match(hintRegex)
-    if (hintMatch) {
-      state.hint = hintMatch[1]
+    const hint = readPuzzleHint(trimmed)
+    if (hint !== undefined) {
+      state.hint.push(hint)
       continue
     }
     const cardMatch = trimmed.match(addCardRegex)

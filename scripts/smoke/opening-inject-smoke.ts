@@ -424,7 +424,7 @@ function buildBaseState(): ReturnType<typeof normalizeDuelState> {
   return normalizeDuelState({
     version: '1.2.0',
     title: '注入并入初始场面',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

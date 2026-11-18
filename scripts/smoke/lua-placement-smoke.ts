@@ -81,7 +81,7 @@ function buildPuzzle(masterRule: 2 | 5): DuelPuzzleState {
   return normalizeDuelState({
     version: '1.2.0',
     title: '盘面还原联测',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule,
     players: [

@@ -145,7 +145,7 @@ async function main(): Promise<void> {
   const base = normalizeDuelState({
     version: '1.2.0',
     title: '引擎启动翻倍复现',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

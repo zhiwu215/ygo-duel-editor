@@ -51,7 +51,7 @@ function buildPuzzle(): DuelPuzzleState {
   return normalizeDuelState({
     version: '1.2.0',
     title: '联测对局',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

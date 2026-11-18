@@ -21,8 +21,9 @@ export function generateScreenplayMarkdown(
   lines.push(`# 《${title}》—— 决斗剧本台本`)
   lines.push('')
 
-  if (state.hint?.trim()) {
-    lines.push(`> **剧情背景 / 前情提要**：${state.hint.trim()}`)
+  const hint = state.hint.filter((part) => part.trim()).join('\n\n')
+  if (hint) {
+    lines.push(`> **剧情背景 / 前情提要**：${hint.trim()}`)
     lines.push('')
   }
   lines.push('### 【对局设定】')

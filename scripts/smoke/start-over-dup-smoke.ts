@@ -117,7 +117,7 @@ async function main(): Promise<void> {
   const base = normalizeDuelState({
     version: '1.2.0',
     title: '从头开始重复卡复现',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 2,
     players: [

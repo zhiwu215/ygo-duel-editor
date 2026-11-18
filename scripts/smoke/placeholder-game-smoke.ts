@@ -37,7 +37,7 @@ function makeState(cards: FieldCard[]): DuelPuzzleState {
   return {
     version: '1.2.0',
     title: '占位卡游戏数据联测',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

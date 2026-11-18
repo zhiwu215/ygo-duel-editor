@@ -47,7 +47,7 @@ function initialState(): ReturnType<typeof normalizeDuelState> {
   return normalizeDuelState({
     version: '1.2.0',
     title: '自动保存测试',
-    hint: '',
+    hint: [],
     duelType: 'full',
     masterRule: 5,
     players: [

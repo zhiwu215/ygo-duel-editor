@@ -36,7 +36,11 @@ function findStepIndex(steps: DuelStep[], actId: string | null): number {
   )
 }
 
-function selectOpenedStep(engineRestored: boolean, suspendedDoc: EngineSessionDoc | null): void {
+function selectOpenedStep(
+  engineRestored: boolean,
+  suspendedDoc: EngineSessionDoc | null,
+  atEnd: boolean
+): void {
   const opened = useDuelStore.getState()
   const steps = opened.state.steps ?? []
   if (steps.length === 0) return
@@ -48,6 +52,18 @@ function selectOpenedStep(engineRestored: boolean, suspendedDoc: EngineSessionDo
     const index = found >= 0 ? found : steps.length - 1
     opened.setSelectedStepId(steps[index].id)
     opened.setCurrentStepIndex(index)
+    return
+  }
+  if (atEnd) {
+    const last = steps[steps.length - 1]
+    useDuelStore.setState({
+      selectedStepId: last.id,
+      currentStepIndex: steps.length - 1,
+      currentTurn: last.turn,
+      currentPhase: last.phase,
+      currentChain: last.chainIndex ?? 0,
+      activeTurnPlayer: last.turnPlayer
+    })
     return
   }
   opened.setSelectedStepId(steps[0].id)
@@ -93,7 +109,8 @@ function syncHeaderToSuspendedSession(doc: EngineSessionDoc): void {
 }
 
 export async function openDuelDocument(
-  filePath: string
+  filePath: string,
+  options?: { atEnd?: boolean }
 ): Promise<{ success: boolean; error?: string }> {
   const previousPath = useDuelStore.getState().currentProjectPath
   await flushDuelDocumentTitle()
@@ -159,7 +176,7 @@ export async function openDuelDocument(
       }
       if (suspendedDoc) syncHeaderToSuspendedSession(suspendedDoc)
     }
-    selectOpenedStep(engineRestored, suspendedDoc)
+    selectOpenedStep(engineRestored, suspendedDoc, options?.atEnd ?? false)
     clearDuelDocumentDraft()
     return { success: true }
   } finally {

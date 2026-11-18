@@ -21,7 +21,8 @@ import {
   type OpeningScene
 } from '../../utils/openingScene'
 import { isDuelStarted } from '../../utils/duelStart'
-import { applyLpToDuelists, createLpFlash } from './lpSlice'
+import { createLpFlash } from './lpSlice'
+import { applyLpToDuelists } from '../../utils/duelistLp'
 import { insertCardIntoInitialBoard } from './initialBoardInsertion'
 import { pickNarrativeStepPatch } from './stepPatch'
 import type { DuelStore } from './types'

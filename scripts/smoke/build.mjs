@@ -98,6 +98,7 @@ const entries = [
   'hand-open-smoke',
   'scene-opening-smoke',
   'autosave-smoke',
+  'duel-branch-smoke',
   'session-suspend-smoke',
   'card-relations-smoke',
   'start-over-dup-smoke',

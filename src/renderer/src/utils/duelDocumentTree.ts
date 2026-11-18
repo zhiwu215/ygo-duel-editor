@@ -9,6 +9,19 @@ function normalizeTitle(title: string): string {
   return title.trim().toLowerCase()
 }
 
+export function findDuelDocumentEntry(
+  tree: Pick<DuelDocumentTree, 'documents' | 'folders'>,
+  filePath: string | null
+): DuelDocumentEntry | null {
+  const entry = tree.documents.find((document) => document.filePath === filePath)
+  if (entry) return entry
+  for (const folder of tree.folders) {
+    const found = findDuelDocumentEntry(folder, filePath)
+    if (found) return found
+  }
+  return null
+}
+
 function findFolder(folders: DuelDocumentFolder[], path: string): DuelDocumentFolder | null {
   for (const folder of folders) {
     if (folder.path === path) return folder

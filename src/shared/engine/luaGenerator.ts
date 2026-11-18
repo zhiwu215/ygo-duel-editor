@@ -5,6 +5,7 @@ import { alignFirstPlayerSeat } from './seatAlignment'
 import { CardLocation, FIELD_ZONE_SEQUENCE } from '../constants/locations'
 import { CardPosition } from '../constants/positions'
 import { buildInitialPlacements } from './initialPlacements'
+import { INITIAL_MONSTER_CONTROL_SCRIPT, needsInitialMonsterControl } from './initialMonsterControl'
 import { buildInitialOverlayPlacements } from './initialOverlayPlacements'
 import { orderPrivatePilePlacements } from './privatePilePlacements'
 import type { DuelTestSettings } from '../types/ipc/appConfig'
@@ -356,6 +357,7 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
     }
   }
   lines.push(`-- 4. 结束初始化`)
+  if (needsInitialMonsterControl(state.cards)) lines.push(INITIAL_MONSTER_CONTROL_SCRIPT)
   lines.push(`Debug.ReloadFieldEnd()`)
   if (counterLines.length > 0) {
     lines.push('')

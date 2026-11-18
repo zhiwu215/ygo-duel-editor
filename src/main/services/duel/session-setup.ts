@@ -11,8 +11,10 @@ import {
   isStandardTag
 } from '@shared/index'
 import type { DuelPuzzleState, EngineDuelInitParams, FieldCard } from '@shared/index'
+import { needsInitialMonsterControl } from '@shared/engine/initialMonsterControl'
 import { cdbService } from '../../db/cdbService'
 import type { SessionState } from './session-state'
+import { INITIAL_MONSTER_CONTROL_PATH } from './initial-field-scripts'
 import {
   addInitialDebugCards,
   prepareMr3PendulumZones,
@@ -59,6 +61,20 @@ function newEngineCard(
   }
 ): void {
   state.duel!.newCard(card)
+}
+
+function startPuzzleDuel(state: SessionState, puzzleState: DuelPuzzleState): void {
+  const duel = state.duel!
+  if (needsInitialMonsterControl(puzzleState.cards)) {
+    duel.preloadScript(`./${INITIAL_MONSTER_CONTROL_PATH}`)
+  }
+  duel.startDuel(
+    buildStartDuelOptions(
+      puzzleState.masterRule,
+      Boolean(puzzleState.firstTurnAttack),
+      isStandardTag(puzzleState.matchConfig)
+    )
+  )
 }
 
 function setupStandardTagFromPuzzleState(state: SessionState, puzzleState: DuelPuzzleState): void {
@@ -242,13 +258,8 @@ function setupStandardTagFromPuzzleState(state: SessionState, puzzleState: DuelP
   state.duel!.setRegistryValue('player_name_2', tag0.name)
   state.duel!.setRegistryValue('player_name_3', tag1.name)
 
-  const { rule, flags } = buildStartDuelOptions(
-    puzzleState.masterRule,
-    Boolean(puzzleState.firstTurnAttack),
-    true
-  )
   state.fieldReader.seedIdentity(seeds)
-  state.duel!.startDuel({ rule, flags })
+  startPuzzleDuel(state, puzzleState)
   state.accumulatedLogs.push(
     `标准 2v2 双打开始！(MR${puzzleState.masterRule}) ${main0.name}/${tag0.name} vs ${main1.name}/${tag1.name}`
   )
@@ -303,12 +314,8 @@ export function setupFromPuzzleState(state: SessionState, puzzleState: DuelPuzzl
     })
   }
 
-  const { rule, flags } = buildStartDuelOptions(
-    puzzleState.masterRule,
-    Boolean(puzzleState.firstTurnAttack)
-  )
   state.fieldReader.seedIdentity(seeds)
-  state.duel!.startDuel({ rule, flags })
+  startPuzzleDuel(state, puzzleState)
   state.accumulatedLogs.push(`决斗开始！(MR${puzzleState.masterRule})`)
   if (unsupportedPendulum > 0) {
     state.accumulatedLogs.push(

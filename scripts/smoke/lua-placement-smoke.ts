@@ -13,7 +13,7 @@ import {
   normalizeDuelState,
   parseLuaScript
 } from '@shared/index'
-import { _OcgcoreConstants } from 'koishipro-core.js'
+import { _OcgcoreConstants, type OcgcoreDuel } from 'koishipro-core.js'
 import { createSessionState } from '../../src/main/services/duel/session-state'
 import { setupFromPuzzleState } from '../../src/main/services/duel/session-setup'
 import { buildDuelFlag } from '../../src/main/services/yrpWriter'
@@ -21,6 +21,8 @@ import { cdbService } from './cdb-shim'
 import { getOcgcoreEngine } from './ocgcore-engine-shim'
 import { DuelSession } from '../../src/main/services/duel/duel-session'
 import { autoAnswer } from './autoAnswer'
+import { routeRequest } from '../../src/main/services/duel/request-router'
+import { encodeAnswer } from '../../src/main/services/duel/answer-encoder'
 
 const {
   LOCATION_HAND,
@@ -158,13 +160,17 @@ function snapshot(duel: Duel): Record<string, string> {
   return out
 }
 
-async function editorSnapshot(puzzle: DuelPuzzleState): Promise<Record<string, string>> {
+async function editorSnapshot(
+  puzzle: DuelPuzzleState,
+  inspect?: (duel: OcgcoreDuel) => void
+): Promise<Record<string, string>> {
   const engine = await getOcgcoreEngine()
   const state = createSessionState()
   state.ocgcore = engine
   state.duel = engine.createDuelV2(SEED)
   try {
     setupFromPuzzleState(state, puzzle)
+    inspect?.(state.duel)
     return snapshot(state.duel)
   } finally {
     state.duel.endDuel()
@@ -173,7 +179,8 @@ async function editorSnapshot(puzzle: DuelPuzzleState): Promise<Record<string, s
 
 async function luaSnapshot(
   puzzle: DuelPuzzleState,
-  forReplay = true
+  forReplay = true,
+  inspect?: (duel: OcgcoreDuel) => void
 ): Promise<Record<string, string>> {
   const engine = await getOcgcoreEngine()
   currentLua = generateLuaScript(puzzle, { forReplay })
@@ -203,6 +210,7 @@ async function luaSnapshot(
     duel.preloadScript('./script/init.lua')
     duel.preloadScript(`./${SCRIPT_NAME}`)
     duel.startDuel(buildDuelFlag(puzzle.masterRule, puzzle.firstTurnAttack, false))
+    inspect?.(duel)
     return snapshot(duel)
   } finally {
     duel.endDuel()
@@ -369,11 +377,60 @@ async function checkDetach(): Promise<void> {
   session.exitReplay()
 }
 
+async function checkMonsterControl(): Promise<void> {
+  const puzzle = buildPuzzle(5)
+  puzzle.duelType = 'puzzle'
+  const gameciel = makeCard(55063751, 1, LOCATION_MZONE, 1, CardPosition.FACEUP_ATTACK)
+  gameciel.owner = 0
+  const magician = makeCard(46986414, 0, LOCATION_MZONE, 2, CardPosition.FACEDOWN_DEFENSE)
+  magician.owner = 1
+  const darkHole = makeCard(53129443, 0, LOCATION_HAND, 0, CardPosition.FACEDOWN)
+  puzzle.cards = [
+    ...puzzle.cards.filter((card) => card.location === LOCATION_DECK),
+    gameciel,
+    magician,
+    darkHole
+  ]
+  function play(duel: OcgcoreDuel): void {
+    let activated = false
+    for (let i = 0; i < 300 && !duel.ended; i++) {
+      for (const msg of duel.process().messages ?? []) {
+        const request = routeRequest(msg, { id: String(i), seq: i })
+        if (!request) continue
+        if (request.data.kind !== 'idle') {
+          duel.setResponse(encodeAnswer(msg, autoAnswer(request)))
+          continue
+        }
+        for (const monster of [gameciel, magician]) {
+          const player = activated ? monster.owner : monster.controller
+          const location = activated ? LOCATION_GRAVE : LOCATION_MZONE
+          const cards = duel.queryFieldCard({ player, location, queryFlag: 0xefffff }).cards
+          const found = cards.find((card) => card.code === monster.code)
+          assert(found?.owner === monster.owner, `${monster.code} 控制方或送墓归属错误`)
+          if (!activated) {
+            assert(found?.sequence === monster.sequence, `${monster.code} 的开局位置错误`)
+          }
+        }
+        if (activated) return
+        const spell = request.data.activatable.find((card) => card.code === darkHole.code)
+        if (!spell) throw new Error('应能发动黑洞')
+        duel.setResponse(encodeAnswer(msg, { kind: 'idle', cmd: 'ACTIVATE', card: spell }))
+        activated = true
+      }
+    }
+    throw new Error('控制权测试未完成')
+  }
+  await luaSnapshot(puzzle, false, play)
+  await luaSnapshot(puzzle, true, play)
+  await editorSnapshot(puzzle, play)
+}
+
 async function main(): Promise<void> {
   await cdbService.ready()
   await checkRule(2)
   await checkRule(5)
   await checkTag()
+  await checkMonsterControl()
   await checkDetach()
   console.log('[lua-placement-smoke] OK')
   process.exit(0)

@@ -110,6 +110,7 @@ function shuffleCards(cards: FieldCard[]): FieldCard[] {
 const TEST_OPENING_HAND = 5
 
 export interface LuaScriptOptions {
+  includeOpeningHints?: boolean
   manualRandom?: boolean
   forReplay?: boolean
   test?: DuelTestSettings
@@ -376,7 +377,9 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
       lines.push(`aux.BeginPuzzle()`)
     }
   }
-  lines.push(...writePuzzleHints(state.hint))
+  if (options?.includeOpeningHints && state.duelType === 'puzzle') {
+    lines.push(...writePuzzleHints(state.hint))
+  }
 
   return lines.join('\n')
 }

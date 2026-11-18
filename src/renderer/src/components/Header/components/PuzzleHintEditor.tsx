@@ -23,7 +23,14 @@ export function PuzzleHintEditor() {
     <Popover onOpenChange={() => removeEmptyHints()}>
       <PopoverTrigger render={<Button variant="outline" size="xs" />}>开场提示</PopoverTrigger>
       <PopoverContent className="w-80">
-        <PopoverTitle>开场提示</PopoverTitle>
+        <div className="flex items-center justify-between">
+          <PopoverTitle>开场提示</PopoverTitle>
+          {hint.length > 0 && (
+            <Button variant="ghost" size="xs" onClick={() => setHint([])}>
+              清空全部
+            </Button>
+          )}
+        </div>
         <PopoverDescription>玩家打开残局时，游戏会依次弹出这里填写的消息。</PopoverDescription>
         <div className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto">
           {hint.map((message, index) => (

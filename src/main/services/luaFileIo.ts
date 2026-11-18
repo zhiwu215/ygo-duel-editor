@@ -33,7 +33,7 @@ export class LuaFileIo {
 
       completeCardDetails(state)
 
-      const luaContent = generateLuaScript(state)
+      const luaContent = generateLuaScript(state, { includeOpeningHints: true })
       writeFileSync(finalPath, luaContent, 'utf-8')
       console.log(`[FileService] Exported lua to ${finalPath}`)
       return { success: true, filePath: finalPath }

@@ -34,11 +34,17 @@ import { configService } from './configService'
 import { duelDirector } from './duel/duel-director'
 import { getOcgcoreEngine } from './duel/ocgcore-engine'
 import { verifyYrpReplay } from './duel/replay-verifier'
+import { buildNativeTossReplay } from './duel/toss-replay'
 import { buildReplayBootstrapPayloads, buildTagReplayStartPayload } from './duel/replay-bootstrap'
 import { buildReplayOpening } from './duel/replay-opening'
 import { applyReplayViewToPayloads, replayViewerOf } from './duel/replay-view'
 import { checkGameContentCoverage, collectStateCardIds, isGameProgramName } from './gameContent'
-import { buildDuelFlag, buildYrpSingleFile, buildYrpTagFile } from './yrpWriter'
+import {
+  buildDuelFlag,
+  buildYrpSingleFile,
+  buildYrpTagFile,
+  type YrpSingleWriteOptions
+} from './yrpWriter'
 import { buildTagReplayData, type TagReplayData } from './duel/tagReplayDecks'
 import { buildYrp3dMessages } from './yrp3dMessages'
 import { insertYrp3dHandRefresh } from './yrp3dHandRefresh'
@@ -467,7 +473,11 @@ export class YgoproLauncher {
           '当前引擎会话包含注入操作（加卡、替换等）\n\n注入的卡会写入初始场面：请先回到初始局面并点「从头开始」，用无注入的新会话重新对局后再导出回放。\n只想测试当前盘面请用「使用游戏测试该局」。'
       }
     }
-    const responses = await duelDirector.exportReplayResponses()
+    const initParams = duelDirector.getInitParams()
+    const manualRandom = initParams?.manualRandom ?? config.duelTestSettings?.engineRandom === 'off'
+    const capture =
+      format === 'yrp' && manualRandom && !isTag ? await duelDirector.recordMessageStream() : null
+    const responses = capture?.responses ?? (await duelDirector.exportReplayResponses())
     const seed = duelDirector.getSeed()
     if (responses.length === 0) {
       return {
@@ -487,8 +497,6 @@ export class YgoproLauncher {
       }
     }
 
-    const initParams = duelDirector.getInitParams()
-    const manualRandom = initParams?.manualRandom ?? config.duelTestSettings?.engineRandom === 'off'
     const rawReplayState = initParams?.puzzleState ?? params.state
     const replayState =
       gameType === 'mdpro3' ? rawReplayState : mapPlaceholderCodesForGame(rawReplayState)
@@ -656,22 +664,15 @@ export class YgoproLauncher {
     try {
       if (!tagReplay) completeCardDetails(replayState)
       const opening = buildReplayOpening(replayState)
-      const luaContent = tagReplay
-        ? null
-        : generateLuaScript(opening.state, { forReplay: true, manualRandom })
       const warnings: string[] = []
-
       const singleDir = join(gameDir, 'single')
       const replayDir = join(gameDir, 'replay')
-      if (luaContent) mkdirSync(singleDir, { recursive: true })
-      mkdirSync(replayDir, { recursive: true })
       const luaPath = join(singleDir, `${name}.lua`)
       const yrpPath = join(replayDir, `${name}.yrp`)
-      if (luaContent) writeFileSync(luaPath, luaContent, 'utf-8')
-
-      const yrpBytes =
-        tagYrpBytes ??
-        buildYrpSingleFile({
+      let luaContent: string | undefined
+      let yrpBytes = tagYrpBytes
+      if (!yrpBytes) {
+        const options: YrpSingleWriteOptions = {
           names: [names[0] ?? '', names[1] ?? ''],
           seed,
           startLp: Number(replayState.players[0]?.lp ?? 8000),
@@ -680,8 +681,28 @@ export class YgoproLauncher {
           opt: buildDuelFlag(Number(params.state.masterRule), params.state.firstTurnAttack, false),
           scriptFile: `./single/${name}.lua`,
           responses
-        })
-      if (luaContent) {
+        }
+        luaContent = generateLuaScript(opening.state, { forReplay: true, manualRandom })
+        if (capture) {
+          const nativeScript = generateLuaScript(opening.state, {
+            forReplay: true,
+            manualRandom,
+            nativeTossReplay: true
+          })
+          const replay = await buildNativeTossReplay(
+            await getOcgcoreEngine(),
+            options,
+            luaContent,
+            nativeScript,
+            capture.messages
+          )
+          yrpBytes = replay.bytes
+          luaContent = replay.script
+        } else {
+          yrpBytes = buildYrpSingleFile(options)
+        }
+        mkdirSync(singleDir, { recursive: true })
+        writeFileSync(luaPath, luaContent, 'utf-8')
         const verification = verifyYrpReplay(await getOcgcoreEngine(), yrpBytes)
         if (verification.status !== 'verified') {
           const label = verification.status === 'incomplete' ? '回放校验未完成' : '回放无法复现'
@@ -690,6 +711,7 @@ export class YgoproLauncher {
           )
         }
       }
+      mkdirSync(replayDir, { recursive: true })
       writeFileSync(yrpPath, Buffer.from(yrpBytes))
 
       const mdpro3Target = gameType === 'mdpro3'

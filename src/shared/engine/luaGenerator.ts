@@ -1,5 +1,5 @@
 import { writePuzzleHints } from './puzzleHints'
-import { CONTROL_SCRIPT } from './randomControlScript'
+import { CONTROL_SCRIPT, RANDOM_SELECTION_SCRIPT } from './randomControlScript'
 import { DuelPuzzleState, FieldCard } from '../types/duel'
 import { alignFirstPlayerSeat } from './seatAlignment'
 import { CardLocation, FIELD_ZONE_SEQUENCE } from '../constants/locations'
@@ -113,6 +113,7 @@ const TEST_OPENING_HAND = 5
 export interface LuaScriptOptions {
   includeOpeningHints?: boolean
   manualRandom?: boolean
+  nativeTossReplay?: boolean
   forReplay?: boolean
   test?: DuelTestSettings
 }
@@ -152,7 +153,9 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
 
   const lines: string[] = []
 
-  if (!isTag && (options?.manualRandom || test?.engineRandom === 'off')) lines.push(CONTROL_SCRIPT)
+  if (!isTag && (options?.manualRandom || test?.engineRandom === 'off')) {
+    lines.push(forReplay && options?.nativeTossReplay ? RANDOM_SELECTION_SCRIPT : CONTROL_SCRIPT)
+  }
 
   const duelistsTeam0 = state.duelists?.filter((d) => d.team === 0) || []
   const duelistsTeam1 = state.duelists?.filter((d) => d.team === 1) || []

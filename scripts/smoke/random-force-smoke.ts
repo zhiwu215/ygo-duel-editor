@@ -6,14 +6,21 @@
 import { YGOProYrp3d } from 'ygopro-yrp3d-encode'
 import { buildYrp3dMessages } from '../../src/main/services/yrp3dMessages'
 import assert from 'node:assert/strict'
+import { createDuelFromYrp } from 'koishipro-core.js'
 import {
+  OcgcoreScriptConstants,
   YGOProMessages,
+  YGOProMsgAnnounceNumber,
+  YGOProMsgHint,
+  YGOProMsgSelectOption,
   YGOProMsgTossCoin,
   YGOProMsgTossDice,
   YGOProMsgUpdateData
 } from 'ygopro-msg-encode'
 import { generateLuaScript } from '@shared/engine/luaGenerator'
-import { buildDuelFlag, buildYrpSingleFile } from '../../src/main/services/yrpWriter'
+import { buildReplayOpening } from '../../src/main/services/duel/replay-opening'
+import { buildNativeTossReplay } from '../../src/main/services/duel/toss-replay'
+import { buildDuelFlag } from '../../src/main/services/yrpWriter'
 import { verifyYrpReplay } from '../../src/main/services/duel/replay-verifier'
 import { getOcgcoreEngine } from './ocgcore-engine-shim'
 import { duelSession } from '../../src/main/services/duel/duel-session'
@@ -35,6 +42,8 @@ import type {
 import { cdbService } from './cdb-shim'
 
 const CUP_OF_ACE = 37812118
+const TIME_WIZARD = 71625222
+const DICE_JAR = 3549275
 const GRACEFUL_DICE = 74137509
 const DELINQUENT_DUO = 44763025
 const BLUE_EYES = 89631139
@@ -113,6 +122,10 @@ function autoAnswer(request: EngineRequest, cardCode: number): Answer {
     case 'idle': {
       const target = d.activatable.find((card) => card.code === cardCode)
       if (target) return { kind: 'idle', cmd: 'ACTIVATE', card: target }
+      if (cardCode === DICE_JAR) {
+        const card = d.reposable.find((candidate) => candidate.code === cardCode)
+        if (card) return { kind: 'idle', cmd: 'REPOS', card }
+      }
       return { kind: 'idle', cmd: d.canEp ? 'TO_EP' : d.canBp ? 'TO_BP' : 'TO_EP' }
     }
     case 'battle':
@@ -177,6 +190,10 @@ async function driveUntilAsk(params: {
     const pending = duelSession.getPendingRequest()
     if (!pending) break
     if (pending.kind === 'option' || pending.kind === 'announce') {
+      if (!pending.manualRandom && params.cardCode === TIME_WIZARD && pending.kind === 'option') {
+        assert.ok(!duelSession.submitAnswer({ kind: 'option', index: 0 }).retry)
+        continue
+      }
       if (!pending.manualRandom) throw new Error('随机询问没有标记 manualRandom')
       if (pending.title !== '关闭引擎随机结果，请手动选择') {
         throw new Error(`随机询问标题不对：${pending.title}`)
@@ -189,7 +206,11 @@ async function driveUntilAsk(params: {
   throw new Error('没有等到引擎询问随机结果')
 }
 
-async function verifyExport(toss?: 'coin' | 'dice', value?: number): Promise<void> {
+async function verifyExport(
+  toss?: 'coin' | 'dice',
+  values: number[] = [],
+  genuineChoices = 0
+): Promise<void> {
   const puzzle = duelSession.getInitParams()!.puzzleState!
   const { messages, responses } = await duelSession.recordMessageStream()
   if (toss) {
@@ -197,12 +218,22 @@ async function verifyExport(toss?: 'coin' | 'dice', value?: number): Promise<voi
     const recording = new YGOProYrp3d()
     recording.messages.push(...buildYrp3dMessages(messages))
     const decoded = new YGOProYrp3d().fromYrp3d(recording.toYrp3d())
-    const results = decoded.messages
-      .map((message) => YGOProMessages.getInstanceFromPayload(message.toPayload()))
-      .filter((message) => message instanceof type)
-      .flatMap((message) => message.results)
-    assert.deepEqual(results, [value])
-    if (toss === 'dice') {
+    const decodedMessages = decoded.messages.map((message) =>
+      YGOProMessages.getInstanceFromPayload(message.toPayload())
+    )
+    assertChoiceCount(decodedMessages, toss, genuineChoices)
+    const tossMessages = decodedMessages.filter((message) => message instanceof type)
+    assert.deepEqual(
+      tossMessages.flatMap((message) => message.results),
+      values
+    )
+    if (toss === 'dice' && values.length === 2) {
+      assert.deepEqual(
+        tossMessages.map((message) => message.player),
+        [0, 1]
+      )
+    }
+    if (toss === 'dice' && values.length === 1) {
       const updates = decoded.messages.filter(
         (message) =>
           message instanceof YGOProMsgUpdateData &&
@@ -210,28 +241,72 @@ async function verifyExport(toss?: 'coin' | 'dice', value?: number): Promise<voi
           message.location === CardLocation.MZONE
       )
       const card = updates.at(-1)?.cards[0]
-      assert.equal(card?.attack, 3000 + value! * 100)
-      assert.equal(card?.defense, 2500 + value! * 100)
+      assert.equal(card?.attack, 3000 + values[0] * 100)
+      assert.equal(card?.defense, 2500 + values[0] * 100)
     }
   }
-  const script = generateLuaScript(puzzle, { forReplay: true, manualRandom: true })
-  const wrapper = await getOcgcoreEngine()
-  const filename = `random-smoke-${toss ?? 'select'}-${value ?? 0}.lua`
-  wrapper.setScriptReader((name: string) =>
-    name.endsWith(`/${filename}`) ? new TextEncoder().encode(script) : null
-  )
-  const bytes = buildYrpSingleFile({
-    names: ['A', 'B'],
-    seed: duelSession.getSeed(),
-    startLp: 8000,
-    startHand: 0,
-    drawCount: 1,
-    opt: buildDuelFlag(Number(puzzle.masterRule), puzzle.firstTurnAttack, false),
-    scriptFile: `./single/${filename}`,
-    responses
+  const opening = buildReplayOpening(puzzle)
+  const script = generateLuaScript(opening.state, { forReplay: true, manualRandom: true })
+  const nativeScript = generateLuaScript(opening.state, {
+    forReplay: true,
+    manualRandom: true,
+    nativeTossReplay: true
   })
-  assert.ok(responses.length)
-  assert.deepEqual(verifyYrpReplay(wrapper, bytes), { status: 'verified', step: responses.length })
+  const wrapper = await getOcgcoreEngine()
+  const filename = `random-smoke-${toss ?? 'select'}-${values.join('-')}-${genuineChoices}.lua`
+  const { bytes, script: exportedScript } = await buildNativeTossReplay(
+    wrapper,
+    {
+      names: ['A', 'B'],
+      seed: duelSession.getSeed(),
+      startLp: 8000,
+      startHand: opening.state.players[0].startHand,
+      drawCount: 1,
+      opt: buildDuelFlag(Number(puzzle.masterRule), puzzle.firstTurnAttack, false),
+      scriptFile: `./single/${filename}`,
+      responses
+    },
+    script,
+    nativeScript,
+    messages
+  )
+  wrapper.setScriptReader((name: string) =>
+    name.endsWith(`/${filename}`) ? new TextEncoder().encode(exportedScript) : null
+  )
+  const { duel, yrp } = createDuelFromYrp(wrapper, bytes)
+  try {
+    let next = 0
+    const replayMessages = Array.from(
+      duel.advance(() => yrp.responses[next++]),
+      (result) => result.message
+    )
+    if (toss) {
+      const type = toss === 'coin' ? YGOProMsgTossCoin : YGOProMsgTossDice
+      assertChoiceCount(replayMessages, toss, genuineChoices)
+      assert.deepEqual(
+        replayMessages.filter((message) => message instanceof type).flatMap((msg) => msg.results),
+        values
+      )
+    }
+  } finally {
+    duel.endDuel()
+  }
+  assert.equal(yrp.responses.length, responses.length - values.length)
+  assert.deepEqual(verifyYrpReplay(wrapper, bytes), {
+    status: 'verified',
+    step: yrp.responses.length
+  })
+}
+
+function assertChoiceCount(messages: unknown[], toss: 'coin' | 'dice', count: number): void {
+  const prompt = toss === 'coin' ? YGOProMsgSelectOption : YGOProMsgAnnounceNumber
+  const hint =
+    toss === 'coin' ? OcgcoreScriptConstants.HINT_OPSELECTED : OcgcoreScriptConstants.HINT_NUMBER
+  assert.equal(messages.filter((message) => message instanceof prompt).length, count)
+  assert.equal(
+    messages.filter((message) => message instanceof YGOProMsgHint && message.type === hint).length,
+    count
+  )
 }
 
 async function runCoin(
@@ -250,7 +325,7 @@ async function runCoin(
       : []
   const res = duelSession.submitAnswer({ kind: 'option', index: chooseIndex })
   if (res.retry) throw new Error('选项应答被引擎拒绝（RETRY）')
-  await verifyExport('coin', chooseIndex === 0 ? 1 : 0)
+  await verifyExport('coin', [chooseIndex === 0 ? 1 : 0])
   return { options, node: res.node ?? null }
 }
 
@@ -316,7 +391,36 @@ async function caseDice(): Promise<void> {
   if (toss?.results.join(',') !== '6') {
     throw new Error(`选 6 后的投掷记录不对：${JSON.stringify(toss)}`)
   }
-  await verifyExport('dice', 6)
+  await verifyExport('dice', [6])
+}
+
+async function caseDiceForBothPlayers(): Promise<void> {
+  await driveUntilAsk({
+    puzzle: buildPuzzle({
+      handCode: BLUE_EYES,
+      field: [makeCard(DICE_JAR, 0, CardLocation.MZONE, 0, CardPosition.FACEDOWN_DEFENSE)]
+    }),
+    cardCode: DICE_JAR
+  })
+  const values = [2, 6]
+  for (const value of values) {
+    assert.equal(duelSession.getPendingRequest()?.manualRandom, true)
+    assert.ok(!duelSession.submitAnswer({ kind: 'announce', value }).retry)
+  }
+  assert.equal(duelSession.getBoardState().players[0].lp, 2000)
+  await verifyExport('dice', values)
+}
+
+async function caseAnnounceThenToss(): Promise<void> {
+  await driveUntilAsk({
+    puzzle: buildPuzzle({
+      handCode: BLUE_EYES,
+      field: [makeCard(TIME_WIZARD, 0, CardLocation.MZONE, 0, CardPosition.FACEUP_ATTACK)]
+    }),
+    cardCode: TIME_WIZARD
+  })
+  assert.ok(!duelSession.submitAnswer({ kind: 'option', index: 1 }).retry)
+  await verifyExport('coin', [0], 1)
 }
 
 async function caseSelect(): Promise<void> {
@@ -375,6 +479,8 @@ async function main(): Promise<void> {
   }
   await caseCoin()
   await caseDice()
+  await caseDiceForBothPlayers()
+  await caseAnnounceThenToss()
   await caseSelect()
   console.log('[random-force-smoke] PASS')
   process.exit(0)

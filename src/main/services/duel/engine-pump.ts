@@ -17,18 +17,25 @@ import {
   YGOProMsgSelectUnselectCard,
   YGOProMsgShuffleHand,
   YGOProMsgTossCoin,
-  YGOProMsgTossDice
+  YGOProMsgTossDice,
+  type YGOProMsgBase
 } from 'ygopro-msg-encode'
 import { cdbService } from '../../db/cdbService'
 import { CardLocation, type EngineRequest } from '@shared/index'
 import type { Answer } from '@shared/engine/protocol'
-import type { PendingQuery, SessionState } from './session-state'
+import { headPendingQuery, type PendingQuery, type SessionState } from './session-state'
 import { shouldAutoPassChain } from './chain-policy'
 import { recordMonsterStats } from './replayMonsterStats'
 import { collectDuelLogMessages } from './duel-log'
 import { isInteractiveQuery } from './message-parser'
 import { routeRequest } from './request-router'
-import { isRandomAskPending, readRecordedToss } from './random-control'
+import {
+  isRandomAskPending,
+  manualTossHintIndex,
+  manualTossHintType,
+  readRecordedTosses,
+  recordedTossMessage
+} from './random-control'
 import { createRecordedAnswer } from './replay-policy'
 
 const PRIVATE_CARD_LOCATIONS = new Set<number>([
@@ -74,7 +81,7 @@ const MAX_PROCESS_LOOPS = 10000
 interface ProcessResultLike {
   raw: Uint8Array
   status: number
-  messages?: unknown[]
+  messages?: YGOProMsgBase[]
 }
 
 function resolveAutoResponse(state: SessionState, msg: unknown): Uint8Array | null {
@@ -152,6 +159,8 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
   state.lastAdvanceRetried = false
   state.lastParseError = null
   const autoResponses: Uint8Array[] = []
+  const answered = headPendingQuery(state)
+  let tossHint = answered?.request.manualRandom ? manualTossHintType(answered.msg) : undefined
   let loops = 0
 
   while (true) {
@@ -172,21 +181,24 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
     const retried = msgs.some((msg) => msg instanceof YGOProMsgRetry)
 
     assertMessagesComplete(state, res)
-
-    if (state.initParams?.manualRandom) {
-      const toss = readRecordedToss(duel)
-      if (toss) {
-        const message = toss.type === 'coin' ? new YGOProMsgTossCoin() : new YGOProMsgTossDice()
-        message.player = toss.player
-        message.results = toss.results
-        message.count = toss.results.length
-        msgs.unshift(message)
+    if (tossHint !== undefined) {
+      const index = manualTossHintIndex(msgs, tossHint)
+      if (index >= 0) {
+        msgs.splice(index, 1)
+        tossHint = undefined
       }
     }
 
+    if (state.initParams?.manualRandom || state.replay) {
+      msgs.unshift(...readRecordedTosses(duel).map(recordedTossMessage))
+    }
+
     if (msgs.length > 0) {
+      const query = msgs.find(isInteractiveQuery)
+      const manualQuery = query && isRandomAskPending(duel) ? query : undefined
       if (state.recordingMessages) {
         for (const msg of msgs) {
+          if (msg === manualQuery && manualTossHintType(msg) !== undefined) continue
           if (typeof (msg as { toPayload?: unknown }).toPayload === 'function') {
             state.recordingMessages.push((msg as { toPayload(): Uint8Array }).toPayload())
             recordMonsterStats(duel, msg, state.recordingMessages)
@@ -265,7 +277,7 @@ export function advanceEngine(state: SessionState): Uint8Array[] {
           })
           state.lastHintDesc = undefined
           if (request) {
-            if (state.duel && isRandomAskPending(state.duel)) {
+            if (msg === manualQuery) {
               request.manualRandom = true
               request.title = '关闭引擎随机结果，请手动选择'
               request.subtitle = undefined

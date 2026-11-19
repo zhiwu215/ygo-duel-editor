@@ -11,8 +11,9 @@ import { useDuelStore } from '../useDuelStore'
 import { syncJumpToStepWrapped } from './boardReconcile'
 import { applyChainEvents, chainStateAtNode } from './chainState'
 import { engineErrorMessage } from './engineErrorMessage'
+import { engineHistoryTargets } from './historyTargets'
 import { cancelLpSequence, lpSequenceSteps, playLpSequence } from './lpSequence'
-import { discardFutureSteps, hasEngineStep, restoreEngineSteps, splitTimeline } from './stepRecords'
+import { discardFutureSteps, restoreEngineSteps, splitTimeline } from './stepRecords'
 import { syncEngineStepsFromTimeline } from './stepRecordSync'
 import { appendEngineStepFromAnswer } from './stepRecording'
 import { projectEngineStepRows } from './stepRowProjection'
@@ -205,25 +206,24 @@ export const createRequestSlice: StateCreator<DuelEngineStore, [], [], RequestSl
   },
 
   undo: async () => {
-    const { timeline, currentStepId, jumpToStep } = get()
-    if (!currentStepId || timeline.length === 0) return
-    const currentIndex = timeline.findIndex((node) => node.id === currentStepId)
-    if (currentIndex < 0) return
-    const previous = [...timeline]
-      .map((node, index) => ({ id: node.id, index }))
-      .reverse()
-      .find((item) => item.index < currentIndex && hasEngineStep(item.id))
-    if (previous) await jumpToStep(previous.id)
+    const { timeline, currentStepId, replayInfo, jumpToStep } = get()
+    const { previous } = engineHistoryTargets(
+      timeline,
+      currentStepId,
+      useDuelStore.getState().state.steps,
+      Boolean(replayInfo)
+    )
+    if (previous) await jumpToStep(previous)
   },
 
   redo: async () => {
-    const { timeline, currentStepId, jumpToStep } = get()
-    if (!currentStepId || timeline.length === 0) return
-    const currentIndex = timeline.findIndex((node) => node.id === currentStepId)
-    if (currentIndex < 0) return
-    const next = timeline
-      .map((node, index) => ({ id: node.id, index }))
-      .find((item) => item.index > currentIndex && hasEngineStep(item.id))
-    if (next) await jumpToStep(next.id)
+    const { timeline, currentStepId, replayInfo, jumpToStep } = get()
+    const { next } = engineHistoryTargets(
+      timeline,
+      currentStepId,
+      useDuelStore.getState().state.steps,
+      Boolean(replayInfo)
+    )
+    if (next) await jumpToStep(next)
   }
 })

@@ -2,8 +2,8 @@
  * 引擎撤销与步骤行联测：
  *
  * 1. 诱发类效果以「是否发动」作答时要单独记成一步（否则整条连锁塌进上一个动作，Ctrl+Z 会回退整个阶段）
- * 2. 单次撤销只回到上一个已记录步骤的节点
- * 3. 撤销后继续作答时，步骤行只由保留的时间线节点重算：不含被丢弃节点的行，也不重复追加
+ * 2. 撤销和重做把盖放、发动与选区视为同一步，仍可跳转到步骤内部
+ * 3. 从步骤内部继续作答时，步骤行只由保留的时间线节点重算
  */
 import { duelSession } from '../../src/main/services/duel/duel-session'
 import {
@@ -11,6 +11,8 @@ import {
   CardPosition,
   DuelLogEvent,
   DuelStep,
+  EngineCard,
+  EngineDuelInitParams,
   FieldCard,
   createLightweightSnapshot,
   normalizeDuelState
@@ -24,6 +26,8 @@ const SPINODIONAEA = 35272499
 const SARRACENIANT = 44932065
 const DARLINGTONIA = 61677004
 const FILLER = 89631139
+const CUP_OF_ACE = 37812118
+const COUPLE_OF_ACES = 26259179
 
 let fieldId = 0
 function makeCard(
@@ -45,9 +49,10 @@ function makeCard(
   }
 }
 
-function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
+function buildPuzzle(
+  hand = [SPINODIONAEA, FILLER, FILLER, FILLER, FILLER]
+): ReturnType<typeof normalizeDuelState> {
   const cards: FieldCard[] = []
-  const hand = [SPINODIONAEA, FILLER, FILLER, FILLER, FILLER]
   hand.forEach((code, i) =>
     cards.push(makeCard(code, 0, CardLocation.HAND, i, CardPosition.FACEDOWN))
   )
@@ -145,7 +150,8 @@ function answerOf(request: EngineRequest): Answer {
 function installWindowApi(): void {
   ;(globalThis as unknown as { window: unknown }).window = {
     api: {
-      duelEngineInit: (params: unknown) => Promise.resolve(duelSession.startDuel(params as never)),
+      duelEngineInit: (params: EngineDuelInitParams) =>
+        duelSession.startDuel({ ...params, manualRandom: false, seed: [3] }),
       duelEngineSubmitAnswer: (answer: unknown) =>
         Promise.resolve(duelSession.submitAnswer(answer as never)),
       duelEngineJumpToStep: (stepId: string) => Promise.resolve(duelSession.jumpToStep(stepId)),
@@ -191,18 +197,71 @@ async function answers(): Promise<void> {
   assert(error === null, `作答不应报错：${error}`)
 }
 
-async function main(): Promise<void> {
-  installWindowApi()
-  await cdbService.ready()
-
-  const puzzle = buildPuzzle()
+async function startPuzzle(puzzle: ReturnType<typeof buildPuzzle>): Promise<void> {
+  useDuelEngineStore.getState().stopEngine()
   useDuelStore.setState((prev) => ({
     ...prev,
     state: { ...puzzle, initialBoardSnapshot: createLightweightSnapshot(puzzle.cards) }
   }))
-  useDuelEngineStore.getState().stopEngine()
   await useDuelEngineStore.getState().startEngine()
   assert(useDuelEngineStore.getState().isInitialized, 'startEngine 后引擎应处于激活状态')
+}
+
+async function checkPlacementUndo(cmd: 'MSET' | 'SSET' | 'ACTIVATE'): Promise<void> {
+  await startPuzzle(buildPuzzle([SPINODIONAEA, CUP_OF_ACE, COUPLE_OF_ACES]))
+  const engine = useDuelEngineStore.getState
+  const opening = engine().currentStepId
+  const idle = engine().pendingRequest?.data
+  if (idle?.kind !== 'idle') throw new Error('开局应等待主要阶段指令')
+  const card =
+    cmd === 'MSET'
+      ? idle.msetable.find((card) => card.code === SPINODIONAEA)
+      : cmd === 'SSET'
+        ? idle.ssetable.find((card) => card.code === CUP_OF_ACE)
+        : idle.activatable.find((card) => card.code === COUPLE_OF_ACES)
+  if (!card) throw new Error(`缺少可执行 ${cmd} 的手牌`)
+  const command = { kind: 'idle', cmd, card } as const
+  await engine().submitAnswer(command)
+  assert(engine().pendingRequest?.kind === 'place', `${cmd} 应等待选区`)
+  await engine().undo()
+  assert(engine().currentStepId === opening, `${cmd} 等待选区时应能撤销到开局`)
+  assert(engine().pendingRequest?.kind === 'idle', '撤销后应能改选指令')
+
+  await engine().submitAnswer(command)
+  const pending = engine().pendingRequest?.data
+  if (pending?.kind !== 'place') throw new Error(`${cmd} 重做动作后应等待选区`)
+  const place = pending.places[0]
+  await engine().submitAnswer({ kind: 'place', places: [place] })
+  for (let index = 0; index < 5 && engine().pendingRequest?.kind !== 'idle'; index++) {
+    await answers()
+  }
+  assert(engine().pendingRequest?.kind === 'idle', `${cmd} 的选区与结算应完成`)
+  const completed = engine().currentStepId
+  const placedCard = (): EngineCard | undefined =>
+    engine().boardState?.allCards.find(
+      (candidate) =>
+        candidate.controller === place.controller &&
+        candidate.location === place.location &&
+        candidate.sequence === place.sequence
+    )
+  assert(placedCard()?.code === card.code, '指定区位应有盖放或特召的卡')
+  await engine().undo()
+  assert(engine().currentStepId === opening, `${cmd} 完成后一次撤销应回到动作前`)
+  assert(
+    engine().pendingRequest?.kind === 'idle' && !placedCard(),
+    '撤销后区位应清空并恢复可操作状态'
+  )
+  await engine().redo()
+  assert(engine().currentStepId === completed, `${cmd} 重做应恢复选区完成后的节点`)
+  assert(
+    engine().pendingRequest?.kind === 'idle' && placedCard()?.code === card.code,
+    '重做后应恢复原选区'
+  )
+  console.log(`[undo-steps] ✅ ${cmd} 在选区时及完成后可整步撤销，重做保留原区位`)
+}
+
+async function checkActivationRows(): Promise<void> {
+  await startPuzzle(buildPuzzle())
 
   let activationSeen = false
   let activationStep: DuelStep | undefined
@@ -245,17 +304,27 @@ async function main(): Promise<void> {
   const activationNow = steps().find((step) => step.id === activationStep!.id)
   assert(Boolean(activationNow), '撤销后步骤不应丢失')
   assert(
-    afterNode === activationStep!.startActId,
-    '单次撤销应回到上一个已记录步骤的起始节点，而不是更早的节点'
+    afterIndex > timeline.findIndex((node) => node.id === activationStep!.startActId) &&
+      useDuelEngineStore.getState().pendingRequest?.kind === 'idle',
+    '撤销后续阶段操作应保留已经完成的特召'
   )
   assert(summonIndex >= 0 && summonIndex < afterIndex, '撤销不应越过召唤步骤、退回到阶段起点')
   assert(steps().length === stepCount, '仅撤销不应删除后续步骤')
+  await useDuelEngineStore.getState().undo()
+  const activationStart = timeline.find((node) => node.id === activationStep!.startActId)
   assert(
-    eventKinds(activationNow!).join(',') === 'activate',
-    `撤销到该步骤起点时只应保留发动行，实际 ${eventKinds(activationNow!).join(',')}`
+    useDuelEngineStore.getState().currentStepId === activationStart?.parentId,
+    '撤销诱发特召应回到发动之前'
   )
-  console.log(
-    `[undo-steps] ✅ 单次撤销 ${beforeIndex} → ${afterIndex}（落在发动步骤起点），该步骤行已收缩到发动`
+
+  assert(
+    await useDuelEngineStore.getState().jumpToStep(activationStep!.startActId!),
+    '应能跳转到发动步骤内部'
+  )
+  const activationAtStart = steps().find((step) => step.id === activationStep!.id)
+  assert(
+    eventKinds(activationAtStart!).join(',') === 'activate',
+    `跳转到发动步骤起点时只应保留发动行，实际 ${eventKinds(activationAtStart!).join(',')}`
   )
 
   const activationId = activationStep!.id
@@ -273,7 +342,13 @@ async function main(): Promise<void> {
     '撤销后继续作答应丢弃之后的阶段步骤'
   )
   console.log(`[undo-steps] ✅ 继续作答后行重算正确：${kinds.join(',')}`)
+}
 
+async function main(): Promise<void> {
+  installWindowApi()
+  await cdbService.ready()
+  for (const cmd of ['MSET', 'SSET', 'ACTIVATE'] as const) await checkPlacementUndo(cmd)
+  await checkActivationRows()
   console.log('[undo-steps] ALL PASSED')
   process.exit(0)
 }

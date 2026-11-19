@@ -7,6 +7,7 @@ import { clearEditorSteps } from '../../stores/duelEngine/stepRecords'
 import { confirmDialog } from '../../stores/useDialogStore'
 import { useStepPlayback } from '../../hooks/useStepPlayback'
 import { useReplayPlayback } from '../../hooks/useReplayPlayback'
+import { useEngineHistoryTargets } from '../../hooks/useEngineHistoryTargets'
 import { phaseJumpCommand, phaseAdvanceCommand, turnEndCommand } from '../../utils/phaseFlow'
 import { Button } from '../ui/button'
 import { StepList } from './StepList'
@@ -66,6 +67,7 @@ export const StepSequencerPanel: React.FC = () => {
   const displayPhase = currentReplayStep?.phase ?? replayStartStep?.phase ?? currentPhase
 
   const { handlePrevStep, handleNextStep, handleResetPlayback } = useStepPlayback()
+  const { previous, next } = useEngineHistoryTargets()
   const { playing, speed, speeds, atEnd, setSpeed, toggle, pause } = useReplayPlayback({
     enabled: isReplay,
     stepIndex: replayStepIndex,
@@ -279,9 +281,11 @@ export const StepSequencerPanel: React.FC = () => {
               steps.length === 0 ||
               (isReplay
                 ? (replayStepIndex ?? -1) <= 0
-                : currentStepIndex === null ||
-                  currentStepIndex === SCENE_STEP_INDEX ||
-                  currentStepIndex === 0)
+                : isEngine
+                  ? previous === undefined
+                  : currentStepIndex === null ||
+                    currentStepIndex === SCENE_STEP_INDEX ||
+                    currentStepIndex === 0)
             }
             onClick={goPrev}
             className="h-7 w-7 text-muted-foreground"
@@ -299,7 +303,9 @@ export const StepSequencerPanel: React.FC = () => {
               steps.length === 0 ||
               (isReplay
                 ? replayStepIndex === steps.length - 1
-                : currentStepIndex === steps.length - 1)
+                : isEngine
+                  ? next === undefined
+                  : currentStepIndex === steps.length - 1)
             }
             onClick={goNext}
             className="h-7 w-7 text-muted-foreground"

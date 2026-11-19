@@ -11,6 +11,9 @@ import type {
   EngineRequest,
   FieldCard
 } from '@shared/index'
+import { YGOProMsgDraw, YGOProMsgNewTurn, YGOProMsgStart } from 'ygopro-msg-encode'
+import { YGOProYrp3d } from 'ygopro-yrp3d-encode'
+import { buildTagReplayStartPayload } from '../../src/main/services/duel/replay-bootstrap'
 import { buildTagReplayData } from '../../src/main/services/duel/tagReplayDecks'
 import { duelSession } from '../../src/main/services/duel/duel-session'
 import {
@@ -19,6 +22,8 @@ import {
   setupReplayDuel
 } from '../../src/main/services/duel/replay-session'
 import { createSessionState } from '../../src/main/services/duel/session-state'
+import { applyReplayViewToPayloads } from '../../src/main/services/duel/replay-view'
+import { buildYrp3dMessages } from '../../src/main/services/yrp3dMessages'
 import { buildDuelFlag, buildYrpTagFile } from '../../src/main/services/yrpWriter'
 import { buildPuzzleStateFromEngineBoard } from '../../src/renderer/src/utils/engineBoardToPuzzle'
 import { buildReplayMatchState } from '../../src/renderer/src/utils/replayMatch'
@@ -191,6 +196,37 @@ async function main(): Promise<void> {
   assert(responses.length > 0, '2v2 对局应记录到引擎响应')
 
   const data = buildTagReplayData(puzzle)
+  const { messages } = await duelSession.recordMessageStream()
+  const tagYrp3d = new YGOProYrp3d()
+  tagYrp3d.messages.push(
+    ...buildYrp3dMessages(applyReplayViewToPayloads(messages, 'observer', 0), [
+      buildTagReplayStartPayload(data, puzzle.masterRule, 0)
+    ])
+  )
+  const packets = new YGOProYrp3d().fromYrp3d(tagYrp3d.toYrp3d()).messages
+  const opening = packets[0]
+  assert(opening instanceof YGOProMsgStart, '2v2 YRP3D 应先初始化卡组')
+  assert(
+    opening instanceof YGOProMsgStart &&
+      opening.player0.deckCount === data.decks[0].main.length &&
+      opening.player1.deckCount === data.decks[2].main.length,
+    '2v2 YRP3D 应按双方先锋发牌前的牌数初始化卡组'
+  )
+  const firstTurn = packets.findIndex((packet) => packet instanceof YGOProMsgNewTurn)
+  const openingDraws = packets
+    .slice(0, firstTurn)
+    .filter((packet) => packet instanceof YGOProMsgDraw)
+  assert(
+    firstTurn > 0 &&
+      openingDraws.length === 2 &&
+      openingDraws.every(
+        (draw, player) =>
+          draw.player === player &&
+          draw.count === data.startHand &&
+          draw.cards.every((code) => code === 0)
+      ),
+    '2v2 YRP3D 应在第一回合前播放双方先锋的真实发牌消息，观战视角隐藏牌面'
+  )
   const fieldCard = {
     ...puzzle.cards[0],
     instanceId: 'field-card',

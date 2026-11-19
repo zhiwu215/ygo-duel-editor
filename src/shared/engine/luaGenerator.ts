@@ -184,12 +184,14 @@ function renderLuaScript(state: DuelPuzzleState, options?: LuaScriptOptions): st
   if (!randomDeck) flags.push('DUEL_PSEUDO_SHUFFLE')
   const flagStr = flags.length > 0 ? flags.join(' + ') : '0'
 
-  lines.push(
-    `Debug.SetAIName("${duelistsTeam1
-      .map((d) => d.name)
-      .join(' & ')
-      .replace(/"/g, '\\"')}")`
-  )
+  if (!forReplay) {
+    lines.push(
+      `Debug.SetAIName("${duelistsTeam1
+        .map((d) => d.name)
+        .join(' & ')
+        .replace(/"/g, '\\"')}")`
+    )
+  }
   lines.push(`-- 1. 初始化规则环境`)
   lines.push(`Debug.ReloadFieldBegin(${flagStr}, ${state.masterRule})`)
   lines.push('')

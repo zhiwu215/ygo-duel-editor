@@ -34,7 +34,8 @@ import { configService } from './configService'
 import { duelDirector } from './duel/duel-director'
 import { getOcgcoreEngine } from './duel/ocgcore-engine'
 import { verifyYrpReplay } from './duel/replay-verifier'
-import { buildReplayBootstrapPayloads } from './duel/replay-bootstrap'
+import { buildReplayBootstrapPayloads, buildTagReplayStartPayload } from './duel/replay-bootstrap'
+import { buildReplayOpening } from './duel/replay-opening'
 import { applyReplayViewToPayloads, replayViewerOf } from './duel/replay-view'
 import { checkGameContentCoverage, collectStateCardIds, isGameProgramName } from './gameContent'
 import { buildDuelFlag, buildYrpSingleFile, buildYrpTagFile } from './yrpWriter'
@@ -551,6 +552,7 @@ export class YgoproLauncher {
       try {
         const { messages } = await duelDirector.recordMessageStream()
         if (!tagReplay) completeCardDetails(replayState)
+        const opening = buildReplayOpening(replayState)
 
         const yrpBytes =
           tagYrpBytes ??
@@ -558,7 +560,7 @@ export class YgoproLauncher {
             names: [names[0] ?? '', names[1] ?? ''],
             seed,
             startLp: Number(replayState.players[0]?.lp ?? 8000),
-            startHand: Number(replayState.players[0]?.startHand ?? 0),
+            startHand: opening.state.players[0].startHand,
             drawCount: 1,
             opt: buildDuelFlag(
               Number(params.state.masterRule),
@@ -592,9 +594,9 @@ export class YgoproLauncher {
         }
         yrp3d.masterRule = Number(params.state.masterRule)
         const bootstrap = tagReplay
-          ? []
+          ? [buildTagReplayStartPayload(tagReplay, yrp3d.masterRule, bottomSeat)]
           : applyReplayViewToPayloads(
-              buildReplayBootstrapPayloads(replayState, bottomSeat),
+              buildReplayBootstrapPayloads(opening, bottomSeat),
               view,
               bottomSeat
             )
@@ -615,7 +617,7 @@ export class YgoproLauncher {
           mkdirSync(join(gameDir, 'single'), { recursive: true })
           writeFileSync(
             join(gameDir, 'single', `${safeName}.lua`),
-            generateLuaScript(replayState, { forReplay: true, manualRandom }),
+            generateLuaScript(opening.state, { forReplay: true, manualRandom }),
             'utf-8'
           )
         }
@@ -653,9 +655,10 @@ export class YgoproLauncher {
     }
     try {
       if (!tagReplay) completeCardDetails(replayState)
+      const opening = buildReplayOpening(replayState)
       const luaContent = tagReplay
         ? null
-        : generateLuaScript(replayState, { forReplay: true, manualRandom })
+        : generateLuaScript(opening.state, { forReplay: true, manualRandom })
       const warnings: string[] = []
 
       const singleDir = join(gameDir, 'single')
@@ -672,7 +675,7 @@ export class YgoproLauncher {
           names: [names[0] ?? '', names[1] ?? ''],
           seed,
           startLp: Number(replayState.players[0]?.lp ?? 8000),
-          startHand: Number(replayState.players[0]?.startHand ?? 0),
+          startHand: opening.state.players[0].startHand,
           drawCount: 1,
           opt: buildDuelFlag(Number(params.state.masterRule), params.state.firstTurnAttack, false),
           scriptFile: `./single/${name}.lua`,

@@ -1,6 +1,7 @@
 import {
   CardQuery,
   OcgcoreCommonConstants,
+  YGOProMsgDraw,
   YGOProMsgReloadField,
   YGOProMsgReloadField_PlayerInfo,
   YGOProMsgReloadField_ZoneCard,
@@ -17,6 +18,8 @@ import {
   type DuelPuzzleState,
   type FieldCard
 } from '@shared/index'
+import type { ReplayOpening } from './replay-opening'
+import type { TagReplayData } from './tagReplayDecks'
 
 const { QUERY_CODE, QUERY_POSITION } = OcgcoreCommonConstants
 const MZONE_SLOTS = 7
@@ -169,10 +172,44 @@ function buildUpdateDataMessages(state: DuelPuzzleState): YGOProMsgUpdateData[] 
   return messages
 }
 
-export function buildReplayBootstrapPayloads(state: DuelPuzzleState, playerType = 0): Uint8Array[] {
-  return [
-    buildStartMessage(state, playerType),
-    buildReloadFieldMessage(state),
-    ...buildUpdateDataMessages(state)
-  ].map((message) => message.toPayload())
+function buildOpeningDrawMessages(hands: ReplayOpening['hands']): YGOProMsgDraw[] {
+  const messages: YGOProMsgDraw[] = []
+  for (const player of [0, 1] as const) {
+    const hand = hands[player]
+    if (hand.length === 0) continue
+    const draw = new YGOProMsgDraw()
+    draw.player = player
+    draw.cards = hand.map((card) => card.code)
+    draw.count = draw.cards.length
+    messages.push(draw)
+  }
+  return messages
+}
+
+export function buildReplayBootstrapPayloads(opening: ReplayOpening, playerType = 0): Uint8Array[] {
+  const { state, hands } = opening
+  const hasInitialField = state.cards.some(
+    (card) => card.location !== CardLocation.DECK && card.location !== CardLocation.EXTRA
+  )
+  const field = hasInitialField
+    ? [buildReloadFieldMessage(state), ...buildUpdateDataMessages(state)]
+    : []
+  return [buildStartMessage(state, playerType), ...field, ...buildOpeningDrawMessages(hands)].map(
+    (message) => message.toPayload()
+  )
+}
+
+export function buildTagReplayStartPayload(
+  tag: TagReplayData,
+  masterRule: number,
+  playerType: number
+): Uint8Array {
+  const start = new YGOProMsgStart()
+  start.playerType = playerType
+  start.duelRule = masterRule
+  start.startLp0 = tag.startLp
+  start.startLp1 = tag.startLp
+  start.player0 = { deckCount: tag.decks[0].main.length, extraCount: tag.decks[0].extra.length }
+  start.player1 = { deckCount: tag.decks[2].main.length, extraCount: tag.decks[2].extra.length }
+  return start.toPayload()
 }

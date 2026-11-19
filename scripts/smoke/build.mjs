@@ -81,6 +81,7 @@ const entries = [
   'card-edit-drawn-discard-smoke',
   'session-doc-smoke',
   'yrp-export-smoke',
+  'replay-opening-smoke',
   'yrp-tag-smoke',
   'tag-replay-smoke',
   'replay-import-smoke',

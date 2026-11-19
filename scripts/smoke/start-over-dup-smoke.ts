@@ -318,10 +318,13 @@ async function main(): Promise<void> {
 
   await useDuelEngineStore.getState().suspendEngine()
   assert(!useDuelEngineStore.getState().isInitialized, '挂起后引擎应停止')
-  assert(useDuelEngineStore.getState().suspendedDoc !== null, '挂起后应有会话快照')
+  const suspendedDoc = useDuelEngineStore.getState().suspendedDoc
+  if (!suspendedDoc) throw new Error('挂起后应有会话快照')
+  const originalSeed = suspendedDoc.seed.join(',')
 
   const continued = await useDuelEngineStore.getState().resumeSuspended()
   assert(continued, `继续应成功: ${useDuelEngineStore.getState().error}`)
+  assert(duelSession.getSeed().join(',') === originalSeed, '继续上次会话应沿用随机种子')
   assertMaterials(MATERIALS, '继续')
   await useDuelEngineStore.getState().suspendEngine()
 
@@ -329,6 +332,7 @@ async function main(): Promise<void> {
 
   const restored = await useDuelEngineStore.getState().resumeSuspendedFromStart()
   assert(restored, `从头开始应成功: ${useDuelEngineStore.getState().error}`)
+  assert(duelSession.getSeed().join(',') !== originalSeed, '从头开始应生成新的随机种子')
   assertMaterials(MATERIALS, '从头开始')
   const engineBoard = useDuelEngineStore.getState().boardState
   assert(engineBoard !== null, '引擎应有初始盘面')

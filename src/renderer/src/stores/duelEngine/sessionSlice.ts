@@ -120,7 +120,6 @@ export interface SessionSlice {
 
   startEngine: (options?: {
     allowMergedMatch?: boolean
-    seed?: number[]
     resetOpening?: boolean
     preserveSteps?: boolean
   }) => Promise<void>
@@ -197,8 +196,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
       await window.api.duelEngineSetPolicy(get().timingPolicy)
 
       const initParams: EngineDuelInitParams = {
-        puzzleState: currentDuelState,
-        ...(options?.seed ? { seed: [...options.seed] } : {})
+        puzzleState: currentDuelState
       }
 
       const res = await window.api.duelEngineInit(initParams)
@@ -334,7 +332,7 @@ export const createSessionSlice: StateCreator<DuelEngineStore, [], [], SessionSl
     if (!doc || get().isInitialized) return false
     if (openInitialScene()) {
       const hasInjectedCards = hasSessionCardInjections(doc)
-      await get().startEngine({ allowMergedMatch: true, seed: doc.seed })
+      await get().startEngine({ allowMergedMatch: true })
       if (!get().isInitialized) return false
       set({
         injectNotice: {

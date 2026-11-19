@@ -1,5 +1,5 @@
 /**
- * 投骰子 / 投硬币联测：圣杯A（投硬币）与天使的骰子（投骰子）结算时，
+ * 投骰子 / 投硬币联测：圣杯A、圣杯情侣双A与天使的骰子结算时，
  * 会话必须把 MSG_TOSS_COIN / MSG_TOSS_DICE 记成步骤事件与日志事件，
  * 界面才能像 ygopro 一样把「投掷硬币结果：[正面]」「投掷骰子结果：[3]」显示出来。
  */
@@ -22,6 +22,7 @@ import type {
 import { cdbService } from './cdb-shim'
 
 const CUP_OF_ACE = 37812118
+const COUPLE_OF_ACES = 26259179
 const GRACEFUL_DICE = 74137509
 const BLUE_EYES = 89631139
 
@@ -46,10 +47,10 @@ function makeCard(
   }
 }
 
-function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
+function buildPuzzle(coinCard: number): ReturnType<typeof normalizeDuelState> {
   const deck = [BLUE_EYES, 46986414, 70781052, 23434538, 14558127, 70342110, 66518841, 97997309]
   const cards: FieldCard[] = [
-    makeCard(CUP_OF_ACE, 0, CardLocation.HAND, 0, CardPosition.FACEDOWN),
+    makeCard(coinCard, 0, CardLocation.HAND, 0, CardPosition.FACEDOWN),
     makeCard(GRACEFUL_DICE, 0, CardLocation.HAND, 1, CardPosition.FACEDOWN),
     makeCard(BLUE_EYES, 0, CardLocation.HAND, 2, CardPosition.FACEDOWN),
     makeCard(BLUE_EYES, 0, CardLocation.MZONE, 0, CardPosition.FACEUP_ATTACK),
@@ -84,13 +85,13 @@ function buildPuzzle(): ReturnType<typeof normalizeDuelState> {
   })
 }
 
-function autoAnswer(request: EngineRequest, activated: Set<number>): Answer {
+function autoAnswer(request: EngineRequest, activated: Set<number>, coinCard: number): Answer {
   const d = request.data
   switch (d.kind) {
     case 'rps':
       return { kind: 'rps', hand: 'paper' }
     case 'idle': {
-      for (const code of [CUP_OF_ACE, GRACEFUL_DICE]) {
+      for (const code of [coinCard, GRACEFUL_DICE]) {
         if (activated.has(code)) continue
         const card = d.activatable.find((item) => item.code === code)
         if (card) {
@@ -150,10 +151,12 @@ function tossLogEventsOf(node: EngineTimelineNode): TossLogEvent[] {
   return (node.logEvents ?? []).filter((event): event is TossLogEvent => event.kind === 'toss')
 }
 
-async function main(): Promise<void> {
-  await cdbService.ready()
-
-  const start = await duelSession.startDuel({ puzzleState: buildPuzzle() })
+async function checkToss(coinCard: number, seed: number, expectedFace: 0 | 1): Promise<void> {
+  const start = await duelSession.startDuel({
+    puzzleState: buildPuzzle(coinCard),
+    manualRandom: false,
+    seed: [seed]
+  })
   const nodes: EngineTimelineNode[] = [start.initialNode]
   const activated = new Set<number>()
 
@@ -161,7 +164,7 @@ async function main(): Promise<void> {
     const pending = duelSession.getPendingRequest()
     if (!pending || (pending.kind as string) === 'END' || (pending.kind as string) === 'WAITING')
       break
-    const res = duelSession.submitAnswer(autoAnswer(pending, activated))
+    const res = duelSession.submitAnswer(autoAnswer(pending, activated, coinCard))
     if (res.retry) {
       console.log('[toss-result-smoke] ⚠️ 答案被引擎拒绝（RETRY）')
       continue
@@ -175,15 +178,25 @@ async function main(): Promise<void> {
   const coin = tossEvents.find((event) => event.type === 'coin')
   const dice = tossEvents.find((event) => event.type === 'dice')
 
-  console.log(`[toss-result-smoke] 步骤数=${nodes.length} 投掷事件=${JSON.stringify(tossEvents)}`)
+  console.log(
+    `[toss-result-smoke] 卡片=${coinCard} seed=${seed} 投掷事件=${JSON.stringify(tossEvents)}`
+  )
 
   if (activated.size < 2) {
-    throw new Error(`圣杯A / 天使的骰子没有都能发动：${[...activated].join(', ')}`)
+    throw new Error(`掷币卡与天使的骰子没有都能发动：${[...activated].join(', ')}`)
   }
   if (!coin) throw new Error('引擎投了硬币，但会话没有产生 toss 步骤事件。')
   if (!dice) throw new Error('引擎投了骰子，但会话没有产生 toss 步骤事件。')
-  if (coin.results.some((result) => result !== 0 && result !== 1)) {
-    throw new Error(`硬币结果不是 0/1：${coin.results.join(', ')}`)
+  if (coin.results.length !== 1 || coin.results[0] !== expectedFace) {
+    throw new Error(`硬币结果应为 ${expectedFace}，实际为 ${coin.results.join(', ')}`)
+  }
+  if (coinCard === COUPLE_OF_ACES) {
+    const controller = expectedFace === 1 ? 0 : 1
+    if (
+      !duelSession.getBoardState().players[controller].mzone.some((card) => card?.code === coinCard)
+    ) {
+      throw new Error(`圣杯情侣双A应根据硬币结果特殊召唤到玩家 ${controller} 场上`)
+    }
   }
   if (dice.results.some((result) => result < 1 || result > 6)) {
     throw new Error(`骰子结果不在 1-6：${dice.results.join(', ')}`)
@@ -204,6 +217,15 @@ async function main(): Promise<void> {
         throw new Error(`步骤「${node.title}」投掷结果与日志事件不一致。`)
       }
     })
+  }
+}
+
+async function main(): Promise<void> {
+  await cdbService.ready()
+
+  for (const coinCard of [CUP_OF_ACE, COUPLE_OF_ACES]) {
+    await checkToss(coinCard, 1, 0)
+    await checkToss(coinCard, 3, 1)
   }
 
   const expectedCoin = formatTossResult('coin', [1])

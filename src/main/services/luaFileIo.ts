@@ -17,7 +17,7 @@ export class LuaFileIo {
       if (!finalPath) {
         const defaultName = `${sanitizeFileName(state.title) || 'custom_puzzle'}.lua`
         const res = await dialog.showSaveDialog(window || BrowserWindow.getFocusedWindow()!, {
-          title: '导出脚本',
+          title: '导出残局',
           defaultPath: defaultName,
           filters: [
             { name: 'Lua Script', extensions: ['lua'] },
@@ -33,7 +33,10 @@ export class LuaFileIo {
 
       completeCardDetails(state)
 
-      const luaContent = generateLuaScript(state, { includeOpeningHints: true })
+      const luaContent = generateLuaScript(
+        { ...state, duelType: 'puzzle' },
+        { includeOpeningHints: true }
+      )
       writeFileSync(finalPath, luaContent, 'utf-8')
       console.log(`[FileService] Exported lua to ${finalPath}`)
       return { success: true, filePath: finalPath }
@@ -48,7 +51,7 @@ export class LuaFileIo {
   ): Promise<{ success: boolean; state?: DuelPuzzleState; error?: string }> {
     try {
       const res = await dialog.showOpenDialog(window || BrowserWindow.getFocusedWindow()!, {
-        title: '导入脚本',
+        title: '导入残局',
         filters: [
           { name: 'Lua Script', extensions: ['lua'] },
           { name: 'All Files', extensions: ['*'] }

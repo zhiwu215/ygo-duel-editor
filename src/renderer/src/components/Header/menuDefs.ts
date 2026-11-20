@@ -141,12 +141,12 @@ export function buildMenus(actions: MenuActions): MenuDef[] {
           disabled: !actions.canTestInYgo
         },
         {
-          label: '导入脚本',
+          label: '导入残局',
           shortcut: 'Ctrl+I',
           action: actions.onImportLua
         },
         {
-          label: '导出脚本',
+          label: '导出残局',
           shortcut: 'Ctrl+E',
           action: actions.onExportLua,
           disabled: !actions.canExportLua

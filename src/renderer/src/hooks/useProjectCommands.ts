@@ -153,18 +153,9 @@ export function useProjectCommands(): ProjectCommands {
 
   const handleExportLua = useCallback(async (): Promise<void> => {
     if (!isExportableMatch(state.matchConfig)) return
-    const choice = await confirmDialog({
-      title: '导出脚本',
-      description: '选择导出为残局还是整局。',
-      confirmText: '残局',
-      extraAction: { text: '整局', value: 'full' },
-      destructive: false
-    })
-    if (choice !== true && choice !== 'full') return
-    const duelType = choice === 'full' ? 'full' : 'puzzle'
-    const res = await window.api.exportLuaFile({ ...resolveExportState(state), duelType })
+    const res = await window.api.exportLuaFile(resolveExportState(state))
     if (res.success && res.filePath) {
-      void alertDialog(`脚本导出成功！\n路径: ${res.filePath}`)
+      void alertDialog(`残局导出成功！\n路径: ${res.filePath}`)
     } else if (res.error) {
       void alertDialog(`导出失败: ${res.error}`)
     }
